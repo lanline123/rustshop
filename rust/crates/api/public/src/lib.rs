@@ -58,6 +58,7 @@ pub struct PublicState {
     pub seckill: Arc<SeckillService>,
     pub time_discount: Arc<TimeDiscountService>,
     pub paylog: Arc<PaylogService>,
+    pub balance_pay: Arc<tigshop_services::balance_pay::BalancePayService>,
     pub jwt: JwtService,
 }
 

@@ -247,6 +247,18 @@ fn paylog_refund_matches_schema() {
     assert_matches::<tigshop_core::entities::PaylogRefund>("paylog_refund", &snap);
 }
 
+#[test]
+fn refund_apply_matches_schema() {
+    let snap = load_snapshot();
+    assert_matches::<tigshop_core::entities::RefundApply>("refund_apply", &snap);
+}
+
+#[test]
+fn refund_log_matches_schema() {
+    let snap = load_snapshot();
+    assert_matches::<tigshop_core::entities::RefundLog>("refund_log", &snap);
+}
+
 /// 快照本身应非空且格式正确（防止快照文件被清空后测试形同虚设）。
 #[test]
 fn snapshot_is_wellformed() {

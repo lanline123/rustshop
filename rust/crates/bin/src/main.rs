@@ -30,7 +30,9 @@ use tigshop_services::coupon::CouponService;
 use tigshop_services::logistics::LogisticsService;
 use tigshop_services::member::MemberService;
 use tigshop_services::seckill::SeckillService;
+use tigshop_services::balance_pay::BalancePayService;
 use tigshop_services::paylog::PaylogService;
+use tigshop_services::refund_apply::RefundApplyService;
 use tigshop_services::time_discount::TimeDiscountService;
 use tigshop_services::order::OrderService;
 use tigshop_services::product::ProductService;
@@ -95,6 +97,8 @@ async fn main() -> anyhow::Result<()> {
     let seckill = Arc::new(SeckillService::new(repos.clone()));
     let time_discount = Arc::new(TimeDiscountService::new(repos.clone()));
     let paylog = Arc::new(PaylogService::new(repos.clone()));
+    let refund_apply = Arc::new(RefundApplyService::new(repos.clone()));
+    let balance_pay = Arc::new(BalancePayService::new(repos.clone()));
 
     let admin_state = AdminState {
         auth: auth.clone(),
@@ -108,6 +112,7 @@ async fn main() -> anyhow::Result<()> {
         seckill: seckill.clone(),
         time_discount: time_discount.clone(),
         paylog: paylog.clone(),
+        refund_apply,
         jwt: (*jwt).clone(),
     };
     let public_state = PublicState {
@@ -123,6 +128,7 @@ async fn main() -> anyhow::Result<()> {
         seckill,
         time_discount,
         paylog,
+        balance_pay,
         jwt: (*jwt).clone(),
     };
 

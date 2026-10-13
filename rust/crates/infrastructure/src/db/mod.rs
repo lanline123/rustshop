@@ -20,6 +20,7 @@ pub use repo::member::MemberRepository;
 pub use repo::order::OrderRepository;
 pub use repo::paylog::PaylogRepository;
 pub use repo::product::ProductRepository;
+pub use repo::refund_apply::RefundApplyRepository;
 pub use repo::seckill::SeckillRepository;
 pub use repo::time_discount::TimeDiscountRepository;
 pub use repo::user::UserRepository;
@@ -136,6 +137,7 @@ pub struct Repositories {
     pub seckills: SeckillRepository,
     pub time_discounts: TimeDiscountRepository,
     pub paylogs: PaylogRepository,
+    pub refund_applies: RefundApplyRepository,
 }
 
 impl Repositories {
@@ -153,7 +155,8 @@ impl Repositories {
             member: MemberRepository::new(pool.clone()),
             seckills: SeckillRepository::new(pool.clone()),
             time_discounts: TimeDiscountRepository::new(pool.clone()),
-            paylogs: PaylogRepository::new(pool),
+            paylogs: PaylogRepository::new(pool.clone()),
+            refund_applies: RefundApplyRepository::new(pool),
         }
     }
 }

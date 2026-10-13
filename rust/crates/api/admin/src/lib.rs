@@ -33,6 +33,7 @@ use tigshop_services::member::MemberService;
 use tigshop_services::order::OrderService;
 use tigshop_services::paylog::PaylogService;
 use tigshop_services::product::ProductService;
+use tigshop_services::refund_apply::RefundApplyService;
 use tigshop_services::seckill::SeckillService;
 use tigshop_services::time_discount::TimeDiscountService;
 
@@ -85,6 +86,7 @@ pub struct AdminState {
     pub seckill: Arc<SeckillService>,
     pub time_discount: Arc<TimeDiscountService>,
     pub paylog: Arc<PaylogService>,
+    pub refund_apply: Arc<RefundApplyService>,
     pub jwt: JwtService,
 }
 

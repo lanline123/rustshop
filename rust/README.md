@@ -363,12 +363,23 @@ python tools/check_api_coverage.py    # 当前：已实现 81 / 1564（5.2%）
       —— 支付单复用判定（含定金预售例外）、**分账渠道快照不可变绑定**、
       按 `order_type` 隔离三类业务（商品订单/充值单/付费会员）、
       退款超额校验
+- [x] **财务域垂直切片 2：退款申请**（`refund_apply` + `refund_log`）
+      —— **可退额度 = 实付 - 已占用**（已取消/已拒绝的申请不再占用额度）、
+      审核三态（处理中/退回售后/拒绝）、拒绝原因必填 ≤255 字、
+      条件更新防并发重复审核、线下转账确认留痕
+- [x] **支付渠道切片：余额支付**（`balance_pay`）
+      —— 首个真实落地的支付渠道（站内余额直接扣减，无需外部 SDK）：
+      抵扣上限 `min(应付, 余额)`、原子扣款防透支（`WHERE balance >= ?`）、
+      全额付清走 `mark_paid` / 部分抵扣走 `apply_partial_payment`、
+      失败回滚余额与流水、退款归属校验防越权加钱
+      ⚠️ 关键陷阱（已由测试钉死）：`paylog.pay_status=1` 表已付，
+      而 `order.pay_status=2` 表已付 —— 两套编号不同，混用会致流水与订单不一致
 - [ ] 营销域其余部分：拼团 `groupon*`、优惠券发放批次、礼品卡
       `gift_card*`、积分兑换 `points_exchange`、抽奖 `lottery*`、
       砍价 `bargain*`、买家秀 `buyer_show*`、签到 `sign*`
-- [ ] 财务域其余部分：结算 `statement*`、退款申请 `refund_apply`、
-      提现 `user_withdraw_apply`、发票 `user_invoice`、分账 `profit_sharing_*`
-- [ ] 仓储层：14 / 248（需按域补全，建议改用 `sqlx::query!` 编译期校验）
+- [ ] 财务域其余部分：结算 `statement*`、提现 `user_withdraw_apply`、
+      发票 `user_invoice`、分账 `profit_sharing_*`
+- [ ] 仓储层：15 / 248（需按域补全，建议改用 `sqlx::query!` 编译期校验）
 - [ ] 业务域补全：`finance`(26 表) `setting`(21) `o2o`(20)
       `vendor`(19) `purchase`(12) `shop`(10) `deposit`(9) `salesman`(9)
       `lang`(8) `log`(8) `premium`(7) `decorate`(6) `im`(6) `wholesale`(5)
@@ -391,11 +402,11 @@ python tools/check_api_coverage.py    # 当前：已实现 81 / 1564（5.2%）
 ```powershell
 cd rust/crates
 cargo check --workspace --all-targets -j 2   # ✅ 0 error / 0 warning
-cargo test  --workspace -j 2                 # ✅ 163 passed / 0 failed
+cargo test  --workspace -j 2                 # ✅ 206 passed / 0 failed
 
 cd rust
 python tools/check_sql_columns.py --strict   # ✅ 0 未知表 / 0 未知列
-python tools/check_api_coverage.py           # 已实现 81 / 1564（5.2%）
+python tools/check_api_coverage.py           # 已实现 108 / 1564（6.9%）
 python tools/java_api_parser.py --check      # ✅ 0 畸形路径
 ```
 

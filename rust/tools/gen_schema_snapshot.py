@@ -35,8 +35,8 @@ CORE_TABLES = [
     "shipping_tpl_info", "shipping_type",
     # 营销域（秒杀 / 限时折扣）
     "seckill", "seckill_item", "time_discount", "time_discount_item",
-    # 财务域（支付日志）
-    "paylog", "paylog_refund",
+    # 财务域（支付日志 / 退款申请）
+    "paylog", "paylog_refund", "refund_apply", "refund_log",
 ]
 
 

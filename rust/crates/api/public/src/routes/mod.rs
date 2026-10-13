@@ -4,6 +4,7 @@
 //! 新增域路由通过 [`merge_all`] 统一挂载到 `/api` 下（需登录的接口由
 //! 各域文件自行套 `require_auth` 中间件）。
 
+pub mod balance_pay;
 pub mod catalog;
 pub mod content;
 pub mod coupon;
@@ -43,6 +44,7 @@ pub fn merge_authorized(_state: &PublicState) -> Router<PublicState> {
         .merge(seckill::authorized_routes())
         .merge(time_discount::authorized_routes())
         .merge(paylog::authorized_routes())
+        .merge(balance_pay::authorized_routes())
 }
 
 /// 汇总所有域已实现路由，供覆盖率统计使用。
@@ -57,5 +59,6 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(seckill::implemented_routes());
     out.extend(time_discount::implemented_routes());
     out.extend(paylog::implemented_routes());
+    out.extend(balance_pay::implemented_routes());
     out
 }

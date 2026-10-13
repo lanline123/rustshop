@@ -13,10 +13,14 @@ pub mod order;
 pub mod paylog;
 pub mod product;
 pub mod promotion;
+pub mod refund_apply;
 pub mod time_discount;
 
 pub use auth::{LoginDTO, LoginVO};
-pub use catalog::{BrandVO, CategoryTreeNode};
+pub use catalog::{
+    BatchDTO, BrandVO, CategoryDTO, CategoryListQuery, CategoryTreeNode, MoveCatDTO, OperateDTO,
+    UpdateFieldDTO,
+};
 pub use content::{
     ArticleCategoryTreeNode, ArticleCategoryVO, ArticleDetailVO, ArticleListQuery, ArticleVO,
 };
@@ -35,6 +39,11 @@ pub use product::{ProductListQuery, ProductVO};
 pub use promotion::{
     SeckillCreateDTO, SeckillItemDTO, SeckillItemVO, SeckillListQuery, SeckillPromotionVO,
     SeckillStatus, SeckillUpdateDTO, SeckillVO,
+};
+pub use refund_apply::{
+    OfflineAuditDTO, RefundApplyAuditDTO, RefundApplyCreateDTO, RefundApplyDetailVO,
+    RefundApplyListQuery, RefundApplyStatus, RefundApplyUpdateDTO, RefundApplyVO, RefundLogVO,
+    RefundType,
 };
 pub use time_discount::{
     DiscountType, PromotionTimeStatus, TimeDiscountCreateDTO, TimeDiscountDetailVO,

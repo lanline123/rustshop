@@ -10,8 +10,11 @@
 //! - [`seckill`]：限时秒杀（`SeckillServiceImpl`）
 //! - [`time_discount`]：限时折扣（`TimeDiscountServiceImpl`）
 //! - [`paylog`]：支付日志（`PaylogServiceImpl`）—— 支付单复用/分账快照/退款
+//! - [`refund_apply`]：退款申请（`RefundApplyServiceImpl`）—— 额度校验/审核流
+//! - [`balance_pay`]：余额支付 —— 首个真实支付渠道（抵扣上限/原子扣款/幂等结算）
 
 pub mod auth;
+pub mod balance_pay;
 pub mod cart;
 pub mod catalog;
 pub mod content;
@@ -22,6 +25,7 @@ pub mod order;
 pub mod payment;
 pub mod paylog;
 pub mod product;
+pub mod refund_apply;
 pub mod seckill;
 pub mod time_discount;
 pub mod user;

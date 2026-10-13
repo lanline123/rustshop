@@ -273,6 +273,32 @@ impl OrderRepository {
         Ok(affected > 0)
     }
 
+    /// 应用部分支付（余额抵扣等站内渠道）：
+    /// 累加已付金额、扣减未付金额，不改变支付状态。
+    ///
+    /// 条件更新（`pay_status <> 2`）防止与全款支付回调并发冲突。
+    /// 返回是否更新成功。
+    pub async fn apply_partial_payment(
+        &self,
+        order_id: i32,
+        amount: rust_decimal::Decimal,
+    ) -> Result<bool> {
+        let affected = sqlx::query(
+            "UPDATE `order` SET
+               paid_amount = paid_amount + ?,
+               unpaid_amount = GREATEST(CAST(unpaid_amount AS SIGNED) - ?, 0)
+             WHERE order_id = ? AND pay_status <> 2",
+        )
+        .bind(amount)
+        .bind(amount)
+        .bind(order_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?
+        .rows_affected();
+        Ok(affected > 0)
+    }
+
     /// 软删除订单。
     pub async fn soft_delete(&self, order_id: i32) -> Result<()> {
         sqlx::query("UPDATE `order` SET is_del = 1 WHERE order_id = ?")

@@ -13,6 +13,7 @@ pub mod member;
 pub mod order;
 pub mod paylog;
 pub mod product;
+pub mod refund_apply;
 pub mod seckill;
 pub mod time_discount;
 pub mod user;

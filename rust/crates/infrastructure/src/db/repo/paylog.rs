@@ -281,6 +281,38 @@ impl PaylogRepository {
         Ok(())
     }
 
+    /// 取订单最新一笔**已支付**的指定支付方式流水（余额退款定位用）。
+    pub async fn find_last_balance_paid(
+        &self,
+        order_id: i32,
+        pay_code: &str,
+    ) -> Result<Option<Paylog>> {
+        sqlx::query_as::<_, Paylog>(
+            "SELECT * FROM paylog
+             WHERE order_id = ? AND order_type = ? AND pay_code = ? AND pay_status = ?
+             ORDER BY paylog_id DESC
+             LIMIT 1",
+        )
+        .bind(order_id)
+        .bind(ORDER_TYPE_PRODUCT)
+        .bind(pay_code)
+        .bind(PAYLOG_STATUS_PAID)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 删除支付日志（仅用于余额支付等站内渠道的事务补偿回滚；
+    /// 第三方渠道流水一律不可删除，须走退款流程）。
+    pub async fn delete_paylog(&self, paylog_id: i32) -> Result<()> {
+        sqlx::query("DELETE FROM paylog WHERE paylog_id = ? AND pay_code = 'balance'")
+            .bind(paylog_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(())
+    }
+
     /// 支付日志分页（管理端对账）。
     pub async fn paginate(
         &self,

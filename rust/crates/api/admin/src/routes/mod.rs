@@ -9,6 +9,7 @@ pub mod coupon;
 pub mod logistics;
 pub mod member;
 pub mod paylog;
+pub mod refund_apply;
 pub mod seckill;
 pub mod time_discount;
 
@@ -27,6 +28,7 @@ pub fn merge_all(state: &AdminState) -> Router<AdminState> {
         .merge(seckill::routes(state))
         .merge(time_discount::routes(state))
         .merge(paylog::routes(state))
+        .merge(refund_apply::routes(state))
 }
 
 /// 汇总所有域已实现路由，供覆盖率统计使用。
@@ -41,5 +43,6 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(seckill::implemented_routes());
     out.extend(time_discount::implemented_routes());
     out.extend(paylog::implemented_routes());
+    out.extend(refund_apply::implemented_routes());
     out
 }
