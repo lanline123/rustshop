@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.promotion.GrouponPromotionRecordMapper">
+
+
+    <select id="orderList" resultType="com.tigshop.bean.vo.promotion.GrouponRecordOrderPageVO">
+        select
+        gpr.groupon_promotion_record_id,
+        gpr.groupon_promotion_id,
+        gpr.groupon_promotion_item_id,
+        gpr.product_id,
+        gpr.product_name,
+        gpr.join_type,
+        gpr.join_status,
+        gpr.user_id,
+        gpr.order_id,
+        gpr.order_sn,
+        gpr.is_virtual,
+        gpr.paid_amount,
+        gpr.open_group_record_id,
+        gpr.open_group_time,
+        gpr.group_captain_name,
+        gpr.join_expiration_time,
+        gpr.min_group_num,
+        gpr.shop_id,
+        gpr.add_time, u.username, o.order_status
+        from groupon_promotion_record gpr
+        left join user u on gpr.user_id = u.user_id
+        left join `order` o on gpr.order_id = o.order_id
+        <where>
+           and o.order_id != 0
+            <if test="pageQuery.grouponPromotionId != null">
+                and gpr.groupon_promotion_id = #{pageQuery.grouponPromotionId}
+            </if>
+            <if test="pageQuery.keyword != null and pageQuery.keyword != ''">
+                and gpr.product_name like concat('%', #{pageQuery.keyword}, '%')
+                or u.username like concat('%', #{pageQuery.keyword}, '%')
+                or o.order_sn like concat('%', #{pageQuery.keyword}, '%')
+            </if>
+        </where>
+    </select>
+</mapper>

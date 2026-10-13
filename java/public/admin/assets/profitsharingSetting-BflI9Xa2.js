@@ -1,0 +1,1 @@
+import{a6 as t}from"./index-B6WS-doS.js";const n=()=>t({url:"setting/config/profitSharingSettings",method:"get"}),e=r=>t({url:"setting/config/saveProfitSharing",method:"post",data:r}),o=()=>t({url:"setting/config/withdrawalSettings",method:"get"}),s=r=>t({url:"setting/config/saveWithdrawal",method:"post",data:r});export{n as a,e as b,o as g,s};

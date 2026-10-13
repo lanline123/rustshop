@@ -1,0 +1,153 @@
+//! 商品服务：商品查询、详情缓存、库存操作。
+
+use std::sync::Arc;
+
+use tigshop_core::entities::Product;
+use tigshop_core::models::{ProductListQuery, ProductVO};
+use tigshop_core::types::{PageQuery, PageResult};
+use tigshop_core::{Error, Result};
+use tigshop_infrastructure::cache::CacheService;
+use tigshop_infrastructure::db::Repositories;
+
+/// 商品详情缓存 TTL（秒）。
+const PRODUCT_CACHE_TTL: u64 = 300;
+
+#[derive(Clone)]
+pub struct ProductService {
+    repos: Arc<Repositories>,
+    cache: Option<CacheService>,
+}
+
+impl ProductService {
+    pub fn new(repos: Arc<Repositories>, cache: Option<CacheService>) -> Self {
+        Self { repos, cache }
+    }
+
+    /// 商品分页列表。
+    pub async fn list(&self, query: &ProductListQuery) -> Result<PageResult<ProductVO>> {
+        let page = PageQuery {
+            page: query.page.unwrap_or(1),
+            page_size: query.page_size.unwrap_or(20),
+        };
+        let (total, products) = self.repos.products.paginate(query).await?;
+        let list = products.into_iter().map(to_vo).collect();
+        Ok(PageResult::new(total, list, &page))
+    }
+
+    /// 商品详情（缓存优先，替代原 Java @Cacheable）。
+    pub async fn detail(&self, product_id: i32) -> Result<ProductVO> {
+        let key = format!("product:detail:{product_id}");
+
+        let loader = || async {
+            let p = self
+                .repos
+                .products
+                .find_by_id(product_id)
+                .await?
+                .ok_or_else(|| Error::NotFound(format!("商品 {product_id} 不存在")))?;
+            if !p.is_on_sale() {
+                return Err(Error::NotFound("商品已下架".into()));
+            }
+            Ok(to_vo(p))
+        };
+
+        match &self.cache {
+            Some(cache) => cache.get_or_load(&key, PRODUCT_CACHE_TTL, loader).await,
+            None => loader().await,
+        }
+    }
+
+    /// 下单前校验可购买性。
+    pub async fn check_purchasable(
+        &self,
+        product_id: i32,
+        sku_id: Option<i32>,
+        quantity: i32,
+    ) -> Result<()> {
+        if quantity <= 0 {
+            return Err(Error::Validation("购买数量必须大于0".into()));
+        }
+        if !self
+            .repos
+            .products
+            .check_purchasable(product_id, sku_id, quantity)
+            .await?
+        {
+            return Err(Error::InsufficientStock {
+                product_id: product_id.to_string(),
+                stock: 0,
+            });
+        }
+        Ok(())
+    }
+
+    /// 扣减库存（下单核心，失败即库存不足）。
+    pub async fn deduct_stock(
+        &self,
+        product_id: i32,
+        sku_id: Option<i32>,
+        quantity: i32,
+    ) -> Result<()> {
+        let ok = self
+            .repos
+            .products
+            .deduct_stock(product_id, sku_id, quantity)
+            .await?;
+        if !ok {
+            return Err(Error::InsufficientStock {
+                product_id: product_id.to_string(),
+                stock: 0,
+            });
+        }
+        // 库存变更后失效详情缓存
+        self.invalidate_detail_cache(product_id).await;
+        Ok(())
+    }
+
+    /// 回滚库存（取消订单/退款）。
+    pub async fn restore_stock(
+        &self,
+        product_id: i32,
+        sku_id: Option<i32>,
+        quantity: i32,
+    ) -> Result<()> {
+        self.repos
+            .products
+            .restore_stock(product_id, sku_id, quantity)
+            .await?;
+        self.invalidate_detail_cache(product_id).await;
+        Ok(())
+    }
+
+    /// 失效商品详情缓存（库存变更后调用）。无缓存时为空操作。
+    pub async fn invalidate_detail_cache(&self, product_id: i32) {
+        if let Some(cache) = &self.cache {
+            let _ = cache.del(&format!("product:detail:{product_id}")).await;
+        }
+    }
+}
+
+/// 实体 → VO 转换。
+fn to_vo(p: Product) -> ProductVO {
+    ProductVO {
+        product_id: p.product_id,
+        product_name: p.product_name,
+        product_sn: p.product_sn,
+        product_price: p.product_price,
+        market_price: p.market_price,
+        product_stock: p.product_stock,
+        product_status: p.product_status,
+        category_id: p.category_id,
+        brand_id: p.brand_id,
+        shop_id: p.shop_id,
+        pic_url: p.pic_url,
+        pic_thumb: p.pic_thumb,
+        sales: p.virtual_sales,
+        add_time: p.add_time,
+        store_product_name: None,
+        store_product_price: None,
+        store_pic_url: None,
+        store_product_status: None,
+        store_product_stock: None,
+    }
+}

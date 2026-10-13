@@ -1,0 +1,1 @@
+import{a6 as t}from"./index-B6WS-doS.js";const r=()=>t({url:"merchant/shopAccount/index",method:"get"}),n=e=>t({url:"merchant/shopAccount/logList",method:"get",params:e}),c=()=>t({url:"merchant/shopAccount/applyShopAgreement",method:"get"}),h=()=>t({url:"merchant/shop/staffShow",method:"get"});export{r as a,n as b,h as c,c as g};

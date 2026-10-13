@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.salesman.SalesmanMapper">
+
+
+    <select id="customerList" resultType="com.tigshop.bean.vo.salesman.CustomerListVO">
+        SELECT
+            u.user_id AS userId,
+            u.avatar,
+            u.username,
+            u.mobile,
+            u.nickname,
+            u.reg_time AS regTime,
+            r.rank_name AS rankName
+        FROM
+            salesman_customer sc
+                INNER JOIN user u ON sc.user_id = u.user_id
+                LEFT JOIN user_rank r ON u.rank_id = r.rank_id
+        WHERE
+            sc.salesman_id = #{filter.salesmanId}
+        ORDER BY
+            u.reg_time DESC
+    </select>
+
+    <select id="customerApiList" resultType="com.tigshop.bean.vo.salesman.CustomerListVO">
+        SELECT
+            u.user_id AS userId,
+            u.avatar,
+            u.username,
+            u.mobile,
+            u.nickname,
+            r.rank_name AS rankName,
+            sc.add_time AS bindTime,
+            CASE WHEN ds.salesman_id IS NOT NULL THEN 'salesman'
+                 WHEN COUNT(CASE WHEN o.order_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM aftersales a WHERE a.order_id = o.order_id) THEN o.order_id END) &gt; 0 THEN 'ordered'
+                 ELSE 'customer' END AS customerType,
+            COUNT(CASE WHEN o.order_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM aftersales a WHERE a.order_id = o.order_id) THEN o.order_id END) AS orderCount,
+            COALESCE(SUM(GREATEST(COALESCE(o.paid_amount, 0) - COALESCE((SELECT SUM(rl.refund_amount) FROM refund_log rl WHERE rl.order_id = o.order_id), 0), 0)), 0) AS orderAmount,
+            MAX(o.pay_time) AS lastOrderTime,
+            COALESCE(sc.channel, '') AS channel,
+            COALESCE(sc.remark, '') AS remark
+        FROM salesman_customer sc
+            INNER JOIN `user` u ON sc.user_id = u.user_id
+            LEFT JOIN user_rank r ON u.rank_id = r.rank_id
+            LEFT JOIN salesman ds ON ds.user_id = sc.user_id
+            LEFT JOIN `order` o ON o.user_id = sc.user_id
+                AND o.pay_status = 2
+                <if test="filter.shopId != null">AND o.shop_id = #{filter.shopId}</if>
+        WHERE sc.salesman_id = #{filter.salesmanId}
+          <if test="filter.keyword != null and filter.keyword != ''">
+            AND (u.nickname LIKE CONCAT('%', #{filter.keyword}, '%')
+                 OR u.username LIKE CONCAT('%', #{filter.keyword}, '%')
+                 OR u.mobile LIKE CONCAT('%', #{filter.keyword}, '%'))
+          </if>
+          <if test="filter.customerType == 'all' and filter.startTime != null and filter.startTime != ''">
+            AND sc.add_time &gt;= UNIX_TIMESTAMP(CONCAT(#{filter.startTime}, ' 00:00:00'))
+          </if>
+          <if test="filter.customerType == 'all' and filter.endTime != null and filter.endTime != ''">
+            AND sc.add_time &lt;= UNIX_TIMESTAMP(CONCAT(#{filter.endTime}, ' 23:59:59'))
+          </if>
+        GROUP BY u.user_id, u.avatar, u.username, u.mobile, u.nickname, r.rank_name, sc.add_time, sc.channel, sc.remark, ds.salesman_id
+        <choose>
+            <when test="filter.customerType == 'ordered'">
+                HAVING COUNT(CASE WHEN o.order_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM aftersales a WHERE a.order_id = o.order_id) THEN o.order_id END) &gt; 0
+                <if test="filter.startTime != null and filter.startTime != ''">
+                    AND MAX(o.pay_time) &gt;= UNIX_TIMESTAMP(CONCAT(#{filter.startTime}, ' 00:00:00'))
+                </if>
+                <if test="filter.endTime != null and filter.endTime != ''">
+                    AND MAX(o.pay_time) &lt;= UNIX_TIMESTAMP(CONCAT(#{filter.endTime}, ' 23:59:59'))
+                </if>
+            </when>
+            <when test="filter.customerType == 'salesman'">HAVING ds.salesman_id IS NOT NULL</when>
+        </choose>
+        ORDER BY sc.add_time DESC, u.user_id DESC
+    </select>
+
+    <select id="customerApiDetail" resultType="com.tigshop.bean.vo.salesman.CustomerListVO">
+        SELECT
+            u.user_id AS userId,
+            u.avatar,
+            u.username,
+            u.mobile,
+            u.nickname,
+            r.rank_name AS rankName,
+            sc.add_time AS bindTime,
+            CASE WHEN ds.salesman_id IS NOT NULL THEN 'salesman'
+                 WHEN COUNT(CASE WHEN o.order_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM aftersales a WHERE a.order_id = o.order_id) THEN o.order_id END) &gt; 0 THEN 'ordered'
+                 ELSE 'customer' END AS customerType,
+            COUNT(CASE WHEN o.order_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM aftersales a WHERE a.order_id = o.order_id) THEN o.order_id END) AS orderCount,
+            COALESCE(SUM(GREATEST(COALESCE(o.paid_amount, 0) - COALESCE((SELECT SUM(rl.refund_amount) FROM refund_log rl WHERE rl.order_id = o.order_id), 0), 0)), 0) AS orderAmount,
+            MAX(o.pay_time) AS lastOrderTime,
+            COALESCE(sc.channel, '') AS channel,
+            COALESCE(sc.remark, '') AS remark
+        FROM salesman_customer sc
+            INNER JOIN `user` u ON sc.user_id = u.user_id
+            LEFT JOIN user_rank r ON u.rank_id = r.rank_id
+            LEFT JOIN salesman ds ON ds.user_id = sc.user_id
+            LEFT JOIN `order` o ON o.user_id = sc.user_id
+                AND o.pay_status = 2
+                <if test="shopId != null">AND o.shop_id = #{shopId}</if>
+                <if test="startTime != null and startTime != ''">AND o.pay_time &gt;= UNIX_TIMESTAMP(CONCAT(#{startTime}, ' 00:00:00'))</if>
+                <if test="endTime != null and endTime != ''">AND o.pay_time &lt;= UNIX_TIMESTAMP(CONCAT(#{endTime}, ' 23:59:59'))</if>
+        WHERE sc.salesman_id = #{salesmanId}
+          AND sc.user_id = #{userId}
+        GROUP BY u.user_id, u.avatar, u.username, u.mobile, u.nickname, r.rank_name, sc.add_time, sc.channel, sc.remark, ds.salesman_id
+    </select>
+
+    <select id="customerApiSalesmanList" resultType="com.tigshop.bean.vo.salesman.CustomerListVO">
+        SELECT
+            u.user_id AS userId,
+            u.avatar,
+            u.username,
+            u.mobile,
+            u.nickname,
+            r.rank_name AS rankName,
+            s.add_time AS bindTime,
+            'salesman' AS customerType,
+            COUNT(CASE WHEN o.order_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM aftersales a WHERE a.order_id = o.order_id) THEN o.order_id END) AS orderCount,
+            COALESCE(SUM(GREATEST(COALESCE(o.paid_amount, 0) - COALESCE((SELECT SUM(rl.refund_amount) FROM refund_log rl WHERE rl.order_id = o.order_id), 0), 0)), 0) AS orderAmount,
+            MAX(o.pay_time) AS lastOrderTime,
+            COALESCE(sc.channel, '') AS channel,
+            COALESCE(sc.remark, '') AS remark
+        FROM salesman s
+            INNER JOIN `user` u ON s.user_id = u.user_id
+            LEFT JOIN user_rank r ON u.rank_id = r.rank_id
+            LEFT JOIN salesman_customer sc ON sc.salesman_id = s.pid AND sc.user_id = s.user_id
+            LEFT JOIN `order` o ON o.user_id = s.user_id
+                AND o.pay_status = 2
+                <if test="filter.shopId != null">AND o.shop_id = #{filter.shopId}</if>
+                <if test="filter.startTime != null and filter.startTime != ''">AND o.pay_time &gt;= UNIX_TIMESTAMP(CONCAT(#{filter.startTime}, ' 00:00:00'))</if>
+                <if test="filter.endTime != null and filter.endTime != ''">AND o.pay_time &lt;= UNIX_TIMESTAMP(CONCAT(#{filter.endTime}, ' 23:59:59'))</if>
+        WHERE s.pid = #{filter.salesmanId}
+          <if test="filter.keyword != null and filter.keyword != ''">
+            AND (u.nickname LIKE CONCAT('%', #{filter.keyword}, '%')
+                 OR u.username LIKE CONCAT('%', #{filter.keyword}, '%')
+                 OR u.mobile LIKE CONCAT('%', #{filter.keyword}, '%'))
+          </if>
+        GROUP BY u.user_id, u.avatar, u.username, u.mobile, u.nickname, r.rank_name, s.add_time, sc.channel, sc.remark
+        ORDER BY s.add_time DESC, u.user_id DESC
+    </select>
+
+    <select id="customerApiSalesmanDetail" resultType="com.tigshop.bean.vo.salesman.CustomerListVO">
+        SELECT
+            u.user_id AS userId,
+            u.avatar,
+            u.username,
+            u.mobile,
+            u.nickname,
+            r.rank_name AS rankName,
+            s.add_time AS bindTime,
+            'salesman' AS customerType,
+            COUNT(CASE WHEN o.order_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM aftersales a WHERE a.order_id = o.order_id) THEN o.order_id END) AS orderCount,
+            COALESCE(SUM(GREATEST(COALESCE(o.paid_amount, 0) - COALESCE((SELECT SUM(rl.refund_amount) FROM refund_log rl WHERE rl.order_id = o.order_id), 0), 0)), 0) AS orderAmount,
+            MAX(o.pay_time) AS lastOrderTime,
+            COALESCE(sc.channel, '') AS channel,
+            COALESCE(sc.remark, '') AS remark
+        FROM salesman s
+            INNER JOIN `user` u ON s.user_id = u.user_id
+            LEFT JOIN user_rank r ON u.rank_id = r.rank_id
+            LEFT JOIN salesman_customer sc ON sc.salesman_id = s.pid AND sc.user_id = s.user_id
+            LEFT JOIN `order` o ON o.user_id = s.user_id
+                AND o.pay_status = 2
+                <if test="shopId != null">AND o.shop_id = #{shopId}</if>
+                <if test="startTime != null and startTime != ''">AND o.pay_time &gt;= UNIX_TIMESTAMP(CONCAT(#{startTime}, ' 00:00:00'))</if>
+                <if test="endTime != null and endTime != ''">AND o.pay_time &lt;= UNIX_TIMESTAMP(CONCAT(#{endTime}, ' 23:59:59'))</if>
+        WHERE s.pid = #{salesmanId}
+          AND s.user_id = #{userId}
+        GROUP BY u.user_id, u.avatar, u.username, u.mobile, u.nickname, r.rank_name, s.add_time, sc.channel, sc.remark
+    </select>
+</mapper>

@@ -1,0 +1,479 @@
+/**
+ * 商品详情 A3（跨境风）预览样式
+ * 100% 还原 tigshop-overseas-uniapp 商品详情默认页，尺寸按 rpx÷2 折算为 px。
+ */
+.dec-pd3 {
+    position: relative;
+    width: 100%;
+    min-height: 680px;
+    background-color: var(--dec-pd3-page-bg, #f5f5f5);
+    font-size: 12px;
+    color: #1a1a1a;
+    box-sizing: border-box;
+
+    * {
+        box-sizing: border-box;
+    }
+
+    .iconfont-h5 {
+        font-style: normal;
+        line-height: 1;
+    }
+
+    /* 商品详情导航 */
+    &__nav {
+        display: flex;
+        align-items: center;
+        height: 38px;
+        padding: 0 14px;
+        background-color: var(--dec-pd3-content-bg, #fff);
+    }
+
+    &__nav-back {
+        font-size: 12px;
+        color: #1a1a1a;
+        margin-right: 6px;
+    }
+
+    &__nav-title {
+        flex: 1;
+        font-size: 14px;
+        font-weight: 700;
+        color: #1a1a1a;
+    }
+
+    &__nav-collect {
+        font-size: 18px;
+        color: #1a1a1a;
+        margin-right: 12px;
+    }
+
+    &__nav-more {
+        font-size: 20px;
+        color: #1a1a1a;
+    }
+
+    /* 标题（主图上方） */
+    &__name-box {
+        padding: 14px 14px 7px;
+        background-color: var(--dec-pd3-content-bg, #fff);
+    }
+
+    &__name {
+        position: relative;
+        display: block;
+        font-size: var(--dec-pd3-title-size, 14px);
+        font-weight: 700;
+        line-height: 18px;
+        color: var(--dec-pd3-title-color, #1a1a1a);
+        word-break: break-word;
+    }
+
+    &__name-text {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: var(--dec-pd3-title-lines, 2);
+        overflow: hidden;
+    }
+
+    &__soldout {
+        padding: 0 14px 10px;
+        background-color: var(--dec-pd3-content-bg, #fff);
+        font-size: 10.5px;
+        line-height: 12px;
+        color: #888b94;
+    }
+
+    /* 主图 */
+    &__hero {
+        position: relative;
+        padding: 6px var(--dec-pd3-image-margin, 16px) 0;
+        background-color: var(--dec-pd3-content-bg, #fff);
+    }
+
+    &__image {
+        width: 100%;
+        aspect-ratio: var(--dec-pd3-image-ratio, 1 / 1);
+        overflow: hidden;
+        border-radius: var(--dec-pd3-image-radius, 0px);
+        background: rgba(0, 0, 0, 0.02);
+
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: var(--dec-pd3-image-fit, contain);
+            display: block;
+        }
+    }
+
+    &__dots {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        padding: 5px 0 2px;
+    }
+
+    &__dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background-color: rgba(0, 0, 0, 0.2);
+
+        &--active {
+            width: 12px;
+            border-radius: 6px;
+            background-color: rgba(0, 0, 0, 0.55);
+        }
+    }
+
+    /* 价格区 */
+    &__price-area {
+        padding: 12px 14px 12px;
+        background-color: var(--dec-pd3-content-bg, #fff);
+    }
+
+    &__price {
+        display: flex;
+        align-items: baseline;
+        color: var(--dec-pd3-price-color, #1a1a1a);
+        font-weight: 700;
+    }
+
+    &__price-symbol {
+        font-size: 14px;
+        line-height: 1;
+    }
+
+    &__price-value {
+        font-size: 24px;
+        line-height: 1;
+    }
+
+    &__price-decimal {
+        font-size: 16px;
+        line-height: 1;
+    }
+
+    &__market-price {
+        margin-left: 8px;
+        color: var(--dec-pd3-market-price-color, #999);
+        font-size: 12px;
+        font-weight: 400;
+        text-decoration: line-through;
+    }
+
+    /* 优惠券 */
+    &__activity {
+        padding: 0 14px 12px;
+        background-color: var(--dec-pd3-content-bg, #fff);
+    }
+
+    &__activity-inner {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        padding: 10px 12px;
+        background-color: #f7f8fc;
+        border-radius: 7px;
+    }
+
+    &__activity-text {
+        flex: 1;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 14px;
+        color: #ff4142;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+
+    &__activity-more {
+        font-size: 12px;
+        color: #333;
+        margin-left: 8px;
+    }
+
+    &__activity-arrow {
+        font-size: 9px;
+        color: #888b94;
+        margin-left: 4px;
+    }
+
+    &__store {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px;
+        border-top: 8px solid var(--dec-pd3-page-bg, #f5f5f5);
+        background-color: var(--dec-pd3-content-bg, #fff);
+    }
+
+    &__store-info {
+        display: flex;
+        flex: 1;
+        min-width: 0;
+        align-items: center;
+    }
+
+    &__store-logo {
+        display: flex;
+        flex: 0 0 31px;
+        align-items: center;
+        justify-content: center;
+        width: 31px;
+        height: 31px;
+        margin-right: 10px;
+        overflow: hidden;
+        border-radius: 50%;
+
+        img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+    }
+
+    &__store-name {
+        overflow: hidden;
+        font-size: 13px;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+
+    &__store-action {
+        display: inline-flex;
+        flex-shrink: 0;
+        align-items: center;
+        gap: 3px;
+        font-size: 13px;
+
+        .icon-a-gengduo20 {
+            color: #bfbfbf;
+            font-size: 11px;
+        }
+    }
+
+    /* 折叠标题行（规格参数 / 售后） */
+    &__section {
+        display: flex;
+        align-items: center;
+        padding: 14px;
+        border-top: 8px solid var(--dec-pd3-page-bg, #f5f5f5);
+        background-color: var(--dec-pd3-content-bg, #fff);
+    }
+
+    &__section-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #1a1a1a;
+    }
+
+    &__section-value {
+        flex: 1;
+        margin-left: 12px;
+        font-size: 13px;
+        color: #888b94;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+
+    &__section-arrow {
+        margin-left: auto;
+        font-size: 12px;
+        color: #888b94;
+        transform: rotate(90deg);
+    }
+
+    &__section-value + &__section-arrow {
+        margin-left: 8px;
+    }
+
+    /* 评价 */
+    &__review {
+        padding: 14px;
+        border-top: 8px solid var(--dec-pd3-page-bg, #f5f5f5);
+        background-color: var(--dec-pd3-content-bg, #fff);
+    }
+
+    &__review-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    &__review-left {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        overflow: hidden;
+    }
+
+    &__review-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #1a1a1a;
+    }
+
+    &__review-real {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        font-size: 10.5px;
+        color: #888b94;
+    }
+
+    &__review-safe {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        background-color: #29b6a8;
+        color: #fff;
+        font-size: 9px;
+        line-height: 1;
+    }
+
+    &__review-all {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        font-size: 10.5px;
+        color: #888b94;
+        white-space: nowrap;
+
+        .icon-a-gengduo20 {
+            font-size: 9px;
+        }
+    }
+
+    &__review-score {
+        display: flex;
+        align-items: center;
+        margin-top: 12px;
+    }
+
+    &__stars {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+    }
+
+    &__star {
+        font-size: 15px;
+        line-height: 1;
+        color: #f5a623;
+    }
+
+    &__score-num {
+        font-size: 14px;
+        font-weight: 700;
+        color: #1a1a1a;
+        padding-left: 6px;
+    }
+
+    &__score-total {
+        font-size: 10.5px;
+        color: #888b94;
+        margin-left: 6px;
+    }
+
+    /* 商品详情 */
+    &__detail {
+        border-top: 8px solid var(--dec-pd3-page-bg, #f5f5f5);
+        background-color: var(--dec-pd3-content-bg, #fff);
+    }
+
+    &__detail-title {
+        position: relative;
+        text-align: center;
+        font-size: 14px;
+        font-weight: 700;
+        color: #1a1a1a;
+        padding: 14px 0 8px;
+
+        &::before,
+        &::after {
+            content: "";
+            position: absolute;
+            top: 55%;
+            width: 28px;
+            height: 1px;
+            background-color: #e5e5e5;
+        }
+
+        &::before {
+            left: 50%;
+            margin-left: -66px;
+        }
+
+        &::after {
+            right: 50%;
+            margin-right: -66px;
+        }
+    }
+
+    &__detail-imgs {
+        img {
+            display: block;
+            width: 100%;
+        }
+    }
+
+    /* 底部购买栏（固定悬浮，跟随预览滚动） */
+    &__footer {
+        position: sticky;
+        bottom: 0;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        margin-top: 12px;
+        height: 55px;
+        padding: 0 10px;
+        background-color: var(--dec-pd3-content-bg, #fff);
+        border-top: 1px solid var(--dec-pd3-page-bg, #f5f5f5);
+    }
+
+    &__footer-btn {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 35px;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    &__footer-btn--cart {
+        color: #4f7bff;
+        background-color: #eef2ff;
+    }
+
+    &__footer-btn--buy {
+        color: #fff;
+        background-color: #4f7bff;
+    }
+
+    /* 经典风：两按钮相连胶囊 */
+    &__footer--round &__footer-btn--cart {
+        border-radius: 50px 0 0 50px;
+    }
+
+    &__footer--round &__footer-btn--buy {
+        border-radius: 0 50px 50px 0;
+    }
+
+    /* 简约风：独立按钮并跟随按钮圆角设置 */
+    &__footer--square {
+        gap: 8px;
+    }
+
+    &__footer--square &__footer-btn {
+        border-radius: var(--dec-pd3-button-radius, 6px);
+    }
+}

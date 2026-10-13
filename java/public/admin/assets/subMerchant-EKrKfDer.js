@@ -1,0 +1,1 @@
+import{a6 as t}from"./index-B6WS-doS.js";const r=n=>t({url:"finance/subMerchant/list",method:"get",params:n}),u=n=>t({url:"finance/subMerchant/bind",method:"post",data:n}),s=n=>t({url:"finance/subMerchant/unbind",method:"post",params:n});export{u as b,r as g,s as u};

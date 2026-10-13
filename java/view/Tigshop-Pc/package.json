@@ -1,0 +1,47 @@
+{
+    "name": "tigshop",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "ui:check": "node scripts/check-frontend-image-guidelines.mjs",
+        "ui:check:all": "node scripts/check-frontend-image-guidelines.mjs --all",
+        "vort:check": "node .vort/check-vort-if.mjs",
+        "i18n:check": "node scripts/check-i18n-wrap.mjs",
+        "build": "node .vort/check-vort-if.mjs && nuxt build --dotenv .env.production --exec",
+        "build:test": "node .vort/check-vort-if.mjs && nuxt build --dotenv .env.test --exec",
+        "dev": "nuxt dev --dotenv .env.development --exec",
+        "pro": "nuxt dev --dotenv .env.production --exec",
+        "generate": "nuxt generate --dotenv .env.production --exec",
+        "preview": "nuxt preview",
+        "postinstall": "nuxt prepare",
+        "format": "prettier --write \"**/*.{js,ts,vue,json,css,scss,less}\""
+    },
+    "dependencies": {
+        "@amap/amap-jsapi-loader": "^1.0.1",
+        "@element-plus/icons-vue": "^2.3.1",
+        "@element-plus/nuxt": "^1.1.1",
+        "@nuxtjs/i18n": "^9.3.1",
+        "@nuxtjs/sitemap": "^8.0.12",
+        "@pinia/nuxt": "^0.10.1",
+        "ant-design-vue": "^4.2.6",
+        "async-validator": "^4.2.5",
+        "crypto-js": "^4.1.1",
+        "element-plus": "^2.9.6",
+        "nuxt": "^3.16.0",
+        "pinia": "^3.0.1",
+        "qrcode": "^1.5.3",
+        "vite-plugin-svg-icons": "^2.0.1",
+        "vue": "^3.5.13",
+        "vue-router": "^4.5.0",
+        "vue3-seamless-scroll": "^3.0.2"
+    },
+    "devDependencies": {
+        "@types/qrcode": "^1.5.5",
+        "cross-env": "^10.1.0",
+        "less": "^4.2.0",
+        "nuxt-swiper": "^1.2.2",
+        "prettier": "3.5.3",
+        "vite-plugin-compression": "^0.5.1",
+        "vite-svg-loader": "^5.1.1"
+    }
+}

@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /pages/cart/
+Disallow: /pages/user/
+Disallow: /pages/order/
+Disallow: /pages/login/
+Disallow: /pages/address/
+Disallow: /pages/im/

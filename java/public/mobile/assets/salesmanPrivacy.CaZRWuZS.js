@@ -1,0 +1,1 @@
+import{aD as a,aR as s}from"./index-Lmko8ZQO.js";import{a as e}from"./salesmanCenter.Blho-ODo.js";const n=a=>1===Number(a),r=async()=>{var r;try{const a=await e();if(n(null==(r=null==a?void 0:a.salesmanConfig)?void 0:r.viewCustomerInfo))return!0}catch{}return a({fail:()=>{s({url:"/pages/salesman/index"})}}),!1};export{r as e,n as i};

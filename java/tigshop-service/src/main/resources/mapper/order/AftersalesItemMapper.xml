@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.order.AftersalesItemMapper">
+
+
+    <select id="validAftersalesItems" resultType="com.tigshop.bean.model.order.AftersalesItem">
+        select * from aftersales_item ai
+        left join aftersales a on ai.aftersale_id = a.aftersale_id
+        <where>
+            a.status in (1, 2, 4, 5, 6)
+            and ai.order_item_id in
+            <foreach item="item" collection="orderItemIds" separator="," close=")" open="(">
+                #{item}
+            </foreach>
+        </where>
+    </select>
+</mapper>

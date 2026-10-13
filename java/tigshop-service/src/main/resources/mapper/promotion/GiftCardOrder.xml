@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.promotion.GiftCardOrderMapper">
+    <select id="getGiftCardOrderInfo" resultType="com.tigshop.bean.vo.promotion.card.GiftCardOrderVO$GiftCardOrderInfo">
+        SELECT
+            oc.order_id,
+            gc.card_groups_id,
+            gc.card_group_name,
+            gc.image_url,
+            g.gift_cards_id,
+            g.gift_card_sn,
+            g.card_number,
+            g.card_password,
+            g.expired_time,
+            g.status,
+            s.shop_title,
+            s.shop_logo,
+            gc.shop_id,
+            gc.image_url
+        FROM gift_card_order oc
+                 JOIN gift_cards g ON oc.card_id = g.gift_cards_id
+                 JOIN gift_card_groups gc ON g.card_groups_id = gc.card_groups_id
+                 LEFT JOIN shop s ON gc.shop_id = s.shop_id
+        WHERE oc.order_id = #{orderId}
+    </select>
+</mapper>

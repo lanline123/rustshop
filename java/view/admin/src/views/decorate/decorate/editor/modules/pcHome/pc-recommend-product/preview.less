@@ -1,0 +1,304 @@
+.dec-pc-recommend-product {
+    width: 100%;
+    box-sizing: border-box;
+
+    // 使用 CSS 变量设置内边距和背景
+    padding-left: var(--dec-box-padding, 0);
+    padding-right: var(--dec-box-padding, 0);
+    padding-top: var(--dec-box-padding-top, 0);
+    background-color: var(--dec-bg-color, transparent);
+    border-radius: var(--dec-box-radius, 0);
+}
+
+.dec-pc-recommend-product__empty {
+    min-height: 120px;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 30px 0 50px;
+    text-align: center;
+    background-color: #f2f4f6;
+    color: #666666;
+    font-size: 14px;
+}
+
+.dec-pc-recommend-product__empty-icon {
+    width: 100px;
+    height: 100px;
+    margin: 0 auto 10px;
+    background: url("@/assets/decorate/empty-img-bg.png") no-repeat center center;
+    background-size: 100% auto;
+}
+
+.dec-pc-recommend-product__title {
+    position: relative;
+    width: fit-content;
+    height: 46px;
+    white-space: nowrap;
+    font-size: 24px;
+    font-weight: 700;
+    color: #333333;
+    text-align: left;
+    padding-bottom: 4px;
+    overflow: hidden;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-around;
+    text-transform: capitalize;
+}
+
+.dec-pc-recommend-product__title:before {
+    content: "";
+    position: absolute;
+    width: 36px;
+    left: 50%;
+    bottom: 0;
+    height: 3px;
+    border-radius: 1px;
+    background-color: #1a1a1a;
+    transition:
+        left 0.3s ease,
+        width 0.3s ease;
+    transform: translateX(-50%);
+}
+
+.dec-pc-recommend-product__list {
+    margin-top: 32px;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+    display: grid;
+
+    // 使用 CSS 变量设置列数、间距和底部内边距
+    grid-template-columns: repeat(var(--dec-columns, 5), minmax(0, 1fr));
+    gap: var(--dec-item-gap, 16px);
+    padding-bottom: var(--dec-box-padding-bottom, 50px);
+}
+
+.dec-pc-recommend-product__list.is-no-title {
+    margin-top: 0;
+}
+
+.dec-pc-recommend-product__card {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+}
+
+.dec-pc-recommend-product {
+    .product-card-container {
+        box-sizing: border-box;
+        width: 100%;
+        border-radius: 4px;
+        padding-bottom: 12px;
+        cursor: pointer;
+        background: #ffffff;
+        overflow: hidden;
+        border: 1px solid transparent;
+
+        &:hover {
+            border: 1px solid var(--main-bg, #f2f4f6);
+        }
+
+        .top-wrap {
+            position: relative;
+
+            .pro_pic {
+                width: 100%;
+                aspect-ratio: 1 / 1;
+                background: #ffffff;
+
+                .img {
+                    width: 100%;
+                    height: 100%;
+                    display: block;
+                    object-fit: contain;
+
+                    &.sold-out {
+                        opacity: 0.5;
+                    }
+                }
+            }
+        }
+
+        .center-wrap {
+            padding: 8px 12px 0 12px;
+            margin-top: 8px;
+
+            .pro_name {
+                font-size: 16px;
+                font-weight: 400;
+                line-height: 22px;
+                vertical-align: top;
+                word-break: break-word;
+                text-align: left;
+                text-overflow: ellipsis;
+                overflow: hidden;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                line-clamp: 2;
+                -webkit-box-orient: vertical;
+                color: #19191b;
+                // 预留两行高度，避免因状态/文案差异造成卡片高度抖动
+                min-height: 44px;
+            }
+
+            .desc-wrap {
+                min-height: 18px;
+
+                .virtual-sales {
+                    margin-top: 0;
+                    font-size: 14px;
+                    font-weight: 400;
+                    line-height: 18px;
+                    text-align: left;
+                    text-underline-position: from-font;
+                    text-decoration-skip-ink: none;
+                    color: #888b94;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
+            }
+
+            // 第一行描述与商品名的间距
+            .desc-wrap--sales {
+                margin-top: 10px;
+            }
+            // 第二行状态（如"已售罄"）与上一行的间距
+            .desc-wrap--status {
+                margin-top: 1px;
+
+                // 空状态也要占位，确保价格行对齐
+                &.is-empty {
+                    visibility: hidden;
+                }
+            }
+
+            .tag-wrap {
+                // 预留活动标签/倒计时等状态区域
+                height: 20px;
+                display: flex;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 3px;
+                overflow: hidden;
+                margin-top: 2px;
+            }
+
+            .price-wrap {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-top: 6px;
+                min-height: 32px;
+
+                .seckill-price {
+                    display: flex;
+                    align-items: baseline;
+                    color: #be081d;
+                    font-weight: 600;
+                    line-height: 28px;
+
+                    .price-currency {
+                        font-size: 16px;
+                        font-weight: 400;
+                    }
+                    .price-int {
+                        font-size: 28px;
+                        font-weight: 600;
+                        line-height: 28px;
+                    }
+                    .price-dec {
+                        font-size: 16px;
+                        font-weight: 400;
+                    }
+                }
+
+                .buy {
+                    .view_detail {
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 50%;
+                        background: rgba(255, 63, 79, 0.12);
+                        color: #ff3f4f;
+                        flex-shrink: 0;
+                        position: relative;
+
+                        &:hover {
+                            background: rgba(255, 63, 79, 0.16);
+                            color: #ff3f4f;
+                        }
+
+                        &.disabled {
+                            opacity: 0.5;
+                            cursor: not-allowed;
+                        }
+
+                        .add-icon {
+                            width: 18px;
+                            height: 18px;
+                            position: relative;
+                            display: block;
+
+                            &::before,
+                            &::after {
+                                content: "";
+                                position: absolute;
+                                left: 50%;
+                                top: 50%;
+                                transform: translate(-50%, -50%);
+                                background: currentColor;
+                                border-radius: 2px;
+                            }
+
+                            &::before {
+                                width: 14px;
+                                height: 2px;
+                            }
+
+                            &::after {
+                                width: 2px;
+                                height: 14px;
+                            }
+                        }
+                    }
+                }
+
+                .box {
+                    min-width: 0;
+                }
+            }
+
+            .other-wrap {
+                width: 100%;
+                height: 18px;
+                box-sizing: border-box;
+                font-size: 14px;
+                line-height: 18px;
+                color: #269636;
+                font-weight: 600;
+                text-underline-position: from-font;
+                text-decoration-skip-ink: none;
+                margin-top: 6px;
+                text-align: left;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                text-transform: capitalize;
+
+                .link {
+                    font-size: 14px;
+                    line-height: 18px;
+                    color: #269636;
+                    font-weight: 600;
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.order.OrderMapper">
+
+
+    <select id="getSalesProductDetail" resultType="com.tigshop.bean.vo.panel.SalesProductOrderItemVO">
+            select o.*,oi.*, (oi.quantity * oi.price) as subtotal
+            from order_item oi
+            left join `order` o on o.order_id = oi.order_id
+            <where>
+                o.is_del = 0
+                and o.add_time between #{pageQuery.startTimeStamp} and #{pageQuery.endTimeStamp}
+                and o.order_status in (#{pageQuery.orderStatues})
+                <if test="pageQuery.keyword != null and pageQuery.keyword != ''">
+                   and (oi.product_sn like concat('%',#{pageQuery.keyword},'%') or oi.product_name like concat('%',#{pageQuery.keyword},'%'))
+                </if>
+                <if test="pageQuery.shopId != null">
+                    and oi.shop_id = #{pageQuery.shopId}
+                </if>
+            </where>
+            <choose>
+                <when test="pageQuery.sortField == 'addTime'">order by o.add_time</when>
+                <otherwise>order by oi.item_id</otherwise>
+            </choose>
+            <choose>
+                <when test="pageQuery.sortOrder == 'asc'">asc</when>
+                <otherwise>desc</otherwise>
+            </choose>
+    </select>
+
+    <select id="getHistoryProduct" resultType="java.lang.Integer">
+        SELECT DISTINCT oi.product_id
+        FROM order_item oi
+                 LEFT JOIN `order` o
+                           ON oi.order_id = o.order_id
+        WHERE o.order_status = 5
+          AND o.user_id = #{userId}
+        ORDER BY o.add_time DESC
+    </select>
+
+
+    <select id="sumConsumptionAmount" resultType="java.math.BigDecimal">
+        SELECT
+            (SELECT COALESCE(SUM(COALESCE(online_paid_amount, 0) + COALESCE(balance, 0)), 0)
+             FROM `order`
+             WHERE user_id = #{userId} AND pay_status = 2 AND is_valid = 1
+               AND order_status IN (1, 2, 5))
+            +
+            (SELECT COALESCE(SUM(amount), 0)
+             FROM user_recharge_order
+             WHERE user_id = #{userId} AND status = 1)
+    </select>
+</mapper>

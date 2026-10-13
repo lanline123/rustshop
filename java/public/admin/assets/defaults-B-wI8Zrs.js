@@ -1,0 +1,1 @@
+const o={showTitle:0,title:"每日领券",desc:"天天优惠领不停",colorStyle:0,itemBackgroundColor:"#ffffff",backgroundColor:"#ffffff",itemPadding:10,boxRadius:8,boxPadding:10,boxPaddingTop:5,boxPaddingBottom:5};export{o as p};

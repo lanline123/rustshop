@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.vendor.product.VendorProductSkuMapper">
+
+    <resultMap id="BaseResultMap" type="com.tigshop.bean.model.vendor.product.VendorProductSku">
+            <id property="id" column="id" jdbcType="INTEGER"/>
+            <result property="vendorProductId" column="vendor_product_id" jdbcType="INTEGER"/>
+            <result property="skuValue" column="sku_value" jdbcType="VARCHAR"/>
+            <result property="skuData" column="sku_data" jdbcType="OTHER"/>
+            <result property="skuSn" column="sku_sn" jdbcType="VARCHAR"/>
+            <result property="skuTsn" column="sku_tsn" jdbcType="VARCHAR"/>
+            <result property="skuWeight" column="sku_weight" jdbcType="INTEGER"/>
+            <result property="skuStock" column="sku_stock" jdbcType="INTEGER"/>
+            <result property="supplyPrice" column="supply_price" jdbcType="DECIMAL"/>
+            <result property="supplyPriceLimitType" column="supply_price_limit_type" jdbcType="TINYINT"/>
+            <result property="supplyPriceLimitVal" column="supply_price_limit_val" jdbcType="DECIMAL"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,vendor_product_id,sku_value,
+        sku_data,sku_sn,sku_tsn,
+        sku_weight,sku_stock,supply_price,
+        supply_price_limit_type,supply_price_limit_val
+    </sql>
+
+    <select id="getVendorProductStockPage" resultType="com.tigshop.bean.vo.vendor.product.VendorProductStockPageVO">
+        SELECT
+            vp.id              AS productId,
+            vp.product_name    AS productName,
+            vps.sku_attr_val   AS productSkuName,
+            vps.id             AS productSkuId,
+            vps.sku_stock      AS currentProductStock,
+            vps.supply_price   AS productCost,
+            vp.pic_thumb       AS productPicThumb,
+            vps.sku_sn         AS productSn,
+            vps.sku_tsn        AS productTsn
+        FROM vendor_product_sku vps
+        LEFT JOIN vendor_product vp ON vp.id = vps.vendor_product_id
+        WHERE vps.is_del = 0
+          AND vp.is_del = 0
+          AND vps.vendor_id = #{dto.vendorId}
+          -- 仅展示审核通过（audit_state=1）商品的库存，与库存日志/出入库明细保持一致，未审核通过商品不计入库存列表
+          AND vp.audit_state = 1
+        <if test="dto.keyword != null and dto.keyword != ''">
+            AND (
+                vp.product_name LIKE CONCAT('%', #{dto.keyword}, '%')
+                OR vps.sku_sn LIKE CONCAT('%', #{dto.keyword}, '%')
+                OR vps.sku_attr_val LIKE CONCAT('%', #{dto.keyword}, '%')
+            )
+        </if>
+        ORDER BY vps.id DESC
+    </select>
+</mapper>

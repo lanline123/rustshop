@@ -1,0 +1,1 @@
+const n=t=>t?t.replace(/<[^>]*>/g," ").replace(/&nbsp;/gi," ").replace(/&amp;/gi,"&").replace(/\s+/g," ").trim():"",s=(t,r=160)=>{const e=n(t);return e?e.length>r?e.slice(0,r):e:""},c=t=>{const r=t.map(e=>n(e)).filter(e=>e!=="");return[...new Set(r)].join(",")};export{c as b,s as t};

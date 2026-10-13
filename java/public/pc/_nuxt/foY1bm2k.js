@@ -1,0 +1,1 @@
+import{aU as t}from"./ntmrFmLd.js";const n=()=>t({url:"install/index?step=1",method:"get"}),a=()=>t({url:"install/index?step=2",method:"get"}),r=e=>t({url:"install/index?step=3",method:"post",data:e});export{a,n as g,r as u};

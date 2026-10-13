@@ -1,0 +1,1 @@
+const s=n=>{const t=Number(n);return Number.isFinite(t)?t:null},e=n=>{const t=s(n==null?void 0:n.vendorId);return t!==null&&t>0?!0:!!(n!=null&&n.vendorName)},i=n=>{var l;const t=s(n==null?void 0:n.shopId);if(t!==null)return t;const u=s((l=n==null?void 0:n.shop)==null?void 0:l.shopId);return u!==null?u:0},c=n=>!e(n)&&i(n)===0;export{c as i};

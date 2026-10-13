@@ -1,0 +1,24 @@
+export { default as PicList } from "./src/PicList.vue";
+export { default as NavPicList } from "./src/NavPicList.vue";
+export { default as LinkList } from "./src/LinkList.vue";
+export { default as PicSelect } from "./src/PicSelect.vue";
+export { default as ImageHotarea } from "./src/ImageHotarea.vue";
+export { default as ProductSelect } from "./src/ProductSelect.vue";
+export { default as ProductInfoSelect } from "./src/ProductInfoSelect.vue";
+export { default as ProductTagSelect } from "./src/ProductTagSelect.vue";
+export { default as ProductGroupSelect } from "./src/ProductGroupSelect.vue";
+export { default as buyShowProductGroupSelect } from "./src/buyShowProductGroupSelect.vue";
+export { default as TotalContainer } from "./src/TotalContainer.vue";
+export { default as Title } from "./src/Title.vue";
+export { default as imageBox } from "./src/imageBox.vue";
+export { default as XRowX } from "./src/XRowX.vue";
+export { default as CarouselNav } from "./src/CarouselNav.vue";
+export { default as OneRowX } from "./src/OneRowX.vue";
+export { default as LateralSlip } from "./src/LateralSlip.vue";
+export { default as Carousel } from "./src/Carousel.vue";
+export { default as ProductButton } from "./src/ProductButton.vue";
+export { default as ProductCard } from "./src/ProductCard.vue";
+export { default as CountDown } from "./src/CountDown.vue";
+export { default as HomeSkeleton } from "./src/Skeleton.vue";
+export { default as Coupon } from "./src/Coupon.vue";
+

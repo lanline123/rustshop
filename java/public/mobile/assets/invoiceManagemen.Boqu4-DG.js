@@ -1,0 +1,1 @@
+import{S as e}from"./index-Lmko8ZQO.js";const t=t=>e({url:"user/orderInvoice/create",method:"post",data:t}),o=t=>e({url:"user/orderInvoice/update",method:"post",data:t}),a=()=>e({url:"user/invoice/detail",method:"get"}),r=t=>e({url:"user/invoice/create",method:"post",data:t}),s=t=>e({url:"user/invoice/update",method:"post",data:t});export{o as a,r as c,a as g,t as o,s as u};

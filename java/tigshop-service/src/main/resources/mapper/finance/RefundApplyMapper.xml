@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.finance.RefundApplyMapper">
+
+    <select id="page" resultType="com.tigshop.bean.vo.finance.refundapply.RefundApplyVO">
+        select
+        refund_apply.*
+        from refund_apply
+        left join aftersales on refund_apply.aftersale_id = aftersales.aftersale_id
+        <where>
+            1 = 1
+            <if test="pageQuery.refundStatus != null and pageQuery.refundStatus > '-1'">
+                and refund_apply.refund_status = #{pageQuery.refundStatus}
+            </if>
+            <if test="pageQuery.keyword != null and pageQuery.keyword != ''">
+                and aftersales.aftersales_sn like concat('%',#{pageQuery.keyword},'%')
+            </if>
+        </where>
+        order by refund_apply.add_time desc
+    </select>
+
+</mapper>

@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.salesman.SalesmanOrderMapper">
+
+    <resultMap id="CustomerTransactionResultMap" type="com.tigshop.bean.vo.salesman.CustomerTransactionVO">
+        <result property="orderId" column="orderId"/>
+        <result property="userId" column="userId"/>
+        <result property="shopId" column="shopId"/>
+        <result property="salesmanId" column="salesmanId"/>
+        <result property="salesmanName" column="salesmanName"/>
+        <result property="isCycleOrder" column="isCycleOrder"/>
+    </resultMap>
+
+    <select id="listCustomerTransaction" resultMap="CustomerTransactionResultMap">
+        SELECT o.order_id as orderId,
+        o.user_id as userId,
+        o.shop_id as shopId,
+        o.is_cycle_order as isCycleOrder,
+        sc.salesman_id as salesmanId,
+        u.nickname AS salesmanName
+        FROM `order` o
+        INNER JOIN salesman_customer sc ON o.user_id = sc.user_id
+        LEFT JOIN `user` u ON sc.salesman_id = u.user_id
+        <where>
+            o.shipping_status = 2
+            <if test="filter.keyword != null and filter.keyword != ''">
+                AND (
+                o.order_sn LIKE CONCAT('%', #{filter.keyword}, '%')
+                OR o.user_id IN (
+                SELECT user_id FROM user WHERE username LIKE CONCAT('%', #{filter.keyword}, '%') or nickname LIKE
+                CONCAT('%', #{filter.keyword}, '%')
+                )
+                )
+            </if>
+
+            <if test="filter.salesmanId != null">
+                AND sc.salesman_id = #{filter.salesmanId}
+            </if>
+
+            <if test="filter.startTime != null and filter.endTime != null">
+                AND o.received_time &gt;= UNIX_TIMESTAMP(CONCAT(#{filter.startTime}, ' 00:00:00'))
+                AND o.received_time &lt;= UNIX_TIMESTAMP(CONCAT(#{filter.endTime}, ' 23:59:59'))
+            </if>
+        </where>
+
+        <if test="filter.sortField != null and filter.sortOrder != null">
+            ORDER BY
+            <choose>
+                <when test="filter.sortField == 'salesmanId'">
+                    sc.salesman_id
+                </when>
+                <when test="filter.sortField == 'totalAmount'">
+                    o.total_amount
+                </when>
+                <when test="filter.sortField == 'addTime'">
+                    o.add_time
+                </when>
+                <otherwise>
+                    o.order_id
+                </otherwise>
+            </choose>
+            <choose>
+                <when test="filter.sortOrder == 'asc'">ASC</when>
+                <when test="filter.sortOrder == 'desc'">DESC</when>
+                <otherwise>DESC</otherwise>
+            </choose>
+        </if>
+    </select>
+
+    <select id="ranking" resultType="com.tigshop.bean.vo.salesman.SalesmanRankingVO">
+        SELECT
+        s.salesman_id,
+        SUM(so.order_amount) AS totalSaleAmount,
+        COUNT(so.order_id) AS orderNum,
+        COUNT(DISTINCT sc.salesman_customer_id) AS totalCustomers
+        FROM
+        salesman s
+        LEFT JOIN salesman_order so ON s.salesman_id = so.salesman_id
+        LEFT JOIN salesman_customer sc ON s.salesman_id = sc.salesman_id
+        <where>
+            (
+                so.status = 1
+                <if test="pageQuery.searchStartTime != null and pageQuery.searchEndTime != null">
+                    AND so.add_time &gt;= #{pageQuery.searchStartTime}
+                    AND so.add_time &lt;= #{pageQuery.searchEndTime}
+                </if>
+            )
+            or
+            (
+                <if test="pageQuery.searchStartTime != null and pageQuery.searchEndTime != null">
+                    sc.add_time &gt;= #{pageQuery.searchStartTime}
+                    AND sc.add_time &lt;= #{pageQuery.searchEndTime}
+                </if>
+            )
+        </where>
+        GROUP BY
+        s.salesman_id
+        HAVING totalSaleAmount>0 or orderNum>0 or totalCustomers>0
+        order by totalSaleAmount desc
+    </select>
+</mapper>

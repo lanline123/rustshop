@@ -1,0 +1,94 @@
+/**
+ * 此为wxs模块，只支持APP-VUE，微信和QQ小程序以及H5平台
+ * wxs内部不支持es6语法，变量只能使用var定义，无法使用解构，箭头函数等特性
+ */
+
+// 开始触摸
+function touchstart(event, ownerInstance) {
+    var instance = event.instance;
+    var state = instance.getState();
+    var touches = event.touches;
+    // 如果进行的是多指触控，不允许进行操作
+    if (touches && touches.length > 1) return;
+
+    // 标识当前为滑动中状态
+    state.moving = true;
+
+    // 记录触摸开始点的坐标值
+    state.startY = touches[0].pageY;
+    console.log("touchstart", state);
+}
+
+// 触摸滑动
+function touchmove(event, ownerInstance) {
+    var instance = event.instance;
+    var state = instance.getState();
+    var touches = event.touches;
+    var pageX = touches[0].pageX;
+    var pageY = touches[0].pageY;
+    var moveX = pageX - state.startX;
+    var moveY = pageY - state.startY;
+
+    if (!state.moving) return;
+
+    // 移动的X轴距离大于Y轴距离，也即终点与起点位置连线，与X轴夹角小于45度时，禁止页面滚动
+    if (Math.abs(moveX) > Math.abs(moveY) || Math.abs(moveX) > state.threshold) {
+        event.preventDefault && event.preventDefault();
+        event.stopPropagation && event.stopPropagation();
+    }
+    // 如果移动的X轴距离小于Y轴距离，也即终点位置与起点位置连线，与Y轴夹角小于45度时，认为是页面上下滑动，而不是左右滑动单元格
+    if (Math.abs(moveX) < Math.abs(moveY)) return;
+
+    if (state.scrollTop <= 0) {
+        console.log("state", state.scrollTop);
+        state.deltaY = touches[0].pageY - state.startY;
+        if (state.deltaY > 0) {
+            event.preventDefault && event.preventDefault();
+            event.stopPropagation && event.stopPropagation();
+            state.tipText = "下拉刷新";
+            if (state.deltaY > state.thresholdVal) {
+                state.tipText = "释放刷新";
+                state.slowY = (state.deltaY - state.thresholdVal) * 0.2 + state.thresholdVal;
+            } else {
+                state.slowY = state.deltaY;
+            }
+            //设置左侧元素移动位置
+            instance.requestAnimationFrame(function () {
+                instance.setStyle({
+                    transform: "translateY(" + state.slowY + "rpx)",
+                    "-webkit-transform": "translateY(" + state.slowY + "px)"
+                });
+            });
+        }
+    }
+}
+
+// 触摸结束
+function touchend(event, ownerInstance) {
+    // console.log("touchend", event);
+}
+
+function wxsPropsObserver(newValue, oldValue, ownerInstance, instance) {
+    var state = instance.getState();
+
+    // 临时防止nv_disabled报错
+    if (!state || !newValue || JSON.stringify(newValue) === "{}") {
+        return;
+    }
+    // console.log("newValue", newValue);
+    state.deltaY = newValue.deltaY;
+    state.resetTime = newValue.resetTime;
+    state.resetTimer = newValue.resetTimer;
+    state.scrollTop = newValue.scrollTop;
+    state.slowY = newValue.slowY;
+    state.startY = newValue.startY;
+    state.thresholdVal = newValue.thresholdVal;
+    console.log("state", state);
+}
+
+module.exports = {
+    touchstart: touchstart,
+    touchmove: touchmove,
+    touchend: touchend,
+    wxsPropsObserver: wxsPropsObserver
+};

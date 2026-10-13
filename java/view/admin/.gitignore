@@ -1,0 +1,31 @@
+# Nuxt dev/build outputs
+.output
+.data
+.nuxt
+.nitro
+.cache
+admin-dist
+.svn
+# Node dependencies
+node_modules
+docs
+.vscode
+# Logs
+logs
+*.log
+
+# Misc
+.DS_Store
+.fleet
+.idea
+admin-dist.zip
+.env.development
+.env
+
+# AI-OS session & metadata
+.ai-os/STATE.md
+.ai-os/context-snapshot.md
+.ai-os/codebase-map.md
+.ai-os/framework.toml
+.ai-os/managed-files.tsv
+# IDE integration files (CLAUDE.md, GEMINI.md, .cursor/) are team-shareable — do NOT gitignore them

@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>com.shop</groupId>
+		<artifactId>TigShop</artifactId>
+		<version>0.0.1-SNAPSHOT</version>
+	</parent>
+
+	<artifactId>tigshop-adminapi</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<description>后台模块(启动模块)</description>
+
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-validation</artifactId>
+		</dependency>
+
+		<!-- knife4j -->
+		<dependency>
+			<groupId>com.github.xiaoymin</groupId>
+			<artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<scope>provided</scope> <!-- 只在编译时使用，不打包 -->
+		</dependency>
+		<dependency>
+			<groupId>org.mindrot</groupId>
+			<artifactId>jbcrypt</artifactId>
+		</dependency>
+
+		<!-- MCP 服务端：向 WorkBuddy 等 AI 客户端暴露远程工具端点 -->
+		<dependency>
+			<groupId>io.modelcontextprotocol.sdk</groupId>
+			<artifactId>mcp-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.modelcontextprotocol.sdk</groupId>
+			<artifactId>mcp-json-jackson2</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>com.shop</groupId>
+			<artifactId>tigshop-common</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.shop</groupId>
+			<artifactId>tigshop-bean</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.shop</groupId>
+			<artifactId>tigshop-service</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.shop</groupId>
+			<artifactId>tigshop-security-admin</artifactId>
+			<version>${tigshop.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.shop</groupId>
+			<artifactId>tigshop-feign</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>io.github.biezhi</groupId>
+			<artifactId>TinyPinyin</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <jvmArguments>
+                        --add-opens java.base/java.lang=ALL-UNNAMED
+                        --add-opens java.base/java.lang.reflect=ALL-UNNAMED
+                        --add-opens java.base/java.util=ALL-UNNAMED
+                        --add-opens java.base/java.lang.invoke=ALL-UNNAMED
+                        --add-opens java.base/java.io=ALL-UNNAMED
+                    </jvmArguments>
+                </configuration>
+			</plugin>
+		</plugins>
+	</build>
+</project>

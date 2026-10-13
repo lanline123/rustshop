@@ -1,0 +1,117 @@
+/**
+ * PC 图文导航模块 - 预览样式
+ */
+
+.dec-pc-image-nav {
+    box-sizing: border-box;
+    padding-left: var(--dec-box-padding, 10px);
+    padding-right: var(--dec-box-padding, 10px);
+    padding-top: var(--dec-box-padding-top, 5px);
+    padding-bottom: var(--dec-box-padding-bottom, 5px);
+    // 容器背景色（扩展设置 → 容器设置）作用在外层
+    background-color: var(--dec-outer-bg, transparent);
+
+    &__content {
+        // 内容背景色（内容设置 → 背景颜色）作用在内容区
+        background-color: var(--dec-bg-color, #ffffff);
+        border-radius: var(--dec-box-radius, 0);
+        overflow: hidden;
+    }
+
+    &__empty {
+        padding: 40px 20px;
+        text-align: center;
+        background: #f5f5f5;
+        border-radius: 4px;
+
+        &-icon {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 12px;
+            background: url("@/assets/decorate/empty-img-bg.png") no-repeat center;
+            background-size: contain;
+        }
+
+        &-text {
+            color: #999;
+            font-size: 12px;
+        }
+    }
+
+    &__grid,
+    &__swiper-page {
+        display: grid;
+        grid-template-columns: repeat(var(--dec-row-num, 4), minmax(0, 1fr));
+        gap: var(--dec-item-gap, 8px);
+        padding: var(--dec-item-gap, 8px);
+        box-sizing: border-box;
+    }
+
+    &__item {
+        min-width: 0;
+    }
+
+    &__link {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-decoration: none;
+        color: inherit;
+        gap: 8px;
+    }
+
+    &__icon {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+    }
+
+    &__image {
+        width: 100%;
+        height: auto;
+        display: block;
+        border-radius: var(--dec-item-radius, 0);
+        background: #f0f0f0;
+    }
+
+    &__text {
+        font-size: 12px;
+        color: #333;
+        line-height: 1.2;
+        text-align: center;
+        word-break: break-all;
+    }
+
+    // 指示器颜色
+    .swiper-pagination-bullet-active {
+        background: var(--dec-indicator-color, #333333) !important;
+    }
+}
+
+// 指示器样式一：短条
+.dec-pc-image-nav--indicator-1 {
+    .swiper-pagination-bullet {
+        width: 12px;
+        height: 4px;
+        border-radius: 999px;
+        opacity: 0.35;
+    }
+
+    .swiper-pagination-bullet-active {
+        opacity: 1;
+    }
+}
+
+// 指示器样式二：圆点
+.dec-pc-image-nav--indicator-2 {
+    .swiper-pagination-bullet {
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        opacity: 0.35;
+    }
+
+    .swiper-pagination-bullet-active {
+        opacity: 1;
+    }
+}

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.setting.wechat.WechatKeywordRuleMapper">
+
+    <!--
+      关键字规则列表行映射：列别名 → KeywordRuleVO 驼峰属性。
+      keyword_count / reply_count / text_reply_count / news_reply_count 由子查询得到；
+      keywords 数组由 Service 层通过一次批量查询回填，这里不在 SQL 中处理。
+     -->
+    <resultMap id="KeywordRuleVOMap" type="com.tigshop.bean.vo.setting.wechat.KeywordRuleVO">
+        <id     property="id"              column="id"/>
+        <result property="ruleName"        column="rule_name"/>
+        <result property="keywordCount"    column="keyword_count"/>
+        <result property="replyCount"      column="reply_count"/>
+        <result property="textReplyCount"  column="text_reply_count"/>
+        <result property="newsReplyCount"  column="news_reply_count"/>
+        <result property="replyMode"       column="reply_mode"/>
+        <result property="enabled"         column="enabled"/>
+        <result property="createdAt"       column="created_at"/>
+        <result property="updatedAt"       column="updated_at"/>
+    </resultMap>
+
+    <!--
+      分页列表：按 ruleName 模糊、enabled 精确过滤；
+      每行用标量子查询聚合：
+        - keyword_count / reply_count：总数；
+        - text_reply_count / news_reply_count：按 msg_type 拆分后的回复数量，供列表展示「{n} 文本 {m} 图文」。
+      关键字明细 keywords 不在此处聚合，由 Service 层对当前页 ruleIds 做一次批量查询再按 rule_id 分组回填；
+      避免 GROUP_CONCAT 的长度限制与截断歧义。
+      LIMIT 由 MyBatis-Plus 分页插件自动拼接，这里不要手写。
+     -->
+    <select id="pageWithCount" resultMap="KeywordRuleVOMap">
+        SELECT
+            r.id,
+            r.rule_name,
+            r.reply_mode,
+            r.enabled,
+            r.created_at,
+            r.updated_at,
+            (SELECT COUNT(1) FROM wechat_keyword_rule_keyword k WHERE k.rule_id = r.id) AS keyword_count,
+            (SELECT COUNT(1) FROM wechat_keyword_rule_reply   p WHERE p.rule_id = r.id) AS reply_count,
+            (SELECT COUNT(1) FROM wechat_keyword_rule_reply p
+             WHERE p.rule_id = r.id AND p.msg_type = 1) AS text_reply_count,
+            (SELECT COUNT(1) FROM wechat_keyword_rule_reply p
+             WHERE p.rule_id = r.id AND p.msg_type = 2) AS news_reply_count
+        FROM wechat_keyword_rule r
+        <where>
+            <if test="ruleName != null and ruleName != ''">
+                AND r.rule_name LIKE CONCAT('%', #{ruleName}, '%')
+            </if>
+            <if test="enabled != null">
+                AND r.enabled = #{enabled}
+            </if>
+        </where>
+        ORDER BY r.created_at DESC, r.id DESC
+    </select>
+
+</mapper>

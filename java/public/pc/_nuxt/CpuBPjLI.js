@@ -1,0 +1,1 @@
+import{aV as e}from"./ntmrFmLd.js";const s=t=>e({url:"search/search/getFilter",method:"post",data:t}),a=t=>e({url:"search/search/getAttributeSuggestions",method:"get",params:t}),c=t=>e({url:"search/search/getProduct",method:"post",data:t});export{a,s as b,c as g};

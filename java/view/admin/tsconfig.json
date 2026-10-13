@@ -1,0 +1,31 @@
+{
+    "files": [],
+    "references": [
+        {
+            "path": "./tsconfig.node.json"
+        }
+        // {
+        //   "path": "./tsconfig.app.json"
+        // },
+        // {
+        //   "path": "./tsconfig.vitest.json"
+        // }
+    ],
+    "compilerOptions": {
+        "strict": true,
+        "moduleResolution": "Node",
+        "module": "ESNext",
+        "allowJs": true,
+        "types": ["pinia-plugin-persist", "vite/client"],
+        /* alias */
+        "baseUrl": "src",
+        "paths": {
+            "@/*": ["./*"],
+            "@": ["./"]
+        },
+        "resolveJsonModule": true,
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true,
+    },
+    "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue"]
+}

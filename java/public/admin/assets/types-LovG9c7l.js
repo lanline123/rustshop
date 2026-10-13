@@ -1,0 +1,1 @@
+const e={backgroundColor:"#fff",filterStyle:2,filterTemplate:2,showFilterPanel:!0,showPriceRange:!0,showShopTag:!0,showSales:!0,showCartButton:!0,goodsStyle:1,goodsRadiusStyle:1,buyStyle:1,componentMarginTop:8,componentMarginBottom:8};export{e as p};

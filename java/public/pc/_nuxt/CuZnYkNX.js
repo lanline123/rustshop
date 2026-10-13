@@ -1,0 +1,1 @@
+import{aU as s}from"./ntmrFmLd.js";const r=e=>s({url:"user/regist/registAct",method:"post",data:e}),t=e=>s({url:"user/login/sendMobileCode",method:"post",data:e}),n=e=>s({url:"user/login/sendEmailCode",method:"post",data:e}),u=e=>s({url:"user/login/bindMobile",method:"post",data:e});export{n as a,u as b,t as s,r as u};

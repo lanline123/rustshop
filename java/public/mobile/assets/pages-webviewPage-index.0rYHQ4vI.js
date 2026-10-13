@@ -1,0 +1,1 @@
+import{d as s,r as a,s as e,c as o,ay as r,o as n,_ as c}from"./index-Lmko8ZQO.js";const t=c(s({__name:"index",setup(s){const c=a("");e(s=>{s&&s.url&&(c.value=decodeURIComponent(s.url))});const t=s=>{},d=s=>{};return(s,a)=>{const e=r;return n(),o(e,{class:"service",src:c.value,onError:t,onLoad:d},null,8,["src"])}}}),[["__scopeId","data-v-a2a0347c"]]);export{t as default};

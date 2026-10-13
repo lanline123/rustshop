@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.content.ArticleMapper">
+
+
+    <select id="page" resultType="com.tigshop.bean.vo.content.ArticleVO">
+        select
+            article.*, article_category.article_category_name
+        from article
+        left join article_category on article.article_category_id = article_category.article_category_id
+        <where>
+            1 = 1
+            <if test="pageQuery.keyword != null and pageQuery.keyword != ''">
+                and article.article_title like concat('%',#{pageQuery.keyword},'%')
+            </if>
+            <if test="pageQuery.isShow != null and pageQuery.isShow > '-1'">
+                and article.is_show = #{pageQuery.isShow}
+            </if>
+            <if test="pageQuery.isHot != null and pageQuery.isHot > '-1'">
+                and article.is_hot = #{pageQuery.isHot}
+            </if>
+            <if test="pageQuery.categorySn != null and pageQuery.categorySn != ''">
+                and article_category.category_sn = #{pageQuery.categorySn}
+            </if>
+
+            <if test="pageQuery.articleIdList != null and pageQuery.articleIdList.size() > 0">
+                AND article.article_id IN
+                <foreach collection="pageQuery.articleIdList" item="id" open="(" separator="," close=")">
+                    #{id}
+                </foreach>
+            </if>
+
+            <if test="pageQuery.articleCategoryIds != null and pageQuery.articleCategoryIds.size() > 0">
+                AND article.article_category_id IN
+                <foreach collection="pageQuery.articleCategoryIds" item="cid" open="(" separator="," close=")">
+                    #{cid}
+                </foreach>
+            </if>
+        </where>
+    </select>
+</mapper>

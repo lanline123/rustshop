@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.promotion.BuyerShowMapper">
+
+    <resultMap id="BaseResultMap" type="com.tigshop.bean.model.promotion.BuyerShow">
+            <id property="buyerShowId" column="buyer_show_id" />
+            <result property="productId" column="product_id" />
+            <result property="buyerPhoto" column="buyer_photo" />
+            <result property="buyerName" column="buyer_name" />
+            <result property="content" column="content" />
+            <result property="groupId" column="group_id" />
+            <result property="addTime" column="add_time" />
+            <result property="sort" column="sort" />
+            <result property="status" column="status" />
+            <result property="type" column="type" />
+            <result property="shopId" column="shop_id" />
+    </resultMap>
+
+    <resultMap id="VideoFeedResultMap" type="com.tigshop.bean.model.promotion.BuyerShow">
+            <id property="buyerShowId" column="buyer_show_id" />
+            <result property="rangeData" column="range_data" />
+            <result property="userId" column="user_id" />
+            <result property="buyerPhoto" column="buyer_photo" />
+            <result property="buyerName" column="buyer_name" />
+            <result property="content" column="content" />
+            <result property="groupData" column="group_data" />
+            <result property="addTime" column="add_time" />
+            <result property="sortOrder" column="sort_order" />
+            <result property="isShow" column="is_show" />
+            <result property="status" column="status" />
+    </resultMap>
+
+    <!--
+      视频流游标查询。
+      视频类判定：图片与视频按 sort_order 混排后第一条是视频（平局视频优先）。
+      buyer_show_video.sort_order 为 D1152 新增列，历史数据默认 0，与相册首图并列时视频优先，
+      因此历史含视频的买家秀会进入视频流。
+    -->
+    <select id="selectVideoFeed" resultMap="VideoFeedResultMap">
+        SELECT
+            bs.buyer_show_id,
+            bs.range_data,
+            bs.user_id,
+            bs.buyer_photo,
+            bs.buyer_name,
+            bs.content,
+            bs.group_data,
+            bs.add_time,
+            bs.sort_order,
+            bs.is_show,
+            bs.status
+        FROM buyer_show bs
+        WHERE EXISTS (
+                  SELECT 1 FROM buyer_show_video v WHERE v.buyer_show_id = bs.buyer_show_id
+              )
+          AND (
+                  SELECT MIN(COALESCE(v.sort_order, 0)) FROM buyer_show_video v
+                  WHERE v.buyer_show_id = bs.buyer_show_id
+              ) &lt;= COALESCE((
+                  SELECT MIN(COALESCE(g.sort_order, 0)) FROM buyer_show_gallery g
+                  WHERE g.buyer_show_id = bs.buyer_show_id
+              ), 2147483647)
+          <choose>
+              <when test="userId != null and userId > 0">
+                  AND (
+                      (bs.user_id = #{userId} AND bs.status IN (0, 1))
+                      OR (bs.is_show = 1 AND bs.status = 1)
+                  )
+              </when>
+              <otherwise>
+                  AND bs.is_show = 1
+                  AND bs.status = 1
+              </otherwise>
+          </choose>
+          <if test="keyword != null and keyword != ''">
+              <bind name="keywordLike" value="'%' + keyword + '%'"/>
+              AND bs.content LIKE #{keywordLike}
+          </if>
+          <if test="groupId != null">
+              <!-- JSON_CONTAINS 的候选值必须是可解析为 JSON 的字符串，绑定为数字会报 Invalid data type for JSON data -->
+              <bind name="groupIdJson" value="groupId.toString()"/>
+              AND JSON_CONTAINS(bs.group_data, #{groupIdJson})
+          </if>
+          <!--
+            复合游标：与排序键一致（sort_order ASC, add_time DESC），以 buyer_show_id 作唯一兜底键保证游标稳定。
+            inclusive=true 时包含锚点自身（列表点入首屏，保证点击项在首位）；false 时严格取锚点之后（续页）。
+          -->
+          <if test="anchorId != null">
+              AND (
+                  bs.sort_order &gt; #{anchorSortOrder}
+                  OR (bs.sort_order = #{anchorSortOrder} AND bs.add_time &lt; #{anchorAddTime})
+                  OR (bs.sort_order = #{anchorSortOrder} AND bs.add_time = #{anchorAddTime}
+                      AND bs.buyer_show_id <choose><when test="inclusive">&lt;=</when><otherwise>&lt;</otherwise></choose> #{anchorId})
+              )
+          </if>
+          <if test="excludeIds != null and excludeIds.size() > 0">
+              AND bs.buyer_show_id NOT IN
+              <foreach collection="excludeIds" item="exId" open="(" close=")" separator=",">
+                  #{exId}
+              </foreach>
+          </if>
+        ORDER BY bs.sort_order ASC, bs.add_time DESC, bs.buyer_show_id DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

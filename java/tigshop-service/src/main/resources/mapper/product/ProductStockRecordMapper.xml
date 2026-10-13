@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.product.ProductStockRecordMapper">
+
+    <select id="productStockRecordPage" resultType="com.tigshop.bean.vo.product.ProductStockRecordVO">
+        SELECT
+        pr.product_stock_id,
+        pr.stock_code,
+        pr.type,
+        DATE_FORMAT( FROM_UNIXTIME( pr.add_time ), '%Y-%m-%d %H:%i:%s' ) AS addTime,
+        pr.add_by,
+        pr.`COMMENT` AS `comment`
+        FROM
+        product_stock_record pr
+        LEFT JOIN product_stock_record_detail psrd ON psrd.stock_record_id = pr.product_stock_id
+        LEFT JOIN product p ON p.product_id = psrd.product_id
+        LEFT JOIN product_sku ps ON ps.sku_id = psrd.sku_id
+        <where>
+            AND pr.shop_id = #{productStockDTO.shopId}
+            <if test="productStockDTO.inOrOut != null">
+                AND pr.in_or_out = #{productStockDTO.inOrOut}
+            </if>
+            <if test="productStockDTO.type != null">
+                AND pr.type = #{productStockDTO.type}
+            </if>
+            <if test="productStockDTO.beginTime != null">
+                AND <![CDATA[ pr.add_time >= #{productStockDTO.queryBeginTime} ]]>
+            </if>
+            <if test="productStockDTO.endTime != null">
+                AND <![CDATA[ pr.add_time <= #{productStockDTO.queryEndTime} ]]>
+            </if>
+            <if test="productStockDTO.keyword != null and productStockDTO.keyword != ''">
+                AND (pr.stock_code like concat('%',#{productStockDTO.keyword},'%') OR p.product_name like concat('%',#{productStockDTO.keyword},'%') OR p.product_sn like concat('%',#{productStockDTO.keyword},'%') OR ps.sku_value like concat('%',#{productStockDTO.keyword},'%'))
+            </if>
+        </where>
+        GROUP BY
+        pr.product_stock_id
+        order by pr.add_time desc
+    </select>
+</mapper>

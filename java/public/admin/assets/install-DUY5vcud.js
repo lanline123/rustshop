@@ -1,0 +1,1 @@
+import{a6 as t}from"./index-B6WS-doS.js";const n=()=>t({url:"install/index?step=1",method:"get"}),r=()=>t({url:"install/index?step=2",method:"get"}),a=e=>t({url:"install/index?step=3",method:"post",data:e});export{r as a,n as g,a as u};

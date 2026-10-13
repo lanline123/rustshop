@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.promotion.GrouponPromotionMapper">
+
+    <select id="list" resultType="com.tigshop.bean.vo.promotion.GrouponPromotionPageVO">
+        select
+        gp.*
+        from groupon_promotion gp
+        left join groupon_promotion_item gpi on gp.groupon_promotion_id = gpi.groupon_promotion_id
+        left join product p on gpi.product_id = p.product_id
+        <where>
+            <if test="pageQuery.grouponName != null and pageQuery.grouponName != ''">
+                and gp.name like concat('%', #{pageQuery.grouponName}, '%')
+            </if>
+            <if test="pageQuery.productName != null and pageQuery.productName != ''">
+                and p.name like concat('%', #{pageQuery.productName}, '%')
+            </if>
+            <if test="pageQuery.productSn != null and pageQuery.productSn != ''">
+                and p.product_sn like concat('%', #{pageQuery.productSn}, '%')
+            </if>
+            <if test="pageQuery.shopId != null">
+                and gp.shop_id = #{pageQuery.shopId}
+            </if>
+            <if test="pageQuery.groupType != null">
+                and gp.group_type = #{pageQuery.groupType}
+            </if>
+            <if test="pageQuery.status != null and pageQuery.status == 1">
+                and #{pageQuery.searchStatusTime} &gt;= gp.start_time
+                and #{pageQuery.searchStatusTime} &lt;= gp.end_time
+            </if>
+            <if test="pageQuery.status != null and pageQuery.status == 2">
+                and gp.end_time &lt; #{pageQuery.searchStatusTime}
+            </if>
+            <if test="pageQuery.status != null and pageQuery.status == 3">
+                and gp.start_time &gt; #{pageQuery.searchStatusTime}
+            </if>
+            <if test="pageQuery.startTime != null">
+                and gp.start_time &lt;= #{pageQuery.endTime}
+            </if>
+            <if test="pageQuery.endTime != null">
+                and gp.end_time &gt;= #{pageQuery.startTime}
+            </if>
+        </where>
+        GROUP BY gp.groupon_promotion_id
+    </select>
+
+    <select id="clientList" resultType="com.tigshop.bean.vo.promotion.GrouponPromotionClientPageVO">
+        select
+        gp.*
+        from groupon_promotion gp
+        left join groupon_promotion_item gpi on gp.groupon_promotion_id = gpi.groupon_promotion_id
+        left join product p on gpi.product_id = p.product_id
+        <where>
+            <if test="pageQuery.grouponName != null and pageQuery.grouponName != ''">
+                and gp.name like concat('%', #{pageQuery.grouponName}, '%')
+            </if>
+            <if test="pageQuery.shopId != null">
+                and gp.shop_id = #{pageQuery.shopId}
+            </if>
+            <if test="pageQuery.status != null and pageQuery.status == 1">
+                and gp.start_time >= #{pageQuery.searchStatusTime} and gp.end_time &lt;= #{pageQuery.searchStatusTime}
+            </if>
+            <if test="pageQuery.status != null and pageQuery.status == 2">
+                and gp.end_time &lt; #{pageQuery.searchStatusTime}
+            </if>
+            <if test="pageQuery.status != null and pageQuery.status == 3">
+                and gp.start_time > #{pageQuery.searchStatusTime}
+            </if>
+        </where>
+    </select>
+</mapper>

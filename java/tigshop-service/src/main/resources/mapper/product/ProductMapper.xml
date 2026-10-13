@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.product.ProductMapper">
+
+    <select id="salesmanProducts" resultType="com.tigshop.bean.vo.salesman.SalesmanProductListVO">
+        select
+            p.*, sp.*, p.paid_content as paidContentJson
+        from product p
+        left join salesman_product sp on p.product_id = sp.product_id
+        <where>
+            p.is_delete = 0
+            <if test="pageQuery.shopId != null and pageQuery.shopId > 0">
+                and p.shop_id = #{pageQuery.shopId}
+            </if>
+            <if test="pageQuery.productName != null and pageQuery.productName != ''">
+                and (p.product_name like concat('%', #{pageQuery.productName}, '%') or p.product_sn like concat('%', #{pageQuery.productName}, '%'))
+            </if>
+            <if test="pageQuery.status != null">
+                and p.product_status = #{pageQuery.status}
+            </if>
+            <if test="pageQuery.salesmanProductType != null and pageQuery.salesmanProductType == 1">
+                and (sp.is_join = 0 or sp.is_join is null)
+            </if>
+            <if test="pageQuery.salesmanProductType != null and pageQuery.salesmanProductType == 2">
+                and sp.commission_type = 2
+            </if>
+            <if test="pageQuery.salesmanProductType != null and pageQuery.salesmanProductType == 3">
+                and sp.is_join = 1
+            </if>
+            <if test="pageQuery.salesmanProductType != null and pageQuery.salesmanProductType == 4">
+                and sp.commission_type = 3
+            </if>
+        </where>
+    </select>
+
+    <select id="searchProductIds" resultType="java.lang.Integer">
+        SELECT DISTINCT p.product_id
+        FROM product p
+                 LEFT JOIN translations_data t
+                           ON t.data_type = 2
+                               AND t.data_id = p.product_id
+                               AND t.locale_id = (
+                                   SELECT l.id
+                                   FROM locales l
+                                   WHERE l.locale_code = #{localeCode}
+                                   LIMIT 1
+                               )
+        WHERE t.translation_value LIKE CONCAT('%', #{keyword}, '%')
+          AND p.product_status = 1
+          AND p.is_delete = 0
+    </select>
+
+    <!-- 与 TranslatePackage.translateBatch 一致：优先指定类型，未命中再按原文兜底，均取最早的非空译文。 -->
+    <select id="searchProductIdsByDisplayedName" resultType="java.lang.Integer">
+        SELECT p.product_id
+        FROM product p
+        INNER JOIN (
+            SELECT td.translation_name,
+                   COALESCE(MIN(CASE WHEN td.data_type = #{dataType} THEN td.id END), MIN(td.id)) AS translation_id
+            FROM translations_data td
+            WHERE td.locale_id = (SELECT l.id FROM locales l WHERE l.locale_code = #{localeCode} LIMIT 1)
+              AND td.translation_value IS NOT NULL
+              AND td.translation_value != ''
+            GROUP BY td.translation_name
+        ) names ON names.translation_name = p.product_name
+        INNER JOIN translations_data displayed ON displayed.id = names.translation_id
+        WHERE displayed.translation_value LIKE CONCAT('%', #{keyword}, '%')
+    </select>
+
+    <select id="selectProductList" resultType="com.tigshop.bean.vo.product.ProductSkuVO">
+        SELECT
+        p.product_id,
+        p.product_sn,
+        p.product_name,
+        p.product_stock,
+        p.category_id,
+        p.pic_url,
+        ps.sku_id,
+        ps.sku_data,
+        ps.sku_stock,
+        p.shop_id,
+        p.product_price,
+        ps.sku_price
+        FROM product p
+        LEFT JOIN product_sku ps
+        ON ps.product_id = p.product_id AND ps.is_enabled = 1
+        WHERE p.is_delete = 0
+          AND p.product_status = 1
+          AND p.shop_id = #{shopId}
+        <if test="keyword != null and keyword != ''">
+            AND (p.product_name LIKE CONCAT('%', #{keyword}, '%')
+            OR p.product_sn LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="categoryIds != null and categoryIds.size() > 0">
+            AND p.category_id IN
+            <foreach collection="categoryIds" item="catId" open="(" separator="," close=")">
+                #{catId}
+            </foreach>
+        </if>
+        <if test="productType != null and productType.size() > 0">
+            AND p.product_type IN
+            <foreach collection="productType" item="type" open="(" separator="," close=")">
+                #{type}
+            </foreach>
+        </if>
+        <if test="excludeProductTypes != null and excludeProductTypes.size() > 0">
+            AND p.product_type NOT IN
+            <foreach collection="excludeProductTypes" item="type" open="(" separator="," close=")">
+                #{type}
+            </foreach>
+        </if>
+        <if test="isSaleMode != null and isSaleMode == 0">
+            AND (p.sale_mode IS NULL OR p.sale_mode = 0)
+        </if>
+        <if test="isIncludeCycleProduct == null or isIncludeCycleProduct == 0">
+            AND (p.delivery_mode = 0 OR p.delivery_mode = 1)
+        </if>
+
+        ORDER BY  p.add_time DESC
+    </select>
+
+    <select id="selectProduct" resultType="com.tigshop.bean.vo.product.ProductSkuVO">
+        SELECT
+        p.product_id,
+        p.product_sn,
+        p.product_name,
+        p.category_id,
+        p.pic_url,
+        p.product_type,
+        ps.sku_id,
+        ps.sku_data,
+        p.shop_id,
+        p.product_price,
+        ps.sku_price
+        FROM product p
+        LEFT JOIN product_sku ps
+        ON ps.product_id = p.product_id AND ps.is_enabled = 1
+        WHERE p.is_delete = 0
+        AND p.product_status = 1
+        <if test="productId != null and productId != ''">
+            AND p.product_id = #{productId}
+        </if>
+        <if test="skuId != null and skuId != ''">
+            AND ps.sku_id = #{skuId}
+        </if>
+        GROUP BY ps.sku_id
+    </select>
+
+</mapper>

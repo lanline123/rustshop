@@ -1,0 +1,1 @@
+import{aU as e}from"./ntmrFmLd.js";const c=t=>e({url:"product/productStyle/activeStyle",method:"get",params:{productId:t}}),a=t=>e({url:"product/productStyle/batchActiveStyle",method:"get",params:{productIds:t}});export{a as b,c as g};

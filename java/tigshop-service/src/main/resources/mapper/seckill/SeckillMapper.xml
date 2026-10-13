@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.promotion.SeckillMapper">
+
+    <select id="listForDecorate" resultType="com.tigshop.bean.model.promotion.Seckill">
+        select s.* from seckill s
+        left join seckill_item si on s.seckill_id = si.seckill_id
+        where s.seckill_start_time &lt; #{currentTime} and s.seckill_end_time &gt; #{currentTime}
+        GROUP BY s.seckill_id
+        order by si.seckill_price
+    </select>
+
+</mapper>

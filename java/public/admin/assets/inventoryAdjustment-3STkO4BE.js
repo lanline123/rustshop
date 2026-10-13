@@ -1,0 +1,1 @@
+import{a6 as o}from"./index-B6WS-doS.js";const s=t=>o({url:"product/stock/page",method:"get",params:t}),e=t=>o({url:"product/stock/stockAdjust",method:"post",data:t}),u=t=>o({url:"product/stock/adjustDetail",method:"get",params:t});export{u as a,s as g,e as p};

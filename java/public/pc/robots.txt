@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+Disallow: /member/
+Disallow: /order/
+Disallow: /cart/
+Disallow: /chat/
+Disallow: /install/
+Disallow: /pcMobile/
+Disallow: /preview
+Disallow: /verify-code
+Disallow: /checkout/
+Disallow: /login/
+Disallow: /register/
+Sitemap: /sitemap.xml

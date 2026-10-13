@@ -1,0 +1,96 @@
+/* 修改主题色 */
+
+@forward "element-plus/theme-chalk/src/common/var.scss" with (
+    $colors: (
+        "primary": (
+            "base": #1456f0
+        ),
+        "info": (
+            "base": #333
+        )
+    ),
+    $input: (
+        "border-radius": 2px
+    ),
+    $text-color: (
+        "primary": #303133,
+        "regular": rgba(0, 0, 0, 0.88),
+        "secondary": rgba(0, 0, 0, 0.88),
+        "placeholder": #a8abb2,
+        "disabled": #c0c4cc
+    ),
+    $border-radius: (
+        "base": 2px,
+        "small": 2px,
+        "round": 20px,
+        "circle": 100%
+    ),
+    $bg-color: (),
+    $box-shadow: (
+        "": (
+            0px 12px 32px 4px rgba(0, 0, 0, 0.04),
+            0px 8px 20px rgba(0, 0, 0, 0.08)
+        ),
+        "light": (
+            0 6px 16px 0 rgba(0, 0, 0, 0.08),
+            0 3px 6px -4px rgba(0, 0, 0, 0.12),
+            0 9px 28px 8px rgba(0, 0, 0, 0.05)
+        ),
+        "lighter": (
+            0px 0px 6px rgba(0, 0, 0, 0.12)
+        ),
+        "dark": (
+            0px 16px 48px 16px rgba(0, 0, 0, 0.08),
+            0px 12px 32px rgba(0, 0, 0, 0.12),
+            0px 8px 16px -8px rgba(0, 0, 0, 0.16)
+        )
+    ),
+    $font-size: (
+        "extra-large": 18px,
+        "large": 16px,
+        "medium": 16px,
+        "base": 14px,
+        "small": 12px,
+        "extra-small": 11px
+    ),
+    $button: (
+        "font-weight": "normal"
+    ),
+    $checkbox: (
+        "font-size": 14px,
+        "font-weight": normal
+    ),
+    $dialog: (
+        "content-font-size": 14px
+    ),
+    $table-padding: (
+        "large": 12px 0,
+        "default": 16px 0,
+        "small": 4px 0
+    ),
+    $pagination: (
+        "font-size": 14px
+    ),
+    $table: (
+        "header-bg-color": #f5f6fa
+    ),
+    $table-font-size: (
+        "default": 14px,
+        "small": 12px
+    ),
+
+    $cascader: (
+        "menu-text-color": rgba(0, 0, 0, 0.88),
+        // 'menu-selected-text-color': getCssVar('color-primary'),
+        // 'menu-fill': getCssVar('bg-color', 'overlay'),
+        // 'menu-font-size': getCssVar('font-size-base'),
+        // 'menu-radius': getCssVar('border-radius-base'),
+        // 'menu-border': solid 1px getCssVar('border-color-light'),
+        // 'menu-shadow': getCssVar('box-shadow-light'),
+        // 'node-background-hover': getCssVar('fill-color', 'light'),
+        // 'node-color-disabled': getCssVar('text-color-placeholder'),
+        // 'color-empty': getCssVar('text-color-placeholder'),
+        // 'tag-background': getCssVar('fill-color'),
+    )
+);
+@use "element-plus/theme-chalk/src/index.scss" as *;

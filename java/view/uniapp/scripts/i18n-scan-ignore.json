@@ -1,0 +1,125 @@
+{
+    "note": "人工核实结论。file 为路径前缀匹配；texts 省略表示整文件命中；bucket=D 表示延后处理而非误报。",
+    "entries": [
+        {
+            "file": "src/utils/format.ts",
+            "reason": "baseList/装修链接映射表的 name 字段只用于按 link 反查 url，从不渲染"
+        },
+        {
+            "file": "src/utils/crossBorderAddress.ts",
+            "reason": "国家字段配置表的 name/label/placeholder/hint 是 i18n key 本体，渲染点为 $t(field.label) / $t(field.placeholder)，校验文案经 t() 与 formatI18nParams 输出"
+        },
+        {
+            "file": "src/pages/im/src/emojiElements.ts",
+            "reason": "表情名仅作面板内部标识，与独立跨境项目一致未翻译"
+        },
+        {
+            "file": "src/utils/websocket.ts",
+            "reason": "WebSocket 连接状态日志，仅 console 输出"
+        },
+        {
+            "file": "src/components/verificationCode/index.vue",
+            "reason": "emit 出去的提示已 t() 包裹，baseLogin 侧同样用 t() 比较，两端一致"
+        },
+        {
+            "file": "src/pages/login/src/baseLogin.vue",
+            "texts": ["请阅读并同意协议！"],
+            "reason": "verificationCode emit 侧已是 t()，此处 msg === t() 为双侧译文比较，英文环境同样成立，不是 C 类缺陷"
+        },
+
+        {
+            "file": "src/pages/search/index.vue",
+            "texts": ["搜索商品", "点击搜索商品"],
+            "reason": "渲染点已翻译：navbarTitle 经 tig-layout → tig-navbar 的 {{ $t(title) }}，placeholder 经 :placeholder=\"$t(placeholder)\""
+        },
+        {
+            "file": "src/pages/productCate/src/search.vue",
+            "texts": ["搜索商品"],
+            "reason": "渲染点已翻译：模板 {{ $t(placeholder) }}，此处只是 prop 默认值"
+        },
+        {
+            "file": "src/pages/salesman/src/empty.vue",
+            "texts": ["暂无数据"],
+            "reason": "渲染点已翻译：模板 {{ $t(emptyTxt) }}"
+        },
+        {
+            "file": "src/pages/giftCard/src/error.vue",
+            "texts": ["页面失效"],
+            "reason": "渲染点已翻译：模板 {{ $t(message) }}"
+        },
+        {
+            "file": "src/components/tig/tig-loadingpage/tig-loadingpage.vue",
+            "texts": ["加载中"],
+            "reason": "渲染点已翻译：模板 :loading-text=\"$t(loadingText)\""
+        },
+        {
+            "file": "src/pages/customPage/modules/live/index.vue",
+            "texts": ["直播中"],
+            "reason": "liveStatusTextMap 的两个渲染点都已 $t() 包裹（L19、L45）"
+        },
+        {
+            "file": "src/components/masonry/activityCard.vue",
+            "texts": ["券"],
+            "reason": "activitType 只被模板 $t(getActivityText(...)) 消费；且该节点 v-if=\"type != 2\"，此分支取不到，真正显示「券」的是已包裹的 $t(\"券\")"
+        },
+        {
+            "file": "src/store/config.ts",
+            "texts": ["元"],
+            "reason": "dollarSignCn 的翻译责任在消费侧：useCurrency.ts L30 已是 t(configStore.dollarSignCn)；且 L308 会被服务端值整体覆盖，只包默认值会造成加载前后不一致"
+        },
+
+        {
+            "bucket": "D",
+            "file": "src/pages/order/src/offline.vue",
+            "reason": "activeName 存中文原文并参与 v-if 比较；与 C 类第 7/14/21/28 行的 $t() 比较一并改"
+        },
+        {
+            "bucket": "D",
+            "file": "src/pages/order/src/couponInfo.vue",
+            "texts": ["可用优惠券", "不可用优惠券"],
+            "reason": "tabsActive 状态值，与 v-if 比较绑定"
+        },
+        {
+            "bucket": "D",
+            "file": "src/pages/order/src/couponInfo.v1.vue",
+            "texts": ["可用优惠券", "不可用优惠券"],
+            "reason": "tabsActive 状态值，与 v-if 比较绑定"
+        },
+        {
+            "bucket": "D",
+            "file": "src/pages/coupon/detail.vue",
+            "texts": ["马上领", "已领取", "再次领取"],
+            "reason": "couponStatus 返回值同时用于比较，属 C/B1 同簇缺陷"
+        },
+        {
+            "bucket": "D",
+            "file": "src/pages/coupon/index.vue",
+            "texts": ["马上领", "已领取", "再次领取"],
+            "reason": "couponStatus 返回值同时用于比较，属 C/B1 同簇缺陷"
+        },
+        {
+            "bucket": "D",
+            "file": "src/pages/coupon/index.v1.vue",
+            "texts": ["马上领", "已领取", "再次领取"],
+            "reason": "couponStatus 返回值同时用于比较，属 C/B1 同簇缺陷"
+        },
+        {
+            "bucket": "D",
+            "file": "src/pages/product/src/productCoupon.vue",
+            "texts": ["马上领", "已领取", "再次领取"],
+            "reason": "couponStatus 返回值同时用于比较，属 C/B1 同簇缺陷"
+        },
+        {
+            "bucket": "D",
+            "file": "src/pages/productV1/src/productCoupon.vue",
+            "texts": ["马上领", "已领取", "再次领取"],
+            "reason": "couponStatus 返回值同时用于比较，属 C/B1 同簇缺陷"
+        },
+        {
+            "bucket": "D",
+            "file": "src/pages/member/components/decorate/userInfo3/index.vue",
+            "texts": ["门店关注", "店铺收藏"],
+            "reason": "followLabel 既做默认文案又参与 label 比较，渲染侧已有 safeT()"
+        }
+    ]
+}

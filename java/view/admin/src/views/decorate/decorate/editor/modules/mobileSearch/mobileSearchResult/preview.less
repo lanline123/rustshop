@@ -1,0 +1,779 @@
+/**
+ * 移动端搜索结果模块 - 预览样式
+ * 国内版 (layoutStyle 1) & 海外版 (layoutStyle 2)
+ *
+ * 模块外边距只作用商品列表容器（对齐 C 端 .goods-container），不包搜索头/筛选栏。
+ */
+
+.dec-mobile-search-result {
+    box-sizing: border-box;
+    font-size: 14px;
+    position: relative;
+    background-color: var(--dec-search-result-bg, #f5f5f5);
+
+    &__inner {
+        min-height: 700px;
+        box-sizing: border-box;
+    }
+
+    // ========== 搜索栏 (Style 1) ==========
+    &__header {
+        height: 50px;
+        background-color: var(--dec-search-item-bg, #fff);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 var(--dec-search-item-padding-lr, 10px);
+        border-bottom: 1px solid #f5f5f5;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+
+        &--style2 {
+            justify-content: space-between;
+            padding: 0 var(--dec-search-item-padding-lr, 10px);
+
+            .dec-mobile-search-result__back-icon {
+                flex-shrink: 0;
+                margin: 0 13px 0 3px;
+                color: #1a1a1a;
+                font-size: 14px;
+                line-height: 1;
+            }
+
+            .dec-mobile-search-result__input-wrapper {
+                flex: 1;
+                width: 0;
+                background-color: #fff;
+                border: 1px solid #1a1a1a;
+                border-radius: 8px;
+                height: 36px;
+                padding: 0 12px;
+            }
+
+            .dec-mobile-search-result__search-icon-right {
+                color: #1a1a1a;
+                flex-shrink: 0;
+                display: block;
+                font-size: 18px;
+                line-height: 1;
+            }
+
+            .dec-mobile-search-result__search-text {
+                background-color: #f2f3f5;
+                border-radius: 4px !important;
+            }
+        }
+    }
+
+    &__input-wrapper {
+        width: 100%;
+        height: 30px;
+        background-color: #f5f5f5;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        padding: 0 7.5px 0 5px;
+        box-sizing: border-box;
+    }
+
+    &__input-area {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding-left: 2px;
+        min-width: 0;
+    }
+
+    &__search-text {
+        color: #1a1a1a;
+        font-size: 13px;
+        padding: 5px 2px;
+        border-radius: 100px;
+    }
+
+    &__search-btn {
+        font-size: 12px;
+        color: #666;
+        padding: 0 10px;
+        min-height: 22px;
+        line-height: 22px;
+        display: flex;
+        align-items: center;
+    }
+
+    // ========== 排序标签栏 (Style 1) ==========
+    &__tabs {
+        display: flex;
+        background-color: var(--dec-search-item-bg, #fff);
+        height: 40px;
+        align-items: center;
+        padding: 0 var(--dec-search-item-padding-lr, 10px);
+        box-sizing: border-box;
+
+        &--style2 {
+            height: auto;
+            padding: 10px var(--dec-search-item-padding-lr, 10px);
+            gap: 0;
+            overflow-x: hidden;
+            position: relative;
+            background-color: var(--dec-search-item-bg, #fff);
+            border-bottom: 1px solid #f5f5f5;
+
+            &::-webkit-scrollbar {
+                display: none;
+            }
+
+            .dec-mobile-search-result__tabs-scroll {
+                display: flex;
+                flex: 1;
+                min-width: 0;
+                overflow-x: auto;
+                flex-wrap: nowrap;
+                gap: 8px;
+
+                &::-webkit-scrollbar {
+                    display: none;
+                }
+            }
+
+            .dec-mobile-search-result__tab-item-box {
+                display: inline-flex;
+                flex-shrink: 0;
+                align-items: center;
+                white-space: nowrap;
+                padding: 0 10px;
+                background-color: #fff;
+                border-radius: 4px;
+                font-size: 13px;
+                color: #333;
+                height: 30px;
+                line-height: 30px;
+                border: 1px solid #ddd;
+                gap: 4px;
+
+                span {
+                    line-height: 1;
+                    display: inline-flex;
+                    align-items: center;
+                }
+
+                .dec-mobile-search-result__filter-ico {
+                    color: #1a1a1a;
+                    flex-shrink: 0;
+                    display: block;
+                    font-size: 12px;
+                    line-height: 1;
+                }
+
+                .dec-mobile-search-result__tab-arrow {
+                    color: #666;
+                    flex-shrink: 0;
+                    display: block;
+                    font-size: 10px;
+                    line-height: 1;
+                }
+
+                &.active {
+                    border-color: #1a1a1a;
+                    color: #1a1a1a;
+                    font-weight: 500;
+
+                    .dec-mobile-search-result__filter-ico,
+                    .dec-mobile-search-result__tab-arrow {
+                        color: #1a1a1a;
+                    }
+                }
+            }
+
+            .dec-mobile-search-result__tabs-more {
+                position: relative;
+                flex-shrink: 0;
+                margin-left: 0;
+                height: 35px;
+                padding: 0 10px;
+                display: flex;
+                align-items: center;
+                z-index: 2;
+                color: #333;
+
+                &::before {
+                    content: "";
+                    position: absolute;
+                    left: -32px;
+                    top: 0;
+                    width: 32px;
+                    height: 34px;
+                    background: linear-gradient(270deg, var(--dec-search-item-bg, #fff), transparent);
+                    pointer-events: none;
+                    z-index: 2;
+                }
+
+                .dec-mobile-search-result__tab-arrow {
+                    color: #333;
+                    display: block;
+                    font-size: 14px;
+                    line-height: 1;
+                }
+            }
+        }
+    }
+
+    &__tab-item {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        color: #333;
+        gap: 4px;
+
+        &.active {
+            color: var(--dec-search-result-theme, #ff4d4f);
+        }
+
+        &--price {
+            .dec-mobile-search-result__price-icons {
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                margin-left: 2px;
+                color: #c3c0c0;
+                line-height: 1;
+
+                .iconfont-h5 {
+                    display: block;
+                    color: #c3c0c0;
+                    font-size: 8px;
+                    line-height: 1;
+                }
+            }
+        }
+
+        &--filter {
+            .dec-mobile-search-result__filter-arrow {
+                color: #c3c0c0;
+                margin-left: 2px;
+                flex-shrink: 0;
+                display: block;
+                font-size: 8px;
+                line-height: 1;
+            }
+
+            // Admin 后加载的 iconfont-admin 会覆盖同名 content；钉死 h5 字库码点
+            .icon-gengduo1:before {
+                content: "\e712";
+            }
+        }
+    }
+
+    // ========== 商品列表（外边距 / 内边距对齐 C 端 goods-container）==========
+    &__content {
+        margin: var(--dec-search-result-margin, 0);
+        padding: var(--dec-search-result-padding-tb, 10px) var(--dec-search-result-padding-lr, 10px);
+
+        // 双列布局 (listStyle 1)：对齐 C 端 product-item —— 图片贴边，文案区左右 8px
+        &--list1 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            column-gap: 7px; // 对应 uniapp masonry grid-gap: 14rpx
+            row-gap: 7.5px; // 对应 uniapp product-item margin-bottom: 15rpx
+
+            .dec-mobile-search-result__item {
+                flex-direction: column;
+                padding: 0;
+                padding-bottom: 5px; // 对应 uniapp padding-bottom: 10rpx
+                position: relative;
+
+                .dec-mobile-search-result__item-image {
+                    width: 100%;
+                    aspect-ratio: 1 / 1;
+                    // 圆角沿用 __item-image 的 --dec-search-result-image-radius（对齐 uniapp --pi-image-radius）
+                }
+
+                .dec-mobile-search-result__item-info {
+                    // 对应 uniapp detail margin: 10rpx 16rpx / action padding: 0 16rpx
+                    padding: 5px 8px 0;
+                }
+            }
+        }
+
+        // 单列布局 (listStyle 2)：商品项背景跟随 itemBackgroundColor（勿写 transparent 覆盖）
+        // 容器 padding 沿用 __content 的上下/左右内间距变量，勿再写死 12px
+        &--list2 {
+            display: flex;
+            flex-direction: column;
+            gap: 8px; // 对应 uniapp search-list__item margin-bottom: 16rpx
+
+            .dec-mobile-search-result__item {
+                flex-direction: row;
+                border-radius: var(--dec-search-result-image-radius, 4px);
+                background-color: var(--dec-search-result-item-bg, #fff);
+
+                .dec-mobile-search-result__item-image {
+                    width: 115px;
+                    height: 115px;
+                    border-radius: var(--dec-search-result-image-radius, 4px);
+                    flex-shrink: 0;
+                }
+
+                .dec-mobile-search-result__item-info {
+                    padding: 0 10px;
+                    justify-content: flex-start;
+                    gap: 5px;
+                }
+
+                .dec-mobile-search-result__item-title {
+                    font-size: 14px;
+                    font-weight: 500;
+                    line-height: 20px;
+                    max-height: none;
+                    margin-bottom: 0;
+                }
+
+                .dec-mobile-search-result__item-sales {
+                    font-size: 11px;
+                    line-height: 15px;
+                    height: 15px;
+                    color: #888b94;
+                }
+
+                .dec-mobile-search-result__item-action {
+                    margin-top: auto;
+                    padding: 2.5px 0 5px;
+
+                    .dec-mobile-search-result__item-price {
+                        color: var(--dec-search-result-price-color, var(--dec-search-result-theme, #ff4d4f));
+                        font-size: 16px;
+
+                        .dec-mobile-search-result__price-value {
+                            font-size: 16px;
+                        }
+                    }
+                }
+
+                .dec-mobile-search-result__item-shop {
+                    height: 14px;
+                    line-height: 14px;
+                    margin: 5.5px 0 0;
+                    color: #269636;
+                    font-size: 11px;
+                    font-weight: bold;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
+
+                .dec-mobile-search-result__item-cart {
+                    width: 100%;
+                    margin-top: 5px;
+                    padding: 0;
+                }
+
+                .dec-mobile-search-result__cart-btn {
+                    background-color: #1c1c1c;
+                    color: #fff;
+                    text-align: center;
+                    line-height: 31.5px;
+                    border-radius: 4px;
+                    font-size: 14px;
+                    font-weight: 500;
+                    min-width: 111px;
+                    max-width: 130px;
+                }
+            }
+        }
+    }
+
+    // ========== 门店列表 (searchResultType 2) ==========
+    &__content--store {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    &__store {
+        background-color: var(--dec-search-result-item-bg, #fff);
+        border-radius: 8px;
+        padding: 12px;
+    }
+
+    &__store-header {
+        display: flex;
+        align-items: flex-start;
+    }
+
+    &__store-logo {
+        flex-shrink: 0;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        overflow: hidden;
+        background-color: #f5f5f5;
+
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+    }
+
+    &__store-main {
+        flex: 1;
+        min-width: 0;
+        margin-left: 8px;
+    }
+
+    &__store-title-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        column-gap: 4px;
+    }
+
+    // 与 C 端 storeSearchCard .store-tag 同图同尺寸（rpx→px 按 /2）
+    &__store-tag {
+        flex-shrink: 0;
+        min-width: 53px;
+        height: 13px;
+        padding-left: 15px;
+        padding-right: 5px;
+        font-size: 8px;
+        color: #fff;
+        line-height: 13px;
+        background-image: var(--dec-store-tag-bg);
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+    }
+
+    &__store-title {
+        flex: 1;
+        min-width: 0;
+        line-height: 21px;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+
+    &__store-follow {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        height: 24px;
+        padding: 0 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        line-height: 1;
+        color: #fff;
+        background-color: var(--dec-search-result-theme, #ff4d4f);
+
+        .iconfont-h5 {
+            font-size: 11px;
+            line-height: 1;
+            margin-right: 3px;
+        }
+    }
+
+    &__store-meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        margin-top: 5px;
+        column-gap: 8px;
+        row-gap: 3px;
+    }
+
+    &__store-score {
+        font-size: 11px;
+        line-height: 15px;
+        font-weight: 600;
+        color: var(--dec-search-result-theme, #ff4d4f);
+    }
+
+    &__store-meta-item {
+        font-size: 11px;
+        line-height: 15px;
+        color: #999;
+    }
+
+    &__store-products {
+        display: flex;
+        margin-top: 10px;
+        overflow: hidden;
+    }
+
+    &__store-product {
+        flex-shrink: 0;
+        width: 78px;
+    }
+
+    &__store-product-image {
+        width: 78px;
+        height: 78px;
+        border-radius: var(--dec-search-result-image-radius, 4px);
+        overflow: hidden;
+        background-color: #f5f5f5;
+
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+    }
+
+    &__store-product-name {
+        margin-top: 5px;
+        font-size: 12px;
+        color: #333;
+        line-height: 17px;
+
+        &--line1 {
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        &--line2 {
+            display: -webkit-box;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-clamp: 2;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            white-space: normal;
+        }
+    }
+
+    // 门店卡片的价格跟随站点主题色，不受商品价格颜色配置影响
+    &__store-product-price {
+        margin-top: 2px;
+        font-size: 13px;
+        font-weight: bold;
+        color: var(--dec-search-result-theme, #ff4d4f);
+    }
+
+    &__item {
+        background-color: var(--dec-search-result-item-bg, #fff);
+        border-radius: var(--dec-search-result-image-radius, 4px);
+        overflow: hidden;
+        display: flex;
+    }
+
+    &__item-image {
+        flex-shrink: 0;
+        // 勿写死灰底，否则会盖住商品项背景色；对齐 uniapp product-item（整卡 --pi-item-bg）
+        background-color: transparent;
+        border-radius: var(--dec-search-result-image-radius, 4px);
+        overflow: hidden;
+
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+    }
+
+    &__item-info {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        flex: 1;
+        min-width: 0;
+    }
+
+    &__item-title {
+        font-size: 13px;
+        line-height: 1.4;
+        line-clamp: var(--dec-product-title-line, 2);
+        display: -webkit-box;
+        -webkit-line-clamp: var(--dec-product-title-line, 2);
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        margin-bottom: 4px;
+    }
+
+    /* 结构对齐 uniapp .ticket；底色保持主题色 15% 透明；padding 按 rpx→px（约 /2）对齐 */
+    &__item-coupon {
+        display: inline-flex;
+        align-items: stretch;
+        max-width: 78%;
+        background-color: var(--dec-search-result-theme-50, rgba(255, 77, 79, 0.15));
+        color: var(--dec-search-result-theme, #ff4d4f);
+        font-size: 12px;
+        line-height: 1.4;
+        border-radius: 2.5px;
+        margin-bottom: 8px;
+        overflow: hidden;
+        /* uniapp: padding-bottom 2rpx */
+        padding: 0;
+        padding-bottom: 1px;
+    }
+
+    &__coupon-type {
+        position: relative;
+        flex-shrink: 0;
+        /* uniapp: padding 0 6rpx */
+        padding: 0 3px;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    &__coupon-line {
+        position: absolute;
+        display: block;
+        height: 100%;
+        /* uniapp 也是 0.5，但用的是更浅的边框色；这里再压低一点，预览里更接近「几乎看不出」 */
+        opacity: 0.35;
+        width: 1px;
+        top: 0;
+        right: 0;
+        transform: scaleY(0.7);
+        pointer-events: none;
+        background: linear-gradient(
+            to bottom,
+            var(--dec-search-result-coupon-line, rgba(255, 77, 79, 0.35)) 20%,
+            var(--dec-search-result-coupon-line, rgba(255, 77, 79, 0.35)) 20%,
+            var(--dec-search-result-coupon-line, rgba(255, 77, 79, 0.35)) 20%,
+            rgba(255, 255, 255, 0) 20%,
+            rgba(255, 255, 255, 0) 35%,
+            var(--dec-search-result-coupon-line, rgba(255, 77, 79, 0.35)) 35%,
+            var(--dec-search-result-coupon-line, rgba(255, 77, 79, 0.35)) 35%,
+            var(--dec-search-result-coupon-line, rgba(255, 77, 79, 0.35)) 35%,
+            var(--dec-search-result-coupon-line, rgba(255, 77, 79, 0.35)) 60%,
+            rgba(255, 255, 255, 0) 60%,
+            rgba(255, 255, 255, 0) 55%,
+            rgba(255, 255, 255, 0) 75%,
+            var(--dec-search-result-coupon-line, rgba(255, 77, 79, 0.35)) 75%,
+            var(--dec-search-result-coupon-line, rgba(255, 77, 79, 0.35)) 75%,
+            var(--dec-search-result-coupon-line, rgba(255, 77, 79, 0.35)) 100%
+        );
+    }
+
+    &__coupon-content {
+        /* uniapp: padding 0 8rpx */
+        padding: 0 4px;
+        max-width: 100px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    &__item-shop {
+        margin-bottom: 8px;
+    }
+
+    &__shop-tag {
+        display: inline-block;
+        font-size: 10px;
+        padding: 0 4px;
+        line-height: 14px;
+        border-radius: 2px;
+        color: #269636;
+    }
+
+    &__item-bottom {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-top: 5px;
+        margin-bottom: 5px;
+    }
+
+    &__item-price {
+        color: var(--dec-search-result-price-color, var(--dec-search-result-theme, #ff4d4f));
+        font-weight: bold;
+    }
+
+    &__price-symbol {
+        font-size: 11px;
+    }
+
+    &__price-value {
+        font-size: 16px;
+    }
+
+    &__item-sales {
+        font-size: 10px;
+        color: #999;
+    }
+
+    // ========== 购物车按钮样式 (双列) ==========
+    &__buy-btn-box {
+        position: absolute;
+        right: 8px;
+        bottom: 8px;
+        z-index: 2;
+    }
+
+    &__buy-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        text-decoration: none;
+        line-height: 1;
+        transition: opacity 0.2s;
+
+        &:hover {
+            opacity: 0.8;
+        }
+
+        span {
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        // 样式 1-4 (图标样式)
+        &--style1,
+        &--style2,
+        &--style3,
+        &--style4 {
+            width: 24px;
+            height: 24px;
+
+            .iconfont-pc {
+                color: var(--dec-search-result-theme, #ff4d4f);
+                font-size: 18px;
+                line-height: 1;
+            }
+        }
+
+        // 样式 5 (购买 - 边框)
+        &--style5 {
+            color: var(--dec-search-result-theme, #ff4d4f);
+            border: 1px solid var(--dec-search-result-theme, #ff4d4f);
+            height: 22px;
+            padding: 0 8px;
+            border-radius: 2px;
+        }
+
+        // 样式 6 (购买 - 实心)
+        &--style6 {
+            background-color: var(--dec-search-result-theme, #ff4d4f);
+            color: #fff;
+            height: 22px;
+            padding: 0 10px;
+            border-radius: 22px;
+        }
+
+        // 样式 7 (马上抢 - 边框)
+        &--style7 {
+            color: var(--dec-search-result-theme, #ff4d4f);
+            border: 1px solid var(--dec-search-result-theme, #ff4d4f);
+            height: 22px;
+            padding: 0 8px;
+            border-radius: 2px;
+        }
+
+        // 样式 8 (马上抢 - 实心)
+        &--style8 {
+            background-color: var(--dec-search-result-theme, #ff4d4f);
+            color: #fff;
+            height: 22px;
+            padding: 0 10px;
+            border-radius: 22px;
+        }
+    }
+}

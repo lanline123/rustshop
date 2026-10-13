@@ -1,0 +1,170 @@
+spring:
+  profiles:
+    active: dev
+
+  servlet:
+    multipart:
+      # Keep the multipart limit aligned with the admin uploadMaxSize setting (100 MB).
+      max-file-size: 200MB
+      max-request-size: 200MB
+
+mybatis-plus:
+  mapper-locations: classpath*:mapper/**/*.xml
+  configuration:
+    log-impl: ""
+
+# 滑块验证码
+aj:
+  captcha:
+    # 缓存类型
+    cache-type: redis
+    # blockPuzzle 滑块 clickWord 文字点选  default默认两者都实例化
+    type: blockPuzzle
+    # 右下角显示字
+    water-mark:
+    # 校验滑动拼图允许误差偏移量(默认5像素)
+    slip-offset: 5
+    # aes加密坐标开启或者禁用(true|false)
+    aes-status: true
+    # 滑动干扰项(0/1/2)
+    interference-options: 1
+
+# springdoc-openapi项目配置
+springdoc:
+  # API文档, 默认路径:swagger-ui.html
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  # 配置需要生成接口文档的扫描包路径
+  packages-to-scan: com.tigshop.adminapi.controller
+  group-configs:
+    - group: '权限组'
+      paths-to-match: '/adminapi/authority/**'
+    - group: '商户组'
+      paths-to-match: '/adminapi/merchant/**'
+    - group: '公共方法组'
+      paths-to-match: '/adminapi/common/**'
+    - group: '文章组'
+      paths-to-match: '/adminapi/content/**'
+    - group: '装修组'
+      paths-to-match: '/adminapi/decorate/**'
+    - group: '营销组'
+      paths-to-match: '/adminapi/promotion/**'
+    - group: '配置组'
+      paths-to-match: '/adminapi/setting/**'
+    - group: '分销组'
+      paths-to-match: '/adminapi/salesman/**'
+    - group: '会员组'
+      paths-to-match: '/adminapi/user/**'
+    - group: '财务组'
+      paths-to-match: '/adminapi/finance/**'
+    - group: '商品组'
+      paths-to-match: '/adminapi/product/**'
+    - group: '统计面板组'
+      paths-to-match: '/adminapi/panel/**'
+    - group: '多语言组'
+      paths-to-match: '/adminapi/lang/**'
+    - group: '登录组'
+      paths-to-match: '/adminapi/login/**'
+    - group: '订单组'
+      paths-to-match: '/adminapi/order/**'
+    - group: '消息管理组'
+      paths-to-match: '/adminapi/msg/**'
+    - group: '买家秀组'
+      paths-to-match: '/adminapi/promotion/buyerShow/**'
+    - group: '收银台组'
+      paths-to-match: '/adminapi/pos/**'
+    - group: '配送和服务订单'
+      paths-to-match: '/adminapi/o2o/deliveryOrder/**'
+    - group: '服务人员和服务人员订单'
+      paths-to-match: '/adminapi/o2o/serviceStaffOrder/**'
+    - group: '多门店'
+      paths-to-match: '/adminapi/o2o/**'
+#IM
+    - group: '会话和消息'
+      paths-to-match: '/im/conversation/**'
+    - group: '客服'
+      paths-to-match: '/im/servant/**'
+    - group: '配置'
+      paths-to-match: '/im/config/**'
+    - group: '打印组'
+      paths-to-match: '/adminapi/print/**'
+    - group: '代购组'
+      paths-to-match: '/adminapi/proxyShopping/**'
+    - group: '供应商组'
+      paths-to-match: '/adminapi/vendor/**'
+    - group: '供应链组'
+      paths-to-match: '/adminapi/supplyChain/**'
+    - group: '店铺配置组'
+      paths-to-match: '/adminapi/shop/**'
+    - group: '批发组'
+      paths-to-match: '/adminapi/wholesale/**'
+    - group: 'all'
+      paths-to-match: '/**'
+
+# knife4j的增强配置，不需要增强可以不配
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+
+logging:
+  level:
+    com.tigshop: warn
+    org.springframework: warn
+    org.apache.ibatis: debug
+
+tigshop:
+  name: TigShop
+  version: JAVA-B2B2B-PRO
+  version-num: v5.8.57
+  is-merchant: 1
+  is-b2b: 1
+  is-pro: 1
+  is-overseas: 0
+  is-vendor: 0
+  is-o2o: 0
+  is-demo: 0
+  # 兼容旧配置；批发菜单显隐由 VORT common.wholesale 编译开关决定
+  is-common-wholesale: 0
+  # 调试模式：1=本地/演示站（暴露错误详情、详细日志等），0=发客户（默认，隐藏）
+  is-debug: 0
+  # 官网增强授权：AdminAPI 不执行启动 register/sync；无定时回源，异常按 FAIL_OPEN 记录并放行
+  authorization:
+    enabled: ${TIGSHOP_AUTHORIZATION_ENABLED:true}
+    base-url: ${TIGSHOP_AUTHORIZATION_BASE_URL:https://api.tigshop.com/index}
+    identity-path: ${TIGSHOP_IDENTITY_PATH:${user.home}/.tigshop/identity/instance.json}
+    identity-master-key-path: ${TIGSHOP_IDENTITY_MASTER_KEY_PATH:}
+    package-manifest-path: ${TIGSHOP_PACKAGE_MANIFEST_PATH:config/tigshop-package-distribution.json}
+    startup-report-enabled: ${TIGSHOP_ADMIN_STARTUP_REPORT_ENABLED:false}
+    enforcement-mode: OBSERVE_ONLY
+    error-mode: FAIL_OPEN
+    connect-timeout-ms: 3000
+    read-timeout-ms: 5000
+  # SSE 推送相关配置
+  sse:
+    msg-count:
+      # /adminapi/msg/adminMsg/msgCount SSE 通道的推送间隔（秒）。
+      # 默认 5 秒以支撑前端消息语音播报准实时性；如出现 DB 压力问题，可临时调回 30 秒。
+      interval-seconds: 5
+
+
+jwt:
+  # JWT密钥（生产环境请修改为强密钥,必填）
+  secret:
+  # Token过期时间（分钟），默认30天: 60 * 24 * 30 = 43200
+  expire: ${JWT_EXPIRE:43200}
+
+icoTigCss: https://at.alicdn.com/t/c/font_4441878_nmmffdd6bwr.css
+
+# 内部服务间调用配置
+internal:
+  api:
+    # 内部 API 密钥，用于调用 API 服务的内部接口（需与 API 服务配置一致）
+    key: ${INTERNAL_API_KEY:your-secure-internal-api-key-change-me}
+
+open-template:
+  base-url: https://api.tigshop.com/index

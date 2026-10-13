@@ -1,0 +1,27 @@
+[package]
+name = "tigshop-services"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+tigshop-core = { path = "../core" }
+tigshop-common = { path = "../common" }
+tigshop-infrastructure = { path = "../infrastructure" }
+tigshop-security = { path = "../security" }
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+async-trait.workspace = true
+futures.workspace = true
+chrono.workspace = true
+rust_decimal.workspace = true
+validator.workspace = true
+uuid.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true

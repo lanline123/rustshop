@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.o2o.StoreProductMapper">
+
+    <select id="getStoreProductStockPage" resultType="com.tigshop.bean.vo.product.ProductStockPageVO">
+        SELECT
+        sp.store_product_id,
+        p.product_id,
+        p.product_sn,
+        p.product_name,
+        sps.product_sku_id AS productSkuId,
+        p.product_unit,
+        p.pic_thumb AS productPicThumb,
+        ps.sku_value AS productSkuName,
+        CASE
+        WHEN sps.sku_stock IS NOT NULL THEN
+        sps.sku_stock ELSE sp.product_stock
+        END AS currentProductStock
+        FROM
+        store_product sp
+        LEFT JOIN product p ON p.product_id = sp.product_id
+        LEFT JOIN store_product_sku sps ON sps.store_product_id = sp.store_product_id
+        LEFT JOIN product_sku ps ON ps.sku_id = sps.product_sku_id
+        WHERE
+        p.product_id is not null and sp.shop_id = #{productStockDTO.shopId}
+        <if test="productStockDTO.keyword != null and productStockDTO.keyword != ''">
+            AND (p.product_name LIKE CONCAT('%',#{productStockDTO.keyword},'%') or ps.sku_value LIKE CONCAT('%',#{productStockDTO.keyword},'%'))
+        </if>
+        order by sp.add_time
+    </select>
+
+    <!-- 场景1：平台调拨给门店 - 查询平台商品中已分配给目标门店的商品（只能调拨普通商品） -->
+    <select id="getPlatformAllocateToStorePage" resultType="com.tigshop.bean.vo.product.ProductStockPageVO">
+        SELECT
+            p.product_id AS productId,
+            p.product_sn AS productSn,
+            p.product_name AS productName,
+            ps.sku_id AS productSkuId,
+            p.product_unit AS productUnit,
+            p.pic_thumb AS productPicThumb,
+            ps.sku_value AS productSkuName,
+            p.cost_price AS productCost,
+            CASE
+                WHEN ps.sku_id IS NOT NULL THEN ps.sku_stock
+                ELSE p.product_stock
+            END AS currentProductStock
+        FROM
+            product p
+        LEFT JOIN product_sku ps ON ps.product_id = p.product_id
+        INNER JOIN store_product sp ON sp.product_id = p.product_id AND sp.shop_id = #{productStockDTO.targetShopId} AND sp.is_delete = 0
+        WHERE
+            p.shop_id = 0
+            AND p.is_delete = 0
+            AND p.vendor_id IS NULL
+            AND p.product_type = 1
+        <if test="productStockDTO.keyword != null and productStockDTO.keyword != ''">
+            AND (p.product_name LIKE CONCAT('%',#{productStockDTO.keyword},'%') OR ps.sku_value LIKE CONCAT('%',#{productStockDTO.keyword},'%'))
+        </if>
+        ORDER BY p.add_time DESC
+    </select>
+
+    <!-- 场景2：门店调拨给平台 - 查询门店已分配的商品（只能调拨普通商品） -->
+    <select id="getStoreAllocateToPlatformPage" resultType="com.tigshop.bean.vo.product.ProductStockPageVO">
+        SELECT
+            p.product_id AS productId,
+            p.product_sn AS productSn,
+            p.product_name AS productName,
+            sps.product_sku_id AS productSkuId,
+            p.product_unit AS productUnit,
+            p.pic_thumb AS productPicThumb,
+            ps.sku_value AS productSkuName,
+            CASE
+                WHEN sps.sku_stock IS NOT NULL THEN sps.sku_stock
+                ELSE sp.product_stock
+            END AS currentProductStock
+        FROM
+            store_product sp
+        LEFT JOIN product p ON p.product_id = sp.product_id
+        LEFT JOIN store_product_sku sps ON sps.store_product_id = sp.store_product_id
+        LEFT JOIN product_sku ps ON ps.sku_id = sps.product_sku_id
+        WHERE
+            sp.shop_id = #{productStockDTO.shopId}
+            AND sp.is_delete = 0
+            AND p.product_id IS NOT NULL
+            AND p.is_delete = 0
+            AND p.product_type = 1
+        <if test="productStockDTO.keyword != null and productStockDTO.keyword != ''">
+            AND (p.product_name LIKE CONCAT('%',#{productStockDTO.keyword},'%') OR ps.sku_value LIKE CONCAT('%',#{productStockDTO.keyword},'%'))
+        </if>
+        ORDER BY sp.add_time DESC
+    </select>
+
+    <!-- 场景3：门店调拨给门店 - 查询两个门店都有分配的商品（product_id相同，只能调拨普通商品） -->
+    <select id="getStoreAllocateToStorePage" resultType="com.tigshop.bean.vo.product.ProductStockPageVO">
+        SELECT
+            p.product_id AS productId,
+            p.product_sn AS productSn,
+            p.product_name AS productName,
+            sps_source.product_sku_id AS productSkuId,
+            p.product_unit AS productUnit,
+            p.pic_thumb AS productPicThumb,
+            ps.sku_value AS productSkuName,
+            CASE
+                WHEN sps_source.sku_stock IS NOT NULL THEN sps_source.sku_stock
+                ELSE sp_source.product_stock
+            END AS currentProductStock
+        FROM
+            store_product sp_source
+        INNER JOIN store_product sp_target ON sp_source.product_id = sp_target.product_id
+            AND sp_target.shop_id = #{productStockDTO.targetShopId}
+            AND sp_target.is_delete = 0
+        LEFT JOIN product p ON p.product_id = sp_source.product_id
+        LEFT JOIN store_product_sku sps_source ON sps_source.store_product_id = sp_source.store_product_id
+        LEFT JOIN product_sku ps ON ps.sku_id = sps_source.product_sku_id
+        WHERE
+            sp_source.shop_id = #{productStockDTO.shopId}
+            AND sp_source.is_delete = 0
+            AND p.product_id IS NOT NULL
+            AND p.is_delete = 0
+            AND p.product_type = 1
+        <if test="productStockDTO.keyword != null and productStockDTO.keyword != ''">
+            AND (p.product_name LIKE CONCAT('%',#{productStockDTO.keyword},'%') OR ps.sku_value LIKE CONCAT('%',#{productStockDTO.keyword},'%'))
+        </if>
+        ORDER BY sp_source.add_time DESC
+    </select>
+</mapper>

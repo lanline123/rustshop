@@ -1,0 +1,327 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.shop.ShopMapper">
+
+    <!-- 计算店铺评分的公共 SQL 片段：评价数量<100时默认4.8，否则拿系统的 -->
+    <sql id="calculateShopStar">
+        CASE 
+            WHEN shop_star_num &lt; 100 OR shop_star_num IS NULL OR shop_star_num = 0 
+            THEN 4.8
+            ELSE shop_star
+        END
+    </sql>
+
+    <select id="storeListByLocation" resultType="com.tigshop.bean.vo.o2o.StoreListVO">
+        SELECT shop_id shopId,
+               shop_logo shopLogo,
+               status,
+               shop_detailed_address address,
+               shop_title shopTitle,
+               (
+                   6371000 * acos(
+                           cos(radians(#{query.latitude})) * cos(radians(shop_latitude))
+                               * cos(radians(shop_longitude) - radians(#{query.longitude}))
+                               + sin(radians(#{query.latitude})) * sin(radians(shop_latitude))
+                             )
+                   ) AS distance,
+               shop_longitude longitude,
+               shop_latitude latitude,
+               shop_contact_json contactJson,
+               <include refid="calculateShopStar"/> AS shopStar,
+               shop_star_num shopStarNum,
+               description description,
+               shop_sales shopSales,
+               shop_open_close_json shopOpenCloseConfigJson
+        FROM shop
+        WHERE shop_type = 2
+          AND ( status = 1 or status = 10)
+        <if test="query.regionId != null and query.regionId != ''">
+          AND shop_region_id  like CONCAT('%', #{query.regionId}, '%')
+        </if>
+        <if test="query.keyword != null and query.keyword != ''">
+            AND shop_title like CONCAT('%', #{query.keyword}, '%')
+        </if>
+        <if test="query.shopIds != null and query.shopIds.size() > 0">
+            AND shop_id IN
+            <foreach collection="query.shopIds" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        <if test="query.deliveryTypes != null and (query.deliveryTypes.contains(2) or query.deliveryTypes.contains(4))">
+            AND (
+            <trim prefixOverrides="OR">
+                <if test="query.deliveryTypes.contains(4)">
+                    OR EXISTS (
+                        SELECT 1 FROM shop_local_delivery_config sldc
+                        WHERE sldc.shop_id = shop.shop_id AND sldc.enabled = 1
+                    )
+                </if>
+                <if test="query.deliveryTypes.contains(2)">
+                    OR EXISTS (
+                        SELECT 1 FROM shop_home_service_config shsc
+                        WHERE shsc.shop_id = shop.shop_id AND shsc.enabled = 1
+                    )
+                </if>
+            </trim>
+            )
+        </if>
+        <if test="query.withinDeliveryRange != null and query.withinDeliveryRange == 1">
+            AND EXISTS (
+                SELECT 1 FROM shop_local_delivery_config sldc
+                WHERE sldc.shop_id = shop.shop_id
+                  AND sldc.enabled = 1
+                  AND sldc.delivery_radius IS NOT NULL
+                  AND sldc.delivery_radius > 0
+                  AND (
+                      6371000 * acos(
+                          cos(radians(#{query.latitude})) * cos(radians(shop.shop_latitude))
+                              * cos(radians(shop.shop_longitude) - radians(#{query.longitude}))
+                              + sin(radians(#{query.latitude})) * sin(radians(shop.shop_latitude))
+                      )
+                  ) &lt;= sldc.delivery_radius
+            )
+        </if>
+        ORDER BY
+        <if test="query.selectedShopId != null and query.selectedShopId > 0">
+            shop_id = #{query.selectedShopId} DESC,
+        </if>
+        <choose>
+            <when test="query.sortField == 'distance'">
+                distance IS NULL, distance
+            </when>
+            <otherwise>
+                shop_star
+            </otherwise>
+        </choose>
+        <choose>
+            <when test="query.sortOrder == 'asc'">ASC</when>
+            <when test="query.sortOrder == 'desc'">DESC</when>
+            <otherwise>DESC</otherwise>
+        </choose>
+    </select>
+    <select id="storeListByRegion" resultType="com.tigshop.bean.vo.o2o.StoreListVO">
+        SELECT shop_id shopId,
+               shop_logo shopLogo,
+               status,
+               shop_detailed_address address,
+               shop_title shopTitle,
+               shop_longitude longitude,
+               shop_latitude latitude,
+               shop_contact_json contactJson,
+               <include refid="calculateShopStar"/> AS shopStar,
+               shop_star_num shopStarNum,
+               description description,
+               shop_sales shopSales,
+               shop_open_close_json shopOpenCloseConfigJson
+        FROM shop
+        WHERE shop_type = 2
+          AND ( status = 1 or status = 10)
+        <if test="query.regionId != null and query.regionId != ''">
+            AND shop_region_id  like CONCAT('%', #{query.regionId}, '%')
+        </if>
+        <if test="query.keyword != null and query.keyword != ''">
+            AND shop_title like CONCAT('%', #{query.keyword}, '%')
+        </if>
+        <if test="query.shopIds != null and query.shopIds.size() > 0">
+            AND shop_id IN
+            <foreach collection="query.shopIds" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        <if test="query.deliveryTypes != null and (query.deliveryTypes.contains(2) or query.deliveryTypes.contains(4))">
+            AND (
+            <trim prefixOverrides="OR">
+                <if test="query.deliveryTypes.contains(4)">
+                    OR EXISTS (
+                        SELECT 1 FROM shop_local_delivery_config sldc
+                        WHERE sldc.shop_id = shop.shop_id AND sldc.enabled = 1
+                    )
+                </if>
+                <if test="query.deliveryTypes.contains(2)">
+                    OR EXISTS (
+                        SELECT 1 FROM shop_home_service_config shsc
+                        WHERE shsc.shop_id = shop.shop_id AND shsc.enabled = 1
+                    )
+                </if>
+            </trim>
+            )
+        </if>
+        ORDER BY
+        <if test="query.selectedShopId != null and query.selectedShopId > 0">
+            shop_id = #{query.selectedShopId} DESC,
+        </if>
+            shop_star
+        <choose>
+            <when test="query.sortOrder == 'asc'">ASC</when>
+            <when test="query.sortOrder == 'desc'">DESC</when>
+            <otherwise>DESC</otherwise>
+        </choose>
+    </select>
+    <select id="pickupListByLocation" resultType="com.tigshop.bean.vo.o2o.PickupListVO">
+        SELECT shop_id shopId,
+               shop_title shopTitle,
+               CASE
+                   WHEN #{query.latitude} IS NULL OR #{query.longitude} IS NULL
+                       THEN 0
+                   ELSE (6371000 * acos(
+                           cos(radians(#{query.latitude}))
+                               * cos(radians(shop_latitude))
+                               * cos(radians(shop_longitude) - radians(#{query.longitude}))
+                               + sin(radians(#{query.latitude}))
+                               * sin(radians(shop_latitude))
+                                   ))
+                   END AS distance,
+               shop_longitude longitude,
+               shop_latitude latitude,
+               shop_contact_json contactJson,
+               shop_open_close_json shopOpenCloseConfigJson,
+               shop_region_id shopRegionIdsJson,
+               shop_detailed_address address
+        FROM shop
+        WHERE shop_type = 3
+          AND status = 1
+          AND store_parent_id = #{query.shopId}
+        <if test="query.regionId != null and query.regionId != ''">
+            AND shop_region_id  like CONCAT('%', #{query.regionId}, '%')
+        </if>
+        <if test="query.keyword != null and query.keyword != ''">
+          AND shop_detailed_address like CONCAT('%', #{query.keyword}, '%')
+        </if>
+        ORDER BY
+            CASE
+                WHEN #{query.latitude} IS NULL OR #{query.longitude} IS NULL
+                    THEN shop_id
+                ELSE distance
+                END ASC
+    </select>
+
+    <select id="storeListByProductId" resultType="com.tigshop.bean.vo.o2o.StoreListVO">
+        SELECT shop_id shopId,
+        shop_logo shopLogo,
+        status,
+        shop_detailed_address address,
+        shop_title shopTitle,
+        0 AS distance,
+        shop_longitude longitude,
+        shop_latitude latitude,
+        shop_contact_json contactJson,
+        <include refid="calculateShopStar"/> AS shopStar,
+        shop_sales shopSales
+        FROM shop s
+        left join store_product sp on s.shop_id = sp.shop_id
+        WHERE shop_type = 2
+        AND status = 1
+        AND shop_region_id  like CONCAT('%', #{query.regionId}, '%')
+        <if test="query.keyword != null and query.keyword != ''">
+            AND shop_title like CONCAT('%', #{query.keyword}, '%')
+        </if>
+        <if test="query.productId != null and query.productId != ''">
+            AND sp.product_id = #{query.productId}
+        </if>
+        ORDER BY
+        <choose>
+            <when test="query.sortField == 'distance'">
+                distance
+            </when>
+            <otherwise>
+                shop_star
+            </otherwise>
+        </choose>
+        <choose>
+            <when test="query.sortOrder == 'asc'">ASC</when>
+            <when test="query.sortOrder == 'desc'">DESC</when>
+            <otherwise>DESC</otherwise>
+        </choose>
+    </select>
+    <select id="pickupByLocation" resultType="com.tigshop.bean.model.shop.Shop">
+        SELECT shop.*,
+               CASE
+                   WHEN #{query.latitude} IS NULL OR #{query.longitude} IS NULL
+                       THEN 0
+                   ELSE (6371000 * acos(
+                           cos(radians(#{query.latitude}))
+                               * cos(radians(shop_latitude))
+                               * cos(radians(shop_longitude) - radians(#{query.longitude}))
+                               + sin(radians(#{query.latitude}))
+                               * sin(radians(shop_latitude))
+                                   ))
+                   END AS distance
+        FROM shop
+        WHERE shop_type = 3
+          AND status = 1
+          AND store_parent_id = #{query.shopId}
+        ORDER BY distance
+    </select>
+
+    <!-- 查询单个店铺详情，包含计算后的评分（评价数量<100时默认4.8，否则计算平均分） -->
+    <select id="selectByIdWithCalculatedStar" resultType="com.tigshop.bean.model.shop.Shop">
+        SELECT 
+            shop_id,
+            shop_title,
+            add_time,
+            shop_logo,
+            click_count,
+            status,
+            merchant_id,
+            shop_money,
+            frozen_money,
+            contact_mobile,
+            description,
+            kefu_phone,
+            kefu_weixin,
+            kefu_link,
+            is_contact_kefu,
+            kefu_inlet,
+            ship_info,
+            receive_info,
+            last_login_time,
+            vendor_set_price_type,
+            vendor_set_price_auto_value,
+            service_fee_rate,
+            fee_rate,
+            shop_type,
+            store_parent_id,
+            shop_cover_picture,
+            shop_show_picture,
+            shop_contact_json,
+            shop_open_close_json,
+            shop_region_id,
+            shop_detailed_address,
+            shop_longitude,
+            shop_latitude,
+            <include refid="calculateShopStar"/> AS shop_star,
+            shop_total_star,
+            shop_star_num,
+            shop_sales,
+            use_shop_category,
+            shop_show_category,
+            auto_erase_zero,
+            auto_deduction_points,
+            default_collection_method,
+            auto_add_cart_after_scan,
+            auto_print_online_order,
+            auto_print_offline_order,
+            shop_common_remarks,
+            pos_product_source
+        FROM shop
+        WHERE shop_id = #{shopId}
+    </select>
+
+    <!-- 根据翻译后的关键词搜索店铺ID（跨境翻译支持） -->
+    <select id="searchShopIds" resultType="java.lang.Integer">
+        SELECT DISTINCT s.shop_id
+        FROM shop s
+                 LEFT JOIN translations_data t
+                           ON t.data_type = 2
+                               AND t.data_id = s.shop_id
+                               AND t.locale_id = (
+                                   SELECT l.id
+                                   FROM locales l
+                                   WHERE l.locale_code = #{localeCode}
+                                   LIMIT 1
+                               )
+        WHERE t.translation_value LIKE CONCAT('%', #{keyword}, '%')
+    </select>
+</mapper>

@@ -1,0 +1,1 @@
+import{aU as t}from"./ntmrFmLd.js";const r=e=>t({url:"user/aftersales/list",method:"get",params:e}),a=e=>t({url:"user/aftersales/config",method:"get",params:e}),u=e=>t({url:"user/aftersales/applyData",method:"get",params:e}),l=e=>t({url:"user/aftersales/create",method:"post",data:e});export{a,r as b,u as g,l as u};

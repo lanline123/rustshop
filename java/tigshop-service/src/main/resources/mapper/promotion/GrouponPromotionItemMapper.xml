@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.promotion.GrouponPromotionItemMapper">
+
+    <select id="countProductConflict" resultType="int">
+        SELECT COUNT(1)
+        FROM groupon_promotion_item gpi
+        JOIN groupon_promotion gp ON gpi.groupon_promotion_id = gp.groupon_promotion_id
+        WHERE gpi.product_id = #{productId}
+        <if test="promotionId != null">
+            AND gp.groupon_promotion_id != #{promotionId}
+        </if>
+        AND gp.start_time &lt;= #{endTime}
+        AND gp.end_time &gt;= #{startTime}
+    </select>
+
+    <select id="page" resultType="com.tigshop.bean.vo.promotion.GrouponPromotionItemPageVO">
+        select
+            gi.*, p.product_name, p.product_sn, p.pic_large, p.pic_thumb, p.pic_url, p.product_price, p.product_brief
+        from groupon_promotion_item gi
+        left join product p on gi.product_id = p.product_id
+        <where>
+            <if test="pageQuery.grouponPromotionId != null">
+                and gi.groupon_promotion_id = #{pageQuery.grouponPromotionId}
+            </if>
+            <if test="pageQuery.keyword != null">
+                and p.product_name like concat('%', #{pageQuery.keyword}, '%')
+            </if>
+            <if test="pageQuery.productSn != null">
+                and p.product_sn like concat('%', #{pageQuery.productSn}, '%')
+            </if>
+            <if test="pageQuery.brandId != null">
+                and p.brand_id = #{pageQuery.brandId}
+            </if>
+            <if test="pageQuery.productGroupId != null">
+                <foreach item="item" index="index" collection="pageQuery.groupProductIds" separator="," open="and p.product_id in (" close=")">
+                    #{item}
+                </foreach>
+            </if>
+        </where>
+    </select>
+    <select id="getInGroupOnProductCount" resultType="java.lang.Long">
+        SELECT COUNT(1)
+        FROM groupon_promotion_item gpi
+        JOIN groupon_promotion gp ON gpi.groupon_promotion_id = gp.groupon_promotion_id
+        WHERE gpi.product_id = #{productId}
+        <if test="promotionId != null">
+            AND gp.groupon_promotion_id != #{promotionId}
+        </if>
+        AND (gp.end_time &gt; #{currentTimeMillis} AND gp.start_time &lt; #{endTime})
+    </select>
+
+</mapper>

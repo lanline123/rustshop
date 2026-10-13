@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.wholesale.ProductWholesaleConfigMapper">
+
+    <resultMap id="BaseResultMap" type="com.tigshop.bean.model.wholesale.ProductWholesaleConfig">
+        <id     property="id"                 column="id"/>
+        <result property="productId"          column="product_id"/>
+        <result property="shopId"             column="shop_id"/>
+        <result property="multiSpecPriceMode" column="multi_spec_price_mode"/>
+        <result property="moqDimension"       column="moq_dimension"/>
+        <result property="moq"                column="moq"/>
+        <result property="status"             column="status"/>
+        <result property="isDelete"           column="is_delete"/>
+        <result property="createTime"         column="create_time"/>
+        <result property="updateTime"         column="update_time"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, product_id, shop_id, multi_spec_price_mode, moq_dimension, moq, status,
+        is_delete, create_time, update_time
+    </sql>
+
+    <!-- 含已软删行的存在性计数：绕开 @TableLogic 自动 is_delete=0 过滤，
+         用于 INSERT 前判定唯一索引 uk_product_id 是否会冲突（与 price/sku_config 同坑修复） -->
+    <select id="countAnyByProductId" resultType="int">
+        SELECT COUNT(*)
+          FROM product_wholesale_config
+         WHERE product_id = #{productId}
+    </select>
+
+    <!-- 物理删除：绕开 @TableLogic 软删改写；与 price 物理删策略一致（uk_product_id 唯一索引约束） -->
+    <delete id="hardDeleteByProductIds">
+        DELETE FROM product_wholesale_config
+         WHERE product_id IN
+         <foreach collection="productIds" item="pid" open="(" separator="," close=")">
+             #{pid}
+         </foreach>
+    </delete>
+
+    <!-- 全表已配置过批发能力的 product_id 集合（含 is_delete=1）；
+         用于 /selectable/page 端点剔除已加入项；口径与 countAnyByProductId 一致 -->
+    <select id="selectAllConfiguredProductIds" resultType="int">
+        SELECT DISTINCT product_id
+          FROM product_wholesale_config
+    </select>
+
+    <!-- 批量按 product_id 查询未删除的 wholesale config；
+         用于 CR-20260603-1720 / CD-035 C 端列表卡片 wholesaleCardMoq 派生 -->
+    <select id="selectByProductIds" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+          FROM product_wholesale_config
+         WHERE is_delete = 0
+           AND product_id IN
+        <foreach collection="productIds" item="pid" open="(" separator="," close=")">
+            #{pid}
+        </foreach>
+    </select>
+
+</mapper>

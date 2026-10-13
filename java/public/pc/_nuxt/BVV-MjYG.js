@@ -1,0 +1,1 @@
+import{J as n}from"./ntmrFmLd.js";const a="模板不存在";function o(t){if(!t||typeof t!="object"||!("message"in t))return;const{message:e}=t;return typeof e=="string"?e:void 0}async function i(t){return o(t)!==a?!1:(await n("/404"),!0)}export{i as h};

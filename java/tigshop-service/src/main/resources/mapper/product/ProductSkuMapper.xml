@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.product.ProductSkuMapper">
+
+
+
+    <select id="getProductStockPage" resultType="com.tigshop.bean.vo.product.ProductStockResultVO">
+        SELECT
+            p.product_id AS productId,
+            p.product_name AS productName,
+            p.product_stock AS productStock,
+            p.product_unit AS productUnit,
+            p.pic_thumb AS productPicThumb,
+            p.product_sn AS productSn,
+            p.product_tsn AS productTsn,
+            p.product_type AS productType,
+            p.cost_price AS productCost,
+            p.card_group_id AS cardGroupId,
+            ps.cost_price AS costPrice,
+            ps.sku_id as skuId,
+            ps.sku_value AS productSkuName,
+            ps.sku_stock AS productSkuStock,
+            ps.cost_price AS productSkuCost
+        FROM
+            product p
+                LEFT JOIN product_sku ps ON p.product_id = ps.product_id
+        WHERE
+            p.shop_id = #{productStockDTO.shopId} AND p.vendor_id is null
+        <if test="productStockDTO.productType != null">
+            AND p.product_type = #{productStockDTO.productType}
+        </if>
+
+        <if test="productStockDTO.keyword != null and productStockDTO.keyword != ''">
+            AND (p.product_name LIKE CONCAT('%',#{productStockDTO.keyword},'%') or ps.sku_value LIKE CONCAT('%',#{productStockDTO.keyword},'%') or ps.sku_tsn = #{productStockDTO.keyword} or p.product_tsn = #{productStockDTO.keyword})
+        </if>
+        ORDER BY
+            p.add_time
+    </select>
+
+    <select id="getProductStockPageByO2O" resultType="com.tigshop.bean.vo.product.StoreProductStockResultVO">
+        SELECT
+            p.product_id AS productId,
+            p.product_name AS productName,
+            p.shop_id AS shopId,
+            p.product_unit AS productUnit,
+            p.pic_thumb AS productPicThumb,
+            p.product_sn AS productSn,
+            p.product_tsn AS productTsn,
+            p.product_type AS productType,
+            p.card_group_id AS cardGroupId,
+            p.product_stock AS productStock,
+            ps.sku_id AS skuId,
+            ps.sku_value AS productSkuName,
+            ps.sku_stock AS skuStock,
+            sp.store_product_id AS storeProductId,
+            sp.shop_id AS storeShopId,
+            sp.product_stock AS storeStock,
+            sps.sku_stock AS storeSkuStock,
+            sps.store_product_sku_id AS storeProductSkuId,
+            sps.product_sku_id AS storeSkuId,
+            CASE
+                WHEN ps.sku_id is not null THEN ps.sku_stock
+                WHEN p.shop_id = 0 AND sp.store_product_id IS NOT NULL THEN sp.product_stock
+                WHEN p.shop_id = 0 AND sps.store_product_sku_id IS NOT NULL THEN sps.sku_stock
+                ELSE p.product_stock
+                END AS currentProductStock,
+            CASE
+                WHEN ps.sku_id is not null THEN ps.cost_price
+                WHEN p.shop_id = 0 AND sp.store_product_id IS NOT NULL THEN null
+                WHEN p.shop_id = 0 AND sps.store_product_sku_id IS NOT NULL THEN null
+                ELSE p.cost_price
+                END AS costPrice,
+            CASE WHEN sp.store_product_id is not null THEN 1 ELSE 0 END AS distributeProduct
+        FROM
+            product p
+                LEFT JOIN product_sku ps ON p.product_id = ps.product_id
+                LEFT JOIN store_product sp ON sp.product_id = p.product_id
+                LEFT JOIN store_product_sku sps ON sps.product_id = p.product_id
+        WHERE
+            (p.shop_id = #{productStockDTO.shopId} OR sp.shop_id = #{productStockDTO.shopId}) AND p.vendor_id is null
+        <if test="productStockDTO.productType != null">
+            AND p.product_type = #{productStockDTO.productType}
+        </if>
+
+        <if test="productStockDTO.keyword != null and productStockDTO.keyword != ''">
+            AND (p.product_name LIKE CONCAT('%',#{productStockDTO.keyword},'%') or ps.sku_value LIKE CONCAT('%',#{productStockDTO.keyword},'%') or ps.sku_tsn LIKE CONCAT('%',#{productStockDTO.keyword},'%') or p.product_tsn LIKE CONCAT('%',#{productStockDTO.keyword},'%'))
+        </if>
+        GROUP BY
+            CASE
+                WHEN p.shop_id = 0 AND sps.store_product_id IS NOT NULL THEN sps.store_product_id
+                WHEN p.shop_id = 0 AND sp.store_product_id IS NOT NULL THEN sp.store_product_id
+                WHEN sp.store_product_id IS NOT NULL THEN sp.store_product_id
+                ELSE p.product_id
+                END
+        ORDER BY
+            p.add_time
+    </select>
+
+    <!-- 查询商品所有SKU的价格列表 -->
+    <select id="selectPricesByProductId" resultType="java.math.BigDecimal">
+        SELECT sku_price
+        FROM product_sku
+        WHERE product_id = #{productId}
+        ORDER BY sku_price ASC
+    </select>
+
+    <!-- 查询商品SKU的最低价格 -->
+    <select id="selectMinPriceByProductId" resultType="java.math.BigDecimal">
+        SELECT MIN(sku_price) AS min_price
+        FROM product_sku
+        WHERE product_id = #{productId}
+          AND is_enabled = 1
+    </select>
+
+    <!-- 批量统计商品 SKU 数量；用于 CR-20260603-1720 / CD-035 单/多规格派生判定 -->
+    <select id="countGroupByProductId" resultType="com.tigshop.bean.vo.product.ProductSkuCountVO">
+        SELECT product_id AS productId,
+               COUNT(*)   AS skuCount
+          FROM product_sku
+         WHERE product_id IN
+        <foreach collection="productIds" item="pid" open="(" separator="," close=")">
+            #{pid}
+        </foreach>
+         GROUP BY product_id
+    </select>
+</mapper>

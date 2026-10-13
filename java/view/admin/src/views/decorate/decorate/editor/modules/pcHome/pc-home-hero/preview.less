@@ -1,0 +1,1117 @@
+.dec-pc-home-hero {
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--dec-bg-color, transparent);
+    border-radius: var(--dec-box-radius, 0);
+    padding-left: var(--dec-box-padding, 0);
+    padding-right: var(--dec-box-padding, 0);
+    padding-top: var(--dec-box-padding-top, 0);
+    padding-bottom: var(--dec-box-padding-bottom, 0);
+}
+
+.dec-pc-home-hero__layout {
+    width: 100%;
+    height: var(--dec-height, 336px);
+    display: grid;
+    grid-template-columns: 252px minmax(0, 1fr) 252px;
+    gap: var(--dec-gap, 16px);
+    align-items: stretch;
+    overflow: hidden; /* Prevent children from overflowing */
+}
+
+/* Common Panel Style */
+.dec-pc-home-hero__panel {
+    background: var(--dec-panel-bg, #ffffff);
+    border-radius: var(--dec-panel-radius, 8px);
+    box-shadow: var(--dec-panel-shadow, none);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Left: Categories */
+.dec-pc-home-hero__left {
+    min-height: 0;
+    height: 100%;
+    background: var(--dec-left-bg, #ffffff);
+    overflow: hidden;
+}
+
+.dec-pc-home-hero__cate-list {
+    padding-top: 10px;
+    overflow: hidden;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+
+    /* 美化滚动条 */
+    &::-webkit-scrollbar {
+        width: 4px;
+    }
+    &::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.1);
+        border-radius: 2px;
+    }
+}
+
+.dec-pc-home-hero__cate-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-height: 28px;
+    padding: 4px 0 4px 16px;
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.2s;
+    margin-top: 1px;
+
+    &:hover {
+        background: #fff;
+        .dec-pc-home-hero__cate-title {
+            color: var(--dec-price-color, #e1251b);
+            font-weight: 700;
+        }
+    }
+}
+
+.dec-pc-home-hero__cate-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    object-fit: contain;
+}
+
+.dec-pc-home-hero__cate-icon-font {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    line-height: 18px;
+    color: var(--dec-left-text-color, #333333);
+}
+
+.dec-pc-home-hero__cate-text {
+    min-width: 0;
+    flex: 1;
+}
+
+.dec-pc-home-hero__cate-title {
+    font-size: 14px;
+    color: var(--dec-left-text-color, #333333);
+    line-height: 20px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Center: Banner + Grid */
+.dec-pc-home-hero__center {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--dec-gap, 16px);
+    height: 100%;
+    overflow: hidden;
+}
+
+.dec-pc-home-hero__center-top {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    display: flex;
+    gap: var(--dec-gap, 16px);
+    overflow: hidden;
+}
+
+.dec-pc-home-hero__banner {
+    flex: 1;
+    height: 100%;
+    border-radius: var(--dec-panel-radius, 8px);
+    overflow: hidden;
+    background: var(--dec-panel-bg, #ffffff);
+    box-shadow: var(--dec-panel-shadow, none);
+    min-width: 0;
+    position: relative;
+    /* Ensure banner does not grow indefinitely */
+    flex-shrink: 1;
+}
+
+.dec-pc-home-hero__banner-inner {
+    width: 100%;
+    height: 100%;
+    display: block;
+
+    // Swiper 容器需要固定高度，否则会按内容自适应导致分页指示器被吞没
+    .swiper {
+        width: 100%;
+        height: 100%;
+    }
+}
+
+.dec-pc-home-hero__banner-slide,
+.dec-pc-home-hero__banner-link,
+.dec-pc-home-hero__banner-img {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.dec-pc-home-hero__banner-img {
+    object-fit: cover;
+    object-position: left center;
+    background: #f2f3f5;
+}
+
+.dec-pc-home-hero__banner-empty {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.02);
+}
+
+/* Promo Group (Next to Banner) */
+.dec-pc-home-hero__promo-group {
+    flex: 1;
+    display: flex;
+    gap: var(--dec-gap, 16px);
+    min-width: 0;
+    min-height: 0;
+    /* Ensure height matches banner by taking up parent height */
+    height: 100%;
+    flex-shrink: 1;
+    overflow: hidden;
+}
+
+.dec-pc-home-hero__promo-card {
+    flex: 1;
+    height: 100%;
+    padding: 0;
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border-radius: var(--dec-panel-radius, 8px);
+    background: var(--dec-panel-bg, #ffffff);
+
+    &:hover {
+        box-shadow: 0 10px 22px rgba(0, 0, 0, 0.12);
+    }
+}
+
+/* Unified Card Header Style */
+.dec-pc-home-hero__card-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 12px;
+    margin: 12px 0 10px;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.dec-pc-home-hero__card-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #333;
+    line-height: 16px;
+    height: 16px;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dec-pc-home-hero__card-badge {
+    display: inline-block;
+    font-size: 10px;
+    color: #fff;
+    background: #e1251b;
+    padding: 1px 4px;
+    border-radius: 2px;
+    line-height: 12px;
+    flex-shrink: 0;
+    max-width: 60px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+
+    &.is-orange {
+        background: linear-gradient(90deg, #ff9f00, #ff6b00);
+    }
+    &.is-green {
+        background: #00b578;
+    }
+}
+
+/* Unified Card Products Style */
+.dec-pc-home-hero__card-products {
+    flex: 1;
+    display: flex;
+    gap: 4px;
+    min-height: 0;
+    overflow: hidden;
+    padding-bottom: 8px;
+}
+
+.dec-pc-home-hero__card-product {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.dec-pc-home-hero__card-img-box {
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.dec-pc-home-hero__card-img {
+    width: 86px;
+    height: 86px;
+    object-fit: contain;
+    margin: auto;
+}
+
+.dec-pc-home-hero__card-label {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: #e1251b;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 1px 4px;
+    border-radius: 3px 3px 0 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 90%;
+    box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.dec-pc-home-hero__card-price {
+    font-size: 16px;
+    color: #e1251b;
+    font-weight: 700;
+    line-height: 1.2;
+    flex-shrink: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    margin-top: 4px;
+}
+
+/* Center Bottom: Channel Grid */
+.dec-pc-home-hero__center-bottom {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.dec-pc-home-hero__product-grid {
+    height: 100%;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--dec-gap, 16px);
+}
+
+.dec-pc-home-hero__channel-card {
+    background: var(--dec-panel-bg, #ffffff);
+    border-radius: var(--dec-panel-radius, 8px);
+    box-shadow: var(--dec-panel-shadow, none);
+    overflow: hidden;
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    transition: transform 0.2s;
+    min-height: 0;
+
+    &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 22px rgba(0, 0, 0, 0.12);
+    }
+}
+
+/* Right Column */
+.dec-pc-home-hero__right {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* User Card */
+.dec-pc-home-hero__user-card {
+    position: relative;
+    padding: 16px 12px;
+    height: 220px;
+    flex-shrink: 0;
+    align-items: center;
+    text-align: center;
+    overflow: hidden;
+    background: var(--dec-user-card-bg, #fff5ee); /* 浅橘粉背景 */
+    background-image: var(--dec-user-card-gradient, none);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+/* 付费会员入口：固定在右侧会员卡右上角，不影响原有内容布局 */
+.dec-pc-home-hero__premium-member {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    width: 86px;
+    height: 41px;
+    padding: 5px 12px 5px 20px;
+    box-sizing: border-box;
+    color: #fff;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 100% 100%;
+    text-decoration: none;
+}
+
+.dec-pc-home-hero__premium-member > span {
+    position: relative;
+    top: -5px;
+}
+
+.dec-pc-home-hero__premium-member-title {
+    flex-shrink: 0;
+    max-width: 54px;
+    text-align: center;
+    overflow: hidden;
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 16px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.dec-pc-home-hero__premium-member-desc {
+    min-width: 0;
+    overflow: hidden;
+    max-width: 54px;
+    font-size: 8px;
+    line-height: 12px;
+    text-align: center;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    opacity: 0.85;
+}
+
+.dec-pc-home-hero__premium-member.is-title-only {
+    right: 0;
+    padding-left: 20px;
+    transform: none;
+}
+
+.dec-pc-home-hero__premium-member.is-title-only .dec-pc-home-hero__premium-member-title {
+    max-width: 60px;
+}
+
+.dec-pc-home-hero__user-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    margin-bottom: 15px;
+}
+
+.dec-pc-home-hero__avatar {
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #fff;
+    border: 3px solid #fff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.dec-pc-home-hero__user-info {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+}
+
+.dec-pc-home-hero__user-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: #333;
+    padding-bottom: 12.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dec-pc-home-hero__user-links {
+    font-size: 12px;
+    color: #666;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .divider {
+        width: 1px;
+        height: 10px;
+        background-color: #ddd;
+    }
+
+    span:not(.divider) {
+        cursor: pointer;
+        &:hover {
+            color: #e1251b;
+        }
+    }
+}
+
+.dec-pc-home-hero__user-desc {
+    width: 100%;
+    text-align: center;
+    margin-bottom: 8px;
+
+    .title {
+        font-size: 15px;
+        font-weight: 700;
+        color: #333;
+        margin-bottom: 7px;
+    }
+
+    .subtitle {
+        font-size: 12px;
+        color: #999;
+        transform: scale(0.9);
+    }
+}
+
+.dec-pc-home-hero__login-btn {
+    display: block;
+    width: 100%;
+    height: 36px;
+    line-height: 36px;
+    background: #ff4141;
+    color: #fff;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: 700;
+    text-decoration: none;
+    text-align: center;
+    transition: all 0.2s;
+    margin-bottom: 12px;
+    flex-shrink: 0;
+
+    &:hover {
+        background: #e63939;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 10px rgba(255, 65, 65, 0.2);
+    }
+}
+
+.dec-pc-home-hero__user-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.dec-pc-home-hero__action-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: #333;
+    cursor: pointer;
+    transition: color 0.2s;
+
+    &:hover {
+        color: #e1251b;
+    }
+}
+
+/* 会员卡操作图标：mask 渲染 Vort 同款 SVG（对齐 vortmall），background-color 染色 */
+.dec-pc-home-hero__action-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    background-color: #333;
+    mask-size: contain;
+    mask-repeat: no-repeat;
+    mask-position: center;
+    -webkit-mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+
+    &--order {
+        mask-image: url("@/assets/icons/decorate/pchomeorder.svg");
+        -webkit-mask-image: url("@/assets/icons/decorate/pchomeorder.svg");
+    }
+    &--history {
+        mask-image: url("@/assets/icons/decorate/pchomehistory.svg");
+        -webkit-mask-image: url("@/assets/icons/decorate/pchomehistory.svg");
+    }
+    &--collect {
+        mask-image: url("@/assets/icons/decorate/pchomecollect.svg");
+        -webkit-mask-image: url("@/assets/icons/decorate/pchomecollect.svg");
+    }
+    &--shop {
+        mask-image: url("@/assets/icons/decorate/pchomeshop.svg");
+        -webkit-mask-image: url("@/assets/icons/decorate/pchomeshop.svg");
+    }
+}
+
+/* Shops Panel (快捷入口区) */
+.dec-pc-home-hero__shops {
+    flex: 1;
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+    background: var(--dec-panel-bg, #ffffff);
+    border-radius: var(--dec-panel-radius, 8px);
+    display: flex;
+    flex-direction: column;
+}
+
+.dec-pc-home-hero__shops-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 12px;
+    margin: 10px 0 10px;
+    flex-shrink: 0;
+
+    .title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #333;
+        line-height: 16px;
+        height: 16px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex: none;
+    }
+    .hot {
+        display: inline-block;
+        font-size: 10px;
+        color: #fff;
+        background: #e1251b;
+        padding: 1px 4px;
+        border-radius: 2px;
+        line-height: 12px;
+        font-weight: normal;
+    }
+    .more {
+        margin-left: auto;
+        font-size: 12px;
+        color: #999;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+
+        &:hover {
+            color: #e1251b;
+        }
+
+        .more-icon {
+            transform: rotate(-90deg);
+        }
+    }
+}
+
+.dec-pc-home-hero__shop-list {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    padding: 0 12px 0px;
+    flex: 1;
+}
+
+.dec-pc-home-hero__shop-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+    transition: all 0.2s;
+
+    &:hover {
+        .dec-pc-home-hero__shop-img-box {
+            border-color: #e1251b;
+        }
+        .dec-pc-home-hero__shop-enter {
+            color: #e1251b;
+        }
+    }
+}
+
+.dec-pc-home-hero__shop-img-box {
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    background: #ffffff;
+    border: 1px solid #f2f2f2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    transition: all 0.2s;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.dec-pc-home-hero__shop-icon {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.dec-pc-home-hero__shop-enter {
+    font-size: 12px;
+    color: #a06a38;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 4em;
+}
+
+/* Empty State */
+.dec-pc-home-hero__empty {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f9f9f9;
+    border: 1px dashed #e5e5e5;
+    border-radius: 8px;
+    transition: all 0.3s;
+
+    &:hover {
+        background: #f0f0f0;
+        border-color: var(--dec-price-color, #e1251b);
+    }
+}
+.dec-pc-home-hero__empty-text {
+    color: #999;
+    font-size: 12px;
+}
+
+/* Swiper overrides */
+.dec-pc-home-hero__banner {
+    .swiper-pagination {
+        text-align: left;
+        padding-left: 12px;
+        bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .swiper-pagination-bullet {
+        width: 8px;
+        height: 8px;
+        background: #fff;
+        opacity: 0.4;
+        transition: all 0.2s;
+        margin: 0 !important;
+    }
+    .swiper-pagination-bullet-active {
+        opacity: 1;
+        width: 24px;
+        border-radius: 4px;
+        background: #fff;
+    }
+    /* Hide nav buttons as per design */
+    .swiper-button-prev,
+    .swiper-button-next {
+        display: none;
+    }
+}
+
+/* ==================== Responsive Styles ==================== */
+
+/* Container query for better responsiveness in editor */
+.dec-pc-home-hero {
+    container-type: inline-size;
+    container-name: hero;
+}
+
+/*
+   Logic:
+   - Above 1350px: Show Full Layout (2 Promo Modules, 2 Products per Card)
+   - Below 1350px (Target 1200px): Show Compact Layout (1 Promo Module, 1 Product per Card)
+*/
+
+@container hero (max-width: 1350px) {
+    /* Layout Adjustments for 1200px - keep fixed widths */
+    .dec-pc-home-hero__layout {
+        grid-template-columns: 252px minmax(0, 1fr) 252px;
+    }
+
+    /* 1. Promo Group: Show both modules to align with 4-column grid below (Banner 2, Promo 1+1) */
+    .dec-pc-home-hero__promo-group .dec-pc-home-hero__promo-card:nth-child(2) {
+        display: flex;
+    }
+
+    /* 2. Center Bottom: Show only 1 product per card (hide the 2nd one) */
+    .dec-pc-home-hero__center-bottom .dec-pc-home-hero__card-product:nth-child(2),
+    .dec-pc-home-hero__promo-group .dec-pc-home-hero__card-product:nth-child(2) {
+        display: none;
+    }
+
+    /* Adjust the remaining product to look good (bigger image) */
+    .dec-pc-home-hero__center-bottom .dec-pc-home-hero__card-product,
+    .dec-pc-home-hero__promo-group .dec-pc-home-hero__card-product {
+        /* Add some padding to frame the single product nicely */
+        padding: 0 10px;
+        justify-content: center;
+
+        .dec-pc-home-hero__card-img {
+            width: 86px;
+            height: 86px;
+            object-fit: contain;
+            margin: auto;
+        }
+    }
+}
+
+/* Small screens (1100px and below) - 提前隐藏标签，因为频道卡片已经很挤了 */
+@container hero (max-width: 1100px) {
+    .dec-pc-home-hero__card-badge {
+        display: none !important;
+    }
+}
+
+/* Small screens (900px and below) - further compacting based on the single-item layout */
+@container hero (max-width: 900px) {
+    .dec-pc-home-hero__layout {
+        grid-template-columns: 200px minmax(0, 1fr) 200px;
+        gap: 12px;
+    }
+
+    /* Change ratio to 3:1 when one promo card is hidden, so the remaining one stays 1-column wide */
+    .dec-pc-home-hero__banner {
+        flex: 3;
+    }
+    .dec-pc-home-hero__promo-group {
+        flex: 1;
+    }
+
+    .dec-pc-home-hero__cate-item {
+        padding: 5px 12px;
+        gap: 8px;
+    }
+
+    .dec-pc-home-hero__cate-icon {
+        width: 16px;
+        height: 16px;
+    }
+
+    .dec-pc-home-hero__cate-title {
+        font-size: 12px;
+    }
+
+    /* Ensure single-item logic persists */
+    .dec-pc-home-hero__promo-group .dec-pc-home-hero__promo-card:nth-child(2) {
+        display: none;
+    }
+    .dec-pc-home-hero__center-bottom .dec-pc-home-hero__card-product:nth-child(2) {
+        display: none;
+    }
+
+    .dec-pc-home-hero__promo-group {
+        gap: 12px;
+    }
+
+    .dec-pc-home-hero__promo-card {
+        padding: 8px;
+    }
+
+    .dec-pc-home-hero__card-header {
+        margin-bottom: 6px;
+    }
+
+    .dec-pc-home-hero__card-title {
+        font-size: 12px;
+    }
+
+    .dec-pc-home-hero__card-badge {
+        font-size: 9px;
+        padding: 1px 3px;
+        max-width: 32px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .dec-pc-home-hero__card-price {
+        font-size: 14px;
+    }
+
+    .dec-pc-home-hero__product-grid {
+        gap: 12px;
+    }
+
+    .dec-pc-home-hero__channel-card {
+        padding: 0;
+    }
+
+    .dec-pc-home-hero__right {
+        gap: 12px;
+    }
+
+    .dec-pc-home-hero__user-card {
+        padding: 10px;
+    }
+
+    .dec-pc-home-hero__avatar {
+        width: 36px;
+        height: 36px;
+    }
+
+    .dec-pc-home-hero__user-name {
+        font-size: 13px;
+    }
+
+    .dec-pc-home-hero__user-links {
+        font-size: 11px;
+    }
+
+    .dec-pc-home-hero__login-btn {
+        height: 28px;
+        line-height: 28px;
+        font-size: 12px;
+        margin-bottom: 6px;
+    }
+
+    .dec-pc-home-hero__action-item {
+        font-size: 9px;
+        i {
+            width: 18px;
+            height: 18px;
+        }
+    }
+
+    .dec-pc-home-hero__shops {
+        padding: 8px 10px;
+        height: auto;
+        min-height: 0;
+    }
+
+    .dec-pc-home-hero__shops-header {
+        margin-bottom: 8px;
+        padding: 0;
+        .title {
+            font-size: 12px;
+        }
+        .hot {
+            display: none;
+        }
+        .more {
+            font-size: 11px;
+        }
+    }
+
+    .dec-pc-home-hero__shop-list {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        padding: 0;
+    }
+
+    .dec-pc-home-hero__shop-item {
+        padding: 0;
+    }
+
+    .dec-pc-home-hero__shop-img-box {
+        width: 40px;
+        height: 40px;
+    }
+}
+
+/* Extra small screens (< 700px) */
+@container hero (max-width: 700px) {
+    .dec-pc-home-hero__layout {
+        grid-template-columns: 160px minmax(0, 1fr) 160px;
+        gap: 8px;
+    }
+
+    .dec-pc-home-hero__cate-list {
+        padding: 4px 0;
+    }
+
+    .dec-pc-home-hero__cate-item {
+        padding: 3px 8px;
+        gap: 4px;
+    }
+
+    .dec-pc-home-hero__cate-icon {
+        width: 12px;
+        height: 12px;
+    }
+
+    .dec-pc-home-hero__cate-title {
+        font-size: 10px;
+        line-height: 14px;
+    }
+
+    .dec-pc-home-hero__card-header {
+        margin-bottom: 3px;
+    }
+
+    .dec-pc-home-hero__card-title {
+        font-size: 10px;
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .dec-pc-home-hero__card-badge {
+        display: none !important;
+    }
+
+    .dec-pc-home-hero__card-label {
+        font-size: 7px;
+        padding: 0 2px;
+    }
+
+    .dec-pc-home-hero__card-price {
+        font-size: 12px;
+    }
+
+    .dec-pc-home-hero__product-grid {
+        gap: 8px;
+    }
+
+    .dec-pc-home-hero__channel-card {
+        padding: 0;
+        border-radius: 8px;
+    }
+
+    .dec-pc-home-hero__right {
+        gap: 8px;
+    }
+
+    .dec-pc-home-hero__user-card {
+        padding: 6px;
+        gap: 4px;
+    }
+
+    .dec-pc-home-hero__avatar {
+        width: 28px;
+        height: 28px;
+    }
+
+    .dec-pc-home-hero__user-name {
+        font-size: 11px;
+        margin-bottom: 2px;
+    }
+
+    .dec-pc-home-hero__user-links {
+        font-size: 9px;
+        gap: 4px;
+    }
+
+    .dec-pc-home-hero__login-btn {
+        height: 24px;
+        line-height: 24px;
+        font-size: 10px;
+        margin-bottom: 3px;
+    }
+
+    .dec-pc-home-hero__user-actions {
+        padding-top: 0;
+    }
+
+    .dec-pc-home-hero__action-item {
+        font-size: 7px;
+        i {
+            width: 14px;
+            height: 14px;
+        }
+    }
+
+    .dec-pc-home-hero__shops {
+        padding: 4px 6px;
+    }
+
+    .dec-pc-home-hero__shops-header {
+        margin-bottom: 4px;
+        .title {
+            font-size: 10px;
+        }
+        .hot {
+            display: none;
+        }
+        .more {
+            font-size: 9px;
+        }
+    }
+
+    .dec-pc-home-hero__shop-list {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 4px;
+        padding: 0;
+    }
+
+    .dec-pc-home-hero__shop-item {
+        padding: 0;
+    }
+
+    .dec-pc-home-hero__shop-img-box {
+        width: 32px;
+        height: 32px;
+        padding: 2px;
+    }
+
+    .dec-pc-home-hero__banner {
+        .swiper-pagination {
+            padding-left: 8px;
+            bottom: 8px;
+        }
+        .swiper-pagination-bullet {
+            width: 4px;
+            height: 4px;
+            margin: 0 1px;
+        }
+        .swiper-pagination-bullet-active {
+            width: 10px;
+        }
+    }
+}

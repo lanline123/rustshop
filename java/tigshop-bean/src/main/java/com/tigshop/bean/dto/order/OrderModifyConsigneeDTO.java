@@ -1,0 +1,55 @@
+// **---------------------------------------------------------------------+
+// ** 文件 --
+// **---------------------------------------------------------------------+
+// ** 版权所有：江西佰商科技有限公司. 官网：https://www.tigshop.com
+// **---------------------------------------------------------------------+
+// ** 作者：Tigshop团队，yq@tigshop.com
+// **---------------------------------------------------------------------+
+// ** 提示：Tigshop商城系统为非免费商用系统，未经授权，严禁使用、修改、发布
+// **---------------------------------------------------------------------+
+
+package com.tigshop.bean.dto.order;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Data;
+
+import java.math.BigDecimal;
+import java.util.List;
+
+/**
+ * 订单金额修改数据对象
+ *
+ * @author Tigshop团队
+ * @create 2024年12月04日 10:00
+ */
+@Data
+@Schema(description = "订单金额修改参数")
+public class OrderModifyConsigneeDTO {
+
+
+    @Schema(description = "被操作的订单id")
+    private Integer id;
+
+    @Schema(description = "收货人姓名")
+    private String consignee;
+
+    @Schema(description = "手机号")
+    private String mobile;
+
+    @Schema(description = "电话")
+    private String telephone;
+
+    @Schema(description = "邮箱")
+    private String email;
+
+    @Schema(description = "邮政编码")
+    private String postcode;
+
+    @Schema(description = "地区ID列表")
+    private List<Integer> regionIds;
+
+
+    @Schema(description = "详细地址")
+    private String address;
+
+}

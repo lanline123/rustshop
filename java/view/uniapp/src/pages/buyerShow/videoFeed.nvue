@@ -1,0 +1,1174 @@
+<template>
+    <view class="feed-root">
+        <list
+            class="feed-list"
+            :style="listStyle"
+            :show-scrollbar="false"
+            :pagingEnabled="true"
+            :scrollable="true"
+            :offset-accuracy="contentHeight"
+            @scrollend="onListScrollEnd"
+        >
+            <cell v-for="(item, index) in list" :key="item.buyerShowId" :ref="'feedCell' + index" class="feed-cell" :style="cellStyle">
+                <view class="feed-item" :style="cellStyle">
+                    <!-- 无附图：保持单视频结构，不引入内层容器；三分支按距离降级原生组件 -->
+                    <video
+                        v-if="!hasMultiAsset(index) && shouldRenderVideo(index)"
+                        :id="videoId(index)"
+                        class="feed-video"
+                        :src="playSrc(index)"
+                        :poster="item.video.videoCover"
+                        :controls="false"
+                        :autoplay="index === current"
+                        :muted="index !== current"
+                        :loop="true"
+                        :show-center-play-btn="false"
+                        :enable-progress-gesture="false"
+                        :http-cache="true"
+                        object-fit="cover"
+                        @play="onVideoPlay(index)"
+                        @pause="onVideoPause(index)"
+                        @timeupdate="readVideoTime(index, $event)"
+                        @click="togglePlay"
+                    ></video>
+                    <image
+                        v-else-if="!hasMultiAsset(index) && shouldRenderPoster(index)"
+                        class="feed-video"
+                        :src="item.video.videoCover"
+                        mode="aspectFill"
+                    ></image>
+                    <view v-else-if="!hasMultiAsset(index)" class="feed-video"></view>
+
+                    <!-- 有附图：视频占第 1 位，附图依次跟后，可横滑切换 -->
+                    <swiper
+                        v-else
+                        class="asset-swiper"
+                        :style="cellStyle"
+                        :current="assetIndexOf(index)"
+                        :circular="false"
+                        :duration="200"
+                        @change="onAssetChange(index, $event)"
+                    >
+                        <swiper-item class="asset-item" :style="cellStyle">
+                            <video
+                                v-if="shouldRenderVideo(index)"
+                                :id="videoId(index)"
+                                class="feed-video"
+                                :src="playSrc(index)"
+                                :poster="item.video.videoCover"
+                                :controls="false"
+                                :autoplay="index === current"
+                                :muted="index !== current"
+                                :loop="true"
+                                :show-center-play-btn="false"
+                                :enable-progress-gesture="false"
+                                :http-cache="true"
+                                object-fit="cover"
+                                @play="onVideoPlay(index)"
+                                @pause="onVideoPause(index)"
+                                @timeupdate="readVideoTime(index, $event)"
+                                @click="togglePlay"
+                            ></video>
+                            <image v-else-if="shouldRenderPoster(index)" class="feed-video" :src="item.video.videoCover" mode="aspectFill"></image>
+                            <view v-else class="feed-video"></view>
+                        </swiper-item>
+                        <swiper-item v-for="(img, j) in imagesOf(index)" :key="j" class="asset-item" :style="cellStyle">
+                            <image class="feed-image" :src="img.picUrl" mode="aspectFit"></image>
+                        </swiper-item>
+                    </swiper>
+
+                    <image
+                        v-if="index === current && currentPaused && isVideoAsset(index)"
+                        class="play-btn"
+                        :style="playBtnStyle"
+                        :src="icons.play"
+                        mode="aspectFit"
+                        @click="togglePlay"
+                    ></image>
+
+                    <view v-if="index === current && isVideoAsset(index) && !hasMultiAsset(index)" class="video-progress-wrap" :style="progressBarStyle">
+                        <slider
+                            class="video-progress"
+                            :value="Math.min(currentTimeOf(index), Math.max(durationOf(index), 1))"
+                            :max="Math.max(durationOf(index), 1)"
+                            :block-size="12"
+                            active-color="#ffffff"
+                            background-color="rgba(255, 255, 255, 0.35)"
+                            @changing="previewSeek(index, $event)"
+                            @change="commitSeek(index, $event)"
+                        ></slider>
+                    </view>
+
+                    <!-- 素材分段进度条：段数 = 1 视频 + N 附图 -->
+                    <view v-if="hasMultiAsset(index)" class="asset-seg-bar" :style="segBarStyle">
+                        <view v-for="seg in assetCount(index)" :key="seg" class="asset-seg" :style="segStyle(index, seg)">
+                            <slider
+                                v-if="seg === 1 && isVideoAsset(index)"
+                                class="asset-video-progress"
+                                :value="Math.min(currentTimeOf(index), Math.max(durationOf(index), 1))"
+                                :max="Math.max(durationOf(index), 1)"
+                                :block-size="10"
+                                active-color="#ffffff"
+                                background-color="rgba(255, 255, 255, 0.3)"
+                                @changing="previewSeek(index, $event)"
+                                @change="commitSeek(index, $event)"
+                            ></slider>
+                            <view
+                                v-else
+                                class="asset-seg-line"
+                                :style="{ backgroundColor: seg - 1 === assetIndexOf(index) ? '#ffffff' : 'rgba(255, 255, 255, 0.3)' }"
+                            ></view>
+                        </view>
+                    </view>
+
+                    <view class="side-bar" :style="sideBarStyle">
+                        <view class="side-item" @click="toggleLike(item)">
+                            <image class="side-icon" :src="item.isLike ? icons.likeActive : icons.like" mode="aspectFit"></image>
+                            <text class="side-num">{{ formatCount(item.likeCount) }}</text>
+                        </view>
+                        <view class="side-item" @click="openComment">
+                            <image class="side-icon" :src="icons.comment" mode="aspectFit"></image>
+                            <text class="side-num">{{ formatCount(item.commentCount) }}</text>
+                        </view>
+                        <view class="side-item" @click="handleShare">
+                            <image class="side-icon" :src="icons.share" mode="aspectFit"></image>
+                        </view>
+                    </view>
+
+                    <view class="bottom-bar" :style="bottomBarStyle">
+                        <view v-if="item.productList && item.productList.length" class="pc-wrap">
+                            <view class="product-card" @click="goProduct(item.productList[0])">
+                                <view class="pc-icon">
+                                    <image class="pc-icon-img" :src="icons.cart" mode="aspectFit"></image>
+                                </view>
+                                <text class="pc-name" lines="1">{{ item.productList[0].productName }}</text>
+                            </view>
+                        </view>
+
+                        <view class="author-row">
+                            <image class="author-avatar" :src="item.author.buyerPhoto" mode="aspectFill"></image>
+                            <text class="author-name">{{ item.author.buyerName }}</text>
+                            <view v-if="item.author.userId && !item.author.isFollow" class="follow-btn" @click="toggleFollow(item)">
+                                <text class="follow-text">{{ t("关注") }}</text>
+                            </view>
+                        </view>
+
+                        <view v-if="item.content" class="content-box" :style="contentBoxStyle">
+                            <view v-if="isLongText(item.content) && !contentExpanded" class="content-collapsed-row">
+                                <text class="content-text" :style="collapsedContentTextStyle(item.content)" lines="1">{{ collapsedContent(item.content) }}</text>
+                                <view class="content-toggle-inline" @click="toggleContent">
+                                    <text class="content-toggle">{{ t("展开") }}</text>
+                                </view>
+                            </view>
+                            <view v-else-if="isLongText(item.content)" class="content-expanded">
+                                <scroll-view
+                                    class="content-scroll"
+                                    scroll-y
+                                    :style="expandedContentStyle(item.content)"
+                                    @touchstart.stop
+                                    @touchmove.stop
+                                >
+                                    <text class="content-text" :style="contentTextStyle">{{ item.content }}</text>
+                                </scroll-view>
+                                <view class="content-toggle-row" @click="toggleContent">
+                                    <text class="content-toggle">{{ t("收起") }}</text>
+                                </view>
+                            </view>
+                            <text v-else class="content-text" :style="contentTextStyle">{{ item.content }}</text>
+                        </view>
+                    </view>
+                </view>
+            </cell>
+        </list>
+
+        <view class="nav-back" :style="navBackStyle" @click="goBack">
+            <text class="nav-back-icon">{{ "\u2039" }}</text>
+        </view>
+
+        <view v-if="list.length === 0" class="feed-status">
+            <text class="feed-status-text">{{ loading ? t("加载中...") : t("暂无视频买家秀") }}</text>
+        </view>
+
+        <view v-if="currentItem.buyerShowId" class="feed-footer" :style="footerStyle">
+            <view class="comment-entry" @click="openComment">
+                <text class="comment-placeholder">{{ t("说点什么吧~") }}</text>
+            </view>
+        </view>
+
+        <view v-if="commentVisible" class="comment-mask" @click="closeComment"></view>
+        <view v-if="commentVisible" class="comment-panel" :style="commentPanelStyle">
+            <view class="cp-header">
+                <text class="cp-title">{{ commentTitle }}</text>
+                <view class="cp-close" @click="closeComment">
+                    <text class="cp-close-icon">{{ "\u2715" }}</text>
+                </view>
+            </view>
+
+            <scroll-view class="cp-body" scroll-y :style="cpBodyStyle" @scrolltolower="commentLoadMore">
+                <view v-for="c in commentList" :key="c.buyerShowCommentId" class="cp-item">
+                    <image class="cp-avatar" :src="c.buyerPhoto" mode="aspectFill"></image>
+                    <view class="cp-main">
+                        <view class="cp-top">
+                            <text class="cp-name">{{ c.buyerName }}</text>
+                            <view class="cp-like" @click="commentLike(c)">
+                                <text class="cp-like-icon" :style="{ color: c.isLike ? '#FF4444' : '#999999' }">{{ c.isLike ? "\u2665" : "\u2661" }}</text>
+                                <text v-if="Number(c.likeCount) > 0" class="cp-like-num">{{ c.likeCount }}</text>
+                            </view>
+                        </view>
+                        <text class="cp-content">{{ c.content }}</text>
+                        <view v-if="c.images && c.images.length" class="cp-images">
+                            <image v-for="(img, i) in c.images" :key="i" class="cp-img" :src="img" mode="aspectFill" @click="previewImage(c.images, img)"></image>
+                        </view>
+                        <view class="cp-bottom">
+                            <text class="cp-time">{{ c.addTime }}</text>
+                            <text class="cp-reply" @click="commentReply(c)">{{ t("回复") }}</text>
+                        </view>
+
+                        <view v-if="c.showAllReplies && c.replies && c.replies.length" class="cp-replies">
+                            <view v-for="r in c.replies" :key="r.buyerShowCommentId" class="cp-reply-item">
+                                <image class="cp-avatar cp-avatar-sm" :src="r.buyerPhoto" mode="aspectFill"></image>
+                                <view class="cp-main">
+                                    <view class="cp-top">
+                                        <text class="cp-name">{{ r.buyerName }}</text>
+                                        <view class="cp-like" @click="commentLike(r)">
+                                            <text class="cp-like-icon" :style="{ color: r.isLike ? '#FF4444' : '#999999' }">{{ r.isLike ? "\u2665" : "\u2661" }}</text>
+                                            <text v-if="Number(r.likeCount) > 0" class="cp-like-num">{{ r.likeCount }}</text>
+                                        </view>
+                                    </view>
+                                    <text class="cp-content">{{ r.content }}</text>
+                                    <view class="cp-bottom">
+                                        <text class="cp-time">{{ r.addTime }}</text>
+                                        <text class="cp-reply" @click="commentReply(c)">{{ t("回复") }}</text>
+                                    </view>
+                                </view>
+                            </view>
+                        </view>
+
+                        <view v-if="Number(c.replyCount) > 0" class="cp-view-more" @click="commentToggleReplies(c)">
+                            <text class="cp-view-more-text">{{ c.toggleText || replyMoreText(c.replyCount) }}</text>
+                        </view>
+                    </view>
+                </view>
+
+                <view v-if="commentLoading" class="cp-tip"><text class="cp-tip-text">{{ t("加载中...") }}</text></view>
+                <view v-else-if="!commentHasMore && commentList.length > 0" class="cp-tip"><text class="cp-tip-text">{{ t("没有更多评论了") }}</text></view>
+                <view v-else-if="commentList.length === 0" class="cp-tip"><text class="cp-tip-text">{{ t("暂无评论") }}</text></view>
+            </scroll-view>
+
+            <view class="cp-footer" :style="cpFooterStyle">
+                <input
+                    v-model="commentContent"
+                    class="cp-input"
+                    type="text"
+                    :focus="commentInputFocus"
+                    :placeholder="commentPlaceholder"
+                    confirm-type="send"
+                    @focus="commentInputFocus = true"
+                    @blur="commentInputFocus = false"
+                    @confirm="handleSend"
+                />
+                <text class="cp-send" @click="handleSend">{{ t("发送") }}</text>
+            </view>
+        </view>
+
+        <buyer-show-poster
+            v-if="showPoster"
+            v-model="showPoster"
+            :buyer-show-id="currentItem.buyerShowId"
+            :content="currentItem.content"
+            :buyer-name="currentItem.author.buyerName"
+            :buyer-photo="currentItem.author.buyerPhoto"
+            :cover="currentItem.video.videoCover"
+        ></buyer-show-poster>
+    </view>
+</template>
+
+<script lang="ts">
+/**
+ * 买家秀视频流页（App / nvue）
+ * - 用原生 list + pagingEnabled 承载竖向翻页，内层 swiper 翻当前条附图
+ * - 与 H5/小程序视图共用 useVideoFeed 与 useVideoComments，仅渲染层不同
+ */
+import { computed, getCurrentInstance, nextTick, ref, watch } from "vue";
+import { onHide, onLoad, onReady, onUnload } from "@dcloudio/uni-app";
+
+import i18n from "@/i18n";
+import BuyerShowPoster from "./components/buyerShowPoster.vue";
+import type { VideoFeedCommentRow, VideoFeedProduct } from "@/types/buyerShow/videoFeed";
+import { ensureShareLogin } from "@/utils/shareLogin";
+import { useConfigStore } from "@/store/config";
+import { useVideoComments } from "./composables/useVideoComments";
+import { useVideoFeed } from "./composables/useVideoFeed";
+import { videoFeedIconsApp } from "./constants/videoFeedIconsApp";
+import { buildBuyerShowShareUrl } from "./utils/share";
+
+// 不走 @/utils 桶，避免 nvue 额外拉进 request/store 循环依赖
+const isOverseasEnv = () => import.meta.env.VITE_IS_OVERSEAS == 1;
+
+// nvue 用 Options API 的 setup() 复用与 H5/小程序完全相同的一套 composable
+export default {
+    components: { BuyerShowPoster },
+    setup() {
+        const sys = uni.getSystemInfoSync();
+        const windowHeight = sys.windowHeight || 667;
+        const windowWidth = sys.windowWidth || 375;
+        const statusBarHeight = sys.statusBarHeight || 20;
+        const safeBottom = sys.safeAreaInsets?.bottom ?? 0;
+
+        // nvue 无法渲染 SVG，改用亮/暗两张 PNG 表示激活态
+        const icons = videoFeedIconsApp;
+
+        // nvue 运行时取不到全局 $t，显式获取翻译函数供模板使用
+        const t = i18n.global.t as unknown as (key: string, args?: unknown[]) => string;
+        const configStore = useConfigStore();
+
+        const instance = getCurrentInstance();
+        const feed = useVideoFeed({ size: 5, instance: instance?.proxy });
+        const {
+            list,
+            current,
+            loading,
+            hasMore,
+            inited,
+            currentTimeOf,
+            durationOf,
+            readVideoTime,
+            previewSeek,
+            commitSeek,
+            videoId,
+            playSrc,
+            shouldRenderVideo,
+            imagesOf,
+            assetCount,
+            hasMultiAsset,
+            assetIndexOf,
+            isVideoAsset,
+            setAssetIndex,
+            clearAutoPlay,
+            scheduleAutoPlay,
+            init,
+            onChange,
+            playIndex,
+            pauseAll,
+            warmNeighbors,
+            toggleLike,
+            toggleFollow
+        } = feed;
+
+        const currentPaused = ref(false);
+        const currentItem = computed(() => list.value[current.value] || ({} as (typeof list.value)[number]));
+
+        // 仅在当前 ±2 屏渲染封面占位，更远的用黑底空视图，控制常驻原生组件数量
+        const shouldRenderPoster = (index: number) => Math.abs(index - current.value) <= 2;
+
+        // nvue 的 text lines 需明确宽度；按屏宽估算一行可容纳字数，截断与按钮共用同一阈值
+        const contentExpanded = ref(false);
+        const contentWidthPx = Math.max(200, windowWidth - 30 - 70);
+        const contentBoxStyle = { width: contentWidthPx + "px" };
+        const contentTextStyle = { width: contentWidthPx + "px" };
+        const toggleOuterWidthPx = uni.upx2px(80);
+        const contentFontSizePx = uni.upx2px(28);
+        const collapsedAvailableWidthPx = contentWidthPx - toggleOuterWidthPx;
+        // 额外预留省略号宽度，保证“正文... 展开”完整落在同一行
+        const collapseCharCount = Math.max(8, Math.floor(collapsedAvailableWidthPx / contentFontSizePx) - 2);
+        const isLongText = (content?: string) => !!content && content.length > collapseCharCount;
+        const collapsedContent = (content: string) => (content.length > collapseCharCount ? content.slice(0, collapseCharCount) + "..." : content);
+        const collapsedContentTextStyle = (content: string) => {
+            const visualUnits = [...collapsedContent(content)].reduce((total, char) => total + (char.charCodeAt(0) <= 127 ? 0.55 : 1), 0);
+            const textWidth = Math.ceil(visualUnits * uni.upx2px(28)) + 2;
+            return { width: Math.min(contentWidthPx - toggleOuterWidthPx, textWidth) + "px", textOverflow: "ellipsis" };
+        };
+        const toggleContent = () => {
+            contentExpanded.value = !contentExpanded.value;
+        };
+        const contentLineHeight = uni.upx2px(42);
+        const expandedContentStyle = (content?: string) => {
+            const lineCount = (content || "").split("\n").reduce((total, line) => total + Math.max(1, Math.ceil(line.length / collapseCharCount)), 0);
+            return {
+                width: contentWidthPx + "px",
+                height: Math.min(15, Math.max(1, lineCount)) * contentLineHeight + "px"
+            };
+        };
+
+        const comments = useVideoComments();
+
+        const commentTitle = computed(() => {
+            const count = comments.total.value || currentItem.value.commentCount || 0;
+            return isOverseasEnv() ? t("共{0}条评论", [count]) : `共${count}条评论`;
+        });
+        const replyMoreText = (count: number | undefined) => (isOverseasEnv() ? t("展开{0}条回复", [count]) : `展开${count}条回复`);
+
+        const commentVisible = ref(false);
+        const showPoster = ref(false);
+        const commentContent = ref("");
+        const commentInputFocus = ref(false);
+
+        // nvue 样式用 px，底栏独立占位，不覆盖视频区域
+        const footerContentHeight = uni.upx2px(96);
+        const footerHeight = footerContentHeight + safeBottom;
+        const contentHeight = Math.max(0, windowHeight - footerHeight);
+        const listStyle = computed(() => ({ height: contentHeight + "px" }));
+        const cellStyle = computed(() => ({ height: contentHeight + "px" }));
+        // nvue 不支持 transform 居中，按窗口尺寸算绝对坐标
+        const playSize = 56;
+        const playBtnStyle = computed(() => ({
+            top: (contentHeight - playSize) / 2 + "px",
+            left: (windowWidth - playSize) / 2 + "px",
+            width: playSize + "px",
+            height: playSize + "px",
+            opacity: 0.85
+        }));
+        const navBackStyle = computed(() => ({ top: statusBarHeight + 8 + "px" }));
+        const sideBarStyle = computed(() => ({ bottom: Math.max(0, 180 - footerContentHeight) + "px" }));
+        const segBarStyle = computed(() => ({ bottom: -uni.upx2px(8) + "px" }));
+        /** nvue 不支持 :last-child，末段间距在此归零 */
+        const segStyle = (screen: number, seg: number) => {
+            const style: Record<string, string> = {};
+            if (seg === assetCount(screen)) style.marginRight = "0px";
+            return style;
+        };
+        const progressBarStyle = computed(() => ({
+            left: uni.upx2px(12) + "px",
+            bottom: -uni.upx2px(8) + "px",
+            width: windowWidth - uni.upx2px(24) + "px",
+            height: uni.upx2px(48) + "px"
+        }));
+        const bottomBarStyle = computed(() => ({ bottom: uni.upx2px(30) + "px", paddingBottom: uni.upx2px(20) + "px" }));
+        const footerStyle = computed(() => ({ height: footerHeight + "px", paddingBottom: safeBottom + "px" }));
+        const panelHeight = Math.round(windowHeight * 0.7);
+        const commentPanelStyle = computed(() => ({ height: panelHeight + "px" }));
+        const cpBodyStyle = computed(() => ({ height: panelHeight - 46 - 56 - safeBottom + "px" }));
+        const cpFooterStyle = computed(() => ({ paddingBottom: safeBottom + "px" }));
+
+        onLoad((options?: Record<string, string | undefined>) => init(options?.buyerShowId));
+        onReady(() => {
+            if (inited.value) {
+                playIndex(current.value);
+                setTimeout(() => warmNeighbors(current.value), 120);
+            }
+        });
+        watch(inited, (ready) => {
+            if (ready) {
+                setTimeout(() => {
+                    playIndex(current.value);
+                    warmNeighbors(current.value);
+                }, 80);
+            }
+        });
+        onHide(() => pauseAll());
+        onUnload(() => pauseAll());
+
+        /** 半屏吸附容差：超过则视为未落稳，强制滚到最近一页 */
+        const SNAP_SLOP = Math.max(16, Math.round(contentHeight * 0.06));
+
+        const forceSnapTo = (index: number) => {
+            const proxy = instance?.proxy as { $refs?: Record<string, unknown> } | undefined;
+            const refVal = proxy?.$refs?.["feedCell" + index];
+            const el = Array.isArray(refVal) ? refVal[0] : refVal;
+            if (!el) return;
+            try {
+                // nvue 运行时全局 weex
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const dom = (globalThis as any).weex?.requireModule?.("dom");
+                dom?.scrollToElement?.(el, { offset: 0, animated: true });
+            } catch {
+                /* ignore */
+            }
+        };
+
+        /**
+         * 只用 scrollend：滑动过程中改 current 会触发 video 挂载/卸载，
+         * 打断 pagingEnabled 吸附，偶现卡在两屏之间
+         */
+        const onListScrollEnd = (e: { contentOffset?: { y?: number } }) => {
+            const y = Math.abs(e?.contentOffset?.y || 0);
+            const lastOffset = Math.max(0, list.value.length - 1) * contentHeight;
+            if (!hasMore.value && list.value.length > 0 && y > lastOffset + SNAP_SLOP) {
+                uni.showToast({ title: t("暂时没有更多了"), icon: "none" });
+                return;
+            }
+            let next = Math.round(y / contentHeight);
+            if (next < 0) next = 0;
+            const maxIndex = list.value.length - 1;
+            if (next >= maxIndex + 1) next = Math.max(0, maxIndex);
+
+            const snappedY = next * contentHeight;
+            if (Math.abs(y - snappedY) > SNAP_SLOP) {
+                forceSnapTo(next);
+                return;
+            }
+
+            if (next === current.value) return;
+            onChange(next);
+            currentPaused.value = false;
+            contentExpanded.value = false;
+        };
+
+        /**
+         * 内层横滑：切换当前屏素材位，播放态与轮播定时器由 setAssetIndex 统一处理。
+         * nvue 事件对象在不同运行时可能给 detail.current 或 index，两者都取。
+         */
+        const onAssetChange = (screen: number, e: { detail?: { current?: number }; index?: number }) => {
+            const next = e?.detail?.current ?? e?.index ?? 0;
+            setAssetIndex(screen, next);
+        };
+        const togglePlay = () => {
+            if (currentPaused.value) feed.playIndex(current.value);
+            else feed.pauseIndex(current.value);
+        };
+        const onVideoPlay = (index: number) => {
+            if (index === current.value) currentPaused.value = false;
+        };
+        const onVideoPause = (index: number) => {
+            if (index === current.value) currentPaused.value = true;
+        };
+
+        // 评论弹层遮住画面期间不推进轮播，关闭后若仍停在图片位则续上
+        const openComment = () => {
+            clearAutoPlay();
+            commentVisible.value = true;
+            comments.reload(currentItem.value.buyerShowId);
+        };
+        const closeComment = () => {
+            commentVisible.value = false;
+            comments.clearReplyTarget();
+            commentContent.value = "";
+            commentInputFocus.value = false;
+            if (!isVideoAsset(current.value)) scheduleAutoPlay();
+        };
+        const handleShare = () => {
+            if (!ensureShareLogin()) return;
+            uni.showActionSheet({
+                itemList: [t("复制链接"), t("生成海报")],
+                success: ({ tapIndex }) => {
+                    if (tapIndex === 0) {
+                        const shareUrl = buildBuyerShowShareUrl(currentItem.value.buyerShowId, configStore.baseInfo.h5Domain || "");
+                        if (!shareUrl) {
+                            uni.showToast({ title: t("未配置分享域名"), icon: "none" });
+                            return;
+                        }
+                        const content = Array.from(currentItem.value.content || "");
+                        const desc = content.length > 150 ? content.slice(0, 149).join("") + "…" : content.join("");
+                        const fallbackDesc = currentItem.value.author.buyerName ? currentItem.value.author.buyerName + t("的买家秀") : t("买家秀");
+                        const shareText = `【${configStore.baseInfo.shopTitle || ""}】${shareUrl} 「${desc || fallbackDesc}」`;
+                        uni.setClipboardData({
+                            data: shareText,
+                            success: () => uni.showToast({ title: t("复制成功"), icon: "none" })
+                        });
+                        return;
+                    }
+                    showPoster.value = true;
+                }
+            });
+        };
+        const commentLoadMore = () => comments.loadMore();
+        const commentLike = (item: VideoFeedCommentRow) => comments.like(item);
+        const commentReply = (item: VideoFeedCommentRow) => {
+            comments.setReplyTarget(item);
+            commentInputFocus.value = false;
+            nextTick(() => {
+                setTimeout(() => {
+                    commentInputFocus.value = true;
+                }, 100);
+            });
+        };
+        const commentToggleReplies = (item: VideoFeedCommentRow) => comments.toggleReplies(item);
+        const commentPlaceholder = computed(() => comments.replyPlaceholder.value);
+        const handleSend = async () => {
+            const ok = await comments.send(commentContent.value);
+            if (ok) {
+                commentContent.value = "";
+                if (currentItem.value.buyerShowId) currentItem.value.commentCount = comments.total.value;
+            }
+        };
+        const previewImage = (images: string[], cur: string) => {
+            uni.previewImage({ urls: images, current: cur, indicator: "number", loop: true });
+        };
+
+        const goProduct = (product: VideoFeedProduct) => {
+            uni.navigateTo({ url: "/pages/product/index?id=" + product.productId });
+        };
+        const goBack = () => {
+            uni.navigateBack({
+                fail: () => {
+                    uni.switchTab({
+                        url: "/pages/buyerShow/index",
+                        fail: () => {
+                            uni.navigateTo({ url: "/pages/buyerShow/index" });
+                        }
+                    });
+                }
+            });
+        };
+        const formatCount = (num?: number) => {
+            const value = Number(num) || 0;
+            if (value >= 10000) return (value / 10000).toFixed(1) + "w";
+            return value + "";
+        };
+
+        return {
+            list,
+            current,
+            loading,
+            hasMore,
+            currentTimeOf,
+            durationOf,
+            readVideoTime,
+            previewSeek,
+            commitSeek,
+            videoId,
+            playSrc,
+            shouldRenderVideo,
+            shouldRenderPoster,
+            imagesOf,
+            assetCount,
+            hasMultiAsset,
+            assetIndexOf,
+            isVideoAsset,
+            onAssetChange,
+            segBarStyle,
+            segStyle,
+            icons,
+            toggleLike,
+            toggleFollow,
+            currentPaused,
+            currentItem,
+            contentExpanded,
+            isLongText,
+            collapsedContent,
+            toggleContent,
+            contentBoxStyle,
+            contentTextStyle,
+            collapsedContentTextStyle,
+            expandedContentStyle,
+            commentList: comments.list,
+            commentTotal: comments.total,
+            commentTitle,
+            replyMoreText,
+            commentLoading: comments.loading,
+            commentHasMore: comments.hasMore,
+            commentVisible,
+            showPoster,
+            commentContent,
+            commentInputFocus,
+            commentPlaceholder,
+            listStyle,
+            cellStyle,
+            contentHeight,
+            playBtnStyle,
+            navBackStyle,
+            sideBarStyle,
+            progressBarStyle,
+            bottomBarStyle,
+            footerStyle,
+            commentPanelStyle,
+            cpBodyStyle,
+            cpFooterStyle,
+            onListScrollEnd,
+            togglePlay,
+            onVideoPlay,
+            onVideoPause,
+            openComment,
+            closeComment,
+            handleShare,
+            commentLoadMore,
+            commentLike,
+            commentReply,
+            commentToggleReplies,
+            handleSend,
+            previewImage,
+            goProduct,
+            goBack,
+            formatCount,
+            t
+        };
+    }
+};
+</script>
+
+<style scoped>
+.feed-root {
+    flex: 1;
+    background-color: #000000;
+}
+
+.feed-cell {
+    flex-direction: column;
+}
+
+.feed-item {
+    flex: 1;
+    position: relative;
+}
+
+.feed-video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #000000;
+}
+
+/* nvue 的 swiper 需要确定尺寸，高度由 :style 显式给出，宽度随 flex 撑满 */
+.asset-swiper {
+    flex: 1;
+}
+
+.asset-item {
+    position: relative;
+    flex-direction: column;
+}
+
+.feed-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #000000;
+}
+
+.asset-seg-bar {
+    position: absolute;
+    left: 30rpx;
+    right: 30rpx;
+    flex-direction: row;
+    align-items: center;
+}
+
+.asset-seg {
+    flex: 1;
+    height: 48rpx;
+    margin-right: 8rpx;
+    flex-direction: row;
+    align-items: center;
+}
+
+.asset-seg-line {
+    flex: 1;
+    height: 2px;
+    border-radius: 1px;
+}
+
+.asset-video-progress {
+    flex: 1;
+    margin-left: 0;
+    margin-right: 0;
+}
+
+.play-btn {
+    position: absolute;
+}
+
+.video-progress-wrap {
+    position: absolute;
+    flex-direction: row;
+    align-items: center;
+}
+
+.video-progress {
+    flex: 1;
+    margin-left: 0;
+    margin-right: 0;
+}
+
+.side-bar {
+    position: absolute;
+    right: 24rpx;
+    align-items: center;
+}
+
+.side-item {
+    align-items: center;
+    margin-bottom: 44rpx;
+}
+
+.side-icon {
+    width: 56rpx;
+    height: 56rpx;
+}
+
+.side-num {
+    font-size: 24rpx;
+    color: #ffffff;
+    margin-top: 6rpx;
+}
+
+.bottom-bar {
+    position: absolute;
+    left: 0;
+    /* 让出右侧互动栏的点击区，避免长文案盖住点赞/评论/收藏 */
+    right: 120rpx;
+    bottom: 0;
+    padding-left: 30rpx;
+    padding-right: 0;
+}
+
+.feed-footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    flex-direction: row;
+    align-items: center;
+    padding-left: 20rpx;
+    padding-right: 20rpx;
+    background-color: rgba(12, 12, 12, 0.92);
+    z-index: 30;
+}
+
+
+.comment-entry {
+    flex: 1;
+    height: 68rpx;
+    flex-direction: row;
+    align-items: center;
+    padding-left: 28rpx;
+    padding-right: 28rpx;
+    border-radius: 34rpx;
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
+.comment-placeholder {
+    font-size: 26rpx;
+    color: rgba(255, 255, 255, 0.46);
+}
+
+.pc-wrap {
+    flex-direction: row;
+    margin-bottom: 24rpx;
+}
+
+.product-card {
+    /* 与 H5 一致限宽；否则长标题撑出 bottom-bar 后被父级硬裁，右侧圆角消失 */
+    flex-direction: row;
+    align-items: center;
+    max-width: 520rpx;
+    padding-top: 12rpx;
+    padding-bottom: 12rpx;
+    padding-left: 12rpx;
+    padding-right: 20rpx;
+    background-color: rgba(0, 0, 0, 0.4);
+    border-radius: 40rpx;
+}
+
+.pc-icon {
+    width: 40rpx;
+    height: 40rpx;
+    border-radius: 20rpx;
+    background-color: #ff6b00;
+    align-items: center;
+    justify-content: center;
+    margin-right: 12rpx;
+}
+
+.pc-icon-img {
+    width: 24rpx;
+    height: 24rpx;
+}
+
+/* nvue 无 white-space，单行省略号靠 lines + text-overflow */
+.pc-name {
+    flex: 1;
+    font-size: 24rpx;
+    color: #ffffff;
+    lines: 1;
+    text-overflow: ellipsis;
+}
+
+.author-row {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 18rpx;
+}
+
+.author-avatar {
+    width: 64rpx;
+    height: 64rpx;
+    border-radius: 32rpx;
+    margin-right: 16rpx;
+}
+
+.author-name {
+    font-size: 30rpx;
+    font-weight: 500;
+    color: #ffffff;
+    margin-right: 16rpx;
+}
+
+.follow-btn {
+    padding: 6rpx 24rpx;
+    background-color: #ff4444;
+    border-radius: 40rpx;
+}
+
+.follow-text {
+    font-size: 24rpx;
+    color: #ffffff;
+}
+
+.content-box,
+.content-expanded,
+.content-scroll {
+    flex-direction: column;
+}
+
+.content-collapsed-row {
+    height: 42rpx;
+    flex-direction: row;
+    align-items: center;
+}
+
+.content-text {
+    font-size: 28rpx;
+    color: #ffffff;
+    line-height: 42rpx;
+}
+
+.content-toggle-inline {
+    width: 68rpx;
+    margin-left: 8rpx;
+    flex-direction: row;
+}
+
+.content-toggle-row {
+    flex-direction: row;
+    margin-top: 8rpx;
+}
+
+.content-toggle {
+    font-size: 26rpx;
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.nav-back {
+    position: fixed;
+    left: 20rpx;
+    width: 64rpx;
+    height: 64rpx;
+    align-items: center;
+    justify-content: center;
+}
+
+.nav-back-icon {
+    font-size: 60rpx;
+    color: #ffffff;
+}
+
+.feed-status {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    align-items: center;
+    justify-content: center;
+}
+
+.feed-status-text {
+    font-size: 28rpx;
+    color: #ffffff;
+}
+
+.comment-mask {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.comment-panel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ffffff;
+    border-top-left-radius: 24rpx;
+    border-top-right-radius: 24rpx;
+    overflow: hidden;
+}
+
+.cp-header {
+    height: 90rpx;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    border-bottom-width: 1rpx;
+    border-bottom-color: #f5f5f5;
+    border-bottom-style: solid;
+}
+
+.cp-title {
+    font-size: 28rpx;
+    font-weight: 500;
+    color: #2a2a2a;
+}
+
+.cp-close {
+    position: absolute;
+    right: 20rpx;
+    top: 20rpx;
+    width: 50rpx;
+    height: 50rpx;
+    align-items: center;
+    justify-content: center;
+}
+
+.cp-close-icon {
+    font-size: 34rpx;
+    color: #333333;
+}
+
+.cp-body {
+    padding-left: 30rpx;
+    padding-right: 30rpx;
+}
+
+.cp-item {
+    flex-direction: row;
+    margin-top: 30rpx;
+}
+
+.cp-avatar {
+    width: 70rpx;
+    height: 70rpx;
+    border-radius: 35rpx;
+    margin-right: 20rpx;
+}
+
+.cp-main {
+    flex: 1;
+}
+
+.cp-top {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12rpx;
+}
+
+.cp-name {
+    font-size: 26rpx;
+    color: #9a9a9a;
+}
+
+.cp-like {
+    flex-direction: row;
+    align-items: center;
+}
+
+.cp-like-icon {
+    font-size: 32rpx;
+    color: #999999;
+}
+
+.cp-like-num {
+    font-size: 24rpx;
+    color: #9a9a9a;
+    margin-left: 8rpx;
+}
+
+.cp-content {
+    font-size: 28rpx;
+    color: #2a2a2a;
+    line-height: 42rpx;
+}
+
+.cp-images {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-top: 16rpx;
+}
+
+.cp-img {
+    width: 220rpx;
+    height: 220rpx;
+    border-radius: 12rpx;
+    margin-right: 12rpx;
+    margin-bottom: 12rpx;
+}
+
+.cp-time {
+    font-size: 24rpx;
+    color: #9a9a9a;
+}
+
+.cp-bottom {
+    flex-direction: row;
+    align-items: center;
+    margin-top: 14rpx;
+}
+
+.cp-reply {
+    margin-left: 30rpx;
+    font-size: 24rpx;
+    color: #576b95;
+}
+
+.cp-replies {
+    margin-top: 20rpx;
+}
+
+.cp-reply-item {
+    flex-direction: row;
+    margin-bottom: 24rpx;
+}
+
+.cp-avatar-sm {
+    width: 48rpx;
+    height: 48rpx;
+    border-radius: 24rpx;
+}
+
+.cp-view-more {
+    margin-top: 12rpx;
+}
+
+.cp-view-more-text {
+    font-size: 24rpx;
+    color: #576b95;
+}
+
+.cp-tip {
+    align-items: center;
+    padding-top: 30rpx;
+    padding-bottom: 30rpx;
+}
+
+.cp-tip-text {
+    font-size: 24rpx;
+    color: #999999;
+}
+
+.cp-footer {
+    flex-direction: row;
+    align-items: center;
+    padding-left: 30rpx;
+    padding-right: 30rpx;
+    padding-top: 16rpx;
+    padding-bottom: 16rpx;
+    border-top-width: 1rpx;
+    border-top-color: #f5f5f5;
+    border-top-style: solid;
+}
+
+.cp-input {
+    flex: 1;
+    height: 68rpx;
+    padding-left: 24rpx;
+    padding-right: 24rpx;
+    background-color: #f5f5f5;
+    border-radius: 34rpx;
+    font-size: 26rpx;
+    color: #2a2a2a;
+}
+
+.cp-send {
+    margin-left: 20rpx;
+    font-size: 28rpx;
+    color: #ff4444;
+}
+</style>

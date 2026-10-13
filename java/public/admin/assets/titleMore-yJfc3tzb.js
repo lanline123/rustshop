@@ -1,0 +1,1 @@
+const n=1,E=2;function O(o,e){const r=Number(o==null?void 0:o.showMore)===1,s=Number(o==null?void 0:o.moreType);return s===1||s===2?{visible:r,mode:s}:e==="seckillCustom"?r?{visible:!0,mode:1}:{visible:!0,mode:2}:{visible:r,mode:e==="link"?1:2}}function _(o,e){var r;return((r=o==null?void 0:o.countdownLabel)==null?void 0:r.trim())||e}export{n as M,E as a,_ as b,O as r};

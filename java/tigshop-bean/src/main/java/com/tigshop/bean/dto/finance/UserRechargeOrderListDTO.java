@@ -1,0 +1,33 @@
+// **---------------------------------------------------------------------+
+// ** 文件 --
+// **---------------------------------------------------------------------+
+// ** 版权所有：江西佰商科技有限公司. 官网：https://www.tigshop.com
+// **---------------------------------------------------------------------+
+// ** 作者：Tigshop团队，yq@tigshop.com
+// **---------------------------------------------------------------------+
+// ** 提示：Tigshop商城系统为非免费商用系统，未经授权，严禁使用、修改、发布
+// **---------------------------------------------------------------------+
+
+package com.tigshop.bean.dto.finance;
+
+import com.tigshop.common.core.entity.BasePage;
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Getter;
+import lombok.Setter;
+
+/**
+ * 充值记录列表
+ *
+ * @author Tigshop团队
+ * @create 2024年12月03日 16:56
+ */
+@Setter
+@Getter
+@Schema(description = "充值记录列表参数")
+public class UserRechargeOrderListDTO extends BasePage {
+    @Schema(description = "状态，0：待支付，1：已支付，2：无效")
+    private Integer status;
+
+    @Schema(description = "用户id")
+    private Integer userId;
+}

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.product.ProductInventoryLogMapper">
+
+    <select id="productInventoryLog" resultType="com.tigshop.bean.vo.product.ProductInventoryLogVO">
+        select
+            *, product.product_name as productName
+        from product_inventory_log
+        left join product on product_inventory_log.product_id = product.product_id
+        <where>
+            product_inventory_log.shop_id = #{pageQuery.shopId}
+            <if test="pageQuery.keyword != null and pageQuery.keyword != ''">
+                and product.product_name like concat('%',#{pageQuery.keyword},'%')
+            </if>
+            <if test="pageQuery.type != null and pageQuery.type != 0">
+                and product_inventory_log.type = #{pageQuery.type}
+            </if>
+        </where>
+    </select>
+
+</mapper>

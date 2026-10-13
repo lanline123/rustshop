@@ -1,0 +1,1 @@
+import{a6 as t}from"./index-B6WS-doS.js";const a=e=>t({url:"pos/device/list",method:"get",params:e}),o=e=>t({url:"pos/device/detail",method:"get",params:e}),d=(e,s)=>t({url:`pos/device/${e}`,method:"post",data:s}),c=e=>t({url:"pos/device/updateField",method:"post",data:e});export{o as a,c as b,a as g,d as u};
