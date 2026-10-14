@@ -28,6 +28,12 @@ pub mod time_discount;
 // —— 切片域（并行重构，按序号）——
 pub mod slice001;
 pub mod slice002;
+pub mod slice220;
+pub mod slice209;
+pub mod slice201;
+pub mod slice185;
+pub mod slice092;
+pub mod slice081;
 pub mod slice166;
 pub mod slice144;
 pub mod slice139;
@@ -128,6 +134,12 @@ pub fn merge_all(state: &AdminState) -> Router<AdminState> {
         .merge(slice003::routes(state))
         .merge(slice004::routes(state))
         .merge(slice005::routes(state))
+.merge(slice220::routes(state))
+.merge(slice209::routes(state))
+.merge(slice201::routes(state))
+.merge(slice185::routes(state))
+.merge(slice092::routes(state))
+.merge(slice081::routes(state))
 .merge(slice166::routes(state))
 .merge(slice144::routes(state))
 .merge(slice139::routes(state))
@@ -221,6 +233,12 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(slice003::implemented_routes());
     out.extend(slice004::implemented_routes());
     out.extend(slice005::implemented_routes());
+out.extend(slice220::implemented_routes());
+out.extend(slice209::implemented_routes());
+out.extend(slice201::implemented_routes());
+out.extend(slice185::implemented_routes());
+out.extend(slice092::implemented_routes());
+out.extend(slice081::implemented_routes());
 out.extend(slice166::implemented_routes());
 out.extend(slice144::implemented_routes());
 out.extend(slice139::implemented_routes());

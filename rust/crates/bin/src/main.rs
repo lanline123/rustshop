@@ -31,6 +31,12 @@ use tigshop_services::logistics::LogisticsService;
 use tigshop_services::member::MemberService;
 use tigshop_services::seckill::SeckillService;
 use tigshop_services::slice001::Slice001Service;
+use tigshop_services::slice220::Slice220Service;
+use tigshop_services::slice209::Slice209Service;
+use tigshop_services::slice201::Slice201Service;
+use tigshop_services::slice185::Slice185Service;
+use tigshop_services::slice092::Slice092Service;
+use tigshop_services::slice081::Slice081Service;
 use tigshop_services::slice172::Slice172Service;
 use tigshop_services::slice166::Slice166Service;
 use tigshop_services::slice144::Slice144Service;
@@ -213,6 +219,13 @@ async fn main() -> anyhow::Result<()> {
     let refund_apply = Arc::new(RefundApplyService::new(repos.clone()));
     let balance_pay = Arc::new(BalancePayService::new(repos.clone()));
     let slice001 = Arc::new(Slice001Service::new(repos.clone()));
+    let slice220 = Arc::new(Slice220Service::new(repos.clone()));
+    let slice209 = Arc::new(Slice209Service::new(repos.clone()));
+    let slice201 = Arc::new(Slice201Service::new(repos.clone()));
+    let slice185 = Arc::new(Slice185Service::new(repos.clone()));
+    let slice092 = Arc::new(Slice092Service::new(repos.clone()));
+    let slice081 = Arc::new(Slice081Service::new(repos.clone()));
+    let slice029 = Arc::new(Slice029Service::new(repos.clone(), slice001.clone()));
     let slice172 = Arc::new(Slice172Service::new(repos.clone()));
     let slice166 = Arc::new(Slice166Service::new(repos.clone()));
     let slice144 = Arc::new(Slice144Service::new(repos.clone()));
@@ -427,6 +440,12 @@ async fn main() -> anyhow::Result<()> {
         slice139: slice139.clone(),
         slice144: slice144.clone(),
         slice166: slice166.clone(),
+        slice081: slice081.clone(),
+        slice092: slice092.clone(),
+        slice185: slice185.clone(),
+        slice201: slice201.clone(),
+        slice209: slice209.clone(),
+        slice220: slice220.clone(),
 };
     let public_state = PublicState {
         product: product.clone(),

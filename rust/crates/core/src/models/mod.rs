@@ -17,6 +17,12 @@ pub mod promotion;
 pub mod refund_apply;
 pub mod salesman;
 pub mod shop;
+pub mod slice220;
+pub mod slice209;
+pub mod slice201;
+pub mod slice185;
+pub mod slice092;
+pub mod slice081;
 pub mod slice217;
 pub mod slice205;
 pub mod slice192;
@@ -118,7 +124,7 @@ pub mod slice004;
 pub mod slice003;
 pub mod slice002;
 pub mod slice005;
-// ——— 切片域（并行重构，按序号）———
+
 pub mod slice075;
 pub mod slice091;
 pub mod slice139;

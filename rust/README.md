@@ -256,19 +256,79 @@ axum 路由交叉校验，两边不一致会暴露出来。
 
 > **重要更正**：早期版本的本节曾把骨架写成"已完成"。经与
 > `java/database/pure.sql`（322 张表，权威 schema）逐字段核对后，实际情况如下。
+>
+> 本节数字为 **2026-10-14** 实测（`tools/status_report.py` +
+> `tools/check_api_coverage.py`）。早期版本曾写 81 条（5.2%）/108 条（6.9%）
+> 两套互相矛盾的数字，均已作废——那时是本仓库刚起步的状态，
+> 此后按切片制推进，P0/P1 已全部收口。
 
 ### 规模对比
 
 | 维度 | Java 原系统 | Rust 现状 | 覆盖率 |
 |------|------------|-----------|--------|
-| 代码量 | 3,503 文件 / 270,801 行 | 110 文件 / 21,655 行 | ~8% |
+| 代码量 | 3,503 文件 / 330,343 行 | 627 文件 / 170,123 行 | — |
 | 实体 model | 268 | **321**（全部表） | **100%** ✅ |
-| HTTP 接口 | **1564** | **81** | **5.2%** |
-| — adminapi | 1231 | 48 | 3.9% |
-| — api | 333 | 33 | 9.9% |
+| HTTP 接口 | **1564** | **515** | **32.9%** |
+| — adminapi | 1231 | 389 | 31.6% |
+| — api | 333 | 126 | 37.8% |
 
 > 接口覆盖率由 `tools/check_api_coverage.py` 实测，可用
 > `--json` 导出 `docs/api-coverage.json` 复核。
+>
+> ⚠️ **`docs/api-coverage.json` 是快照文件，会滞后**：它记录的是上次
+> `--json` 导出时刻的结果（当前文件停在 441 / 28.2%）。**以 `check_api_coverage.py`
+> 的实时输出为准**，不要直接引用该 JSON。
+
+### 推进方式：切片制
+
+1564 个接口按控制器切成 **220 个垂直切片**（每片 3 个文件：
+`routes/` + `services/` + `repo/`），按优先级分 P0/P1/P2 三档。
+切片之间文件独占，因此可并行推进而不冲突。
+
+权威进度以仓库自带的报告器为准：
+
+```powershell
+cd rust
+python tools/status_report.py     # 切片维度的进度（按 tier 汇总）
+python tools/check_api_coverage.py  # 接口维度的覆盖率（与 1564 契约比对）
+```
+
+实测输出（2026-10-14）：
+
+| tier | 切片 | 接口 |
+|------|------|------|
+| P0 | **9 / 9（100%）** | **184 / 184（100%）** |
+| P1 | **5 / 5（100%）** | **66 / 66（100%）** |
+| P2 | **102 / 206（49.5%）** | **457 / 1233（37.1%）** |
+| **合计** | **116 / 220（52.7%）** | — |
+
+> **P0/P1 已全部收口**——即平台的骨架能力（商品/订单/用户/权限等
+> 最核心链路）已无缺口。剩余工作量集中在 P2 业务模块。
+
+> ⚠️ **`status_report.py` 的口径**：它把「服务层文件存在」记为 done
+> （`crates/services/src/<slice>.rs`），**不要求 `routes/` 文件也在**。
+> 因此有 6 片（slice020/095/097/134/140/156）计为 done 但缺 slice 级
+> route 文件——这些片均为 `/im/**`、`/s/{code}`、`/img/gallery/**` 等
+> **根级路由**，实际注册在 `api/{admin,public}/src/lib.rs` 的
+> `root::merge_protected` / `merge_public` 中，并非遗漏。
+> 判定接口是否真的可用，请以 `check_api_coverage.py` 为准。
+
+相关文件的分工（勿混淆）：
+
+| 文件 | 作用 |
+|------|------|
+| `docs/slices.json` | **220 片全量计划**（权威基线，`status_report.py` 读它） |
+| `docs/batches.json` | **待开工的 116 片**批次编排（20 批，即剩余队列） |
+| `docs/registrations/*.json` | 已完成切片的登记（109 个） |
+| `docs/pending-slices.json` | 剩余清单与文件落地情况 |
+
+> ⚠️ `batches.json` 里只有**剩余**的 116 片，**不是**全量计划；
+> 全量计划在 `docs/slices.json`。切片计划里的 `api_count` 合计为 **1483**，
+> 少于契约总数 1564，差额 **81** 条不是覆盖缺口，而是：
+> ① **78 条「切片前基线」接口**（订单/商品/优惠券/文章等最早手工实现的
+> 核心链路）直接注册在 `api/{admin,public}/src/lib.rs`，从未纳入切片计划；
+> ② 其余 3 条为零头差异（含切片间重复登记）。
+> 因此**切片的 100% 不等于契约的 100%**，两者必须分别对账。
 
 > 实体层已达 100%：`pure.sql` 的 322 张表（含增量补丁后 321 张有效表）
 > 全部生成 Rust 结构体，字段名与可空性均对齐真实库。
@@ -336,7 +396,7 @@ cargo test -p tigshop-core --test schema_consistency
 `implemented_routes()` 显式声明比对，输出覆盖率与缺失清单：
 
 ```powershell
-python tools/check_api_coverage.py    # 当前：已实现 81 / 1564（5.2%）
+python tools/check_api_coverage.py    # 当前：已实现 515 / 1564（32.9%）
 ```
 
 ### 完成度清单
@@ -351,9 +411,15 @@ python tools/check_api_coverage.py    # 当前：已实现 81 / 1564（5.2%）
       + API 契约覆盖率工具 + 契约完整性测试
 - [x] **API 契约基线**：1564 个接口从 Java 注解提取，路径/权限/文档齐全，
       并已修正早期臆造路由（详见上文 P0 章节）
-- [ ] **接口实现：81 / 1564（5.2%）** —— 这是最关键的缺口。
+- [ ] **接口实现：515 / 1564（32.9%）** —— 这是最关键的缺口，剩 1049 条。
       可用 `python tools/check_api_coverage.py --missing-csv docs/api-missing.csv`
-      导出待办清单，按模块推进
+      导出待办清单；剩下的 104 片全在 P2，见 `python tools/status_report.py`
+- [x] **切片制推进框架**：1564 接口切为 220 片（P0 9 / P1 5 / P2 206），
+      每片独占 `routes`+`services`+`repo` 三文件，支持并行；
+      `docs/slices.json` 为全量计划基线，`docs/registrations/*.json` 为完成登记，
+      `docs/batches.json` 为剩余批次编排
+- [x] **P0 + P1 全部收口**（9/9、5/5，共 250 条接口）—— 平台骨架能力无缺口
+- [x] **P2 已完成 102 / 206 片**（457 / 1233 条接口）
 - [x] **营销域垂直切片 1：限时秒杀**（`seckill` + `seckill_item`）
       —— 实体/仓储/服务/API/测试全链路，含防超卖原子扣减
 - [x] **营销域垂直切片 2：限时折扣**（`time_discount` + `time_discount_item`）
@@ -379,7 +445,8 @@ python tools/check_api_coverage.py    # 当前：已实现 81 / 1564（5.2%）
       砍价 `bargain*`、买家秀 `buyer_show*`、签到 `sign*`
 - [ ] 财务域其余部分：结算 `statement*`、提现 `user_withdraw_apply`、
       发票 `user_invoice`、分账 `profit_sharing_*`
-- [ ] 仓储层：15 / 248（需按域补全，建议改用 `sqlx::query!` 编译期校验）
+- [ ] 仓储层：134 个 repo 文件 / 约 1486 条 SQL（需按域补全，
+      建议逐步改用 `sqlx::query!` 编译期校验）
 - [ ] 业务域补全：`finance`(26 表) `setting`(21) `o2o`(20)
       `vendor`(19) `purchase`(12) `shop`(10) `deposit`(9) `salesman`(9)
       `lang`(8) `log`(8) `premium`(7) `decorate`(6) `im`(6) `wholesale`(5)
@@ -402,13 +469,16 @@ python tools/check_api_coverage.py    # 当前：已实现 81 / 1564（5.2%）
 ```powershell
 cd rust/crates
 cargo check --workspace --all-targets -j 2   # ✅ 0 error / 0 warning
-cargo test  --workspace -j 2                 # ✅ 206 passed / 0 failed
+cargo test  --workspace -j 2                 # ✅ 1393 passed / 0 failed
 
 cd rust
 python tools/check_sql_columns.py --strict   # ✅ 0 未知表 / 0 未知列
-python tools/check_api_coverage.py           # 已实现 108 / 1564（6.9%）
+python tools/check_api_coverage.py           # 已实现 515 / 1564（32.9%）
 python tools/java_api_parser.py --check      # ✅ 0 畸形路径
 ```
+
+> 上表为 **2026-10-14** 在 commit `b34ddf5` 实测。测试数从早期的 206
+> 增长到 1393，是切片制铺开后的结果。
 
 契约相关的自动化测试：
 

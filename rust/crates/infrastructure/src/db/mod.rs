@@ -25,6 +25,12 @@ pub use repo::refund_apply::RefundApplyRepository;
 pub use repo::salesman::SalesmanRepository;
 pub use repo::seckill::SeckillRepository;
 pub use repo::shop::ShopRepository;
+pub use repo::slice220::Slice220Repository;
+pub use repo::slice209::Slice209Repository;
+pub use repo::slice201::Slice201Repository;
+pub use repo::slice185::Slice185Repository;
+pub use repo::slice092::Slice092Repository;
+pub use repo::slice081::Slice081Repository;
 pub use repo::slice172::Slice172Repository;
 pub use repo::slice166::Slice166Repository;
 pub use repo::slice144::Slice144Repository;
@@ -364,6 +370,12 @@ pub struct Repositories {
     pub slice144: Slice144Repository,
     pub slice166: Slice166Repository,
     pub slice172: Slice172Repository,
+    pub slice081: Slice081Repository,
+    pub slice092: Slice092Repository,
+    pub slice185: Slice185Repository,
+    pub slice201: Slice201Repository,
+    pub slice209: Slice209Repository,
+    pub slice220: Slice220Repository,
 }
 
 impl Repositories {
@@ -496,6 +508,12 @@ impl Repositories {
             slice144: Slice144Repository::new(pool.clone()),
             slice166: Slice166Repository::new(pool.clone()),
             slice172: Slice172Repository::new(pool.clone()),
+            slice081: Slice081Repository::new(pool.clone()),
+            slice092: Slice092Repository::new(pool.clone()),
+            slice185: Slice185Repository::new(pool.clone()),
+            slice201: Slice201Repository::new(pool.clone()),
+            slice209: Slice209Repository::new(pool.clone()),
+            slice220: Slice220Repository::new(pool.clone()),
         }
     }
 }

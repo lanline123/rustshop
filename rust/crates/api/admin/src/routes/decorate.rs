@@ -27,7 +27,6 @@ use tigshop_core::models::decorate::{
     DecorateCreateDTO, DecorateDiscreteUpdateParam, DecorateDiscreteVO, DecorateListQuery,
     DecorateMemberDataVO, DecorateSaveDTO, DecorateShareInfoDTO, DecorateShareInfoVO,
     DecorateShareListQuery, DecorateShareVO, DecorateUpdateDTO, DecorateVO,
-    MobileCatNavCreateDTO, MobileCatNavListQuery, MobileCatNavUpdateDTO, MobileCatNavVO,
     PcCatFloorCreateDTO, PcCatFloorListQuery, PcCatFloorUpdateDTO, PcCatFloorVO, PcNavTreeVO,
     PcNavigationCreateDTO, PcNavigationListQuery, PcNavigationUpdateDTO, PcNavigationVO,
 };
@@ -90,14 +89,9 @@ pub fn routes(_state: &AdminState) -> Router<AdminState> {
         .route("/decorate/pcCatFloor/updateField", post(floor_update_field))
         .route("/decorate/pcCatFloor/batch", post(floor_batch))
         .route("/decorate/pcCatFloor/clearCache", post(floor_clear_cache))
-        // 手机分类导航 MobileCatNavController
-        .route("/decorate/mobileCatNav/list", get(mnav_list))
-        .route("/decorate/mobileCatNav/detail", get(mnav_detail))
-        .route("/decorate/mobileCatNav/create", post(mnav_create))
-        .route("/decorate/mobileCatNav/update", post(mnav_update))
-        .route("/decorate/mobileCatNav/del", post(mnav_del))
-        .route("/decorate/mobileCatNav/updateField", post(mnav_update_field))
-        .route("/decorate/mobileCatNav/batch", post(mnav_batch))
+        // 手机分类导航 MobileCatNavController 的 7 条路由已移交 slice-220 正式实现
+        // （crates/api/admin/src/routes/slice220.rs），此处不得再注册，
+        // 否则 axum `Router::merge` 会因同一 (method, path) 重复而启动 panic。
         // 装修组件 DecorateDiscreteController
         .route("/decorate/decorateDiscrete/detail", get(discrete_detail))
         .route("/decorate/decorateDiscrete/update", post(discrete_update))
@@ -159,13 +153,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
         ("POST", "/adminapi/decorate/pcCatFloor/updateField", "PcCatFloorController.updateField"),
         ("POST", "/adminapi/decorate/pcCatFloor/batch", "PcCatFloorController.batch"),
         ("POST", "/adminapi/decorate/pcCatFloor/clearCache", "PcCatFloorController.clearCache"),
-        ("GET", "/adminapi/decorate/mobileCatNav/list", "MobileCatNavController.list"),
-        ("GET", "/adminapi/decorate/mobileCatNav/detail", "MobileCatNavController.detail"),
-        ("POST", "/adminapi/decorate/mobileCatNav/create", "MobileCatNavController.create"),
-        ("POST", "/adminapi/decorate/mobileCatNav/update", "MobileCatNavController.update"),
-        ("POST", "/adminapi/decorate/mobileCatNav/del", "MobileCatNavController.del"),
-        ("POST", "/adminapi/decorate/mobileCatNav/updateField", "MobileCatNavController.updateField"),
-        ("POST", "/adminapi/decorate/mobileCatNav/batch", "MobileCatNavController.batch"),
+        // mobileCatNav 的 7 条 RouteDoc 已移交 slice-220（见其 implemented_routes()）
         ("GET", "/adminapi/decorate/decorateDiscrete/detail", "DecorateDiscreteController.detail"),
         ("POST", "/adminapi/decorate/decorateDiscrete/update", "DecorateDiscreteController.update"),
         ("GET", "/adminapi/decorate/decorateDiscrete/memberDecorateData", "DecorateDiscreteController.memberDecorateData"),
@@ -551,67 +539,12 @@ async fn floor_clear_cache(State(state): State<AdminState>) -> ApiResult<bool> {
     ok(true)
 }
 
-// ————————————————————— 手机分类导航 —————————————————————
+// ————————————————————— 手机分类导航 → 已移交 slice-220 —————————————————————
+//
+// 原先此处内联实现了 7 个 `mobileCatNav/*` handler（引导期占位）。slice-220 已
+// 按契约正式实现该控制器（含 DTO 校验与单测），故本文件删除这批 handler，
+// 避免同一路径被 `Router::merge` 注册两次而在服务启动时 panic。
 
-/// `GET /adminapi/decorate/mobileCatNav/list`：手机分类导航分页。
-async fn mnav_list(
-    State(state): State<AdminState>,
-    Query(q): Query<MobileCatNavListQuery>,
-) -> ApiResult<PageResult<MobileCatNavVO>> {
-    ok(state.decorate.mobile_cat_nav_list(&q).await?)
-}
-
-/// `GET /adminapi/decorate/mobileCatNav/detail?id=`：手机分类导航详情。
-async fn mnav_detail(
-    State(state): State<AdminState>,
-    Query(q): Query<IdQuery>,
-) -> ApiResult<MobileCatNavVO> {
-    ok(state
-        .decorate
-        .mobile_cat_nav_detail(q.id.unwrap_or_default())
-        .await?)
-}
-
-/// `POST /adminapi/decorate/mobileCatNav/create`：新建手机分类导航。
-async fn mnav_create(
-    State(state): State<AdminState>,
-    Json(dto): Json<MobileCatNavCreateDTO>,
-) -> ApiResult<serde_json::Value> {
-    let id = state.decorate.mobile_cat_nav_create(&dto).await?;
-    ok(serde_json::json!({ "id": id }))
-}
-
-/// `POST /adminapi/decorate/mobileCatNav/update`：更新手机分类导航。
-async fn mnav_update(
-    State(state): State<AdminState>,
-    Json(dto): Json<MobileCatNavUpdateDTO>,
-) -> ApiResult<bool> {
-    ok(state.decorate.mobile_cat_nav_update(&dto).await?)
-}
-
-/// `POST /adminapi/decorate/mobileCatNav/del`：删除手机分类导航。
-async fn mnav_del(
-    State(state): State<AdminState>,
-    Json(dto): Json<OperateDTO>,
-) -> ApiResult<bool> {
-    ok(state.decorate.mobile_cat_nav_del(&dto).await?)
-}
-
-/// `POST /adminapi/decorate/mobileCatNav/updateField`：通用字段更新。
-async fn mnav_update_field(
-    State(state): State<AdminState>,
-    Json(dto): Json<UpdateFieldDTO>,
-) -> ApiResult<bool> {
-    ok(state.decorate.mobile_cat_nav_update_field(&dto).await?)
-}
-
-/// `POST /adminapi/decorate/mobileCatNav/batch`：批量操作。
-async fn mnav_batch(
-    State(state): State<AdminState>,
-    Json(dto): Json<BatchDTO>,
-) -> ApiResult<bool> {
-    ok(state.decorate.mobile_cat_nav_batch(&dto).await?)
-}
 
 // ————————————————————— 装修组件 —————————————————————
 
