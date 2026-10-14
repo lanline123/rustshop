@@ -1,0 +1,55 @@
+====================================================================
+TigShop Rust API 覆盖率报告
+====================================================================
+契约版本          : 5.8.57
+契约接口总数      : 1564
+Rust 已实现       : 441
+覆盖率            : 28.2%
+未实现            : 1123
+Rust 注册路由总数 : 451
+自加端点(非契约)  : 0
+疑似多余路由      : 16
+
+按模块：
+  adminapi    322 / 1231   26.2%
+  api         119 / 333    35.7%
+
+疑似多余路由（Rust 有、契约无，需人工确认）：
+  GET    /adminapi/health                                     api\admin\src\lib.rs:276
+  POST   /adminapi/login/refresh                              api\admin\src\lib.rs:275
+  GET    /adminapi/product/product/catAndBrandList            api\admin\src\routes\slice001.rs:81
+  POST   /adminapi/product/product/del                        api\admin\src\routes\slice001.rs:84
+  POST   /adminapi/system/profile/password                    api\admin\src\lib.rs:261
+  POST   /api/balance/pay                                     api\public\src\routes\balance_pay.rs:28
+  GET    /api/balance/pay/info                                api\public\src\routes\balance_pay.rs:27
+  GET    /api/health                                          api\public\src\lib.rs:183
+  POST   /api/pay/prepare                                     api\public\src\routes\paylog.rs:33
+  GET    /api/pay/refunds                                     api\public\src\routes\paylog.rs:34
+  GET    /api/promotion/seckill/canJoin                       api\public\src\routes\seckill.rs:37
+  GET    /api/promotion/seckill/list                          api\public\src\routes\seckill.rs:31
+  GET    /api/promotion/seckill/price                         api\public\src\routes\seckill.rs:32
+  GET    /api/promotion/timeDiscount/canJoin                  api\public\src\routes\time_discount.rs:35
+  GET    /api/promotion/timeDiscount/list                     api\public\src\routes\time_discount.rs:29
+  GET    /api/promotion/timeDiscount/price                    api\public\src\routes\time_discount.rs:30
+
+未实现接口按模块分布：
+  adminapi   909
+  api        214
+
+未实现接口示例（前 15 条）：
+  GET    /adminapi/admin/adminAccount/getMainAccount        根据店铺或供应商ID查询主账号信息
+  GET    /adminapi/admin/adminAccount/pageShopOrVendor      根据主账号ID和类型查询账号列表
+  POST   /adminapi/admin/adminAccount/bindMainAccount       根据主账号ID和店铺ID/供应商ID绑定账号
+  POST   /adminapi/admin/adminAccount/updateMainAccount     修改主账号信息
+  POST   /adminapi/admin/adminAccount/updateMainAccountPwd  修改主账号密码
+  GET    /adminapi/admin/adminAccount/pageAdminUser         账号管理列表
+  POST   /adminapi/admin/adminAccount/deleteAdminUser       删除管理员账号
+  GET    /adminapi/authority/adminRole/list                 角色列表
+  GET    /adminapi/authority/adminRole/detail               角色详情
+  POST   /adminapi/authority/adminRole/create               创建角色
+  POST   /adminapi/authority/adminRole/update               更新角色
+  POST   /adminapi/authority/adminRole/batch                批量操作
+  POST   /adminapi/authority/adminRole/updateField          更新字段
+  POST   /adminapi/authority/adminRole/del                  删除角色
+  GET    /adminapi/common/csrf/create                       
+已写出覆盖率报告：D:\tigshop\java-b2b2b-pro-v5.8.57\rust\docs\api-coverage.json

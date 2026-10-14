@@ -34,10 +34,94 @@ use tigshop_services::order::OrderService;
 use tigshop_services::paylog::PaylogService;
 use tigshop_services::product::ProductService;
 use tigshop_services::refund_apply::RefundApplyService;
+use tigshop_services::salesman::SalesmanService;
 use tigshop_services::seckill::SeckillService;
+use tigshop_services::shop::ShopService;
+use tigshop_services::slice166::Slice166Service;
+use tigshop_services::slice144::Slice144Service;
+use tigshop_services::slice139::Slice139Service;
+use tigshop_services::slice075::Slice075Service;
+use tigshop_services::slice217::Slice217Service;
+use tigshop_services::slice205::Slice205Service;
+use tigshop_services::slice192::Slice192Service;
+use tigshop_services::slice186::Slice186Service;
+use tigshop_services::slice120::Slice120Service;
+use tigshop_services::slice093::Slice093Service;
+use tigshop_services::slice056::Slice056Service;
+use tigshop_services::slice216::Slice216Service;
+use tigshop_services::slice208::Slice208Service;
+use tigshop_services::slice203::Slice203Service;
+use tigshop_services::slice199::Slice199Service;
+use tigshop_services::slice197::Slice197Service;
+use tigshop_services::slice193::Slice193Service;
+use tigshop_services::slice191::Slice191Service;
+use tigshop_services::slice190::Slice190Service;
+use tigshop_services::slice189::Slice189Service;
+use tigshop_services::slice181::Slice181Service;
+use tigshop_services::slice176::Slice176Service;
+use tigshop_services::slice174::Slice174Service;
+use tigshop_services::slice171::Slice171Service;
+use tigshop_services::slice136::Slice136Service;
+use tigshop_services::slice135::Slice135Service;
+use tigshop_services::slice133::Slice133Service;
+use tigshop_services::slice124::Slice124Service;
+use tigshop_services::slice116::Slice116Service;
+use tigshop_services::slice114::Slice114Service;
+use tigshop_services::slice113::Slice113Service;
+use tigshop_services::slice102::Slice102Service;
+use tigshop_services::slice098::Slice098Service;
+use tigshop_services::slice064::Slice064Service;
+use tigshop_services::slice063::Slice063Service;
+use tigshop_services::slice051::Slice051Service;
+use tigshop_services::slice047::Slice047Service;
+use tigshop_services::slice036::Slice036Service;
+use tigshop_services::slice034::Slice034Service;
+use tigshop_services::slice164::Slice164Service;
+use tigshop_services::slice147::Slice147Service;
+use tigshop_services::slice132::Slice132Service;
+use tigshop_services::slice118::Slice118Service;
+use tigshop_services::slice111::Slice111Service;
+use tigshop_services::slice094::Slice094Service;
+use tigshop_services::slice053::Slice053Service;
+use tigshop_services::slice100::Slice100Service;
+use tigshop_services::slice042::Slice042Service;
+use tigshop_services::slice032::Slice032Service;
+use tigshop_services::slice031::Slice031Service;
+use tigshop_services::slice030::Slice030Service;
+use tigshop_services::slice029::Slice029Service;
+use tigshop_services::slice028::Slice028Service;
+use tigshop_services::slice027::Slice027Service;
+use tigshop_services::slice188::Slice188Service;
+use tigshop_services::slice187::Slice187Service;
+use tigshop_services::slice026::Slice026Service;
+use tigshop_services::slice140::Slice140Service;
+use tigshop_services::slice134::Slice134Service;
+use tigshop_services::slice097::Slice097Service;
+use tigshop_services::slice095::Slice095Service;
+use tigshop_services::slice025::Slice025Service;
+use tigshop_services::slice024::Slice024Service;
+use tigshop_services::slice023::Slice023Service;
+use tigshop_services::slice021::Slice021Service;
+use tigshop_services::slice020::Slice020Service;
+use tigshop_services::slice019::Slice019Service;
+use tigshop_services::slice018::Slice018Service;
+use tigshop_services::slice017::Slice017Service;
+use tigshop_services::slice001::Slice001Service;
+use tigshop_services::slice014::Slice014Service;
+use tigshop_services::slice012::Slice012Service;
+use tigshop_services::slice011::Slice011Service;
+use tigshop_services::slice010::Slice010Service;
+use tigshop_services::slice008::Slice008Service;
+use tigshop_services::slice006::Slice006Service;
+use tigshop_services::slice004::Slice004Service;
+use tigshop_services::slice003::Slice003Service;
+use tigshop_services::slice002::Slice002Service;
+use tigshop_services::slice005::Slice005Service;
+use tigshop_services::decorate::DecorateService;
 use tigshop_services::time_discount::TimeDiscountService;
 
 pub mod routes;
+pub mod root;
 
 /// 本 crate 实际注册的路由（用于计算与原 Java 契约的覆盖率）。
 ///
@@ -46,14 +130,6 @@ pub mod routes;
 #[must_use]
 pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     let base = [
-        ("GET", "/adminapi/authority/adminUser/list", "AdminUserController.list"),
-        ("GET", "/adminapi/authority/adminUser/mineDetail", "AdminUserController.mineDetail"),
-        ("GET", "/adminapi/product/product/list", "ProductController.list"),
-        ("GET", "/adminapi/product/product/detail", "ProductController.detail"),
-        ("GET", "/adminapi/order/order/list", "OrderController.list"),
-        ("GET", "/adminapi/order/order/detail", "OrderController.detail"),
-        ("POST", "/adminapi/order/order/deliver", "OrderController.deliver"),
-        ("POST", "/adminapi/order/order/cancelOrderByAdmin", "OrderController.cancelOrderByAdmin"),
         ("POST", "/adminapi/login/signin", "LoginFilter.attemptAuthentication"),
     ];
     let mut out: Vec<tigshop_openapi::RouteDoc> = base
@@ -61,6 +137,9 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
         .map(|(m, p, j)| tigshop_openapi::RouteDoc::new(m, p, j))
         .collect();
     out.extend(routes::implemented_routes());
+    // 根级通道（`/im/**`、`/img/**` 等不带 `/adminapi` 前缀的控制器）同样要计入
+    // 运行时覆盖率口径，否则 `/openapi/coverage` 会比静态扫描少报。
+    out.extend(root::implemented_routes());
     out
 }
 
@@ -87,7 +166,90 @@ pub struct AdminState {
     pub time_discount: Arc<TimeDiscountService>,
     pub paylog: Arc<PaylogService>,
     pub refund_apply: Arc<RefundApplyService>,
+    pub slice001: Arc<Slice001Service>,
+    pub slice002: Arc<Slice002Service>,
+    pub slice003: Arc<Slice003Service>,
+    pub slice004: Arc<Slice004Service>,
+    pub slice005: Arc<Slice005Service>,
+    pub slice006: Arc<Slice006Service>,
+    pub slice008: Arc<Slice008Service>,
+    pub slice010: Arc<Slice010Service>,
+    pub slice011: Arc<Slice011Service>,
+    pub slice012: Arc<Slice012Service>,
+    pub slice014: Arc<Slice014Service>,
+    pub shop: Arc<ShopService>,
+    pub decorate: Arc<DecorateService>,
+    pub salesman: Arc<SalesmanService>,
+    pub slice095: Arc<Slice095Service>,
+    pub slice097: Arc<Slice097Service>,
+    pub slice134: Arc<Slice134Service>,
+    pub slice140: Arc<Slice140Service>,
     pub jwt: JwtService,
+    pub slice017: Arc<Slice017Service>,
+    pub slice018: Arc<Slice018Service>,
+    pub slice019: Arc<Slice019Service>,
+    pub slice020: Arc<Slice020Service>,
+    pub slice021: Arc<Slice021Service>,
+    pub slice023: Arc<Slice023Service>,
+    pub slice024: Arc<Slice024Service>,
+    pub slice025: Arc<Slice025Service>,
+    pub slice026: Arc<Slice026Service>,
+    pub slice187: Arc<Slice187Service>,
+    pub slice188: Arc<Slice188Service>,
+    pub slice027: Arc<Slice027Service>,
+    pub slice028: Arc<Slice028Service>,
+    pub slice029: Arc<Slice029Service>,
+    pub slice030: Arc<Slice030Service>,
+    pub slice031: Arc<Slice031Service>,
+    pub slice032: Arc<Slice032Service>,
+    pub slice042: Arc<Slice042Service>,
+    pub slice100: Arc<Slice100Service>,
+    pub slice053: Arc<Slice053Service>,
+    pub slice094: Arc<Slice094Service>,
+    pub slice111: Arc<Slice111Service>,
+    pub slice118: Arc<Slice118Service>,
+    pub slice132: Arc<Slice132Service>,
+    pub slice147: Arc<Slice147Service>,
+    pub slice164: Arc<Slice164Service>,
+    pub slice034: Arc<Slice034Service>,
+    pub slice036: Arc<Slice036Service>,
+    pub slice047: Arc<Slice047Service>,
+    pub slice051: Arc<Slice051Service>,
+    pub slice063: Arc<Slice063Service>,
+    pub slice064: Arc<Slice064Service>,
+    pub slice098: Arc<Slice098Service>,
+    pub slice102: Arc<Slice102Service>,
+    pub slice113: Arc<Slice113Service>,
+    pub slice114: Arc<Slice114Service>,
+    pub slice116: Arc<Slice116Service>,
+    pub slice124: Arc<Slice124Service>,
+    pub slice133: Arc<Slice133Service>,
+    pub slice135: Arc<Slice135Service>,
+    pub slice136: Arc<Slice136Service>,
+    pub slice171: Arc<Slice171Service>,
+    pub slice174: Arc<Slice174Service>,
+    pub slice176: Arc<Slice176Service>,
+    pub slice181: Arc<Slice181Service>,
+    pub slice189: Arc<Slice189Service>,
+    pub slice190: Arc<Slice190Service>,
+    pub slice191: Arc<Slice191Service>,
+    pub slice193: Arc<Slice193Service>,
+    pub slice197: Arc<Slice197Service>,
+    pub slice199: Arc<Slice199Service>,
+    pub slice203: Arc<Slice203Service>,
+    pub slice208: Arc<Slice208Service>,
+    pub slice216: Arc<Slice216Service>,
+    pub slice056: Arc<Slice056Service>,
+    pub slice093: Arc<Slice093Service>,
+    pub slice120: Arc<Slice120Service>,
+    pub slice186: Arc<Slice186Service>,
+    pub slice192: Arc<Slice192Service>,
+    pub slice205: Arc<Slice205Service>,
+    pub slice217: Arc<Slice217Service>,
+    pub slice075: Arc<Slice075Service>,
+    pub slice139: Arc<Slice139Service>,
+    pub slice144: Arc<Slice144Service>,
+    pub slice166: Arc<Slice166Service>,
 }
 
 /// 构建管理后台路由。
@@ -97,18 +259,12 @@ pub struct AdminState {
 /// 而不是想当然的 `/adminapi/order/list`。可用
 /// `python tools/check_api_coverage.py` 校验。
 pub fn router(state: AdminState) -> Router {
+    // —— 根级路由（无 `/adminapi` 前缀：/im/** 需登录，/img|/video|/app 免登录）——
+    let root_protected = root::merge_protected(&state)
+        .layer(middleware::from_fn_with_state(state.jwt.clone(), require_auth));
+    let root_public = root::merge_public(&state);
+
     let protected = Router::new()
-        // —— 权限管理（AdminUserController）——
-        .route("/authority/adminUser/list", get(admin_user_list))
-        .route("/authority/adminUser/mineDetail", get(mine_detail))
-        // —— 商品（ProductController @ /adminapi/product/product）——
-        .route("/product/product/list", get(product_list))
-        .route("/product/product/detail", get(product_detail))
-        // —— 订单（OrderController @ /adminapi/order/order）——
-        .route("/order/order/list", get(order_list))
-        .route("/order/order/detail", get(order_detail))
-        .route("/order/order/deliver", post(order_ship))
-        .route("/order/order/cancelOrderByAdmin", post(order_cancel))
         // —— 系统（自加端点，不在原契约内）——
         .route("/system/profile/password", post(change_password))
         // —— 各业务域（routes/ 子模块，按域并行开发）——
@@ -127,6 +283,8 @@ pub fn router(state: AdminState) -> Router {
         .route("/login/refresh", post(refresh))
         .route("/health", get(health))
         .nest("/adminapi", protected)
+        .merge(root_public)
+        .merge(root_protected)
         .with_state(state)
         // —— 契约与覆盖率（重写期间对照用）——
         // 该子路由自带状态，须在 `with_state` 之后合并。
@@ -170,68 +328,6 @@ async fn health() -> Json<ApiResponse<&'static str>> {
     Json(ApiResponse::success("UP"))
 }
 
-/// `GET /adminapi/authority/adminUser/list`：后台用户分页。
-async fn admin_user_list(
-    State(state): State<AdminState>,
-    Extension(_auth): Extension<AuthUser>,
-    Query(q): Query<AdminUserQuery>,
-) -> ApiResult<PageResult<serde_json::Value>> {
-    let page = q.page_query();
-    let (total, users) = state
-        .auth
-        // 复用仓储分页
-        .list_admin_users(q.keyword.as_deref(), q.admin_type.as_deref(), &page)
-        .await?;
-    let list: Vec<serde_json::Value> = users
-        .iter()
-        .map(|u| {
-            serde_json::json!({
-                "adminId": u.admin_id,
-                "username": u.username,
-                "adminType": u.admin_type,
-                "mobile": u.mobile,
-                "email": u.email,
-                "roleId": u.role_id,
-                "isUsing": u.is_using,
-                "addTime": u.add_time,
-            })
-        })
-        .collect();
-    ok(PageResult::new(total, list, &page))
-}
-
-#[derive(Debug, Deserialize, Default)]
-#[serde(rename_all = "camelCase", default)]
-struct AdminUserQuery {
-    keyword: Option<String>,
-    admin_type: Option<String>,
-    page: Option<u64>,
-    page_size: Option<u64>,
-}
-
-impl AdminUserQuery {
-    fn page_query(&self) -> PageQuery {
-        PageQuery {
-            page: self.page.unwrap_or(1),
-            page_size: self.page_size.unwrap_or(20),
-        }
-    }
-}
-
-/// `GET /adminapi/authority/adminUser/mineDetail`：当前登录信息。
-async fn mine_detail(
-    State(state): State<AdminState>,
-    Extension(auth): Extension<AuthUser>,
-) -> ApiResult<serde_json::Value> {
-    let _ = &state;
-    ok(serde_json::json!({
-        "adminId": auth.id,
-        "username": auth.username,
-        "roleId": auth.role_id,
-        "adminType": auth.admin_type,
-    }))
-}
-
 /// `GET /adminapi/product/list`：商品分页。
 async fn product_list(
     State(state): State<AdminState>,
@@ -239,92 +335,6 @@ async fn product_list(
 ) -> ApiResult<PageResult<tigshop_core::models::ProductVO>> {
     let page = state.product.list(&query).await?;
     ok(page)
-}
-
-/// `GET /adminapi/product/detail?id=`：商品详情。
-#[derive(Debug, Deserialize)]
-struct IdQuery {
-    id: i32,
-}
-
-async fn product_detail(
-    State(state): State<AdminState>,
-    Query(q): Query<IdQuery>,
-) -> ApiResult<tigshop_core::models::ProductVO> {
-    ok(state.product.detail(q.id).await?)
-}
-
-/// `GET /adminapi/order/list`：订单分页。
-#[derive(Debug, Deserialize, Default)]
-#[serde(rename_all = "camelCase", default)]
-struct OrderQuery {
-    order_status: Option<i32>,
-    keyword: Option<String>,
-    page: Option<u64>,
-    page_size: Option<u64>,
-}
-
-impl OrderQuery {
-    fn page_query(&self) -> PageQuery {
-        PageQuery {
-            page: self.page.unwrap_or(1),
-            page_size: self.page_size.unwrap_or(20),
-        }
-    }
-}
-
-async fn order_list(
-    State(state): State<AdminState>,
-    Query(q): Query<OrderQuery>,
-) -> ApiResult<PageResult<tigshop_core::models::OrderVO>> {
-    let page = state
-        .order
-        .list(None, q.order_status, q.keyword.as_deref(), &q.page_query())
-        .await?;
-    ok(page)
-}
-
-/// `GET /adminapi/order/detail?id=`：订单详情。
-async fn order_detail(
-    State(state): State<AdminState>,
-    Query(q): Query<IdQuery>,
-) -> ApiResult<serde_json::Value> {
-    let (vo, items) = state.order.detail(q.id, None).await?;
-    ok(serde_json::json!({ "order": vo, "items": items }))
-}
-
-/// `POST /adminapi/order/ship`：发货。
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ShipDTO {
-    order_id: i32,
-    tracking_no: String,
-    logistics_name: String,
-}
-
-async fn order_ship(
-    State(state): State<AdminState>,
-    Json(dto): Json<ShipDTO>,
-) -> ApiResult<&'static str> {
-    state
-        .order
-        .ship(dto.order_id, &dto.tracking_no, &dto.logistics_name)
-        .await?;
-    ok("发货成功")
-}
-
-/// `POST /adminapi/order/cancel`：后台取消订单。
-#[derive(Debug, Deserialize)]
-struct OrderIdDTO {
-    order_id: i32,
-}
-
-async fn order_cancel(
-    State(state): State<AdminState>,
-    Json(dto): Json<OrderIdDTO>,
-) -> ApiResult<&'static str> {
-    state.order.cancel(dto.order_id, None).await?;
-    ok("订单已取消")
 }
 
 /// `POST /adminapi/system/profile/password`：修改密码。

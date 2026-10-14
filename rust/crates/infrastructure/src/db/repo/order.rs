@@ -256,11 +256,14 @@ impl OrderRepository {
         Ok(affected > 0)
     }
 
-    /// 标记订单已支付（pay_status=2），返回是否更新成功。
+    /// 标记订单已支付（`pay_status=2`、`order_status=1` 待发货），返回是否更新成功。
+    ///
+    /// 状态值口径见 `java/database/pure.sql` 的 `order.order_status` 列注释
+    /// （`1` = 已确定/待发货）。**不要改回 10**：库中不存在该状态。
     pub async fn mark_paid(&self, order_id: i32, pay_time: i32, paid_amount: rust_decimal::Decimal) -> Result<bool> {
         let affected = sqlx::query(
             "UPDATE `order` SET pay_status = 2, paid_amount = ?, pay_time = ?,
-             unpaid_amount = 0, order_status = 10
+             unpaid_amount = 0, order_status = 1
              WHERE order_id = ? AND pay_status <> 2",
         )
         .bind(paid_amount)

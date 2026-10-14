@@ -1,0 +1,7 @@
+{
+  "slice_id": "slice205",
+  "tag": "邮箱模板管理",
+  "has_admin": true,
+  "has_public": false,
+  "core_models_mod": "pub mod slice205;"
+}

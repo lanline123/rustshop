@@ -55,7 +55,21 @@ def extract_sql_literals(rust_src: str) -> list[tuple[int, str]]:
     """提取 Rust 源码中的 SQL 字符串字面量。
 
     只取**引号内**的内容，避免把 Rust 代码（类型名、变量名）当成 SQL 列。
-    处理 `format!("...")` 与跨行拼接的字符串。
+
+    ## 为什么要按「调用边界」切分（重要修正）
+    旧实现从含 `SELECT/INSERT/UPDATE/DELETE` 的行开始，一直收集到某行以
+    `"..."` 加 `,)]` 结尾为止。但仓储层大量使用 `push_cond(...)` 这类**单行
+    调用**，行尾是 `);` 而非 `",`，于是收集器会**跨函数把多条 SQL 拼成一条**。
+    真实后果：`UPDATE decorate ...` 与后面 `pc_navigation` 查询的
+    `` `type` = ? `` / `title LIKE ?` 被拼在一起，凭空产生「`decorate` 表不存在
+    列 `type`」这类**误报**，并导致有人（我）照着误报去"修"了正确的
+    `pc_navigation.title`，反而引入真实缺陷。
+
+    现在的切分规则：一条 SQL 在遇到下列**调用/语句终结**信号时结束：
+      * 行尾出现 `;`（语句/表达式结束）
+      * 行尾出现 `);` / `),` + 调用结束（如 `&[Bind::I(t)]);`）
+      * 行尾以 `"` 结尾且后面只剩 `,)]`
+    并在开始新的 DML 关键字字面量时另起一条。
     """
     out: list[tuple[int, str]] = []
     lines = rust_src.split("\n")
@@ -66,35 +80,48 @@ def extract_sql_literals(rust_src: str) -> list[tuple[int, str]]:
             i += 1
             continue
 
-        # 从起始行开始收集，直到字符串字面量闭合
         start_line = i + 1
         collected: list[str] = []
         j = i
-        closed = False
-        while j < len(lines) and not closed:
+        while j < len(lines):
             seg = lines[j]
-            # 取该行所有 "..." 字面量内容
-            for lit in re.findall(r'"((?:[^"\\]|\\.)*)"', seg):
-                collected.append(lit)
-            # 判断 SQL 字面量是否在本行闭合：出现 `"` 且后面只剩 , ) ; 之类
-            if re.search(r'"[^"]*"\s*[,)]?\s*$', seg) and collected:
-                closed = True
+            lits = re.findall(r'"((?:[^"\\]|\\.)*)"', seg)
+            # 若本行是「新的 DML 起始」且已经收集过内容，则本条到此为止，
+            # 由外层循环从这一行重新开始。
+            if collected and re.search(r'"(?:\s*)(SELECT|INSERT|UPDATE|DELETE)\b', seg, re.I):
+                break
+            collected.extend(lits)
+
+            # —— 调用/语句终结判定 ——
+            stripped = seg.rstrip()
+            ends_call = bool(re.search(r";\s*$", stripped)) or bool(
+                re.search(r"\)\s*;\s*$", stripped)
+            )
+            literal_closed = bool(re.search(r'"[^"]*"\s*[,)]?\s*$', seg)) and bool(lits)
+            if ends_call or literal_closed:
+                j += 1
+                break
             j += 1
-        out.append((start_line, "\n".join(collected)))
+
+        if collected:
+            out.append((start_line, "\n".join(collected)))
         i = j if j > i else i + 1
     return out
 
 
-def extract_tables(sql: str) -> list[str]:
+def extract_tables(sql: str, schema_tables: set[str] | None = None) -> list[str]:
     """提取 SQL 涉及的表名。"""
     tables: list[str] = []
+    known = {t.lower() for t in (schema_tables or set())}
     # FROM / JOIN / INTO / UPDATE 后的表名（支持反引号）
     for m in re.finditer(
         r"(?i)\b(?:FROM|JOIN|INTO|UPDATE)\s+`?([a-z_][a-z0-9_]*)`?",
         sql,
     ):
         name = m.group(1)
-        if name.lower() not in SQL_NOISE:
+        # 本项目有真实表名与关键字同形的（`order`），不能当噪声丢掉；
+        # 否则 JOIN 会被识别成单表查询，列名校验拿错 schema 而误报。
+        if name.lower() in known or name.lower() not in SQL_NOISE:
             tables.append(name)
     return tables
 
@@ -108,8 +135,15 @@ def extract_columns(sql: str, table_names: set[str] | None = None) -> list[str]:
     exclude = {t.lower() for t in (table_names or set())}
     cols: set[str] = set()
 
+    # 派生别名（`COUNT(*) AS total`、`x.a AS b`）不是表列；ORDER BY / HAVING
+    # 引用它们时不应报错。
+    aliases = {
+        m.group(1).lower()
+        for m in re.finditer(r"\bAS\s+`?([a-z_][a-z0-9_]*)`?", sql, re.I)
+    }
+
     def add(name: str) -> None:
-        if name and name.lower() not in exclude:
+        if name and name.lower() not in exclude and name.lower() not in aliases:
             cols.add(name)
 
     # 1) 反引号包裹的标识符（排除表名）
@@ -146,7 +180,11 @@ def extract_columns(sql: str, table_names: set[str] | None = None) -> list[str]:
     for m in re.finditer(r"(?is)\bWHERE\b(.*?)(?:\bORDER\b|\bLIMIT\b|$)", sql):
         for cm in re.finditer(r"`?([a-z_][a-z0-9_]*)`?\s*(?:=|>=|<=|>|<|\bLIKE\b|\bIN\b|\bIS\b)", m.group(1), re.I):
             add(cm.group(1))
-    for m in re.finditer(r"(?is)\bORDER\s+BY\s+`?([a-z_][a-z0-9_]*)`?", sql):
+    # ORDER BY 后若是函数调用（`FIELD(...)`、`IF(...)`、`CAST(...)`）则跳过；
+    # 逗号后的裸标识符按原逻辑取首列即可。
+    for m in re.finditer(r"(?is)\bORDER\s+BY\s+`?([a-z_][a-z0-9_]*)`?(\s*\()?", sql):
+        if m.group(2):
+            continue
         add(m.group(1))
     return sorted(cols)
 
@@ -178,7 +216,7 @@ def main() -> int:
         report: list[str] = []
         for line_no, raw in stmts:
             total_stmts += 1
-            tables = extract_tables(raw)
+            tables = extract_tables(raw, all_tables)
             cols = extract_columns(raw, set(tables))
             # 表校验
             for t in set(tables):

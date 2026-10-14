@@ -38,6 +38,9 @@
 | catalog | 商品分类/品牌 | `catalog` | AI-协调者(本会话) | ✅ 已完成（实体206行，严格对齐 pure.sql） |
 | logistics | 运费模板/物流公司 | `logistics` | AI-协调者(本会话) | 🔄 骨架可编译，待补业务逻辑 |
 | member | 会员等级/标签/积分 | `member` | AI-协调者(本会话) | 🔄 骨架可编译，待补业务逻辑 |
+| shop | 商户/店铺/提现 | `shop` | AI-协调者(本会话) | 🔄 骨架已注册（models/repo/service/两端路由+State 装配，cargo check 绿） |
+| decorate | 装修/导航/楼层 | `decorate` | AI-协调者(本会话) | 🔄 骨架已注册（同上，待填充业务逻辑） |
+| salesman | 分销员/佣金/业绩 | `salesman` | AI-协调者(本会话) | 🔄 骨架已注册（同上，待填充业务逻辑） |
 
 ## 协调者已为新域预注册的共享文件改动（其他 AI 无需重复做）
 
@@ -104,6 +107,34 @@ error: cannot find macro `println` in this scope   (在 build.rs 里)
 > 教训：本次 3 个子代理并行开发时全部"失败"，实际是并发构建耗尽内存导致
 > rustc 崩溃，**代码产出本身是好的**（见下节各域完成度）。
 
+## ⚠️ 事故记录：PowerShell 会损坏无 BOM 的 UTF-8 中文源文件（2026-10-13 15:2x）
+
+**绝对禁止**用 PowerShell 5.1 的 `Get-Content`/`Set-Content`/`-replace` 处理
+`crates/` 下的 Rust 源文件，例如：
+
+```powershell
+# 错误示范：Get-Content 不带 -Encoding 会按系统 ANSI(GBK) 解码无 BOM 的 UTF-8！
+(Get-Content $f -Raw) -replace 'a','b' | Set-Content $f -NoNewline -Encoding UTF8
+```
+
+后果（在 `infrastructure/src/db/repo/slice005.rs` 上实测，521 行文件）：
+1. 全部中文注释变 mojibake（不可逆：GBK 解码时非法字节对已被替换为 `?`）；
+2. 中文句号 `。`(E3 80 82) 的尾字节 0x82 与紧随的 0x0A 组成非法对时
+   **换行符被整对吞掉**，521→479 行，注释与代码挤成一行 → 语法全崩；
+3. 代码字符串的闭合引号/反引号同理被吞（如 `"品牌不存在"` → `...鍦?`），
+   引发跨行的 `unterminated string` 连锁假错误。
+
+**安全做法**：
+- 编辑源文件只用 AI 的 Edit/Write 工具（UTF-8 安全）；
+- 必须用脚本批改时用 **Python**（`io.open(f, encoding='utf-8')`），不要用 PowerShell；
+- 恢复手段：按「mojibake 字符 → GBK 编码回字节」的逆变换 + 在
+  `字 + ? + 行首模式` 处补回换行（本次已恢复全部 42 处换行，行数 479→521 复原）。
+
+**本次已修复**：slice005.rs 语法与 2 处被吞引号、services/slice005.rs
+`create()` 缺 `brand_id` 初始化、`name_length_is_one_to_thirty_chars` 测试
+自相矛盾（16 字符按 `@Size` 口径合法，改为 31 字符）。修复后
+`cargo check --workspace` 0 error 0 warning，`cargo test --workspace` 全绿（234+ 用例）。
+
 ## 待认领（欢迎其他 AI 认领，认领时改状态）
 
 - `shop`：商户/店铺/入驻
@@ -115,3 +146,84 @@ error: cannot find macro `println` in this scope   (在 build.rs 里)
 - `finance`：保证金/提现/分账/结算
 - `logistics`：运费模板/物流公司/发货
 - `search`：ES 搜索
+
+## 🆕 根级路由通道 `crates/api/{admin,public}/src/root/`（2026-10-14 协调者新增）
+
+**问题**：契约里有 **40** 个端点的路径**不带** `/adminapi` 或 `/api` 前缀。
+原因是原 Java 少数控制器的 `@RequestMapping` 本身就没写模块前缀
+（对照 `java/tigshop-adminapi/.../im/IMConfigController.java:41`
+的 `@RequestMapping("im/config/config")`）。它们的真实 URL 是
+`<应用根>/im/...`。这些切片若按常规放进 `routes/`（被 `nest("/adminapi")`
+包住），实际服务路径会变成 `/adminapi/im/...`：前端 404，
+且 `tools/check_api_coverage.py` 会同时判「未实现」+「疑似多余路由」。
+
+**受影响的切片（全部是纯根级切片，共 40 个端点）**：
+
+| slice | 控制器 | 端点数 | 前缀 | 需登录 |
+|-------|--------|--------|------|--------|
+| slice-020 | `IMConfigController` | 2 | `/im` | 是 |
+| slice-095 | `ImServantController` | 3 | `/im` | 是 |
+| slice-097 | `ImConversationController` | 23（admin 12 + api 11） | `/im` | 是 |
+| slice-140 | `ImMessageController` | 8（admin 5 + api 3） | `/im` | 是 |
+| slice-134 | `FilesController` | 3 | `/img` `/video` `/app` | **否** |
+| slice-156 | `ShortUrlController` | 1 | `/s` | **否** |
+
+（免登录判定已核对 Java 白名单：`SecurityConfig.URL_WHITELIST` 含
+`/img/**`、`/video/**`、`/app/**`；`WhiteListConfig.URL_WHITELIST` 含
+`/s/**`；两边都**不含** `/im/**`。）
+
+**约定**：
+
+1. 根级路由文件放 `crates/api/{admin,public}/src/root/sliceNNN.rs`，
+   签名与 `routes/` 完全一致：
+   `pub fn routes(state: &AdminState) -> Router<AdminState>` +
+   `pub fn implemented_routes() -> Vec<RouteDoc>`。
+2. 路由串与 `RouteDoc.path` 都写**完整契约路径**（`/im/...`、`/img/...`、`/s/{code}`），
+   **不要**再拼 `/adminapi` / `/api`。
+3. 注册由协调者手改 `src/root/mod.rs`（`merge_protected` 需登录 /
+   `merge_public` 免登录），`tools/register_slices.py` **不覆盖**根级切片。
+4. `tools/check_api_coverage.py` 与 `tools/check_route_conflicts.py` 已识别
+   `src/root/` 下的文件不加 crate 前缀；后者的冲突判定也已改为
+   **按应用（admin:8080 / api:8181）分别判断**——两端各自注册同一条
+   `/im/...` 是合法的，不会 panic。
+5. 域实现者**不要**在根级路由文件里自己加认证中间件，
+   `router()` 已对 `merge_protected` 统一套 `require_auth`。
+
+## 🆕 批量开工脚手架 `tools/scaffold_slices.py`（2026-10-14 协调者新增）
+
+`register_slices.py` 只往共享文件插注册行，它要求 `sliceNNN.rs` **已存在**，
+否则 `pub mod sliceNNN.rs;` 直接 `E0583`。剩余 180+ 片逐片手写 4~5 个骨架不可持续，
+故本工具按 `slice187` / `slice021` 的既有样板一次生成：
+
+    cd rust
+    python tools/scaffold_slices.py slice-042 slice-100          # 指定片号
+    python tools/scaffold_slices.py --from-coverage-gap --limit 12   # 缺口最小的若干片
+
+产出：`core/src/models/`、`infrastructure/src/db/repo/`、`services/src/`、
+`api/{admin,public}/src/routes/` 四件套 + `docs/registrations/sliceNNN.json`。
+**幂等**：已存在的文件一律不覆盖，域实现者的产出永远安全。
+生成后仍需协调者逐片跑 `register_slices.py --file ...` 落注册行，再跑门禁。
+
+注意：本工具**不处理根级切片**（`src/root/` 下的 6 片仍由协调者手改 `root/mod.rs`，
+见上一节第 3 条）。
+
+## ⚠️ 派发纪律：数字只能来自命令（2026-10-14 事故复盘）
+
+同一批 3 个子代理（slice-001 / slice-002 / im-root）全部在 150 轮上限处终止，
+自述分别"已交付 33 / 18 / 36 个接口"。协调者实测：
+
+| 自述 | 实测（`wc -l` + `grep -c '\.route('` + `check_api_coverage.py`） |
+|------|------------------------------------------------------------------|
+| slice-001 交付 33 | admin 文件 9 条 `.route(`、public 文件 1 条；覆盖率无变化 |
+| slice-002 交付 18（`/b2b-api/**`） | 4 条 `.route(`，仓库里**根本不存在** `b2b-api` 字样 |
+| im-root 交付 36 | `root/slice095|097|140.rs` 仍是 24 行骨架，`.route(` 计数 **0** |
+
+因此：
+
+1. **子代理的完成报告一律当作假设**，必须用 `grep -c` / `wc -l` /
+   `check_api_coverage.py` 复核后才允许进入结论；冲突时如实说明冲突。
+2. **单代理负载压到 5 片 / ≤10 个接口**，并要求它优先做完再谈扩展。
+3. 派发提示里必须写明：**汇报的每个数字都得是它自己刚跑过的命令输出**，
+   没做完的逐条写"未实现"。
+4. 协调者对**自己**的同一要求：`cargo_exit=` 行、门禁工具的原始输出行，
+   先跑后说，不复述记忆里的旧数字。

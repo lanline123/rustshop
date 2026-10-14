@@ -1,0 +1,30 @@
+//! 打印机配置管理 —— 管理端路由（slice-120）骨架。
+//!
+//! 原 Java：`PrintConfigController`（`tigshop-adminapi/src/main/java/com/tigshop/adminapi/controller/print/PrintConfigController.java`）
+//!
+//! ## 原 Java 路径对照表（本模块挂载于 `/adminapi` 之下）
+//!
+//! | 本模块路由 | 原 Java 完整路径 | 原 Java 方法 | 契约 auth |
+//! |-----------|------------------|----------------|-----------|
+//! | `GET /print/printConfig/getConfigsByPrintId` | `GET /adminapi/print/printConfig/getConfigsByPrintId` | `PrintConfigController.getConfigsByPrintId` | jwt+perm |
+//! | `POST /print/printConfig/update` | `POST /adminapi/print/printConfig/update` | `PrintConfigController.update` | jwt+perm |
+//! | `POST /print/printConfig/print` | `POST /adminapi/print/printConfig/print` | `PrintConfigController.print` | jwt |
+//!
+//! 状态：骨架已注册并可编译，handler 待域实现者填充。
+//! 路由串写**去掉 `/adminapi` 前缀**后的形式，`RouteDoc.path` 写完整契约路径。
+
+use axum::Router;
+
+use super::super::AdminState;
+
+/// 域路由（挂载于 `/adminapi` 下）。
+pub fn routes(state: &AdminState) -> Router<AdminState> {
+    let _ = state;
+    Router::new()
+}
+
+/// 已实现路由清单（覆盖率统计用）。
+#[must_use]
+pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
+    Vec::new()
+}

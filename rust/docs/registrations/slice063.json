@@ -1,0 +1,7 @@
+{
+  "slice_id": "slice063",
+  "tag": "分销概览控制器",
+  "has_admin": true,
+  "has_public": false,
+  "core_models_mod": "pub mod slice063;"
+}

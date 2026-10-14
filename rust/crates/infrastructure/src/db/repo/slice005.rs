@@ -1,4 +1,4 @@
-//! 品牌域仓储：`brand`（只读辅助表 `shop`），替代原 Java `BrandMapper`。
+//! 品牌域仓储：对应原 Java `BrandMapper`。
 //!
 //! 列名严格对齐权威 schema（`python tools/schema_parser.py --table brand`）：
 //! - `brand`：`brand_id` / `brand_name` / `brand_logo` / `brand_desc` /
@@ -15,12 +15,10 @@ use tigshop_core::types::PageQuery;
 use tigshop_core::{Error, Result};
 
 /// `brand` 表全部列（顺序与 [`Brand`] 实体字段一致）。
-const BRAND_COLUMNS: &str = "brand_id, brand_name, brand_logo, brand_desc, site_url, \
-     sort_order, is_show, brand_type, brand_is_hot, first_word, is_store_brand, \
-     check_status, brand_en_name, shop_id, status, reject_remark";
+const BRAND_COLUMNS: &str = "brand_id, brand_name, brand_logo, brand_desc, site_url, sort_order, is_show, brand_type, brand_is_hot, first_word, is_store_brand, check_status, brand_en_name, shop_id, status, reject_remark";
 
-/// 排序字段白名单（对应 `BaseServiceImpl.getColumnByPropertyName` 的
-/// 防注入兜底：未知字段回退主键；`brand` 表默认主键降序）。
+/// 排序字段白名单（对应 `BaseServiceImpl.getColumnByPropertyName` 的防注入兜底：
+/// 未知道段回退主键；`brand` 表默认主键降序）。
 const SORTABLE_COLUMNS: [&str; 7] = [
     "brand_id",
     "brand_name",
@@ -53,8 +51,6 @@ impl Slice005Repository {
         Self { pool }
     }
 
-    // ————————————————————— 查询 —————————————————————
-
     /// 按主键查询品牌。
     pub async fn find_by_id(&self, brand_id: i32) -> Result<Option<Brand>> {
         let sql = format!("SELECT {BRAND_COLUMNS} FROM brand WHERE brand_id = ? LIMIT 1");
@@ -65,7 +61,7 @@ impl Slice005Repository {
             .map_err(map_err)
     }
 
-    /// 全部品牌（`updateFirstWord` 批量重算用）。
+    /// 全部品牌（供 `updateFirstWord` 批量重算用）。
     pub async fn find_all(&self) -> Result<Vec<Brand>> {
         let sql = format!("SELECT {BRAND_COLUMNS} FROM brand ORDER BY brand_id ASC");
         sqlx::query_as::<_, Brand>(&sql)
@@ -77,12 +73,11 @@ impl Slice005Repository {
     /// 品牌分页（管理端列表 / 审核列表共用）。
     ///
     /// 对应 Java `getBrandQueryWrapper` + `buildSortOrder`：
-    /// - `keyword` → `brand_name LIKE`；`first_word` → `LIKE`
-    /// - `status` 传 `-1` / `None` 不过滤
-    /// - `shop_id`：`Some(0)` 与 `None` 均不过滤（平台账号语义，见
-    ///   Java `getBrandQueryWrapper`：`shopId==0` 且 DTO 未传时不加条件；
-    ///   `shopId>0` 强制本店）；`audit_only = true` 时强制 `shop_id <> 0`
-    ///   （对应 Java `isAudit==1` → `.ne(shopId, 0)`）
+    /// - `keyword` -> `brand_name LIKE`；`first_word` -> `LIKE`
+    /// - `status` 为 `-1` / `None` 不过滤
+    /// - `shop_id`：`Some(0)` 视为 `None`（平台账号语义）；`shopId>0` 强制本店；
+    ///   `audit_only = true` 时强制 `shop_id <> 0`（对应 Java `isAudit==1` -> `.ne(shopId, 0)`）
+    #[allow(clippy::too_many_arguments)]
     pub async fn paginate(
         &self,
         keyword: Option<&str>,
@@ -106,7 +101,7 @@ impl Slice005Repository {
             .map(|w| format!("%{w}%"));
 
         let column = resolve_sort_column(sort_field);
-        // Java `buildSortOrder`：仅显式 asc 升序，desc/空一律降序
+        // Java `buildSortOrder`：仅显式 asc 升序，desc/空一律降序。
         let dir = if sort_order.is_some_and(|o| o.eq_ignore_ascii_case("asc")) {
             "ASC"
         } else {
@@ -155,8 +150,7 @@ impl Slice005Repository {
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
         let list_sql = format!(
-            "SELECT {BRAND_COLUMNS} FROM brand {where_sql} \
-             ORDER BY {column} {dir} LIMIT ? OFFSET ?"
+            "SELECT {BRAND_COLUMNS} FROM brand {where_sql} ORDER BY {column} {dir} LIMIT ? OFFSET ?"
         );
         let mut lq = sqlx::query_as::<_, Brand>(&list_sql);
         lq = bind_filters(
@@ -183,8 +177,7 @@ impl Slice005Repository {
     /// 对应 Java `BrandServiceImpl#search` 的第一个 lambdaQuery。
     pub async fn find_searchable(&self) -> Result<Vec<Brand>> {
         let sql = format!(
-            "SELECT {BRAND_COLUMNS} FROM brand \
-             WHERE status = 1 AND is_show = 1 ORDER BY sort_order ASC, brand_id ASC"
+            "SELECT {BRAND_COLUMNS} FROM brand WHERE status = 1 AND is_show = 1 ORDER BY sort_order ASC, brand_id ASC"
         );
         sqlx::query_as::<_, Brand>(&sql)
             .fetch_all(&self.pool)
@@ -192,21 +185,15 @@ impl Slice005Repository {
             .map_err(map_err)
     }
 
-    /// 去重首字母列表（对应 Java search 的 `groupBy(first_word)`）。
-    ///
-    /// Java 未过滤 NULL，`GROUP BY` 后 `first_word` 为 NULL 的组在
-    /// `Object::toString` 时会得到 "null"；这里按前端更合理的语义剔除 NULL 与
-    /// 空串（见 `uncertain_points`）。
+    /// 去重首字母列（对应 Java search 的 `groupBy(first_word)`）。
     pub async fn distinct_first_words(&self) -> Result<Vec<String>> {
         let rows: Vec<(Option<String>,)> = sqlx::query_as(
-            "SELECT first_word FROM brand \
-             WHERE first_word IS NOT NULL AND first_word <> '' \
-             GROUP BY first_word ORDER BY first_word ASC",
+            "SELECT first_word FROM brand WHERE first_word IS NOT NULL AND first_word <> '' GROUP BY first_word ORDER BY first_word ASC",
         )
         .fetch_all(&self.pool)
         .await
         .map_err(map_err)?;
-        Ok(rows.into_iter().flatten().map(|(w,)| w).collect())
+        Ok(rows.into_iter().filter_map(|(w,)| w).collect())
     }
 
     /// 按状态统计品牌数（`auditWaitNum`）。
@@ -243,9 +230,7 @@ impl Slice005Repository {
         exclude_id: Option<i32>,
     ) -> Result<bool> {
         let row: Option<(i32,)> = sqlx::query_as(
-            "SELECT brand_id FROM brand \
-             WHERE brand_name = ? AND shop_id = ? \
-             AND (? IS NULL OR brand_id <> ?) LIMIT 1",
+            "SELECT brand_id FROM brand WHERE brand_name = ? AND shop_id = ? AND (? IS NULL OR brand_id <> ?) LIMIT 1",
         )
         .bind(brand_name)
         .bind(shop_id)
@@ -257,75 +242,62 @@ impl Slice005Repository {
         Ok(row.is_some())
     }
 
-    // ————————————————————— 写操作 —————————————————————
+    // ———————————————— 写操作 ————————————————
 
     /// 新增品牌，返回自增主键。
     pub async fn insert(&self, b: &Brand) -> Result<i32> {
-        let r = sqlx::query(
-            "INSERT INTO brand
-             (brand_name, brand_logo, brand_desc, site_url, sort_order,
-              is_show, brand_type, brand_is_hot, first_word, is_store_brand,
-              check_status, brand_en_name, shop_id, status, reject_remark)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        )
-        .bind(&b.brand_name)
-        .bind(&b.brand_logo)
-        .bind(&b.brand_desc)
-        .bind(&b.site_url)
-        .bind(b.sort_order)
-        .bind(b.is_show)
-        .bind(&b.brand_type)
-        .bind(b.brand_is_hot)
-        .bind(&b.first_word)
-        .bind(b.is_store_brand)
-        .bind(b.check_status)
-        .bind(&b.brand_en_name)
-        .bind(b.shop_id)
-        .bind(b.status)
-        .bind(&b.reject_remark)
-        .execute(&self.pool)
-        .await
-        .map_err(map_err)?;
+        let r = sqlx::query("INSERT INTO brand (brand_name, brand_logo, brand_desc, site_url, sort_order, is_show, brand_type, brand_is_hot, first_word, is_store_brand, check_status, brand_en_name, shop_id, status, reject_remark) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+            .bind(&b.brand_name)
+            .bind(&b.brand_logo)
+            .bind(&b.brand_desc)
+            .bind(&b.site_url)
+            .bind(b.sort_order)
+            .bind(b.is_show)
+            .bind(&b.brand_type)
+            .bind(b.brand_is_hot)
+            .bind(&b.first_word)
+            .bind(b.is_store_brand)
+            .bind(b.check_status)
+            .bind(&b.brand_en_name)
+            .bind(b.shop_id)
+            .bind(b.status)
+            .bind(&b.reject_remark)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
         Ok(r.last_insert_id() as i32)
     }
 
     /// 更新品牌（整行，除主键外的全部列）。
     pub async fn update(&self, b: &Brand) -> Result<()> {
-        let affected = sqlx::query(
-            "UPDATE brand SET
-               brand_name = ?, brand_logo = ?, brand_desc = ?, site_url = ?,
-               sort_order = ?, is_show = ?, brand_type = ?, brand_is_hot = ?,
-               first_word = ?, is_store_brand = ?, check_status = ?,
-               brand_en_name = ?, shop_id = ?, status = ?, reject_remark = ?
-             WHERE brand_id = ?",
-        )
-        .bind(&b.brand_name)
-        .bind(&b.brand_logo)
-        .bind(&b.brand_desc)
-        .bind(&b.site_url)
-        .bind(b.sort_order)
-        .bind(b.is_show)
-        .bind(&b.brand_type)
-        .bind(b.brand_is_hot)
-        .bind(&b.first_word)
-        .bind(b.is_store_brand)
-        .bind(b.check_status)
-        .bind(&b.brand_en_name)
-        .bind(b.shop_id)
-        .bind(b.status)
-        .bind(&b.reject_remark)
-        .bind(b.brand_id)
-        .execute(&self.pool)
-        .await
-        .map_err(map_err)?
-        .rows_affected();
+        let affected = sqlx::query("UPDATE brand SET brand_name = ?, brand_logo = ?, brand_desc = ?, site_url = ?, sort_order = ?, is_show = ?, brand_type = ?, brand_is_hot = ?, first_word = ?, is_store_brand = ?, check_status = ?, brand_en_name = ?, shop_id = ?, status = ?, reject_remark = ? WHERE brand_id = ?")
+            .bind(&b.brand_name)
+            .bind(&b.brand_logo)
+            .bind(&b.brand_desc)
+            .bind(&b.site_url)
+            .bind(b.sort_order)
+            .bind(b.is_show)
+            .bind(&b.brand_type)
+            .bind(b.brand_is_hot)
+            .bind(&b.first_word)
+            .bind(b.is_store_brand)
+            .bind(b.check_status)
+            .bind(&b.brand_en_name)
+            .bind(b.shop_id)
+            .bind(b.status)
+            .bind(&b.reject_remark)
+            .bind(b.brand_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?
+            .rows_affected();
         if affected == 0 {
             return Err(Error::NotFound("品牌不存在".into()));
         }
         Ok(())
     }
 
-    /// 删除单个品牌（`brand` 无删除标记列，物理 DELETE）。
+    /// 删除单个品牌（`brand` 无删除标记列，直接 DELETE）。
     pub async fn delete(&self, brand_id: i32) -> Result<bool> {
         let r = sqlx::query("DELETE FROM brand WHERE brand_id = ?")
             .bind(brand_id)
@@ -350,7 +322,7 @@ impl Slice005Repository {
         Ok(r.rows_affected())
     }
 
-    /// 更新单个字段（列名来自白名单，禁止用户输入拼接）。
+    /// 更新单个字段（列名来自白名单，禁止用户任意输入列名防注入）。
     pub async fn update_field(&self, brand_id: i32, field: &str, val: &str) -> Result<bool> {
         if !BRAND_FIELDS.contains(&field) {
             return Err(Error::Validation(format!("不允许更新的字段: {field}")));
@@ -376,7 +348,7 @@ impl Slice005Repository {
         Ok(())
     }
 
-    /// 审核落库：更新状态，仅在显式给出理由时覆盖 `reject_remark`。
+    /// 审核驳回：更新状态，仅在给出理由时同步 `reject_remark`。
     pub async fn audit(
         &self,
         brand_id: i32,
@@ -414,20 +386,20 @@ impl Slice005Repository {
     }
 }
 
-/// 把列表过滤条件按固定顺序绑定到查询上。
+/// 把列过滤条件按顺序绑定到查询上。
 ///
 /// 顺序与 [`Slice005Repository::paginate`] 构造 WHERE 片段的顺序一一对应：
-/// keyword → first_word → status → is_show → brand_is_hot → shop_id。
+/// keyword -> first_word -> status -> is_show -> brand_is_hot -> shop_id。
 /// `audit_only` 片段（`shop_id <> 0`）是常量，不产生绑定参数。
 fn bind_filters<'q, O>(
-    q: sqlx::query::QueryAs<'q, sqlx::MySql, O, sqlx::MySqlArguments>,
-    like: Option<&'q String>,
-    fw: Option<&'q String>,
+    q: sqlx::query::QueryAs<'q, sqlx::MySql, O, sqlx::mysql::MySqlArguments>,
+    like: Option<&'q str>,
+    fw: Option<&'q str>,
     status: Option<i32>,
     is_show: Option<i32>,
     brand_is_hot: Option<i32>,
     shop_id: Option<i32>,
-) -> sqlx::query::QueryAs<'q, sqlx::MySql, O, sqlx::MySqlArguments> {
+) -> sqlx::query::QueryAs<'q, sqlx::MySql, O, sqlx::mysql::MySqlArguments> {
     let mut q = q;
     if like.is_some() {
         q = q.bind(like);
@@ -465,7 +437,7 @@ fn resolve_sort_column(field: Option<&str>) -> &'static str {
     }
 }
 
-/// 驼峰 → 下划线（允许前端传驼峰或数据库列名）。
+/// 驼峰 -> 下划线（允许前端传驼峰或数据库列名）。
 fn to_snake(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 4);
     for ch in s.chars() {
@@ -497,18 +469,15 @@ mod tests {
         assert_eq!(resolve_sort_column(Some("sort_order")), "sort_order");
         assert_eq!(resolve_sort_column(Some("brandName")), "brand_name");
         assert_eq!(resolve_sort_column(Some("firstWord")), "first_word");
-        // 未知字段回退主键，防止 SQL 注入
+        // 未知字段回退主键，防 SQL 注入
         assert_eq!(resolve_sort_column(Some("1;DROP TABLE brand")), "brand_id");
     }
 
     #[test]
     fn brand_columns_match_entity_field_order() {
-        // 顺序必须与 Brand 实体字段一致，否则 FromRow 映射错位
         assert_eq!(
             BRAND_COLUMNS,
-            "brand_id, brand_name, brand_logo, brand_desc, site_url, \
-     sort_order, is_show, brand_type, brand_is_hot, first_word, is_store_brand, \
-     check_status, brand_en_name, shop_id, status, reject_remark"
+            "brand_id, brand_name, brand_logo, brand_desc, site_url, sort_order, is_show, brand_type, brand_is_hot, first_word, is_store_brand, check_status, brand_en_name, shop_id, status, reject_remark"
         );
         assert_eq!(BRAND_COLUMNS.split(',').count(), 16);
     }

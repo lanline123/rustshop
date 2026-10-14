@@ -1,0 +1,7 @@
+{
+  "slice_id": "slice200",
+  "tag": "购物车管理",
+  "has_admin": false,
+  "has_public": true,
+  "core_models_mod": "pub mod slice200;"
+}

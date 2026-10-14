@@ -131,6 +131,12 @@ def collect_rust_routes(crates_dir):
         if not os.path.isdir(root):
             continue
         for dirpath, _dirnames, filenames in os.walk(root):
+            # `src/root/**` 下的路由挂在**应用根路径**：原 Java 少数控制器的
+            # @RequestMapping 不含模块前缀（如 IMConfigController
+            # @RequestMapping("im/config/config")、FilesController 的 /img/**），
+            # 真实 URL 是 `<应用根>/im/...`，因此这些文件不加 crate 前缀。
+            sub = os.path.relpath(dirpath, root).replace("\\", "/")
+            eff_prefix = "" if sub == "root" or sub.startswith("root/") else prefix
             for fn in filenames:
                 if not fn.endswith(".rs"):
                     continue
@@ -151,7 +157,7 @@ def collect_rust_routes(crates_dir):
                             OrderedDict(
                                 [
                                     ("method", verb),
-                                    ("path", join_path(prefix, path)),
+                                    ("path", join_path(eff_prefix, path)),
                                     ("handler", handler),
                                     ("java_ref", ""),
                                     ("source", "%s:%d" % (rel, line)),

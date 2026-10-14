@@ -1,0 +1,7 @@
+{
+  "slice_id": "slice118",
+  "tag": "打印日志",
+  "has_admin": true,
+  "has_public": false,
+  "core_models_mod": "pub mod slice118;"
+}

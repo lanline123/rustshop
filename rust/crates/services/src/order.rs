@@ -14,20 +14,27 @@ use tigshop_infrastructure::db::Repositories;
 use crate::cart::CartService;
 use crate::product::ProductService;
 
-/// 订单状态常量（与原 Java OrderConstants 对齐）。
+/// 订单状态常量（严格对齐 `java/database/pure.sql` 中 `order.order_status`
+/// 的列注释：`0 待确认/待支付 1 已确定/待发货 2 处理中/已发货 3 已取消
+/// 4 无效 5 已完成`）。
+///
+/// ⚠️ 历史缺陷提示：本模块曾使用 `10/20/30/40/50` 一套自造状态值，与真实库
+/// 口径不符——`mark_paid` 会把 `order_status` 写成 `10`，管理端与前台
+/// 按 `1`（待发货）过滤时**永远查不到该订单**。已于本次修正为库口径；
+/// 任何新增代码请勿再引入非 `0..=5` 的订单状态字面量。
 pub mod status {
-    /// 待付款
+    /// 待确认 / 待支付
     pub const UNPAID: i32 = 0;
-    /// 待发货（已付款）
-    pub const PAID: i32 = 10;
-    /// 已发货
-    pub const SHIPPED: i32 = 20;
-    /// 已完成
-    pub const FINISHED: i32 = 30;
+    /// 已确定 / 待发货（已付款）
+    pub const PAID: i32 = 1;
+    /// 处理中 / 已发货
+    pub const SHIPPED: i32 = 2;
     /// 已取消
-    pub const CANCELED: i32 = 40;
-    /// 已关闭
-    pub const CLOSED: i32 = 50;
+    pub const CANCELED: i32 = 3;
+    /// 无效
+    pub const INVALID: i32 = 4;
+    /// 已完成
+    pub const FINISHED: i32 = 5;
 }
 
 #[derive(Clone)]

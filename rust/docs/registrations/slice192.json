@@ -1,0 +1,7 @@
+{
+  "slice_id": "slice192",
+  "tag": "设置-易宝支付",
+  "has_admin": true,
+  "has_public": false,
+  "core_models_mod": "pub mod slice192;"
+}

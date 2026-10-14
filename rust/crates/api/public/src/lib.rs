@@ -32,16 +32,57 @@ use tigshop_services::cart::CartService;
 use tigshop_services::catalog::CatalogService;
 use tigshop_services::content::ContentService;
 use tigshop_services::coupon::CouponService;
+use tigshop_services::decorate::DecorateService;
 use tigshop_services::logistics::LogisticsService;
 use tigshop_services::member::MemberService;
 use tigshop_services::order::OrderService;
 use tigshop_services::product::ProductService;
+use tigshop_services::salesman::SalesmanService;
 use tigshop_services::seckill::SeckillService;
+use tigshop_services::slice156::Slice156Service;
+use tigshop_services::slice140::Slice140Service;
+use tigshop_services::slice097::Slice097Service;
+use tigshop_services::shop::ShopService;
+use tigshop_services::slice172::Slice172Service;
+use tigshop_services::slice091::Slice091Service;
+use tigshop_services::slice170::Slice170Service;
+use tigshop_services::slice082::Slice082Service;
+use tigshop_services::slice214::Slice214Service;
+use tigshop_services::slice213::Slice213Service;
+use tigshop_services::slice206::Slice206Service;
+use tigshop_services::slice200::Slice200Service;
+use tigshop_services::slice171::Slice171Service;
+use tigshop_services::slice168::Slice168Service;
+use tigshop_services::slice160::Slice160Service;
+use tigshop_services::slice148::Slice148Service;
+use tigshop_services::slice135::Slice135Service;
+use tigshop_services::slice130::Slice130Service;
+use tigshop_services::slice084::Slice084Service;
+use tigshop_services::slice073::Slice073Service;
+use tigshop_services::slice066::Slice066Service;
+use tigshop_services::slice065::Slice065Service;
+use tigshop_services::slice059::Slice059Service;
+use tigshop_services::slice143::Slice143Service;
+use tigshop_services::slice141::Slice141Service;
+use tigshop_services::slice117::Slice117Service;
+use tigshop_services::slice115::Slice115Service;
+use tigshop_services::slice106::Slice106Service;
+use tigshop_services::slice090::Slice090Service;
+use tigshop_services::slice022::Slice022Service;
+use tigshop_services::slice021::Slice021Service;
+use tigshop_services::slice016::Slice016Service;
+use tigshop_services::slice015::Slice015Service;
+use tigshop_services::slice001::Slice001Service;
+use tigshop_services::slice013::Slice013Service;
+use tigshop_services::slice009::Slice009Service;
+use tigshop_services::slice007::Slice007Service;
+use tigshop_services::slice004::Slice004Service;
 use tigshop_services::time_discount::TimeDiscountService;
 use tigshop_services::paylog::PaylogService;
 use tigshop_services::user::UserService;
 
 pub mod routes;
+pub mod root;
 
 /// 商城前台应用状态。
 #[derive(Clone)]
@@ -59,7 +100,47 @@ pub struct PublicState {
     pub time_discount: Arc<TimeDiscountService>,
     pub paylog: Arc<PaylogService>,
     pub balance_pay: Arc<tigshop_services::balance_pay::BalancePayService>,
+    pub shop: Arc<ShopService>,
+    pub decorate: Arc<DecorateService>,
+    pub salesman: Arc<SalesmanService>,
+    pub slice001: Arc<Slice001Service>,
+    pub slice004: Arc<Slice004Service>,
+    pub slice007: Arc<Slice007Service>,
+    pub slice009: Arc<Slice009Service>,
+    pub slice013: Arc<Slice013Service>,
+    pub slice097: Arc<Slice097Service>,
+    pub slice140: Arc<Slice140Service>,
+    pub slice156: Arc<Slice156Service>,
     pub jwt: JwtService,
+    pub slice015: Arc<Slice015Service>,
+    pub slice016: Arc<Slice016Service>,
+    pub slice021: Arc<Slice021Service>,
+    pub slice022: Arc<Slice022Service>,
+    pub slice090: Arc<Slice090Service>,
+    pub slice106: Arc<Slice106Service>,
+    pub slice115: Arc<Slice115Service>,
+    pub slice117: Arc<Slice117Service>,
+    pub slice141: Arc<Slice141Service>,
+    pub slice143: Arc<Slice143Service>,
+    pub slice059: Arc<Slice059Service>,
+    pub slice065: Arc<Slice065Service>,
+    pub slice066: Arc<Slice066Service>,
+    pub slice073: Arc<Slice073Service>,
+    pub slice084: Arc<Slice084Service>,
+    pub slice130: Arc<Slice130Service>,
+    pub slice135: Arc<Slice135Service>,
+    pub slice148: Arc<Slice148Service>,
+    pub slice160: Arc<Slice160Service>,
+    pub slice168: Arc<Slice168Service>,
+    pub slice171: Arc<Slice171Service>,
+    pub slice200: Arc<Slice200Service>,
+    pub slice206: Arc<Slice206Service>,
+    pub slice213: Arc<Slice213Service>,
+    pub slice214: Arc<Slice214Service>,
+    pub slice082: Arc<Slice082Service>,
+    pub slice170: Arc<Slice170Service>,
+    pub slice091: Arc<Slice091Service>,
+    pub slice172: Arc<Slice172Service>,
 }
 
 /// 构建商城前台路由。
@@ -69,6 +150,11 @@ pub struct PublicState {
 /// 会员订单是 `/api/user/order/list`，而不是想当然的 `/api/cart/list`。
 /// 可用 `python tools/check_api_coverage.py` 校验。
 pub fn router(state: PublicState) -> Router {
+    // —— 根级路由（无 `/api` 前缀：/im/** 需登录，/s/{code} 免登录）——
+    let root_protected = root::merge_protected(&state)
+        .layer(middleware::from_fn_with_state(state.jwt.clone(), require_auth));
+    let root_public = root::merge_public(&state);
+
     // 需要登录的接口
     let authorized = Router::new()
         // —— 购物车（CartController @ /api/cart/cart）——
@@ -100,12 +186,13 @@ pub fn router(state: PublicState) -> Router {
         // —— 公开接口 ——
         .route("/health", get(health))
         .route("/product/product/list", get(product_list))
-        .route("/product/product/detail", get(product_detail))
         // 原系统登录由 Spring Security 的 ClientLoginFilter 注册：
         // `setFilterProcessesUrl("/api/user/login/signin")`
         .route("/user/login/signin", post(user_login))
         .route("/user/regist/registAct", post(user_register))
         .nest("/api", authorized.merge(public_api))
+        .merge(root_public)
+        .merge(root_protected)
         .with_state(state)
         // —— 契约与覆盖率（重写期间对照用）——
         .merge(openapi::routes(openapi_state()))
@@ -127,7 +214,6 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
         ("POST", "/api/user/order/cancelOrder", "UserOrderController.cancelOrder"),
         ("GET", "/api/user/user/detail", "UserController.detail"),
         ("GET", "/api/product/product/list", "ProductController.list"),
-        ("GET", "/api/product/product/detail", "ProductController.detail"),
         ("POST", "/api/user/login/signin", "ClientLoginFilter.attemptAuthentication"),
         ("POST", "/api/user/regist/registAct", "RegisterController.register"),
     ];
@@ -136,6 +222,9 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
         .map(|(m, p, j)| tigshop_openapi::RouteDoc::new(m, p, j))
         .collect();
     out.extend(routes::implemented_routes());
+    // 根级通道（`/im/**`、`/s/{code}` 等不带 `/api` 前缀的控制器）同样计入
+    // 运行时覆盖率口径。
+    out.extend(root::implemented_routes());
     out
 }
 
@@ -171,13 +260,6 @@ async fn product_list(
 #[derive(Debug, Deserialize)]
 struct IdQuery {
     id: i32,
-}
-
-async fn product_detail(
-    State(state): State<PublicState>,
-    Query(q): Query<IdQuery>,
-) -> ApiResult<tigshop_core::models::ProductVO> {
-    ok(state.product.detail(q.id).await?)
 }
 
 // ————————————————————— 用户 —————————————————————
