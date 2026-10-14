@@ -140,10 +140,27 @@ pub fn current_seconds() -> i64 {
 /// # Errors
 /// `1001` + 「参数错误」。
 pub fn parse_callback_body(raw: &[u8]) -> Result<WechatLiveSyncCallbackDTO> {
+    // 先按「任意 JSON」解析，确认顶层是**对象**再交给 serde 转 DTO。
+    // 必要性：`WechatLiveSyncCallbackDTO` 带 `#[serde(default)]`，serde 会
+    // 允许 `[]` 这类 JSON 数组按位置反序列化成「全 None」的空对象，
+    // 而 Java 的 `@RequestBody` 遇到数组会抛 `MismatchedInputException`
+    // →「参数错误」。因此这里显式收紧为「只接受 JSON 对象」。
+    match serde_json::from_slice::<serde_json::Value>(raw) {
+        Ok(serde_json::Value::Object(_)) => {}
+        Ok(_) => {
+            tracing::warn!("微信直播回调请求体不是 JSON 对象");
+            return Err(Error::biz(SERVICE_DATA_ERROR, PARAM_INVALID_MSG));
+        }
+        Err(e) => {
+            // 原始细节只进日志，不外泄（Java 同样只回「参数错误」）
+            tracing::warn!("微信直播回调请求体解析失败: {e}");
+            return Err(Error::biz(SERVICE_DATA_ERROR, PARAM_INVALID_MSG));
+        }
+    }
+
     match serde_json::from_slice::<WechatLiveSyncCallbackDTO>(raw) {
         Ok(dto) => Ok(dto),
         Err(e) => {
-            // 原始细节只进日志，不外泄（Java 同样只回「参数错误」）
             tracing::warn!("微信直播回调请求体解析失败: {e}");
             Err(Error::biz(SERVICE_DATA_ERROR, PARAM_INVALID_MSG))
         }

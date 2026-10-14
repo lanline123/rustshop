@@ -1328,11 +1328,12 @@ mod tests {
 
     #[test]
     fn admin_types_mapping_follows_java_list() {
-        // Java：默认（非 shop/vendor）→ "admin,suppliers"
-        assert_eq!(
-            admin_types_for(None),
-            vec!["admin".to_string(), "suppliers".to_string()]
-        );
+        // Java `AdminUserServiceImpl:537-556` 里默认字面量虽是 "admin,suppliers"，
+        // 但 `.in(ObjectUtil.isNotEmpty(adminUserType), ...)` 是**有条件**生效：
+        // 传 null/空串时整个 admin_type 过滤条件不拼进 SQL，也不消费类型列表。
+        // 故 None 与 Some("") 必须一致地返回空表（由 `should_filter_admin_type`
+        // 单独决定是否加过滤）。
+        assert!(admin_types_for(None).is_empty());
         assert_eq!(
             admin_types_for(Some("shop")),
             vec!["shop".to_string()]
@@ -1340,6 +1341,11 @@ mod tests {
         assert_eq!(
             admin_types_for(Some("vendor")),
             vec!["vendor".to_string()]
+        );
+        // 非 shop/vendor 的**非空**取值才落到默认列表
+        assert_eq!(
+            admin_types_for(Some("admin")),
+            vec!["admin".to_string(), "suppliers".to_string()]
         );
         // 空串时 Java 的 `in(condition=false, ...)` 不生效 → 传空表
         assert!(admin_types_for(Some("")).is_empty());

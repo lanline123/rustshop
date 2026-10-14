@@ -1,0 +1,24 @@
+fix: full workspace test suite green (1393 tests, 0 failures)
+
+Service/model fixes verified against Java sources:
+
+- slice002 available_actions: correct the is_store_splited mutually
+  exclusive kill-switch direction. The implementation and its sibling
+  test had both branches inverted; Java OrderServiceImpl:1082-1086 is
+  authoritative (isStoreSplited==1 -> splitOrder=false, else deliver=false).
+- slice030 build_region_tree: shallow child clone dropped grandchild
+  subtrees, so the tree was only 2 levels deep. Now assembles bottom-up
+  by depth descending; 8-level truncation is correct again.
+- slice115 parse_callback_body: guard that the top-level JSON must be an
+  object. serde `default` silently accepted `[]` as an all-None DTO,
+  whereas Java raises MismatchedInputException. payload tightened to object.
+- slice010 map_update_field: column names also hit the whitelist (Java
+  getColumnByPropertyName accepts both property and column name); only
+  truly unknown fields fall back to the PK column, so the anti-injection
+  path is unchanged. Stale contradicting doc comment corrected too.
+- slice011 admin_types_for: None and Some("") must agree and both yield
+  an empty list (Java only applies the .in(...) condition when non-empty).
+- slice028 claim_time_range: the test miscalculated the i32 overflow
+  threshold (600 days does not overflow; the real ~5178 days does).
+- slice139: lazy-pool test needs #[tokio::test] because connect_lazy
+  requires a Tokio runtime context.

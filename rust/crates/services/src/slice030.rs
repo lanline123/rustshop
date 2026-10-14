@@ -329,8 +329,8 @@ pub fn build_region_tree(regions: Vec<Region>) -> Vec<RegionTreeNode> {
         nodes.push(RegionTreeNode::leaf(r.region_id, r.parent_id, r.region_name.clone()));
     }
 
-    // 2) 自底向上挂到父节点（先收集边，避免同时借用 nodes 的两个位置）
-    let mut edges: Vec<(usize, usize)> = Vec::new(); // (child_idx, parent_idx)
+    // 2) 记录父子关系（先收集边，避免同时借用 nodes 的两个位置）
+    let mut parent_of: HashMap<usize, usize> = HashMap::new(); // child_idx -> parent_idx
     let mut top: Vec<usize> = Vec::new();
     for (idx, r) in regions.iter().enumerate() {
         if r.parent_id == 0 {
@@ -338,22 +338,42 @@ pub fn build_region_tree(regions: Vec<Region>) -> Vec<RegionTreeNode> {
             continue;
         }
         if let Some(&p) = index.get(&r.parent_id) {
-            edges.push((idx, p));
-        }
-    }
-    for (child, parent) in edges {
-        let node = nodes.get(child).cloned();
-        if let Some(slot) = nodes.get_mut(parent) {
-            if let Some(node) = node {
-                slot.children.push(node);
-            }
+            parent_of.insert(idx, p);
         }
     }
 
-    // 3) 顶层 + 剪枝到 8 层
+    // 3) 自**最深**节点向浅处逐级挂载。
+    //    关键：必须按「子节点先就位」的顺序组装，否则把子节点挂到父节点的
+    //    `children` 之后，父节点再被挂到祖父时用的是**尚未包含该子树的旧副本**，
+    //    孙层会整体丢失（表现为树只有 2 层深）。故这里按深度降序处理。
+    let mut by_depth: Vec<usize> = (0..regions.len()).collect();
+    by_depth.sort_by_key(|&i| std::cmp::Reverse(depth_of(i, &parent_of)));
+
+    // `pending[child]` 暂存「已经组装完毕、等待挂到父节点的子树」
+    let mut pending: Vec<Option<RegionTreeNode>> = Vec::with_capacity(regions.len());
+    for n in &nodes {
+        pending.push(Some(n.clone()));
+    }
+    for idx in by_depth {
+        let Some(&parent) = parent_of.get(&idx) else {
+            continue; // 根节点或无父（孤儿）留待顶层 / 丢弃
+        };
+        let Some(node) = pending.get_mut(idx).and_then(Option::take) else {
+            continue;
+        };
+        if let Some(slot) = pending.get_mut(parent).and_then(Option::as_mut) {
+            slot.children.push(node);
+        }
+    }
+    // 稳定同级顺序：children 按原始入参顺序排列（Java 沿用 `list` 的插入序）
+    for node in pending.iter_mut().flatten() {
+        sort_children_by_original_order(node, &index);
+    }
+
+    // 4) 顶层 + 剪枝到 8 层
     let mut roots: Vec<RegionTreeNode> = Vec::with_capacity(top.len());
     for idx in top {
-        if let Some(node) = nodes.get(idx).cloned() {
+        if let Some(node) = pending.get_mut(idx).and_then(Option::take) {
             roots.push(node);
         }
     }
@@ -361,6 +381,29 @@ pub fn build_region_tree(regions: Vec<Region>) -> Vec<RegionTreeNode> {
         truncate_depth(root, 1);
     }
     roots
+}
+
+/// 从 `idx` 沿 `parent_of` 向上走到根，返回层号（根 = 0）。
+fn depth_of(idx: usize, parent_of: &HashMap<usize, usize>) -> usize {
+    let mut depth = 0;
+    let mut cur = idx;
+    while let Some(&p) = parent_of.get(&cur) {
+        depth += 1;
+        cur = p;
+        if depth > 1024 {
+            break; // 防御环形数据
+        }
+    }
+    depth
+}
+
+/// 递归按「原始入参顺序」稳定排序每一层 `children`（顺序对齐 Java 的插入序）。
+fn sort_children_by_original_order(node: &mut RegionTreeNode, order: &HashMap<i32, usize>) {
+    node.children
+        .sort_by_key(|c| order.get(&c.region_id).copied().unwrap_or(usize::MAX));
+    for child in &mut node.children {
+        sort_children_by_original_order(child, order);
+    }
 }
 
 /// 把子树裁剪到 `REGION_TREE_MAX_DEEP` 层（Java `TreeBuilder#cutTree`）。

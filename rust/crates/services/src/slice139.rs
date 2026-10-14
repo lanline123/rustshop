@@ -1308,8 +1308,11 @@ mod tests {
 
     // ————— 服务层守卫（先校验、后 IO） —————
 
-    #[test]
-    fn service_can_be_constructed_without_live_database() {
+    // 必须是 `#[tokio::test]`：`MySqlPool::connect_lazy` 需要 Tokio 运行时
+    // 上下文（sqlx 内部会 `tokio::spawn` 池的后台任务），在纯 `#[test]`
+    // 里构造会 panic（sqlx-core pool/inner.rs）。
+    #[tokio::test]
+    async fn service_can_be_constructed_without_live_database() {
         let svc = Slice139Service::new(lazy_repos());
         assert_eq!(svc.flags(), EditionFlags::default());
     }

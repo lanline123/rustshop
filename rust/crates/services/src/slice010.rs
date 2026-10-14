@@ -480,8 +480,10 @@ fn depth_in_set(a: &Authority, by_id: &HashMap<i32, &Authority>) -> usize {
 ///    都匹配不到时**回退主键列**（安全修复，防 SQL 注入）；
 /// 2. `Arrays.asList(allowFields).contains(column)` 否则报「字段值不合法」。
 ///
-/// 因此请求字段为列名（如 `authority_name`）时，Java 会退化为「更新主键列」→
-/// 白名单不含 `authority_id` → 抛「字段值不合法」。Rust 侧行为一致。
+/// 因此请求字段为**列名**（如 `authority_name`）时同样命中 `authority_name`
+/// 并在白名单内 → 更新成功（Java 不退化为主键列）；只有**完全未知**的字段
+/// 才回退主键列 `authority_id`，而白名单不含主键列 → 抛「字段值不合法」，
+/// 这条回退路径同时充当防 SQL 注入的兜底。
 pub fn map_update_field(field: &str, allowed: &[&str]) -> Result<&'static str> {
     let key = "authority_id";
     let column = tigshop_core::models::slice010::authority_field_to_column(field.trim())
@@ -1157,9 +1159,15 @@ mod tests {
         assert!(map_update_field("authorityIco", AUTHORITY_COLUMN_FIELDS).is_err());
         assert!(map_update_field("adminType", AUTHORITY_COLUMN_FIELDS).is_err());
         assert!(map_update_field("parentId", AUTHORITY_COLUMN_FIELDS).is_err());
-        // 传入列名时 Java 退化为「主键列」→ 白名单不含主键 → 报错
-        assert!(map_update_field("authority_name", AUTHORITY_COLUMN_FIELDS).is_err());
-        // 完全未知字段同样退化为「主键列」→ 报错
+        // 传入**列名**时同样命中白名单：Java `getColumnByPropertyName` 的判据是
+        // `fieldInfo.getProperty().equals(name) || fieldInfo.getColumn().equals(name)`，
+        // 即属性名与列名都接受，故 `authority_name` 合法解析为 `authority_name`
+        // 并在白名单内 → `Ok`（Java 在此**不**退化为主键列）。
+        assert_eq!(
+            map_update_field("authority_name", AUTHORITY_COLUMN_FIELDS).unwrap(),
+            "authority_name"
+        );
+        // 完全未知字段退化为「主键列」→ 白名单不含主键 → 报错（防注入路径）
         assert!(map_update_field("1=1 OR 1=1", AUTHORITY_COLUMN_FIELDS).is_err());
     }
 

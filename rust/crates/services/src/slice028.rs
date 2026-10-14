@@ -499,10 +499,20 @@ mod tests {
         // 60 天偏移仍在 i32 范围内（schema 里 start/end 是 `int`）
         let (s2, _) = claim_time_range(0, 60, 0, now, 0, 0);
         assert!(i32::try_from(s2).is_ok(), "60 天偏移必须仍在 i32 范围内");
-        // ⚠️ 约 497 天（delay_day >= 497）时 `int` 列会溢出 —— 与 Java
-        //    `long` → MySQL `int` 列的隐式收窄同风险，本实现不擅自改变类型。
+        // i32::MAX ≈ 2.147e9 秒 ≈ 24 855 天；600 天仅约 5.18e7 秒，**远未**溢出
+        // （now 本身约 1.7e9，加 5.18e7 仍 < 2.147e9）。
         let (s3, _) = claim_time_range(0, 600, 0, now, 0, 0);
-        assert!(i32::try_from(s3).is_err(), "600 天应超出 i32（原样照抄 Java 风险）");
+        assert!(
+            i32::try_from(s3).is_ok(),
+            "600 天偏移不应溢出 i32（约 5.18e7 秒，远小于 i32::MAX）"
+        );
+        // 真正的溢出阈值：超过 (i32::MAX - now) / 86400 ≈ 5178 天时收窄会失败。
+        // 与 Java `long` → MySQL `int` 列的隐式收窄同风险，本实现不擅自改变类型。
+        let (s4, _) = claim_time_range(0, 20_000, 0, now, 0, 0);
+        assert!(
+            i32::try_from(s4).is_err(),
+            "20000 天应超出 i32（原样照抄 Java 的收窄风险）"
+        );
     }
 
     #[test]

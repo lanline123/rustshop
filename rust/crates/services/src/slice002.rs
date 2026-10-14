@@ -496,6 +496,10 @@ fn available_actions(o: &Order, full_aftersales: bool, rebuy_available: bool) ->
         return OrderActionVO::default();
     }
 
+    // 互斥的 kill-switch（Java `OrderServiceImpl:1082-1086` 逐字对照）：
+    //   if (isStoreSplited == 1) setSplitOrder(false); else setDeliver(false);
+    // 即已是店铺拆单订单时不再提供「拆单」入口；尚未拆单时反而**关闭发货**入口
+    // （必须先拆单才能发货）。两者永远不可能同时为 true。
     if o.is_store_splited == 1 {
         a.split_order = false;
     } else {
@@ -1127,19 +1131,27 @@ mod tests {
         offline.pay_type_id = pay_type::OFFLINE;
         assert!(available_actions(&offline, false, true).set_paid);
 
-        // 已确认待发货 + 已支付：可发货，不可取消
-        let mut confirmed = order(1, 2);
-        confirmed.is_store_splited = 1;
+        // 已确认待发货 + 已支付：`deliver` 与 `split_order` **互斥**。
+        // Java `OrderServiceImpl:1082-1086`：
+        //   if (isStoreSplited == 1) setSplitOrder(false); else setDeliver(false);
+        // 默认 `is_store_splited == 0` → 关闭发货入口、保留拆单入口。
+        let confirmed = order(1, 2);
         let a = available_actions(&confirmed, false, true);
-        assert!(a.deliver && a.split_order);
+        assert!(a.split_order && !a.deliver);
         assert!(!a.cancel_order);
         assert!(!a.set_unpaid);
 
-        // 已确认待发货 + 未支付：可取消 + 可设置已支付（该分支不受线下支付限制）
-        let mut unpaid = order(1, 0);
-        unpaid.is_store_splited = 1;
+        // `is_store_splited == 1`（已拆单）：关闭拆单入口、保留发货入口
+        let mut splited = order(1, 2);
+        splited.is_store_splited = 1;
+        let a = available_actions(&splited, false, true);
+        assert!(a.deliver && !a.split_order);
+
+        // 已确认待发货 + 未支付：可取消 + 可设置已支付（该分支不受线下支付限制），
+        // 同样受 `is_store_splited` 互斥规则约束（默认 0 → 保留拆单、关闭发货）
+        let unpaid = order(1, 0);
         let a = available_actions(&unpaid, false, true);
-        assert!(a.deliver && a.cancel_order && a.set_paid);
+        assert!(a.split_order && !a.deliver && a.cancel_order && a.set_paid);
 
         // 处理中：可确认收货；整单售后进行中则不可
         let a = available_actions(&order(2, 2), false, true);
@@ -1162,16 +1174,22 @@ mod tests {
 
     #[test]
     fn available_actions_respects_split_flags() {
-        // is_store_splited = 1 → 关闭拆分入口，保留发货
+        // Java `OrderServiceImpl:1082-1086` 是**互斥**的 kill-switch：
+        //   if (isStoreSplited == 1) setSplitOrder(false); else setDeliver(false);
+        // 因此 `is_store_splited == 1` → 关闭拆单入口，`deliver` 保留；
+        // `is_store_splited == 0`  → 关闭发货入口，`split_order` 保留。
+        // ⚠️ 早先本测试把两个分支写反了（与服务实现一致地反），此处按 Java 修正。
         let mut o = order(1, 2);
         o.is_store_splited = 1;
         let a = available_actions(&o, false, true);
-        assert!(a.deliver && !a.split_order);
+        assert!(!a.split_order, "is_store_splited=1 必须关闭拆单入口");
+        assert!(a.deliver, "is_store_splited=1 时发货入口应保留");
 
         // is_store_splited = 0 → 关闭发货，保留拆分
         let o = order(1, 2);
         let a = available_actions(&o, false, true);
-        assert!(!a.deliver && a.split_order);
+        assert!(a.split_order, "is_store_splited=0 时拆单入口应保留");
+        assert!(!a.deliver, "is_store_splited=0 必须关闭发货入口");
 
         // 未支付拆单子单：全只读
         let mut o = order(1, 0);

@@ -56,7 +56,40 @@ pub struct WechatLiveSyncCallbackDTO {
     /// 附加消息
     pub message: Option<String>,
     /// 回调载荷（Java `Map<String, Object>`，原样透传）
+    #[serde(deserialize_with = "de_opt_object")]
     pub payload: Option<HashMap<String, Value>>,
+}
+
+/// 只接受 JSON **对象**（或缺失 / `null`）的 `payload` 反序列化器。
+///
+/// Java 侧 `payload` 声明为 `Map<String, Object>`：Jackson 遇到数组 / 字符串 /
+/// 数字会直接抛 `MismatchedInputException` → `HttpMessageNotReadableException`
+/// →「参数错误」。serde 默认对 `Option<HashMap>` 更宽松，这里显式收紧。
+fn de_opt_object<'de, D>(de: D) -> std::result::Result<Option<HashMap<String, Value>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<Value>::deserialize(de)?;
+    match value {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Object(map)) => Ok(Some(map.into_iter().collect())),
+        Some(other) => Err(serde::de::Error::custom(format!(
+            "payload 期望 JSON 对象，实际为 {}",
+            json_kind(&other)
+        ))),
+    }
+}
+
+/// JSON 值的类型名（仅用于错误文案）。
+fn json_kind(v: &Value) -> &'static str {
+    match v {
+        Value::Null => "null",
+        Value::Bool(_) => "布尔值",
+        Value::Number(_) => "数字",
+        Value::String(_) => "字符串",
+        Value::Array(_) => "数组",
+        Value::Object(_) => "对象",
+    }
 }
 
 /// Java `HttpStatus.SERVICE_DATA_ERROR`（`MethodArgumentNotValidException`
