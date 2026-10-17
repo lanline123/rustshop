@@ -19,9 +19,19 @@
    `python tools/check_sql_columns.py --strict` 能查。
 3. 金额一律 `rust_decimal::Decimal`，**禁用 f64/f32**。
 4. 库存扣减必须写成 `UPDATE ... WHERE stock >= ?` 形式（原子防超卖）。
-5. 你只新建上面"独占"的文件，以及（必要时）在
-   crates/core/src/models/ 下新建本域 DTO。**不要改任何共享文件**。
+5. 你只改上面"独占"的文件（它们**可能已存在为空骨架**——那就直接**原地覆盖**为
+   真实实现，并删掉文件头里的「骨架」字样），以及（必要时）在
+   crates/core/src/models/ 下新建/补全本域 DTO。**不要改任何共享文件**。
 6. 不要改 crates/core/src/entities/**（321 张表实体已 100% 自动生成）。
+7. **防重复注册**：本片接口清单里标了 `[已实现]` 的接口**已由其它文件实现**，
+   你**绝不要**在本片重复注册同一 `(method, path)` —— axum `Router::merge`
+   遇到重复路径会在**服务启动时 panic**，而 `cargo check` 完全查不出。
+   只实现**未标注**的接口。
+8. **保持公开签名不变**：若独占文件已存在（骨架），必须沿用现有结构体名、
+   `Repository::new(pool: MySqlPool)` / `pool_clone()`、
+   `Service::new(repos: Arc<Repositories>)`、`routes(state)`、
+   `implemented_routes()` 的签名 —— 共享文件已按这些签名注册，改了会编译失败。
+   已注册的切片**无需**再返回 needs_registration（保持为空对象即可）。
 
 # 现有代码结构（照它的样子写，先看样板再动手）
 - 路由样板：crates/api/admin/src/routes/seckill.rs（注意它顶部有
@@ -35,6 +45,25 @@
   （public 侧是 `&PublicState` / `Router<PublicState>`）
 - 响应统一：`ok(...)` 返回 `ApiResult<T>`；错误用 `tigshop_core::Error`
 
+# 本仓库已知高频错误（都真实发生过，务必避免）
+- 金额一律 `rust_decimal::Decimal`，**禁用 f64/f32**。
+- `rust_decimal` **没有** `ceil_dp`/`to_i32`；向上取整用
+  `round_dp_with_strategy(n, RoundingStrategy::ToPositiveInfinity)`；
+  取整数需 `use rust_decimal::prelude::ToPrimitive;` 后 `to_i64()`。
+  Java `HALF_UP` → `RoundingStrategy::MidpointAwayFromZero`。
+- `tigshop_core::Error` 是**枚举**，**没有** `.message` 字段；消息用 `e.to_string()`。
+  没有 `Error::forbidden`（用 `Error::Forbidden` 或 `Error::biz(code, msg)`）。
+- **不要** `use rand::`（该依赖未声明）；随机串用 `tigshop_common::utils::random_hex()`。
+- 在 `crates/core/src/models/**` 内引用 core 自身用 `crate::` 前缀，**不要** `tigshop_core::`。
+- 不要写 `const fn` 里对 `&str` 的 `match`（E0658）；不要重复声明同一结构体字段。
+- **查询/请求体 DTO 必须加 `#[serde(rename_all = "camelCase")]`**：前端传 camelCase，
+  缺了会被静默解析成 `None`（如 `?groupId=1` 变 `None`）或直接 400。
+- SQL 只用运行时 `sqlx::query` / `sqlx::query_as::<_, T>(...)` / `QueryBuilder`；
+  **禁用** `query!`/`query_as!` 宏（本机无 DATABASE_URL）。
+- 表名/列名用 `python tools/schema_parser.py --table <表名>` 核对；列名写错编译查不出。
+- 权限：本仓库目前只做登录态校验，`@PreAuthorize` 权限矩阵**尚未实现**，不要编造。
+- 单测断言值必须自己算对（本仓库多次出现把期望日期/金额/比例算错的测试）。
+
 # 权威资料（自己读，不要凭记忆）
 - 本片 Java 源控制器：tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java
 - 权威 schema：`java/database/pure.sql`；
@@ -44,30 +73,32 @@
   校验覆盖率：`cd D:\tigshop\java-b2b2b-pro-v5.8.57\rust && python tools/check_api_coverage.py`
 
 # 本片接口清单（权威，逐条实现；path 必须逐字符一致）
-- GET    /api/user/user/creditDetail                          | UserController.creditDetail | auth=optional perm=- | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:73
-- POST   /api/user/user/updateInformation                     | UserController.updateInformation | auth=optional perm=- | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:79
-- GET    /api/user/user/memberCenter                          | UserController.memberCenter | auth=optional perm=- | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:85
-- POST   /api/user/user/sendMobileCodeByModifyPassword        | UserController.sendMobileCodeByModifyPassword | auth=optional perm=- | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:93
-- POST   /api/user/user/checkModifyPasswordMobileCode         | UserController.checkModifyPasswordMobileCode | auth=optional perm=- | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:100
-- POST   /api/user/user/sendMobileCodeByMobileValidate        | UserController.sendMobileCodeByMobileValidate | auth=optional perm=- | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:106
-- POST   /api/user/user/sendEmailCodeByEmailValidate          | UserController.sendEmailCodeByEmailValidate | auth=optional perm=- | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:114
-- POST   /api/user/user/sendMobileCodeByModifyMobile          | UserController.sendMobileCodeByModifyMobile | auth=optional perm=- | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:122
-- POST   /api/user/user/sendEmailCodeByModifyEmail            | UserController.sendEmailCodeByModifyEmail | auth=optional perm=- | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:130
-- POST   /api/user/user/modifyMobile                          | UserController.modifyMobile | auth=optional perm=- | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:138
-- POST   /api/user/user/modifyEmail                           | UserController.modifyEmail | auth=optional perm=- | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:144
-- POST   /api/user/user/mobileValidate                        | UserController.mobileValidate | auth=optional perm=- | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:150
-- POST   /api/user/user/emailValidateNew                      | UserController.emailValidateNew | auth=optional perm=- | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:156
-- POST   /api/user/user/emailValidate                         | UserController.emailValidate | auth=optional perm=- | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:162
-- GET    /api/user/user/historyProduct                        | UserController.historyProduct | auth=optional perm=- | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:168
-- POST   /api/user/user/delHistoryProduct                     | UserController.delHistoryProduct | auth=optional perm=- | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:174
-- POST   /api/user/user/uploadImg                             | UserController.uploadImg | auth=optional perm=- | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:180
-- POST   /api/user/user/uploadVideo                           | UserController.uploadVideo | auth=optional perm=- | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:186
-- POST   /api/user/user/modifyAvatar                          | UserController.modifyAvatar | auth=optional perm=- | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:193
-- GET    /api/user/user/collectionShop                        | UserController.collectionShop | auth=optional perm=- | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:199
-- GET    /api/user/user/levelList                             | UserController.levelList | auth=optional perm=- | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:205
-- GET    /api/user/user/levelInfo                             | UserController.levelInfo | auth=optional perm=- | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:223
-- POST   /api/user/user/logout                                | UserController.logout | auth=anonymous? perm=- | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:229
-- POST   /api/user/user/close                                 | UserController.close | auth=optional perm=- | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:235
+
+> ⚠️ 本片 24 个接口中，**已实现 24 个（下方标 [已实现]）**，你只需实现其余 **0 个**。重复注册已实现路径会导致服务启动 panic。
+- GET    /api/user/user/creditDetail                          | UserController.creditDetail | auth=optional perm=- | [已实现] | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:73
+- POST   /api/user/user/updateInformation                     | UserController.updateInformation | auth=optional perm=- | [已实现] | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:79
+- GET    /api/user/user/memberCenter                          | UserController.memberCenter | auth=optional perm=- | [已实现] | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:85
+- POST   /api/user/user/sendMobileCodeByModifyPassword        | UserController.sendMobileCodeByModifyPassword | auth=optional perm=- | [已实现] | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:93
+- POST   /api/user/user/checkModifyPasswordMobileCode         | UserController.checkModifyPasswordMobileCode | auth=optional perm=- | [已实现] | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:100
+- POST   /api/user/user/sendMobileCodeByMobileValidate        | UserController.sendMobileCodeByMobileValidate | auth=optional perm=- | [已实现] | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:106
+- POST   /api/user/user/sendEmailCodeByEmailValidate          | UserController.sendEmailCodeByEmailValidate | auth=optional perm=- | [已实现] | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:114
+- POST   /api/user/user/sendMobileCodeByModifyMobile          | UserController.sendMobileCodeByModifyMobile | auth=optional perm=- | [已实现] | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:122
+- POST   /api/user/user/sendEmailCodeByModifyEmail            | UserController.sendEmailCodeByModifyEmail | auth=optional perm=- | [已实现] | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:130
+- POST   /api/user/user/modifyMobile                          | UserController.modifyMobile | auth=optional perm=- | [已实现] | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:138
+- POST   /api/user/user/modifyEmail                           | UserController.modifyEmail | auth=optional perm=- | [已实现] | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:144
+- POST   /api/user/user/mobileValidate                        | UserController.mobileValidate | auth=optional perm=- | [已实现] | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:150
+- POST   /api/user/user/emailValidateNew                      | UserController.emailValidateNew | auth=optional perm=- | [已实现] | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:156
+- POST   /api/user/user/emailValidate                         | UserController.emailValidate | auth=optional perm=- | [已实现] | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:162
+- GET    /api/user/user/historyProduct                        | UserController.historyProduct | auth=optional perm=- | [已实现] | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:168
+- POST   /api/user/user/delHistoryProduct                     | UserController.delHistoryProduct | auth=optional perm=- | [已实现] | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:174
+- POST   /api/user/user/uploadImg                             | UserController.uploadImg | auth=optional perm=- | [已实现] | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:180
+- POST   /api/user/user/uploadVideo                           | UserController.uploadVideo | auth=optional perm=- | [已实现] | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:186
+- POST   /api/user/user/modifyAvatar                          | UserController.modifyAvatar | auth=optional perm=- | [已实现] | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:193
+- GET    /api/user/user/collectionShop                        | UserController.collectionShop | auth=optional perm=- | [已实现] | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:199
+- GET    /api/user/user/levelList                             | UserController.levelList | auth=optional perm=- | [已实现] | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:205
+- GET    /api/user/user/levelInfo                             | UserController.levelInfo | auth=optional perm=- | [已实现] | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:223
+- POST   /api/user/user/logout                                | UserController.logout | auth=anonymous? perm=- | [已实现] | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:229
+- POST   /api/user/user/close                                 | UserController.close | auth=optional perm=- | [已实现] | src=tigshop-api\src\main\java\com\tigshop\api\controller\user\UserController.java:235
 
 # 交付要求
 1. 写好代码，每个 handler 带简短 `///` 注释标明对应原 Java 方法。

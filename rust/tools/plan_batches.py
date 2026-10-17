@@ -70,39 +70,41 @@ def main():
     args = ap.parse_args()
 
     slices = json.load(open(os.path.join(RUST, "docs", "slices.json"), encoding="utf-8"))
-
-    # ⚠️ 不要再用 docs/pending-slices.json 判断「未完成」：那是早期手工快照，
-    # 没有生成器、会过期（实测它仍把已实现并已注册的 slice137/194 等列为待办，
-    # 导致编排重复派发已完成切片）。改为**以源码实际内容为准**：
-    # 服务层文件是每个切片必然产出的核心文件，它存在即视为已开工。
     crates = os.path.join(RUST, "crates")
 
-    def is_skeleton(text):
-        """识别 scaffold_slices.py 生成的**空骨架**。
+    # ⚠️ 判断「未完成」**必须用权威的接口覆盖率口径**，不能用文件启发式。
+    #
+    # 历史教训（两次踩坑）：
+    #   1) 最初读 docs/pending-slices.json（早期手工快照、无生成器）→ 过期，
+    #      把已实现已注册的切片列为待办，重复派发。
+    #   2) 改成「services/<slice>.rs 存在且含 async fn 即完成」→ 仍然会漏：
+    #      实测 slice-002（订单管理 0/30）、slice-041（0/5）、slice-194（0/4）
+    #      都有真实 service 文件，但 **routes 文件缺失或不完整 → 路由从未注册**，
+    #      接口 100% 不可达，却被判为「已完成」；另外**空骨架**切片
+    #      （scaffold_slices.py 生成，routes() 返回空 Router）也含不了任何 async fn，
+    #      用「有没有 async fn」判定会随脚手架写法漂移。
+    #
+    # 唯一可靠的判据：**把切片的每个接口拿去和 `check_api_coverage.py`
+    # 静态提取的真实 axum 路由比对，只要有一条未实现即为待办。**
+    # 复用同一个提取器，避免两套口径再次漂移（这正是本仓库反复出现的根因）。
+    sys.path.insert(0, HERE)
+    import check_api_coverage as cac
 
-        骨架特征：文件头写着「骨架」，且**没有 `async fn`**（无任何业务逻辑），
-        `routes()` 返回空 `Router::new()`、`implemented_routes()` 返回空 Vec。
-        这类切片**接口完全不可访问**，必须当作待办重新实现
-        （见 .workbuddy/memory/2026-10-15.md：曾因把骨架当「已实现」
-        而虚报进度 62 片 / 257 个接口）。
-        """
-        return "骨架" in text and "async fn" not in text
+    contract = cac.load_contract(os.path.join(RUST, "docs", "api-contract.json"))
+    rust_routes = cac.collect_rust_routes(crates)
+    _report = cac.analyse(contract, rust_routes)
+    _missing = {(e["method"].upper(), e["path"]) for e in _report["missing"]}
+    _all = {(e["method"].upper(), e["path"]) for e in contract["endpoints"]}
+    implemented = _all - _missing
 
-    def needs_work(key):
-        p = os.path.join(crates, "services", "src", "%s.rs" % key)
-        if not os.path.isfile(p):
-            return True
-        try:
-            with open(p, encoding="utf-8", errors="replace") as fh:
-                return is_skeleton(fh.read())
-        except OSError:
-            return True
-
-    pend_keys = {
-        s["slice_id"].replace("-", "")
-        for s in slices
-        if needs_work(s["slice_id"].replace("-", ""))
-    }
+    pend_keys = set()
+    for s in slices:
+        key = s["slice_id"].replace("-", "")
+        apis = s.get("apis") or []
+        if not apis:
+            continue
+        if any((a["method"].upper(), a["path"]) not in implemented for a in apis):
+            pend_keys.add(key)
 
     items = []
     for s in slices:

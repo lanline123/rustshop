@@ -19,9 +19,19 @@
    `python tools/check_sql_columns.py --strict` 能查。
 3. 金额一律 `rust_decimal::Decimal`，**禁用 f64/f32**。
 4. 库存扣减必须写成 `UPDATE ... WHERE stock >= ?` 形式（原子防超卖）。
-5. 你只新建上面"独占"的文件，以及（必要时）在
-   crates/core/src/models/ 下新建本域 DTO。**不要改任何共享文件**。
+5. 你只改上面"独占"的文件（它们**可能已存在为空骨架**——那就直接**原地覆盖**为
+   真实实现，并删掉文件头里的「骨架」字样），以及（必要时）在
+   crates/core/src/models/ 下新建/补全本域 DTO。**不要改任何共享文件**。
 6. 不要改 crates/core/src/entities/**（321 张表实体已 100% 自动生成）。
+7. **防重复注册**：本片接口清单里标了 `[已实现]` 的接口**已由其它文件实现**，
+   你**绝不要**在本片重复注册同一 `(method, path)` —— axum `Router::merge`
+   遇到重复路径会在**服务启动时 panic**，而 `cargo check` 完全查不出。
+   只实现**未标注**的接口。
+8. **保持公开签名不变**：若独占文件已存在（骨架），必须沿用现有结构体名、
+   `Repository::new(pool: MySqlPool)` / `pool_clone()`、
+   `Service::new(repos: Arc<Repositories>)`、`routes(state)`、
+   `implemented_routes()` 的签名 —— 共享文件已按这些签名注册，改了会编译失败。
+   已注册的切片**无需**再返回 needs_registration（保持为空对象即可）。
 
 # 现有代码结构（照它的样子写，先看样板再动手）
 - 路由样板：crates/api/admin/src/routes/seckill.rs（注意它顶部有
@@ -35,6 +45,25 @@
   （public 侧是 `&PublicState` / `Router<PublicState>`）
 - 响应统一：`ok(...)` 返回 `ApiResult<T>`；错误用 `tigshop_core::Error`
 
+# 本仓库已知高频错误（都真实发生过，务必避免）
+- 金额一律 `rust_decimal::Decimal`，**禁用 f64/f32**。
+- `rust_decimal` **没有** `ceil_dp`/`to_i32`；向上取整用
+  `round_dp_with_strategy(n, RoundingStrategy::ToPositiveInfinity)`；
+  取整数需 `use rust_decimal::prelude::ToPrimitive;` 后 `to_i64()`。
+  Java `HALF_UP` → `RoundingStrategy::MidpointAwayFromZero`。
+- `tigshop_core::Error` 是**枚举**，**没有** `.message` 字段；消息用 `e.to_string()`。
+  没有 `Error::forbidden`（用 `Error::Forbidden` 或 `Error::biz(code, msg)`）。
+- **不要** `use rand::`（该依赖未声明）；随机串用 `tigshop_common::utils::random_hex()`。
+- 在 `crates/core/src/models/**` 内引用 core 自身用 `crate::` 前缀，**不要** `tigshop_core::`。
+- 不要写 `const fn` 里对 `&str` 的 `match`（E0658）；不要重复声明同一结构体字段。
+- **查询/请求体 DTO 必须加 `#[serde(rename_all = "camelCase")]`**：前端传 camelCase，
+  缺了会被静默解析成 `None`（如 `?groupId=1` 变 `None`）或直接 400。
+- SQL 只用运行时 `sqlx::query` / `sqlx::query_as::<_, T>(...)` / `QueryBuilder`；
+  **禁用** `query!`/`query_as!` 宏（本机无 DATABASE_URL）。
+- 表名/列名用 `python tools/schema_parser.py --table <表名>` 核对；列名写错编译查不出。
+- 权限：本仓库目前只做登录态校验，`@PreAuthorize` 权限矩阵**尚未实现**，不要编造。
+- 单测断言值必须自己算对（本仓库多次出现把期望日期/金额/比例算错的测试）。
+
 # 权威资料（自己读，不要凭记忆）
 - 本片 Java 源控制器：tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java
 - 权威 schema：`java/database/pure.sql`；
@@ -44,56 +73,58 @@
   校验覆盖率：`cd D:\tigshop\java-b2b2b-pro-v5.8.57\rust && python tools/check_api_coverage.py`
 
 # 本片接口清单（权威，逐条实现；path 必须逐字符一致）
-- GET    /adminapi/setting/config/categoryDecorateSettings    | ConfigController.getCategoryDecorateSettings | auth=jwt+perm perm=config,decorate | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:450
-- POST   /adminapi/setting/config/saveCategoryDecorate        | ConfigController.saveCategoryDecorate | auth=jwt+perm perm=themeCategoryDecorateManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:457
-- GET    /adminapi/setting/config/productDetailStyleSettings  | ConfigController.getProductDetailStyleSettings | auth=jwt+perm perm=config,decorate | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:464
-- POST   /adminapi/setting/config/saveProductDetailStyle      | ConfigController.saveProductDetailStyle | auth=jwt+perm perm=pcProductStyleSaveManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:471
-- GET    /adminapi/setting/config/searchStyleSettings         | ConfigController.getSearchStyleSettings | auth=jwt+perm perm=config,decorate | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:478
-- POST   /adminapi/setting/config/saveSearchStyle             | ConfigController.saveSearchStyle | auth=jwt+perm perm=pcSearchStyleSaveManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:485
-- GET    /adminapi/setting/config/mobileSearchStyleSettings   | ConfigController.getMobileSearchStyleSettings | auth=jwt+perm perm=config,decorate | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:492
-- POST   /adminapi/setting/config/saveMobileSearchStyle       | ConfigController.saveMobileSearchStyle | auth=jwt+perm perm=mobileSearchStyleSaveManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:499
-- GET    /adminapi/setting/config/memberCenterDecorateSettings | ConfigController.getMemberCenterDecorateSettings | auth=jwt+perm perm=mobileUserManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:506
-- POST   /adminapi/setting/config/saveMemberCenterDecorate    | ConfigController.saveMemberCenterDecorate | auth=jwt+perm perm=mobileUserManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:513
-- GET    /adminapi/setting/config/shopSettings                | ConfigController.getShopSettings | auth=jwt+perm perm=config | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:520
-- POST   /adminapi/setting/config/saveShop                    | ConfigController.saveShop | auth=jwt+perm perm=shopSettingsUpdateManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:527
-- GET    /adminapi/setting/config/buyerShowSettings           | ConfigController.getBuyerShowSettings | auth=jwt+perm perm=buyerShowManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:534
-- POST   /adminapi/setting/config/saveBuyerShow               | ConfigController.saveBuyerShow | auth=jwt+perm perm=buyerShowSettingsUpdateManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:541
-- GET    /adminapi/setting/config/merchantSettings            | ConfigController.getMerchantSettings | auth=jwt+perm perm=config | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:548
-- POST   /adminapi/setting/config/saveMerchant                | ConfigController.saveMerchant | auth=jwt+perm perm=adminMerchantSettingsUpdateManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:555
-- GET    /adminapi/setting/config/getAdmin                    | ConfigController.getAdmin | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:562
-- GET    /adminapi/setting/config/getAdminBase                | ConfigController.getAdminBase | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:568
-- GET    /adminapi/setting/config/basicConfig                 | ConfigController.getBasicConfig | auth=jwt+perm perm=config | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:575
-- GET    /adminapi/setting/config/getIcon                     | ConfigController.getIcon | auth=jwt+perm perm=config | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:582
-- GET    /adminapi/setting/config/getBase                     | ConfigController.getBaseConfig | auth=jwt+perm perm=config | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:589
-- GET    /adminapi/setting/config/vendorSettings              | ConfigController.getVendorSettings | auth=jwt+perm perm=vendorSettingManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:596
-- POST   /adminapi/setting/config/saveVendor                  | ConfigController.saveVendor | auth=jwt+perm perm=vendorSettingUpdateManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:603
-- GET    /adminapi/setting/config/getLoginProtocol            | ConfigController.getLoginProtocol | auth=anonymous perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:609
-- GET    /adminapi/setting/config/getLoginProtocolContent     | ConfigController.getLoginProtocolContentVO | auth=anonymous perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:615
-- POST   /adminapi/setting/config/saveLoginProtocol           | ConfigController.saveLoginProtocol | auth=anonymous perm=protocolUpdateManagement | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:622
-- GET    /adminapi/setting/config/profitSharingSettings       | ConfigController.getProfitSharingSettings | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:628
-- POST   /adminapi/setting/config/saveProfitSharing           | ConfigController.saveProfitSharing | auth=jwt+perm perm=profitsharingSettingUpdateManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:635
-- GET    /adminapi/setting/config/withdrawalSettings          | ConfigController.getWithdrawalSettings | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:641
-- POST   /adminapi/setting/config/saveWithdrawal              | ConfigController.saveWithdrawal | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:647
-- GET    /adminapi/setting/config/memberWithdrawalSettings    | ConfigController.getMemberWithdrawalSettings | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:653
-- POST   /adminapi/setting/config/saveMemberWithdrawal        | ConfigController.saveMemberWithdrawal | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:659
-- GET    /adminapi/setting/config/commissionWithdrawalSettings | ConfigController.getCommissionWithdrawalSettings | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:665
-- POST   /adminapi/setting/config/saveCommissionWithdrawal    | ConfigController.saveCommissionWithdrawal | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:671
-- GET    /adminapi/setting/config/storeSettings               | ConfigController.getStoreSettings | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:677
-- POST   /adminapi/setting/config/saveStore                   | ConfigController.saveStore | auth=jwt+perm perm=storeSettingsUpdateManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:684
-- GET    /adminapi/setting/config/amapAllSettings             | ConfigController.amapAllSettings | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:703
-- POST   /adminapi/setting/config/saveAllAmapSettings         | ConfigController.saveAllAmapSettings | auth=jwt+perm perm=storeSettingsUpdateManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:710
-- GET    /adminapi/setting/config/mapSettings                 | ConfigController.mapSettings | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:716
-- POST   /adminapi/setting/config/saveMapSettings             | ConfigController.saveMapSettings | auth=jwt+perm perm=storeSettingsUpdateManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:723
-- POST   /adminapi/setting/config/savePersonalizedSetting     | ConfigController.savePersonalizedSetting | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:729
-- GET    /adminapi/setting/config/getPersonalizedSetting      | ConfigController.getPersonalizedSetting | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:735
-- GET    /adminapi/setting/config/searchSettings              | ConfigController.getSearchSettings | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:742
-- POST   /adminapi/setting/config/saveSearch                  | ConfigController.saveSearch | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:748
-- GET    /adminapi/setting/config/storeSelfOperatedSettings   | ConfigController.getStoreSelfOperatedSettings | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:754
-- POST   /adminapi/setting/config/saveStoreSelfOperated       | ConfigController.saveStore | auth=jwt+perm perm=storeSettingsUpdateManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:761
-- POST   /adminapi/setting/config/saveDingConfig              | ConfigController.saveDingConfig | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:768
-- POST   /adminapi/setting/config/saveWXWorkConfig            | ConfigController.saveWXWorkConfig | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:774
-- GET    /adminapi/setting/config/getDingConfig               | ConfigController.getDingConfig | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:780
-- GET    /adminapi/setting/config/getWXWorkConfig             | ConfigController.getWXWorkConfig | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:786
+
+> ⚠️ 本片 50 个接口中，**已实现 0 个（下方标 [已实现]）**，你只需实现其余 **50 个**。重复注册已实现路径会导致服务启动 panic。
+- GET    /adminapi/setting/config/categoryDecorateSettings    | ConfigController.getCategoryDecorateSettings | auth=jwt+perm perm=config,decorate |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:450
+- POST   /adminapi/setting/config/saveCategoryDecorate        | ConfigController.saveCategoryDecorate | auth=jwt+perm perm=themeCategoryDecorateManage |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:457
+- GET    /adminapi/setting/config/productDetailStyleSettings  | ConfigController.getProductDetailStyleSettings | auth=jwt+perm perm=config,decorate |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:464
+- POST   /adminapi/setting/config/saveProductDetailStyle      | ConfigController.saveProductDetailStyle | auth=jwt+perm perm=pcProductStyleSaveManage |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:471
+- GET    /adminapi/setting/config/searchStyleSettings         | ConfigController.getSearchStyleSettings | auth=jwt+perm perm=config,decorate |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:478
+- POST   /adminapi/setting/config/saveSearchStyle             | ConfigController.saveSearchStyle | auth=jwt+perm perm=pcSearchStyleSaveManage |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:485
+- GET    /adminapi/setting/config/mobileSearchStyleSettings   | ConfigController.getMobileSearchStyleSettings | auth=jwt+perm perm=config,decorate |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:492
+- POST   /adminapi/setting/config/saveMobileSearchStyle       | ConfigController.saveMobileSearchStyle | auth=jwt+perm perm=mobileSearchStyleSaveManage |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:499
+- GET    /adminapi/setting/config/memberCenterDecorateSettings | ConfigController.getMemberCenterDecorateSettings | auth=jwt+perm perm=mobileUserManage |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:506
+- POST   /adminapi/setting/config/saveMemberCenterDecorate    | ConfigController.saveMemberCenterDecorate | auth=jwt+perm perm=mobileUserManage |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:513
+- GET    /adminapi/setting/config/shopSettings                | ConfigController.getShopSettings | auth=jwt+perm perm=config |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:520
+- POST   /adminapi/setting/config/saveShop                    | ConfigController.saveShop | auth=jwt+perm perm=shopSettingsUpdateManage |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:527
+- GET    /adminapi/setting/config/buyerShowSettings           | ConfigController.getBuyerShowSettings | auth=jwt+perm perm=buyerShowManage |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:534
+- POST   /adminapi/setting/config/saveBuyerShow               | ConfigController.saveBuyerShow | auth=jwt+perm perm=buyerShowSettingsUpdateManage |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:541
+- GET    /adminapi/setting/config/merchantSettings            | ConfigController.getMerchantSettings | auth=jwt+perm perm=config |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:548
+- POST   /adminapi/setting/config/saveMerchant                | ConfigController.saveMerchant | auth=jwt+perm perm=adminMerchantSettingsUpdateManage |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:555
+- GET    /adminapi/setting/config/getAdmin                    | ConfigController.getAdmin | auth=jwt perm=- |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:562
+- GET    /adminapi/setting/config/getAdminBase                | ConfigController.getAdminBase | auth=jwt perm=- |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:568
+- GET    /adminapi/setting/config/basicConfig                 | ConfigController.getBasicConfig | auth=jwt+perm perm=config |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:575
+- GET    /adminapi/setting/config/getIcon                     | ConfigController.getIcon | auth=jwt+perm perm=config |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:582
+- GET    /adminapi/setting/config/getBase                     | ConfigController.getBaseConfig | auth=jwt+perm perm=config |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:589
+- GET    /adminapi/setting/config/vendorSettings              | ConfigController.getVendorSettings | auth=jwt+perm perm=vendorSettingManage |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:596
+- POST   /adminapi/setting/config/saveVendor                  | ConfigController.saveVendor | auth=jwt+perm perm=vendorSettingUpdateManage |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:603
+- GET    /adminapi/setting/config/getLoginProtocol            | ConfigController.getLoginProtocol | auth=anonymous perm=- |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:609
+- GET    /adminapi/setting/config/getLoginProtocolContent     | ConfigController.getLoginProtocolContentVO | auth=anonymous perm=- |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:615
+- POST   /adminapi/setting/config/saveLoginProtocol           | ConfigController.saveLoginProtocol | auth=anonymous perm=protocolUpdateManagement |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:622
+- GET    /adminapi/setting/config/profitSharingSettings       | ConfigController.getProfitSharingSettings | auth=jwt perm=- |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:628
+- POST   /adminapi/setting/config/saveProfitSharing           | ConfigController.saveProfitSharing | auth=jwt+perm perm=profitsharingSettingUpdateManage |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:635
+- GET    /adminapi/setting/config/withdrawalSettings          | ConfigController.getWithdrawalSettings | auth=jwt perm=- |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:641
+- POST   /adminapi/setting/config/saveWithdrawal              | ConfigController.saveWithdrawal | auth=jwt perm=- |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:647
+- GET    /adminapi/setting/config/memberWithdrawalSettings    | ConfigController.getMemberWithdrawalSettings | auth=jwt perm=- |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:653
+- POST   /adminapi/setting/config/saveMemberWithdrawal        | ConfigController.saveMemberWithdrawal | auth=jwt perm=- |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:659
+- GET    /adminapi/setting/config/commissionWithdrawalSettings | ConfigController.getCommissionWithdrawalSettings | auth=jwt perm=- |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:665
+- POST   /adminapi/setting/config/saveCommissionWithdrawal    | ConfigController.saveCommissionWithdrawal | auth=jwt perm=- |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:671
+- GET    /adminapi/setting/config/storeSettings               | ConfigController.getStoreSettings | auth=jwt perm=- |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:677
+- POST   /adminapi/setting/config/saveStore                   | ConfigController.saveStore | auth=jwt+perm perm=storeSettingsUpdateManage |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:684
+- GET    /adminapi/setting/config/amapAllSettings             | ConfigController.amapAllSettings | auth=jwt perm=- |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:703
+- POST   /adminapi/setting/config/saveAllAmapSettings         | ConfigController.saveAllAmapSettings | auth=jwt+perm perm=storeSettingsUpdateManage |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:710
+- GET    /adminapi/setting/config/mapSettings                 | ConfigController.mapSettings | auth=jwt perm=- |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:716
+- POST   /adminapi/setting/config/saveMapSettings             | ConfigController.saveMapSettings | auth=jwt+perm perm=storeSettingsUpdateManage |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:723
+- POST   /adminapi/setting/config/savePersonalizedSetting     | ConfigController.savePersonalizedSetting | auth=jwt perm=- |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:729
+- GET    /adminapi/setting/config/getPersonalizedSetting      | ConfigController.getPersonalizedSetting | auth=jwt perm=- |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:735
+- GET    /adminapi/setting/config/searchSettings              | ConfigController.getSearchSettings | auth=jwt perm=- |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:742
+- POST   /adminapi/setting/config/saveSearch                  | ConfigController.saveSearch | auth=jwt perm=- |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:748
+- GET    /adminapi/setting/config/storeSelfOperatedSettings   | ConfigController.getStoreSelfOperatedSettings | auth=jwt perm=- |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:754
+- POST   /adminapi/setting/config/saveStoreSelfOperated       | ConfigController.saveStore | auth=jwt+perm perm=storeSettingsUpdateManage |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:761
+- POST   /adminapi/setting/config/saveDingConfig              | ConfigController.saveDingConfig | auth=jwt perm=- |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:768
+- POST   /adminapi/setting/config/saveWXWorkConfig            | ConfigController.saveWXWorkConfig | auth=jwt perm=- |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:774
+- GET    /adminapi/setting/config/getDingConfig               | ConfigController.getDingConfig | auth=jwt perm=- |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:780
+- GET    /adminapi/setting/config/getWXWorkConfig             | ConfigController.getWXWorkConfig | auth=jwt perm=- |          | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\setting\ConfigController.java:786
 
 # 交付要求
 1. 写好代码，每个 handler 带简短 `///` 注释标明对应原 Java 方法。

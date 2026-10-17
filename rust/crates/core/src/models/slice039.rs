@@ -676,13 +676,17 @@ mod tests {
     // ————————————————————— 时间格式化 —————————————————————
 
     /// 秒级时间戳按东八区格式化。
+    ///
+    /// ⚠️ 期望值口径（曾两次算错，勿改）：`1_700_000_000` 的 UTC 是
+    /// `2023-11-14 22:13:20`，**+8h ⇒ `2023-11-15 06:13:20`**（不是 14:13:20）。
+    /// `Some(1)` = epoch +1 秒 ⇒ 东八区 `08:00:01`（不是 08:00:00）。
     #[test]
     fn format_create_time_uses_east8() {
         assert_eq!(
             format_create_time(Some(1_700_000_000)),
-            "2023-11-15 14:13:20"
+            "2023-11-15 06:13:20"
         );
-        assert_eq!(format_create_time(Some(1)), "1970-01-01 08:00:00");
+        assert_eq!(format_create_time(Some(1)), "1970-01-01 08:00:01");
     }
 
     /// 与 Java 逐字对齐的三个分支：`null` → `""`；`<= 0` → `""`；正常 → 格式化。
@@ -718,7 +722,7 @@ mod tests {
         assert_eq!(vo.id, 7);
         assert_eq!(vo.group_id, 42);
         assert_eq!(vo.tag_name, "高价值客户");
-        assert_eq!(vo.create_time, "2023-11-15 14:13:20");
+        assert_eq!(vo.create_time, "2023-11-15 06:13:20");
         let json = serde_json::to_string(&vo).unwrap();
         assert!(!json.contains("shopId"), "VO 不应包含 shopId：{json}");
         assert!(!json.contains("isDel"), "VO 不应包含 isDel：{json}");
@@ -756,7 +760,7 @@ mod tests {
                 create_time: String::new(),
             }],
         );
-        assert_eq!(vo.create_time, "2023-11-15 14:13:20");
+        assert_eq!(vo.create_time, "2023-11-15 06:13:20");
         let v: serde_json::Value = serde_json::to_value(&vo).unwrap();
         let obj = v.as_object().unwrap();
         assert_eq!(obj.len(), 4);

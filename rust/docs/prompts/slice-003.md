@@ -19,9 +19,19 @@
    `python tools/check_sql_columns.py --strict` 能查。
 3. 金额一律 `rust_decimal::Decimal`，**禁用 f64/f32**。
 4. 库存扣减必须写成 `UPDATE ... WHERE stock >= ?` 形式（原子防超卖）。
-5. 你只新建上面"独占"的文件，以及（必要时）在
-   crates/core/src/models/ 下新建本域 DTO。**不要改任何共享文件**。
+5. 你只改上面"独占"的文件（它们**可能已存在为空骨架**——那就直接**原地覆盖**为
+   真实实现，并删掉文件头里的「骨架」字样），以及（必要时）在
+   crates/core/src/models/ 下新建/补全本域 DTO。**不要改任何共享文件**。
 6. 不要改 crates/core/src/entities/**（321 张表实体已 100% 自动生成）。
+7. **防重复注册**：本片接口清单里标了 `[已实现]` 的接口**已由其它文件实现**，
+   你**绝不要**在本片重复注册同一 `(method, path)` —— axum `Router::merge`
+   遇到重复路径会在**服务启动时 panic**，而 `cargo check` 完全查不出。
+   只实现**未标注**的接口。
+8. **保持公开签名不变**：若独占文件已存在（骨架），必须沿用现有结构体名、
+   `Repository::new(pool: MySqlPool)` / `pool_clone()`、
+   `Service::new(repos: Arc<Repositories>)`、`routes(state)`、
+   `implemented_routes()` 的签名 —— 共享文件已按这些签名注册，改了会编译失败。
+   已注册的切片**无需**再返回 needs_registration（保持为空对象即可）。
 
 # 现有代码结构（照它的样子写，先看样板再动手）
 - 路由样板：crates/api/admin/src/routes/seckill.rs（注意它顶部有
@@ -35,6 +45,25 @@
   （public 侧是 `&PublicState` / `Router<PublicState>`）
 - 响应统一：`ok(...)` 返回 `ApiResult<T>`；错误用 `tigshop_core::Error`
 
+# 本仓库已知高频错误（都真实发生过，务必避免）
+- 金额一律 `rust_decimal::Decimal`，**禁用 f64/f32**。
+- `rust_decimal` **没有** `ceil_dp`/`to_i32`；向上取整用
+  `round_dp_with_strategy(n, RoundingStrategy::ToPositiveInfinity)`；
+  取整数需 `use rust_decimal::prelude::ToPrimitive;` 后 `to_i64()`。
+  Java `HALF_UP` → `RoundingStrategy::MidpointAwayFromZero`。
+- `tigshop_core::Error` 是**枚举**，**没有** `.message` 字段；消息用 `e.to_string()`。
+  没有 `Error::forbidden`（用 `Error::Forbidden` 或 `Error::biz(code, msg)`）。
+- **不要** `use rand::`（该依赖未声明）；随机串用 `tigshop_common::utils::random_hex()`。
+- 在 `crates/core/src/models/**` 内引用 core 自身用 `crate::` 前缀，**不要** `tigshop_core::`。
+- 不要写 `const fn` 里对 `&str` 的 `match`（E0658）；不要重复声明同一结构体字段。
+- **查询/请求体 DTO 必须加 `#[serde(rename_all = "camelCase")]`**：前端传 camelCase，
+  缺了会被静默解析成 `None`（如 `?groupId=1` 变 `None`）或直接 400。
+- SQL 只用运行时 `sqlx::query` / `sqlx::query_as::<_, T>(...)` / `QueryBuilder`；
+  **禁用** `query!`/`query_as!` 宏（本机无 DATABASE_URL）。
+- 表名/列名用 `python tools/schema_parser.py --table <表名>` 核对；列名写错编译查不出。
+- 权限：本仓库目前只做登录态校验，`@PreAuthorize` 权限矩阵**尚未实现**，不要编造。
+- 单测断言值必须自己算对（本仓库多次出现把期望日期/金额/比例算错的测试）。
+
 # 权威资料（自己读，不要凭记忆）
 - 本片 Java 源控制器：tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java
 - 权威 schema：`java/database/pure.sql`；
@@ -44,35 +73,37 @@
   校验覆盖率：`cd D:\tigshop\java-b2b2b-pro-v5.8.57\rust && python tools/check_api_coverage.py`
 
 # 本片接口清单（权威，逐条实现；path 必须逐字符一致）
-- GET    /adminapi/product/stock/page                         | ProductStockController.page | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:58
-- GET    /adminapi/product/stock/stockDetail                  | ProductStockController.stockDetail | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:68
-- GET    /adminapi/product/stock/record/page                  | ProductStockController.productStockRecordPage | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:74
-- GET    /adminapi/product/stock/getRecordDetail              | ProductStockController.getRecordDetail | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:80
-- POST   /adminapi/product/stock/stockIn                      | ProductStockController.productStockIn | auth=jwt+perm perm=productStockInUpdateManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:87
-- POST   /adminapi/product/stock/stockOut                     | ProductStockController.productStockOut | auth=jwt+perm perm=productStockOutUpdateManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:94
-- GET    /adminapi/product/stock/downloadTemplate             | ProductStockController.downloadTemplate | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:100
-- POST   /adminapi/product/stock/batchImport                  | ProductStockController.batchImport | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:106
-- POST   /adminapi/product/stock/getImportErrorData           | ProductStockController.getImportErrorData | auth=anonymous perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:112
-- POST   /adminapi/product/stock/stockAdjust                  | ProductStockController.stockAdjust | auth=jwt+perm perm=productStockAdjustUpdateManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:119
-- GET    /adminapi/product/stock/adjustDetail                 | ProductStockController.adjustDetail | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:125
-- GET    /adminapi/product/stock/getAllocateProductStockPage  | ProductStockController.getAllocateProductStockPage | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:131
-- GET    /adminapi/product/stock/productStockAllocateRecordPage | ProductStockController.productStockAllocateRecordPage | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:185
-- GET    /adminapi/product/stock/productStockAllocateRecordDetail | ProductStockController.productStockAllocateRecordDetail | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:191
-- POST   /adminapi/product/stock/createAllocate               | ProductStockController.createAllocate | auth=jwt+perm perm=productStockAllocateUpdateManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:199
-- GET    /adminapi/product/stock/getOrgList                   | ProductStockController.getOrgList | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:205
-- GET    /adminapi/product/stock/getAddByList                 | ProductStockController.getAddBy | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:211
-- POST   /adminapi/product/stock/auditAllocate                | ProductStockController.auditAllocate | auth=jwt+perm perm=productStockAllocateUpdateManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:218
-- POST   /adminapi/product/stock/cancelAllocate               | ProductStockController.cancelAllocate | auth=jwt+perm perm=productStockAllocateUpdateManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:225
-- POST   /adminapi/product/stock/stockOutAllocate             | ProductStockController.stockOutAllocate | auth=jwt+perm perm=productStockAllocateUpdateManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:232
-- POST   /adminapi/product/stock/stockInAllocate              | ProductStockController.stockInAllocate | auth=jwt+perm perm=productStockAllocateUpdateManage | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:239
-- POST   /adminapi/product/stock/exportAllocate               | ProductStockController.exportAllocate | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:246
-- GET    /adminapi/product/stock/getAllocateTemplate          | ProductStockController.getAllocateTemplate | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:253
-- POST   /adminapi/product/stock/batchImportAllocate          | ProductStockController.batchImportAllocate | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:261
-- POST   /adminapi/product/stock/getBatchImportErrorData      | ProductStockController.getBatchImportErrorData | auth=anonymous perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:267
-- GET    /adminapi/product/stock/productStockAllocateOperationDetail | ProductStockController.productStockAllocateOperationDetail | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:274
-- GET    /adminapi/product/stock/downloadAllocateTemplate     | ProductStockController.downloadAllocateTemplate | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:280
-- POST   /adminapi/product/stock/batchImportAllocateProduct   | ProductStockController.batchImportAllocateProduct | auth=jwt perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:287
-- POST   /adminapi/product/stock/getAllocateProductErrorData  | ProductStockController.getAllocateProductErrorData | auth=anonymous perm=- | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:295
+
+> ⚠️ 本片 29 个接口中，**已实现 29 个（下方标 [已实现]）**，你只需实现其余 **0 个**。重复注册已实现路径会导致服务启动 panic。
+- GET    /adminapi/product/stock/page                         | ProductStockController.page | auth=jwt perm=- | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:58
+- GET    /adminapi/product/stock/stockDetail                  | ProductStockController.stockDetail | auth=jwt perm=- | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:68
+- GET    /adminapi/product/stock/record/page                  | ProductStockController.productStockRecordPage | auth=jwt perm=- | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:74
+- GET    /adminapi/product/stock/getRecordDetail              | ProductStockController.getRecordDetail | auth=jwt perm=- | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:80
+- POST   /adminapi/product/stock/stockIn                      | ProductStockController.productStockIn | auth=jwt+perm perm=productStockInUpdateManage | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:87
+- POST   /adminapi/product/stock/stockOut                     | ProductStockController.productStockOut | auth=jwt+perm perm=productStockOutUpdateManage | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:94
+- GET    /adminapi/product/stock/downloadTemplate             | ProductStockController.downloadTemplate | auth=jwt perm=- | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:100
+- POST   /adminapi/product/stock/batchImport                  | ProductStockController.batchImport | auth=jwt perm=- | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:106
+- POST   /adminapi/product/stock/getImportErrorData           | ProductStockController.getImportErrorData | auth=anonymous perm=- | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:112
+- POST   /adminapi/product/stock/stockAdjust                  | ProductStockController.stockAdjust | auth=jwt+perm perm=productStockAdjustUpdateManage | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:119
+- GET    /adminapi/product/stock/adjustDetail                 | ProductStockController.adjustDetail | auth=jwt perm=- | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:125
+- GET    /adminapi/product/stock/getAllocateProductStockPage  | ProductStockController.getAllocateProductStockPage | auth=jwt perm=- | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:131
+- GET    /adminapi/product/stock/productStockAllocateRecordPage | ProductStockController.productStockAllocateRecordPage | auth=jwt perm=- | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:185
+- GET    /adminapi/product/stock/productStockAllocateRecordDetail | ProductStockController.productStockAllocateRecordDetail | auth=jwt perm=- | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:191
+- POST   /adminapi/product/stock/createAllocate               | ProductStockController.createAllocate | auth=jwt+perm perm=productStockAllocateUpdateManage | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:199
+- GET    /adminapi/product/stock/getOrgList                   | ProductStockController.getOrgList | auth=jwt perm=- | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:205
+- GET    /adminapi/product/stock/getAddByList                 | ProductStockController.getAddBy | auth=jwt perm=- | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:211
+- POST   /adminapi/product/stock/auditAllocate                | ProductStockController.auditAllocate | auth=jwt+perm perm=productStockAllocateUpdateManage | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:218
+- POST   /adminapi/product/stock/cancelAllocate               | ProductStockController.cancelAllocate | auth=jwt+perm perm=productStockAllocateUpdateManage | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:225
+- POST   /adminapi/product/stock/stockOutAllocate             | ProductStockController.stockOutAllocate | auth=jwt+perm perm=productStockAllocateUpdateManage | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:232
+- POST   /adminapi/product/stock/stockInAllocate              | ProductStockController.stockInAllocate | auth=jwt+perm perm=productStockAllocateUpdateManage | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:239
+- POST   /adminapi/product/stock/exportAllocate               | ProductStockController.exportAllocate | auth=jwt perm=- | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:246
+- GET    /adminapi/product/stock/getAllocateTemplate          | ProductStockController.getAllocateTemplate | auth=jwt perm=- | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:253
+- POST   /adminapi/product/stock/batchImportAllocate          | ProductStockController.batchImportAllocate | auth=jwt perm=- | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:261
+- POST   /adminapi/product/stock/getBatchImportErrorData      | ProductStockController.getBatchImportErrorData | auth=anonymous perm=- | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:267
+- GET    /adminapi/product/stock/productStockAllocateOperationDetail | ProductStockController.productStockAllocateOperationDetail | auth=jwt perm=- | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:274
+- GET    /adminapi/product/stock/downloadAllocateTemplate     | ProductStockController.downloadAllocateTemplate | auth=jwt perm=- | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:280
+- POST   /adminapi/product/stock/batchImportAllocateProduct   | ProductStockController.batchImportAllocateProduct | auth=jwt perm=- | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:287
+- POST   /adminapi/product/stock/getAllocateProductErrorData  | ProductStockController.getAllocateProductErrorData | auth=anonymous perm=- | [已实现] | src=tigshop-adminapi\src\main\java\com\tigshop\adminapi\controller\product\ProductStockController.java:295
 
 # 交付要求
 1. 写好代码，每个 handler 带简短 `///` 注释标明对应原 Java 方法。

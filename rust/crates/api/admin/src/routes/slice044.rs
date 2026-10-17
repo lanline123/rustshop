@@ -370,13 +370,27 @@ mod tests {
 
     #[test]
     fn missing_or_dirty_vendor_header_falls_back_to_zero() {
-        for raw in ["", "   ", "abc", "0", "-3"] {
+        // Java `HeaderUtils.getVendorId`：adminType=="vendor" 时，
+        //   vendorId 头 `StrUtil.isEmpty` ⇒ null(=0)；非空则 `Integer.parseInt(vendorId)`。
+        // 故：
+        //   ""    → 空 ⇒ 0
+        //   "0"   → parseInt ⇒ 0
+        //   "   "/"abc" → Java 会抛 NumberFormatException（HTTP 500）；
+        //                 Rust 用 `.ok().unwrap_or(0)` **宽容**为 0（见 resolve_vendor_id）。
+        for raw in ["", "   ", "abc", "0"] {
             let id = resolve_vendor_id(
                 &headers(&[("x-admin-type", "vendor"), ("x-vendor-id", raw)]),
                 &auth_with_type(None),
             );
             assert_eq!(id, 0, "x-vendor-id={raw:?} 应归一为 0");
         }
+        // ⚠️ 负数**不归零**：Java `Integer.parseInt("-3")` == -3，
+        // 由 `require_vendor_id`（`<= 0` ⇒ 401）拒绝，而非在解析处归零。
+        let neg = resolve_vendor_id(
+            &headers(&[("x-admin-type", "vendor"), ("x-vendor-id", "-3")]),
+            &auth_with_type(None),
+        );
+        assert_eq!(neg, -3, "Java Integer.parseInt(\"-3\") == -3，不归零");
         // 头缺失
         let id = resolve_vendor_id(&headers(&[("x-admin-type", "vendor")]), &auth_with_type(None));
         assert_eq!(id, 0);
