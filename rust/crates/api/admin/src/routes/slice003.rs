@@ -449,7 +449,11 @@ async fn get_add_by_list(State(state): State<AdminState>) -> ApiResult<Vec<Strin
 ///
 /// 对应 Java `ProductStockController.productStockAllocateOperationDetail(
 /// @RequestParam("allocateId") Integer)`。
+///
+/// ⚠️ 必须带 `rename_all = "camelCase"`：Java 参数名是 **`allocateId`**，
+/// 缺这个属性时 serde 只认 `allocate_id`，前端传 `?allocateId=1` 会 400。
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct AllocateIdQuery {
     allocate_id: i32,
 }

@@ -70,8 +70,39 @@ def main():
     args = ap.parse_args()
 
     slices = json.load(open(os.path.join(RUST, "docs", "slices.json"), encoding="utf-8"))
-    pend = json.load(open(os.path.join(RUST, "docs", "pending-slices.json"), encoding="utf-8"))
-    pend_keys = {p["key"] for p in pend["pending"]}
+
+    # ⚠️ 不要再用 docs/pending-slices.json 判断「未完成」：那是早期手工快照，
+    # 没有生成器、会过期（实测它仍把已实现并已注册的 slice137/194 等列为待办，
+    # 导致编排重复派发已完成切片）。改为**以源码实际内容为准**：
+    # 服务层文件是每个切片必然产出的核心文件，它存在即视为已开工。
+    crates = os.path.join(RUST, "crates")
+
+    def is_skeleton(text):
+        """识别 scaffold_slices.py 生成的**空骨架**。
+
+        骨架特征：文件头写着「骨架」，且**没有 `async fn`**（无任何业务逻辑），
+        `routes()` 返回空 `Router::new()`、`implemented_routes()` 返回空 Vec。
+        这类切片**接口完全不可访问**，必须当作待办重新实现
+        （见 .workbuddy/memory/2026-10-15.md：曾因把骨架当「已实现」
+        而虚报进度 62 片 / 257 个接口）。
+        """
+        return "骨架" in text and "async fn" not in text
+
+    def needs_work(key):
+        p = os.path.join(crates, "services", "src", "%s.rs" % key)
+        if not os.path.isfile(p):
+            return True
+        try:
+            with open(p, encoding="utf-8", errors="replace") as fh:
+                return is_skeleton(fh.read())
+        except OSError:
+            return True
+
+    pend_keys = {
+        s["slice_id"].replace("-", "")
+        for s in slices
+        if needs_work(s["slice_id"].replace("-", ""))
+    }
 
     items = []
     for s in slices:

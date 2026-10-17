@@ -195,6 +195,42 @@ def insert_after_first_anchor(text, anchors, line):
     raise ValueError("所有候选锚点都未找到：%r" % (anchors,))
 
 
+_CTOR_RE = None  # 延迟编译，见函数内
+
+
+def insert_ctor_by_name(text, anchors, name, svc):
+    """按**变量名**幂等地插入 `let NAME = Arc::new(Svc::new(...));` 构造行。
+
+    与 `insert_after_first_anchor` 的区别：幂等判断不看整行文本，
+    只看是否存在 `let <name> = ...` 行。这样非标准构造（如 slice029 的
+    两参数 `new(repos.clone(), slice001.clone())`）不会被误当作"缺失"
+    而反复插入标准 1 参数行（曾导致 main.rs 出现 4 个 slice029 定义、
+    其中 3 个参数个数错误，E0061 编译失败）。
+    """
+    global _CTOR_RE
+    import re as _re
+
+    if _CTOR_RE is None:
+        _CTOR_RE = _re.compile(r"^\s*let\s+(slice\d{3})\s*=")
+
+    for ln in text.splitlines():
+        m = _CTOR_RE.match(ln)
+        if m and m.group(1) == name:
+            return text, False  # 该切片的构造行已存在（无论签名如何）
+
+    line = "    let %s = Arc::new(%s::new(repos.clone()));" % (name, svc)
+    lines = text.split("\n")
+    for anchor in anchors:
+        for i, ln in enumerate(lines):
+            if ln.strip() == anchor.strip():
+                lines.insert(i + 1, line)
+                out = "\n".join(lines)
+                if not out.endswith("\n"):
+                    out += "\n"
+                return out, True
+    raise ValueError("所有候选锚点都未找到：%r" % (anchors,))
+
+
 def _block_range(lines, open_anchor):
     """返回块起始行号与结束行号（半开区间 [start, end)）。"""
     start = None
@@ -441,11 +477,17 @@ class Registrar:
                 "use tigshop_services::%s::%s;" % (name, svc),
             )
             changed |= c
-            # 2) 服务构造（与其它切片构造相邻）
-            t, c = insert_after_first_anchor(
+            # 2) 服务构造（与其它切片构造相邻）。
+            #    ⚠️ 幂等必须**按变量名**判断，不能按整行精确文本：
+            #    少数切片的构造函数不是标准 `new(repos.clone())`
+            #    （如 slice029 是 `new(repos.clone(), slice001.clone())`），
+            #    精确文本永远匹配不上已有行 → 每跑一次就多插一行错误的
+            #    1 参数构造（曾把 main.rs 插出 4 个 slice029，编译直接挂）。
+            t, c = insert_ctor_by_name(
                 t,
                 ["let slice001 = Arc::new(Slice001Service::new(repos.clone()));"],
-                "    let %s = Arc::new(%s::new(repos.clone()));" % (name, svc),
+                name,
+                svc,
             )
             changed |= c
             # 3) AdminState 字段（**块锚点必须无歧义**：不能用

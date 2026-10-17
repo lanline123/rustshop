@@ -17,6 +17,10 @@ use tigshop_core::Error;
 use crate::JwtService;
 
 /// 全局错误响应包装：任意 `tigshop_core::Error` → 标准 JSON 响应。
+///
+/// ⚠️ 必须派生 `Debug`：测试里 `Result::expect(...)` / `unwrap()` 要求
+/// 错误类型实现 `Debug`（否则 E0277: `AppError` doesn't implement `Debug`）。
+#[derive(Debug)]
 pub struct AppError(pub Error);
 
 impl IntoResponse for AppError {

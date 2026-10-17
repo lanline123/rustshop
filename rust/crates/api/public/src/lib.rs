@@ -43,6 +43,7 @@ use tigshop_services::slice156::Slice156Service;
 use tigshop_services::slice140::Slice140Service;
 use tigshop_services::slice097::Slice097Service;
 use tigshop_services::shop::ShopService;
+use tigshop_services::slice207::Slice207Service;
 use tigshop_services::slice172::Slice172Service;
 use tigshop_services::slice091::Slice091Service;
 use tigshop_services::slice170::Slice170Service;
@@ -141,6 +142,7 @@ pub struct PublicState {
     pub slice170: Arc<Slice170Service>,
     pub slice091: Arc<Slice091Service>,
     pub slice172: Arc<Slice172Service>,
+    pub slice207: Arc<Slice207Service>,
 }
 
 /// 构建商城前台路由。

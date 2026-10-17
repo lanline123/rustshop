@@ -1,6 +1,9 @@
 //! 管理端商户/店铺域路由。
 //! 对应原 Java `controller.shop.ShopController` / `AccountController` /
-//! `ShopWithdrawController` / `ShopProductCategoryController`。
+//! `ShopWithdrawController`。
+//!
+//! > `ShopProductCategoryController` 的 `list` / `detail` 已由 slice108 接管
+//! > （见 `routes/slice108.rs`），本文件不再注册，避免重复路由导致启动 panic。
 //!
 //! | 路由 | 原 Java |
 //! |------|---------|
@@ -12,8 +15,6 @@
 //! | `GET /adminapi/merchant/shopWithdraw/detail` | `ShopWithdrawController.detail` |
 //! | `GET /adminapi/merchant/shopWithdraw/config` | `ShopWithdrawController.config` |
 //! | `POST /adminapi/merchant/shopWithdraw/audit` | `ShopWithdrawController.audit` |
-//! | `GET /adminapi/merchant/shopProductCategory/list` | `ShopProductCategoryController.list` |
-//! | `GET /adminapi/merchant/shopProductCategory/detail` | `ShopProductCategoryController.detail` |
 
 use axum::{
     extract::{Query, State},
@@ -22,9 +23,8 @@ use axum::{
 };
 use serde::Deserialize;
 use tigshop_core::models::shop::{
-    ShopAccountLogListQuery, ShopAccountLogVO, ShopListQuery, ShopProductCategoryListQuery,
-    ShopProductCategoryVO, ShopUpdateDTO, ShopVO, ShopWithdrawAuditDTO, ShopWithdrawListQuery,
-    ShopWithdrawVO,
+    ShopAccountLogListQuery, ShopAccountLogVO, ShopListQuery, ShopUpdateDTO, ShopVO,
+    ShopWithdrawAuditDTO, ShopWithdrawListQuery, ShopWithdrawVO,
 };
 use tigshop_core::types::PageResult;
 use tigshop_security::web::{ok, ApiResult, AuthUser};
@@ -42,8 +42,8 @@ pub fn routes(_state: &AdminState) -> Router<AdminState> {
         .route("/merchant/shopWithdraw/detail", get(withdraw_detail))
         .route("/merchant/shopWithdraw/config", get(withdraw_config))
         .route("/merchant/shopWithdraw/audit", post(withdraw_audit))
-        .route("/merchant/shopProductCategory/list", get(category_list))
-        .route("/merchant/shopProductCategory/detail", get(category_detail))
+        // `shopProductCategory/*` 已由 slice108 接管（见 routes/slice108.rs），
+        // 此处不再注册，否则同一 (method, path) 重复注册会让 axum 启动时 panic。
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。
@@ -85,16 +85,6 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
             "POST",
             "/adminapi/merchant/shopWithdraw/audit",
             "ShopWithdrawController.audit",
-        ),
-        (
-            "GET",
-            "/adminapi/merchant/shopProductCategory/list",
-            "ShopProductCategoryController.list",
-        ),
-        (
-            "GET",
-            "/adminapi/merchant/shopProductCategory/detail",
-            "ShopProductCategoryController.detail",
         ),
     ]
     .iter()
@@ -182,21 +172,4 @@ async fn withdraw_audit(
         .withdraw_audit(&dto, auth.admin_type.as_deref())
         .await?;
     ok("操作成功")
-}
-
-/// `GET /adminapi/merchant/shopProductCategory/list`：经营类目分页。
-/// 原 Java 从登录 header 取 `shopId`，Rust 改为 query 传入。
-async fn category_list(
-    State(state): State<AdminState>,
-    Query(q): Query<ShopProductCategoryListQuery>,
-) -> ApiResult<PageResult<ShopProductCategoryVO>> {
-    ok(state.shop.product_categories(&q).await?)
-}
-
-/// `GET /adminapi/merchant/shopProductCategory/detail?id=`：经营类目详情。
-async fn category_detail(
-    State(state): State<AdminState>,
-    Query(q): Query<WithdrawIdQuery>,
-) -> ApiResult<ShopProductCategoryVO> {
-    ok(state.shop.product_category_detail(q.id).await?)
 }

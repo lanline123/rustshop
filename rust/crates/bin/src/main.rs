@@ -31,6 +31,17 @@ use tigshop_services::logistics::LogisticsService;
 use tigshop_services::member::MemberService;
 use tigshop_services::seckill::SeckillService;
 use tigshop_services::slice001::Slice001Service;
+use tigshop_services::slice044::Slice044Service;
+use tigshop_services::slice039::Slice039Service;
+use tigshop_services::slice210::Slice210Service;
+use tigshop_services::slice207::Slice207Service;
+use tigshop_services::slice163::Slice163Service;
+use tigshop_services::slice157::Slice157Service;
+use tigshop_services::slice137::Slice137Service;
+use tigshop_services::slice108::Slice108Service;
+use tigshop_services::slice085::Slice085Service;
+use tigshop_services::slice038::Slice038Service;
+use tigshop_services::slice037::Slice037Service;
 use tigshop_services::slice220::Slice220Service;
 use tigshop_services::slice209::Slice209Service;
 use tigshop_services::slice201::Slice201Service;
@@ -219,12 +230,25 @@ async fn main() -> anyhow::Result<()> {
     let refund_apply = Arc::new(RefundApplyService::new(repos.clone()));
     let balance_pay = Arc::new(BalancePayService::new(repos.clone()));
     let slice001 = Arc::new(Slice001Service::new(repos.clone()));
+    let slice044 = Arc::new(Slice044Service::new(repos.clone()));
+    let slice039 = Arc::new(Slice039Service::new(repos.clone()));
+    let slice210 = Arc::new(Slice210Service::new(repos.clone()));
+    let slice207 = Arc::new(Slice207Service::new(repos.clone()));
+    let slice163 = Arc::new(Slice163Service::new(repos.clone()));
+    let slice157 = Arc::new(Slice157Service::new(repos.clone()));
+    let slice137 = Arc::new(Slice137Service::new(repos.clone()));
+    let slice108 = Arc::new(Slice108Service::new(repos.clone()));
+    let slice085 = Arc::new(Slice085Service::new(repos.clone()));
+    let slice038 = Arc::new(Slice038Service::new(repos.clone()));
+    let slice037 = Arc::new(Slice037Service::new(repos.clone()));
     let slice220 = Arc::new(Slice220Service::new(repos.clone()));
     let slice209 = Arc::new(Slice209Service::new(repos.clone()));
     let slice201 = Arc::new(Slice201Service::new(repos.clone()));
     let slice185 = Arc::new(Slice185Service::new(repos.clone()));
     let slice092 = Arc::new(Slice092Service::new(repos.clone()));
     let slice081 = Arc::new(Slice081Service::new(repos.clone()));
+    // slice029 需要 slice001 作为依赖，只在此处构造一次
+    // （此前被注册工具重复插入 4 次，其中 3 次参数个数错误）。
     let slice029 = Arc::new(Slice029Service::new(repos.clone(), slice001.clone()));
     let slice172 = Arc::new(Slice172Service::new(repos.clone()));
     let slice166 = Arc::new(Slice166Service::new(repos.clone()));
@@ -232,7 +256,6 @@ async fn main() -> anyhow::Result<()> {
     let slice139 = Arc::new(Slice139Service::new(repos.clone()));
     let slice091 = Arc::new(Slice091Service::new(repos.clone()));
     let slice075 = Arc::new(Slice075Service::new(repos.clone()));
-    let slice029 = Arc::new(Slice029Service::new(repos.clone(), slice001.clone()));
     let slice217 = Arc::new(Slice217Service::new(repos.clone()));
     let slice205 = Arc::new(Slice205Service::new(repos.clone()));
     let slice192 = Arc::new(Slice192Service::new(repos.clone()));
@@ -283,7 +306,6 @@ async fn main() -> anyhow::Result<()> {
     let slice047 = Arc::new(Slice047Service::new(repos.clone()));
     let slice036 = Arc::new(Slice036Service::new(repos.clone()));
     let slice034 = Arc::new(Slice034Service::new(repos.clone()));
-    let slice029 = Arc::new(Slice029Service::new(repos.clone(), slice001.clone()));
     let slice164 = Arc::new(Slice164Service::new(repos.clone()));
     let slice147 = Arc::new(Slice147Service::new(repos.clone()));
     let slice143 = Arc::new(Slice143Service::new(repos.clone()));
@@ -302,7 +324,6 @@ async fn main() -> anyhow::Result<()> {
     let slice032 = Arc::new(Slice032Service::new(repos.clone()));
     let slice031 = Arc::new(Slice031Service::new(repos.clone()));
     let slice030 = Arc::new(Slice030Service::new(repos.clone()));
-    let slice029 = Arc::new(Slice029Service::new(repos.clone(), slice001.clone()));
     let slice028 = Arc::new(Slice028Service::new(repos.clone()));
     let slice027 = Arc::new(Slice027Service::new(repos.clone()));
     let slice188 = Arc::new(Slice188Service::new(repos.clone()));
@@ -446,6 +467,16 @@ async fn main() -> anyhow::Result<()> {
         slice201: slice201.clone(),
         slice209: slice209.clone(),
         slice220: slice220.clone(),
+        slice037: slice037.clone(),
+        slice038: slice038.clone(),
+        slice085: slice085.clone(),
+        slice108: slice108.clone(),
+        slice137: slice137.clone(),
+        slice157: slice157.clone(),
+        slice163: slice163.clone(),
+        slice210: slice210.clone(),
+        slice039: slice039.clone(),
+        slice044: slice044.clone(),
 };
     let public_state = PublicState {
         product: product.clone(),
@@ -502,6 +533,7 @@ async fn main() -> anyhow::Result<()> {
         slice170: slice170.clone(),
         slice091: slice091.clone(),
         slice172: slice172.clone(),
+        slice207: slice207.clone(),
 };
 
     // 6. CORS（开发期允许全部来源，生产按域名收紧）

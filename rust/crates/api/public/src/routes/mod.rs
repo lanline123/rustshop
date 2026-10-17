@@ -29,6 +29,7 @@ pub mod seckill;
 // —— 切片域（自带鉴权，见 [merge_public]）——
 pub mod shop;
 pub mod slice001;
+pub mod slice207;
 pub mod slice172;
 pub mod slice091;
 pub mod slice170;
@@ -88,6 +89,7 @@ pub fn merge_public(state: &PublicState) -> Router<PublicState> {
         .merge(salesman::public_routes())
         // —— 切片域（自带鉴权中间件，外层不要再套）——
         .merge(slice001::routes(state))
+.merge(slice207::routes(state))
 .merge(slice172::routes(state))
 .merge(slice091::routes(state))
 .merge(slice170::routes(state))
@@ -159,6 +161,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(salesman::implemented_routes());
     // —— 切片域 ——
     out.extend(slice001::implemented_routes());
+out.extend(slice207::implemented_routes());
 out.extend(slice172::implemented_routes());
 out.extend(slice091::implemented_routes());
 out.extend(slice170::implemented_routes());

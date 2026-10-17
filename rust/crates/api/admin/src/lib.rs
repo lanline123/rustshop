@@ -37,6 +37,16 @@ use tigshop_services::refund_apply::RefundApplyService;
 use tigshop_services::salesman::SalesmanService;
 use tigshop_services::seckill::SeckillService;
 use tigshop_services::shop::ShopService;
+use tigshop_services::slice044::Slice044Service;
+use tigshop_services::slice039::Slice039Service;
+use tigshop_services::slice210::Slice210Service;
+use tigshop_services::slice163::Slice163Service;
+use tigshop_services::slice157::Slice157Service;
+use tigshop_services::slice137::Slice137Service;
+use tigshop_services::slice108::Slice108Service;
+use tigshop_services::slice085::Slice085Service;
+use tigshop_services::slice038::Slice038Service;
+use tigshop_services::slice037::Slice037Service;
 use tigshop_services::slice220::Slice220Service;
 use tigshop_services::slice209::Slice209Service;
 use tigshop_services::slice201::Slice201Service;
@@ -262,6 +272,16 @@ pub struct AdminState {
     pub slice201: Arc<Slice201Service>,
     pub slice209: Arc<Slice209Service>,
     pub slice220: Arc<Slice220Service>,
+    pub slice037: Arc<Slice037Service>,
+    pub slice038: Arc<Slice038Service>,
+    pub slice085: Arc<Slice085Service>,
+    pub slice108: Arc<Slice108Service>,
+    pub slice137: Arc<Slice137Service>,
+    pub slice157: Arc<Slice157Service>,
+    pub slice163: Arc<Slice163Service>,
+    pub slice210: Arc<Slice210Service>,
+    pub slice039: Arc<Slice039Service>,
+    pub slice044: Arc<Slice044Service>,
 }
 
 /// 构建管理后台路由。
