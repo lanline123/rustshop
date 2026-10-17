@@ -63,7 +63,7 @@ pub struct UserRankService {
 }
 
 impl UserRankService {
-    /// 构造（与 member_tag_group / vendor_deposit_shop / tax_rate / slice102 的
+    /// 构造（与 member_tag_group / vendor_deposit_shop / tax_rate 的
     /// `new(Arc<Repositories>)` 一致）。
     #[must_use]
     pub fn new(repos: Arc<Repositories>) -> Self {

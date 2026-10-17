@@ -89,7 +89,7 @@ pub struct VendorDepositShopService {
 }
 
 impl VendorDepositShopService {
-    /// 构造（与 tax_rate / slice047 / slice102 的 `new(Arc<Repositories>)` 一致）。
+    /// 构造（与 tax_rate 的 `new(Arc<Repositories>)` 一致）。
     #[must_use]
     pub fn new(repos: Arc<Repositories>) -> Self {
         Self { repos }
