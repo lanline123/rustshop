@@ -76,7 +76,7 @@ async fn article_list(
     State(state): State<AdminState>,
     Query(q): Query<ArticleListQuery>,
 ) -> ApiResult<PageResult<ArticleVO>> {
-    ok(state.content_article.list(&q, false).await?)
+    ok(state.content.article.list(&q, false).await?)
 }
 
 #[derive(Debug, Deserialize)]
@@ -89,7 +89,7 @@ async fn article_detail(
     State(state): State<AdminState>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<ArticleDetailVO> {
-    ok(state.content_article.detail(q.id, false).await?)
+    ok(state.content.article.detail(q.id, false).await?)
 }
 
 /// `POST /adminapi/content/article/create`：新增文章。
@@ -97,7 +97,7 @@ async fn article_create(
     State(state): State<AdminState>,
     Json(a): Json<Article>,
 ) -> ApiResult<i32> {
-    ok(state.content_article.create(a).await?)
+    ok(state.content.article.create(a).await?)
 }
 
 /// `POST /adminapi/content/article/update`：更新文章。
@@ -105,7 +105,7 @@ async fn article_update(
     State(state): State<AdminState>,
     Json(a): Json<Article>,
 ) -> ApiResult<&'static str> {
-    state.content_article.update(a).await?;
+    state.content.article.update(a).await?;
     ok("修改成功")
 }
 
@@ -122,7 +122,7 @@ async fn article_set_show(
     State(state): State<AdminState>,
     Json(dto): Json<SetShowDTO>,
 ) -> ApiResult<&'static str> {
-    state.content_article.set_show(dto.article_id, dto.is_show).await?;
+    state.content.article.set_show(dto.article_id, dto.is_show).await?;
     ok("操作成功")
 }
 
@@ -131,7 +131,7 @@ async fn article_delete(
     State(state): State<AdminState>,
     Json(dto): Json<IdBody>,
 ) -> ApiResult<&'static str> {
-    state.content_article.delete(dto.id).await?;
+    state.content.article.delete(dto.id).await?;
     ok("删除成功")
 }
 
@@ -144,14 +144,14 @@ struct IdBody {
 async fn category_list(
     State(state): State<AdminState>,
 ) -> ApiResult<Vec<ArticleCategoryVO>> {
-    ok(state.content_article.categories().await?)
+    ok(state.content.article.categories().await?)
 }
 
 /// `GET /adminapi/content/articleCategory/tree`：文章分类树。
 async fn category_tree(
     State(state): State<AdminState>,
 ) -> ApiResult<Vec<ArticleCategoryTreeNode>> {
-    ok(state.content_article.category_tree().await?)
+    ok(state.content.article.category_tree().await?)
 }
 
 /// `GET /adminapi/content/articleCategory/detail?id=`：分类详情。
@@ -159,7 +159,7 @@ async fn category_detail(
     State(state): State<AdminState>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<ArticleCategoryVO> {
-    ok(state.content_article.category_detail(q.id).await?)
+    ok(state.content.article.category_detail(q.id).await?)
 }
 
 /// `POST /adminapi/content/articleCategory/save`：新增或更新分类。
@@ -171,10 +171,10 @@ async fn category_save(
 ) -> ApiResult<i32> {
     if c.article_category_id > 0 {
         let id = c.article_category_id;
-        state.content_article.update_category(c).await?;
+        state.content.article.update_category(c).await?;
         ok(id)
     } else {
-        ok(state.content_article.create_category(c).await?)
+        ok(state.content.article.create_category(c).await?)
     }
 }
 
@@ -183,6 +183,6 @@ async fn category_delete(
     State(state): State<AdminState>,
     Json(dto): Json<IdBody>,
 ) -> ApiResult<&'static str> {
-    state.content_article.delete_category(dto.id).await?;
+    state.content.article.delete_category(dto.id).await?;
     ok("删除成功")
 }

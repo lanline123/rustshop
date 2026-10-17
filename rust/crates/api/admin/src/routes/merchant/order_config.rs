@@ -126,7 +126,7 @@ async fn order_config_list(
     State(state): State<AdminState>,
     Query(q): Query<OrderConfigListQuery>,
 ) -> ApiResult<PageResult<OrderConfigVO>> {
-    ok(state.merchant_order_config.list(&q).await?)
+    ok(state.merchant.order_config.list(&q).await?)
 }
 
 /// `GET /adminapi/shop/orderConfig/detail?id=`：订单配置详情。
@@ -149,7 +149,7 @@ async fn order_config_detail(
         .id
         .filter(|v| *v > 0)
         .ok_or_else(|| tigshop_core::Error::Validation(MSG_ID_REQUIRED.into()))?;
-    ok(state.merchant_order_config.detail(id).await?)
+    ok(state.merchant.order_config.detail(id).await?)
 }
 
 /// `POST /adminapi/shop/orderConfig/create`：创建订单配置。
@@ -166,7 +166,7 @@ async fn order_config_create(
     State(state): State<AdminState>,
     Json(dto): Json<OrderConfigCreateDTO>,
 ) -> ApiResult<i32> {
-    ok(state.merchant_order_config.create(&dto).await?)
+    ok(state.merchant.order_config.create(&dto).await?)
 }
 
 /// `POST /adminapi/shop/orderConfig/update`：更新订单配置。
@@ -182,7 +182,7 @@ async fn order_config_update(
     State(state): State<AdminState>,
     Json(dto): Json<OrderConfigUpdateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.merchant_order_config.update(&dto).await?)
+    ok(state.merchant.order_config.update(&dto).await?)
 }
 
 /// `POST /adminapi/shop/orderConfig/del`：删除订单配置（硬删除）。
@@ -194,7 +194,7 @@ async fn order_config_del(
     State(state): State<AdminState>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.merchant_order_config.del(&dto).await?)
+    ok(state.merchant.order_config.del(&dto).await?)
 }
 
 /// `POST /adminapi/shop/orderConfig/updateField`：单字段更新。
@@ -210,7 +210,7 @@ async fn order_config_update_field(
     State(state): State<AdminState>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<bool> {
-    ok(state.merchant_order_config.update_field(&dto).await?)
+    ok(state.merchant.order_config.update_field(&dto).await?)
 }
 
 /// `POST /adminapi/shop/orderConfig/batch`：批量操作。
@@ -222,5 +222,5 @@ async fn order_config_batch(
     State(state): State<AdminState>,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<bool> {
-    ok(state.merchant_order_config.batch(&dto).await?)
+    ok(state.merchant.order_config.batch(&dto).await?)
 }

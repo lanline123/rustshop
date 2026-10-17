@@ -116,7 +116,7 @@ async fn list(
     State(state): State<AdminState>,
     Query(q): Query<MessageTypeListQuery>,
 ) -> ApiResult<PageResult<MessageTypeListVO>> {
-    ok(state.system_message_type.list(&q).await?)
+    ok(state.system.message_type.list(&q).await?)
 }
 
 /// `GET /adminapi/setting/messageType/detail?id=`：消息分类详情。
@@ -127,7 +127,7 @@ async fn detail(
     State(state): State<AdminState>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<MessageTypeDetailDTO> {
-    ok(state.system_message_type.detail(q.id).await?)
+    ok(state.system.message_type.detail(q.id).await?)
 }
 
 /// `POST /adminapi/setting/messageType/update`：修改消息分类。
@@ -138,7 +138,7 @@ async fn update(
     State(state): State<AdminState>,
     Json(dto): Json<MessageTypeDetailDTO>,
 ) -> ApiResult<&'static str> {
-    state.system_message_type.update(&dto).await?;
+    state.system.message_type.update(&dto).await?;
     ok("修改成功")
 }
 
@@ -153,7 +153,7 @@ async fn update_field(
     State(state): State<AdminState>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<&'static str> {
-    state.system_message_type.update_field(&dto).await?;
+    state.system.message_type.update_field(&dto).await?;
     ok("修改成功")
 }
 
@@ -166,7 +166,7 @@ async fn update_field(
 async fn mini_program_message_template(
     State(state): State<AdminState>,
 ) -> ApiResult<&'static str> {
-    state.system_message_type.mini_program_message_template().await?;
+    state.system.message_type.mini_program_message_template().await?;
     ok("生成成功")
 }
 
@@ -177,7 +177,7 @@ async fn mini_program_message_template(
 ///
 /// **未启用**：缺少微信公众号 access_token 服务（见服务层文档）。
 async fn wechat_message_template(State(state): State<AdminState>) -> ApiResult<&'static str> {
-    state.system_message_type.wechat_message_template().await?;
+    state.system.message_type.wechat_message_template().await?;
     ok("生成成功")
 }
 

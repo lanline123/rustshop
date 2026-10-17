@@ -140,7 +140,7 @@ async fn product_list(
     State(state): State<AdminState>,
     Query(q): Query<AdminProductListQuery>,
 ) -> ApiResult<PageResult<ProductListItemVO>> {
-    ok(state.catalog_product_manage.admin_list(&q).await?)
+    ok(state.catalog.product_manage.admin_list(&q).await?)
 }
 
 /// `GET /adminapi/product/product/detail?id=`：商品详情。
@@ -157,7 +157,7 @@ async fn product_detail(
     State(state): State<AdminState>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<Option<AdminProductDetailVO>> {
-    ok(state.catalog_product_manage.admin_detail(q.id).await?)
+    ok(state.catalog.product_manage.admin_detail(q.id).await?)
 }
 
 /// `GET /adminapi/product/product/catAndBrandList`：分类 + 品牌下拉。
@@ -165,7 +165,7 @@ async fn product_detail(
 /// 对应 Java `ProductController.catAndBrandList`（**该方法在现存 Java 源码中
 /// 不存在**，见模块头「不确定点」）。
 async fn cat_and_brand_list(State(state): State<AdminState>) -> ApiResult<CatAndBrandVO> {
-    ok(state.catalog_product_manage.cat_and_brand_list().await?)
+    ok(state.catalog.product_manage.cat_and_brand_list().await?)
 }
 
 /// `POST /adminapi/product/product/create`：创建商品。
@@ -176,7 +176,7 @@ async fn product_create(
     State(state): State<AdminState>,
     Json(dto): Json<ProductSaveDTO>,
 ) -> ApiResult<String> {
-    ok(state.catalog_product_manage.create(&dto).await?)
+    ok(state.catalog.product_manage.create(&dto).await?)
 }
 
 /// `POST /adminapi/product/product/update`：更新商品。
@@ -187,7 +187,7 @@ async fn product_update(
     State(state): State<AdminState>,
     Json(dto): Json<ProductSaveDTO>,
 ) -> ApiResult<String> {
-    ok(state.catalog_product_manage.update(&dto).await?)
+    ok(state.catalog.product_manage.update(&dto).await?)
 }
 
 /// `POST /adminapi/product/product/del`：删除商品（软删除）。
@@ -199,7 +199,7 @@ async fn product_del(
     Json(dto): Json<ProductDelDTO>,
 ) -> ApiResult<u64> {
     let ids = dto.target_ids();
-    ok(state.catalog_product_manage.delete(&ids).await?)
+    ok(state.catalog.product_manage.delete(&ids).await?)
 }
 
 /// `GET /adminapi/product/productBatch/downloadTemplate`：下载导入模板。
@@ -209,7 +209,7 @@ async fn product_del(
 /// `Content-Disposition` 中的中文名按 Java 的 `URLEncoder` 规则编码
 /// （空格 `%20`，非 ASCII 按 UTF-8 百分号编码）。
 async fn download_template(State(state): State<AdminState>) -> Response {
-    match state.catalog_product_manage.download_template().await {
+    match state.catalog.product_manage.download_template().await {
         Ok((name, bytes)) => {
             let encoded = tigshop_services::catalog::product_manage::percent_encode_utf8(&name);
             let mut headers = HeaderMap::new();
@@ -272,7 +272,7 @@ async fn product_batch_modify(
             .and_then(|v| v.trim().parse::<i32>().ok())
     };
     let (file_name, bytes) = file.unwrap_or((None, Vec::new()));
-    ok(state.catalog_product_manage
+    ok(state.catalog.product_manage
         .batch_modify(
             parse_i32("isAutoCat"),
             parse_i32("isAutoBrand"),
@@ -292,5 +292,5 @@ async fn product_batch_edit(
     State(state): State<AdminState>,
     Json(dto): Json<ProductBatchEditDTO>,
 ) -> ApiResult<bool> {
-    ok(state.catalog_product_manage.batch_edit(&dto).await?)
+    ok(state.catalog.product_manage.batch_edit(&dto).await?)
 }

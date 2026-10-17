@@ -48,7 +48,7 @@ async fn tpl_list(
         page: q.page.unwrap_or(1),
         page_size: q.page_size.unwrap_or(20),
     };
-    let page = state.logistics_shipping_list.tpl_list(&q).await?;
+    let page = state.logistics.shipping_list.tpl_list(&q).await?;
     let list: Vec<ShippingTplVO> = page.list.iter().map(ShippingTplVO::from).collect();
     ok(PageResult::new(page.total, list, &page_query))
 }
@@ -57,7 +57,7 @@ async fn tpl_list(
 async fn company_list(
     State(state): State<AdminState>,
 ) -> ApiResult<Vec<serde_json::Value>> {
-    let list = state.logistics_shipping_list.companies().await?;
+    let list = state.logistics.shipping_list.companies().await?;
     let list: Vec<serde_json::Value> = list
         .iter()
         .map(|c| {

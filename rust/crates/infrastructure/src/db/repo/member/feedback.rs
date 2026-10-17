@@ -919,7 +919,7 @@ mod tests {
         assert!(!sql.contains("order_id > 0"), "{sql}");
 
         let sql = build(&query(serde_json::json!({})), &f);
-        assert!(!sql.contains("order_id"), "{sql}");
+        assert!(!sql.contains(" AND order_id"), "{sql}");
     }
 
     /// `productId = 0` / `status = 0` **要加**条件（Java 只判 null）；

@@ -122,7 +122,7 @@ async fn admin_log_list(
     Query(q): Query<AdminLogPageQuery>,
 ) -> ApiResult<PageResult<AdminLogDTO>> {
     let scope = resolve_scope(&headers, &auth);
-    ok(state.identity_admin_log.list(&q, scope).await?)
+    ok(state.identity.admin_log.list(&q, scope).await?)
 }
 
 #[cfg(test)]

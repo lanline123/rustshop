@@ -95,7 +95,7 @@ async fn serve(
     timestamp: String,
     filename: String,
 ) -> Response {
-    match state.system_files.open(kind, &timestamp, &filename).await {
+    match state.system.files.open(kind, &timestamp, &filename).await {
         Ok(opened) => {
             // Java: URLConnection.guessContentTypeFromName(filename)，猜不到 → octet-stream
             let content_type = mime_guess::from_path(&opened.filename)

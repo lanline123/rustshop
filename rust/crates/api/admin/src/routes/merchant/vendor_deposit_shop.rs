@@ -202,7 +202,7 @@ async fn overview(
     headers: HeaderMap,
 ) -> ApiResult<DepositShopOverviewVO> {
     let vendor_id = current_vendor(&headers, &auth)?;
-    ok(state.merchant_vendor_deposit_shop.overview(vendor_id).await?)
+    ok(state.merchant.vendor_deposit_shop.overview(vendor_id).await?)
 }
 
 /// `GET /adminapi/deposit/vendor/logList`：供应商端交易流水（分页）。
@@ -220,7 +220,7 @@ async fn log_list(
     Query(q): Query<DepositShopLogQuery>,
 ) -> ApiResult<PageResult<DepositShopLogVO>> {
     let vendor_id = current_vendor(&headers, &auth)?;
-    ok(state.merchant_vendor_deposit_shop.log_list(vendor_id, &q).await?)
+    ok(state.merchant.vendor_deposit_shop.log_list(vendor_id, &q).await?)
 }
 
 /// `GET /adminapi/deposit/vendor/frozenDetailList`：冻结明细（平台扣款记录）。
@@ -238,7 +238,7 @@ async fn frozen_detail_list(
     Query(q): Query<DepositShopLogQuery>,
 ) -> ApiResult<PageResult<DepositShopFrozenDetailVO>> {
     let vendor_id = current_vendor(&headers, &auth)?;
-    ok(state.merchant_vendor_deposit_shop.frozen_detail_list(vendor_id, &q).await?)
+    ok(state.merchant.vendor_deposit_shop.frozen_detail_list(vendor_id, &q).await?)
 }
 
 /// `GET /adminapi/deposit/vendor/warning`：首页保证金预警横幅。
@@ -251,7 +251,7 @@ async fn warning(
     headers: HeaderMap,
 ) -> ApiResult<DepositShopWarningVO> {
     let vendor_id = current_vendor(&headers, &auth)?;
-    ok(state.merchant_vendor_deposit_shop.warning(vendor_id).await?)
+    ok(state.merchant.vendor_deposit_shop.warning(vendor_id).await?)
 }
 
 /// `GET /adminapi/deposit/vendor/protocol`：保证金协议。
@@ -267,7 +267,7 @@ async fn protocol(
     headers: HeaderMap,
 ) -> ApiResult<DepositShopProtocolVO> {
     let _vendor_id = current_vendor(&headers, &auth)?;
-    ok(state.merchant_vendor_deposit_shop.protocol().await?)
+    ok(state.merchant.vendor_deposit_shop.protocol().await?)
 }
 
 #[cfg(test)]

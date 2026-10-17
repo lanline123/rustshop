@@ -108,7 +108,7 @@ async fn wechat_live_sync_callback(
     raw: axum::body::Bytes,
 ) -> ApiResult<()> {
     let dto = tigshop_services::content::wechat_live_sync_callback::parse_callback_body(&raw)?;
-    state.content_wechat_live_sync_callback.handle_inbound_callback(&dto).await?;
+    state.content.wechat_live_sync_callback.handle_inbound_callback(&dto).await?;
     // Java 返回 void → 信封 data = null
     ok(())
 }

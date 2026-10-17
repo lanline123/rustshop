@@ -243,7 +243,7 @@ async fn stock_warning_setting(
     Query(query): Query<SettingQuery>,
 ) -> ApiResult<StockWarningSettingVO> {
     let owner_shop_id = resolve_request_shop(&headers, &auth, query.shop_id)?;
-    ok(state.catalog_stock_warning.get_setting(Some(owner_shop_id)).await?)
+    ok(state.catalog.stock_warning.get_setting(Some(owner_shop_id)).await?)
 }
 
 /// `POST /adminapi/product/stockWarning/setting`：保存库存预警通知总开关。
@@ -261,7 +261,7 @@ async fn stock_warning_save_setting(
         shop_id: Some(owner_shop_id),
         ..dto
     };
-    state.catalog_stock_warning.save_setting(&dto).await?;
+    state.catalog.stock_warning.save_setting(&dto).await?;
     ok("保存成功")
 }
 
@@ -281,7 +281,7 @@ async fn stock_warning_list(
     Query(mut query): Query<StockWarningListQuery>,
 ) -> ApiResult<PageResult<StockWarningPageVO>> {
     query.shop_id = Some(resolve_request_shop(&headers, &auth, query.shop_id)?);
-    ok(state.catalog_stock_warning.list(&query).await?)
+    ok(state.catalog.stock_warning.list(&query).await?)
 }
 
 /// `GET /adminapi/product/stockWarning/export`：导出库存预警列表。
@@ -297,7 +297,7 @@ async fn stock_warning_export(
     Query(mut query): Query<StockWarningExportQuery>,
 ) -> ApiResult<Vec<StockWarningExcelVO>> {
     query.shop_id = Some(resolve_request_shop(&headers, &auth, query.shop_id)?);
-    ok(state.catalog_stock_warning.export(&query).await?)
+    ok(state.catalog.stock_warning.export(&query).await?)
 }
 
 // ——————————————————————————————————————————————
@@ -313,7 +313,7 @@ async fn stock_warning_export(
 async fn stock_warning_download_template(
     State(state): State<AdminState>,
 ) -> ApiResult<serde_json::Value> {
-    ok(state.catalog_stock_warning.download_template())
+    ok(state.catalog.stock_warning.download_template())
 }
 
 /// `POST /adminapi/product/stockWarning/import`：导入库存预警配置。
@@ -334,7 +334,7 @@ async fn stock_warning_import(
     // Java `@RequestParam("shopId")` 同时接受表单字段与查询串参数
     let owner_shop_id =
         resolve_request_shop(&headers, &auth, form_shop_id.or(query.shop_id))?;
-    ok(state.catalog_stock_warning
+    ok(state.catalog.stock_warning
         .import_excel(as_import_file(&file), Some(owner_shop_id))
         .await?)
 }
@@ -360,7 +360,7 @@ async fn stock_warning_import_errors(
     // Java `@RequestParam("shopId")` 同时接受表单字段与查询串参数
     let owner_shop_id =
         resolve_request_shop(&headers, &auth, form_shop_id.or(query.shop_id))?;
-    ok(state.catalog_stock_warning
+    ok(state.catalog.stock_warning
         .get_import_error_data(as_import_file(&file), Some(owner_shop_id))
         .await?)
 }
@@ -384,7 +384,7 @@ async fn stock_warning_save(
         shop_id: Some(owner_shop_id),
         ..dto
     };
-    state.catalog_stock_warning.save(&dto).await?;
+    state.catalog.stock_warning.save(&dto).await?;
     ok("保存成功")
 }
 
@@ -404,5 +404,5 @@ async fn stock_warning_batch_save(
         shop_id: Some(owner_shop_id),
         ..dto
     };
-    ok(state.catalog_stock_warning.batch_save(&dto).await?)
+    ok(state.catalog.stock_warning.batch_save(&dto).await?)
 }

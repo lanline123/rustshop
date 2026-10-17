@@ -414,7 +414,7 @@ async fn message_push(
     State(state): State<AdminState>,
     Query(q): Query<PushQuery>,
 ) -> ApiResult<serde_json::Value> {
-    state.openapi_workbuddy
+    state.openapi.workbuddy
         .message_push(q.user_id, q.order_id)
         .await
         .map_err(|e| tigshop_security::web::AppError::from(tigshop_core::Error::from(e)))?;
@@ -436,7 +436,7 @@ struct PushQuery {
 /// ⚠️ Java 直接返回 `String`（纯文本），本实现返回
 /// `{ "text": "isMerchant: 1isB2b: 1..." }`，见 `uncertain_points`。
 async fn tigshop_config(State(state): State<AdminState>) -> ApiResult<serde_json::Value> {
-    let vo = state.openapi_workbuddy.tigshop_config();
+    let vo = state.openapi.workbuddy.tigshop_config();
     ok(json!({ "text": vo.text }))
 }
 
@@ -454,7 +454,7 @@ async fn connection_status(
     State(state): State<AdminState>,
     headers: HeaderMap,
 ) -> WbResponse {
-    let vo = state.openapi_workbuddy
+    let vo = state.openapi.workbuddy
         .connection_status(key_header(&headers).as_deref())
         .await;
     wb_ok(vo)
@@ -464,7 +464,7 @@ async fn connection_status(
 ///
 /// 对应 Java `WorkBuddyProductImportController.requirements`。
 async fn requirements(State(state): State<AdminState>) -> WbResponse {
-    wb_ok(state.openapi_workbuddy.requirements())
+    wb_ok(state.openapi.workbuddy.requirements())
 }
 
 /// `GET /adminapi/openapi/mcp/v1/categories`：分类检索。
@@ -476,7 +476,7 @@ async fn categories(
     Query(q): Query<CategoryQuery>,
 ) -> WbResponse {
     finish(
-        state.openapi_workbuddy
+        state.openapi.workbuddy
             .categories(key_header(&headers).as_deref(), &q)
             .await,
     )
@@ -491,7 +491,7 @@ async fn validate_products(
     Json(body): Json<ProductListBody>,
 ) -> WbResponse {
     finish(
-        state.openapi_workbuddy
+        state.openapi.workbuddy
             .validate_products(key_header(&headers).as_deref(), &body)
             .await,
     )
@@ -506,7 +506,7 @@ async fn import_products(
     Json(body): Json<ImportBody>,
 ) -> WbResponse {
     finish(
-        state.openapi_workbuddy
+        state.openapi.workbuddy
             .import_products(
                 key_header(&headers).as_deref(),
                 idempotency_header(&headers).as_deref(),
@@ -634,7 +634,7 @@ async fn upload_multipart(
         files: dto_files,
     };
     finish(
-        state.openapi_workbuddy
+        state.openapi.workbuddy
             .upload_media(key_header(headers).as_deref(), &req)
             .await,
     )
@@ -683,7 +683,7 @@ async fn upload_token(
     Json(body): Json<UploadTokenBody>,
 ) -> WbResponse {
     finish_json(
-        state.openapi_workbuddy
+        state.openapi.workbuddy
             .upload_token(key_header(&headers).as_deref(), &body)
             .await,
     )
@@ -694,7 +694,7 @@ async fn upload_token(
 /// 对应 Java `WorkBuddyProductImportController.capabilities`。
 async fn capabilities(State(state): State<AdminState>, headers: HeaderMap) -> WbResponse {
     finish_json(
-        state.openapi_workbuddy
+        state.openapi.workbuddy
             .capabilities(key_header(&headers).as_deref())
             .await,
     )
@@ -709,7 +709,7 @@ async fn product_context(
     Query(q): Query<ContextQuery>,
 ) -> WbResponse {
     finish(
-        state.openapi_workbuddy
+        state.openapi.workbuddy
             .product_context(key_header(&headers).as_deref(), &q)
             .await,
     )
@@ -729,7 +729,7 @@ async fn media(
     Query(q): Query<MediaQueryDTO>,
 ) -> WbResponse {
     finish_json(
-        state.openapi_workbuddy
+        state.openapi.workbuddy
             .media(key_header(&headers).as_deref(), &q)
             .await,
     )
@@ -744,7 +744,7 @@ async fn media_prepare(
     Json(op): Json<MediaOperationDTO>,
 ) -> WbResponse {
     finish_json(
-        state.openapi_workbuddy
+        state.openapi.workbuddy
             .media_prepare(key_header(&headers).as_deref(), &op)
             .await,
     )
@@ -759,7 +759,7 @@ async fn media_execute(
     Json(op): Json<MediaOperationDTO>,
 ) -> WbResponse {
     finish_json(
-        state.openapi_workbuddy
+        state.openapi.workbuddy
             .media_execute(key_header(&headers).as_deref(), &op)
             .await,
     )
@@ -774,7 +774,7 @@ async fn category_prepare(
     Json(dto): Json<CategoryImportDTO>,
 ) -> WbResponse {
     finish_json(
-        state.openapi_workbuddy
+        state.openapi.workbuddy
             .category_prepare(key_header(&headers).as_deref(), &dto)
             .await,
     )
@@ -789,7 +789,7 @@ async fn category_execute(
     Json(dto): Json<CategoryImportDTO>,
 ) -> WbResponse {
     finish_json(
-        state.openapi_workbuddy
+        state.openapi.workbuddy
             .category_execute(key_header(&headers).as_deref(), &dto)
             .await,
     )
@@ -804,7 +804,7 @@ async fn analysis(
     Query(q): Query<AnalysisQuery>,
 ) -> WbResponse {
     finish(
-        state.openapi_workbuddy
+        state.openapi.workbuddy
             .analysis(key_header(&headers).as_deref(), &q)
             .await,
     )
@@ -823,7 +823,7 @@ async fn product_list(
     Query(q): Query<ProductListQuery>,
 ) -> WbResponse {
     finish(
-        state.openapi_workbuddy
+        state.openapi.workbuddy
             .product_list(key_header(&headers).as_deref(), &q)
             .await,
     )
@@ -838,7 +838,7 @@ async fn product_detail(
     Path(id): Path<i32>,
 ) -> WbResponse {
     finish(
-        state.openapi_workbuddy
+        state.openapi.workbuddy
             .product_detail(key_header(&headers).as_deref(), Some(id))
             .await,
     )
@@ -853,7 +853,7 @@ async fn promotion_links(
     Path(id): Path<i32>,
 ) -> WbResponse {
     finish(
-        state.openapi_workbuddy
+        state.openapi.workbuddy
             .promotion_links(key_header(&headers).as_deref(), Some(id))
             .await,
     )
@@ -869,7 +869,7 @@ async fn update_field(
     Json(body): Json<FieldBody>,
 ) -> WbResponse {
     finish(
-        state.openapi_workbuddy
+        state.openapi.workbuddy
             .update_field(key_header(&headers).as_deref(), Some(id), &body)
             .await,
     )
@@ -885,7 +885,7 @@ async fn set_status(
     Json(body): Json<StatusBody>,
 ) -> WbResponse {
     finish(
-        state.openapi_workbuddy
+        state.openapi.workbuddy
             .set_status(key_header(&headers).as_deref(), Some(id), &body)
             .await,
     )
@@ -900,7 +900,7 @@ async fn recycle(
     Path(id): Path<i32>,
 ) -> WbResponse {
     finish(
-        state.openapi_workbuddy
+        state.openapi.workbuddy
             .recycle(key_header(&headers).as_deref(), Some(id))
             .await,
     )
@@ -915,7 +915,7 @@ async fn restore(
     Path(id): Path<i32>,
 ) -> WbResponse {
     finish(
-        state.openapi_workbuddy
+        state.openapi.workbuddy
             .restore(key_header(&headers).as_deref(), Some(id))
             .await,
     )
@@ -930,7 +930,7 @@ async fn copy_product(
     Path(id): Path<i32>,
 ) -> WbResponse {
     finish(
-        state.openapi_workbuddy
+        state.openapi.workbuddy
             .copy(key_header(&headers).as_deref(), Some(id))
             .await,
     )
@@ -945,7 +945,7 @@ async fn delete_permanently(
     Path(id): Path<i32>,
 ) -> WbResponse {
     finish(
-        state.openapi_workbuddy
+        state.openapi.workbuddy
             .delete_permanently(key_header(&headers).as_deref(), Some(id))
             .await,
     )
@@ -960,7 +960,7 @@ async fn batch_preview(
     Json(body): Json<BatchBody>,
 ) -> WbResponse {
     finish(
-        state.openapi_workbuddy
+        state.openapi.workbuddy
             .batch_preview(key_header(&headers).as_deref(), &body)
             .await,
     )
@@ -976,7 +976,7 @@ async fn batch_execute(
     Json(body): Json<BatchExecuteBody>,
 ) -> WbResponse {
     finish(
-        state.openapi_workbuddy
+        state.openapi.workbuddy
             .batch_execute(key_header(&headers).as_deref(), &body)
             .await,
     )

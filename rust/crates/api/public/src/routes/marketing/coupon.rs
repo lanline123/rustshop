@@ -70,8 +70,8 @@ async fn available_list(
 ) -> ApiResult<PageResult<tigshop_core::models::CouponClientVO>> {
     // 公开路由未挂 require_auth，登录态为可选
     let page = match auth.map(|Extension(a)| a).filter(|a| a.id > 0) {
-        Some(user) => state.marketing_coupon.claimable_list_for_user(user.id, &q).await?,
-        None => state.marketing_coupon.claimable_list(&q).await?,
+        Some(user) => state.marketing.coupon.claimable_list_for_user(user.id, &q).await?,
+        None => state.marketing.coupon.claimable_list(&q).await?,
     };
     ok(page)
 }
@@ -92,7 +92,7 @@ async fn list_by_ids(
         .split(',')
         .filter_map(|s| s.trim().parse::<i32>().ok())
         .collect();
-    ok(state.marketing_coupon.list_by_ids(&ids).await?)
+    ok(state.marketing.coupon.list_by_ids(&ids).await?)
 }
 
 /// `GET /api/user/coupon/list`：我的优惠券（需登录）。
@@ -101,7 +101,7 @@ async fn my_coupons(
     Extension(auth): Extension<AuthUser>,
     Query(q): Query<UserCouponListQuery>,
 ) -> ApiResult<PageResult<tigshop_core::models::UserCouponVO>> {
-    ok(state.marketing_coupon.my_coupons(auth.id, &q).await?)
+    ok(state.marketing.coupon.my_coupons(auth.id, &q).await?)
 }
 
 /// `GET /api/user/coupon/detail?id=`：券详情（含当前用户领取情况）。
@@ -110,8 +110,8 @@ async fn my_coupon_detail(
     Extension(auth): Extension<AuthUser>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<serde_json::Value> {
-    let coupon = state.marketing_coupon.detail(q.id).await?;
-    let usable = state.marketing_coupon.my_usable_coupons(auth.id).await?;
+    let coupon = state.marketing.coupon.detail(q.id).await?;
+    let usable = state.marketing.coupon.my_usable_coupons(auth.id).await?;
     let is_receive = usable.iter().any(|uc| uc.coupon_id == q.id);
     ok(serde_json::json!({
         "couponId": coupon.coupon_id,
@@ -141,7 +141,7 @@ async fn claim(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<UserCouponClaimDTO>,
 ) -> ApiResult<i32> {
-    ok(state.marketing_coupon.claim(auth.id, dto.coupon_id).await?)
+    ok(state.marketing.coupon.claim(auth.id, dto.coupon_id).await?)
 }
 
 /// `POST /api/user/coupon/del`：删除我的优惠券（需登录）。
@@ -150,6 +150,6 @@ async fn delete_my_coupon(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<UserCouponIdDTO>,
 ) -> ApiResult<bool> {
-    state.marketing_coupon.delete_my_coupon(auth.id, dto.id).await?;
+    state.marketing.coupon.delete_my_coupon(auth.id, dto.id).await?;
     ok(true)
 }

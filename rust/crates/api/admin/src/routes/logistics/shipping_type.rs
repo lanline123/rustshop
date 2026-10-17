@@ -139,7 +139,7 @@ async fn list(
     Query(q): Query<ShippingTypeListQuery>,
 ) -> ApiResult<PageResult<ShippingTypeVO>> {
     let shop_id = shop_id_from_headers(&headers);
-    ok(state.logistics_shipping_type.list(&q, shop_id).await?)
+    ok(state.logistics.shipping_type.list(&q, shop_id).await?)
 }
 
 /// `GET /adminapi/setting/shippingType/detail?id=`：配送类型详情。
@@ -151,7 +151,7 @@ async fn list(
 /// （项目内 order_admin/005/017/075/163 的既有约定，见 `uncertain_points`）。
 async fn detail(State(state): State<AdminState>, Query(q): Query<IdQuery>) -> ApiResult<ShippingTypeVO> {
     let id = require_positive_id(q.id)?;
-    ok(state.logistics_shipping_type.detail(id).await?)
+    ok(state.logistics.shipping_type.detail(id).await?)
 }
 
 /// `POST /adminapi/setting/shippingType/create`：新增配送类型。
@@ -167,7 +167,7 @@ async fn create(
     Json(dto): Json<ShippingTypeCreateDTO>,
 ) -> ApiResult<serde_json::Value> {
     let shop_id = shop_id_from_headers(&headers);
-    let id = state.logistics_shipping_type.create(&dto, shop_id).await?;
+    let id = state.logistics.shipping_type.create(&dto, shop_id).await?;
     ok(serde_json::json!({ "shippingTypeId": id }))
 }
 
@@ -182,7 +182,7 @@ async fn update(
     State(state): State<AdminState>,
     Json(dto): Json<ShippingTypeUpdateDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let affected = state.logistics_shipping_type.update(&dto).await?;
+    let affected = state.logistics.shipping_type.update(&dto).await?;
     ok(serde_json::json!({ "affected": affected }))
 }
 
@@ -195,7 +195,7 @@ async fn del(
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<serde_json::Value> {
     let id = require_positive_id(dto.id)?;
-    let deleted = state.logistics_shipping_type.del(id).await?;
+    let deleted = state.logistics.shipping_type.del(id).await?;
     ok(serde_json::json!({ "deleted": deleted }))
 }
 
@@ -212,7 +212,7 @@ async fn update_field(
     State(state): State<AdminState>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let affected = state.logistics_shipping_type.update_field(&dto).await?;
+    let affected = state.logistics.shipping_type.update_field(&dto).await?;
     ok(serde_json::json!({ "affected": affected }))
 }
 
@@ -229,7 +229,7 @@ async fn batch(
     State(state): State<AdminState>,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let affected = state.logistics_shipping_type.batch(&dto).await?;
+    let affected = state.logistics.shipping_type.batch(&dto).await?;
     let success = dto.is_delete() && affected > 0;
     ok(serde_json::json!({ "success": success, "affected": affected }))
 }

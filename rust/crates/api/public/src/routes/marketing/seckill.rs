@@ -59,7 +59,7 @@ async fn list(
     State(state): State<PublicState>,
     Query(q): Query<ListQuery>,
 ) -> ApiResult<PageResult<SeckillPromotionVO>> {
-    ok(state.marketing_seckill.active_list(q.page, q.page_size).await?)
+    ok(state.marketing.seckill.active_list(q.page, q.page_size).await?)
 }
 
 /// 秒杀价查询参数。
@@ -77,7 +77,7 @@ async fn price(
     State(state): State<PublicState>,
     Query(q): Query<PriceQuery>,
 ) -> ApiResult<serde_json::Value> {
-    let price: Option<Decimal> = state.marketing_seckill
+    let price: Option<Decimal> = state.marketing.seckill
         .current_seckill_price(q.product_id, q.sku_id)
         .await?;
     ok(serde_json::json!({ "seckillPrice": price }))
@@ -89,7 +89,7 @@ async fn can_join(
     Extension(auth): Extension<AuthUser>,
     Query(q): Query<PriceQuery>,
 ) -> ApiResult<bool> {
-    ok(state.marketing_seckill
+    ok(state.marketing.seckill
         .can_user_join(q.product_id, q.sku_id, auth.id)
         .await?)
 }

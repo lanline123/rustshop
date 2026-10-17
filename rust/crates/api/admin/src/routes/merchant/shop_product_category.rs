@@ -210,7 +210,7 @@ async fn list(
     Query(q): Query<ShopProductCategoryListQuery>,
 ) -> ApiResult<PageResult<ShopProductCategoryVO>> {
     let shop_id = resolve_shop_id(&headers, &auth);
-    ok(state.merchant_shop_product_category.list(&q, shop_id).await?)
+    ok(state.merchant.shop_product_category.list(&q, shop_id).await?)
 }
 
 /// `GET /adminapi/merchant/shopProductCategory/getCategoryName?parentId=`：按父级取名称。
@@ -236,7 +236,7 @@ async fn get_category_name(
         .parent_id
         .filter(|v| *v > 0)
         .ok_or_else(|| tigshop_core::Error::Validation(MSG_ID_REQUIRED.into()))?;
-    ok(state.merchant_shop_product_category.get_category_name(parent_id).await?)
+    ok(state.merchant.shop_product_category.get_category_name(parent_id).await?)
 }
 
 /// `GET /adminapi/merchant/shopProductCategory/detail?id=`：分类详情。
@@ -261,7 +261,7 @@ async fn detail(
         .id
         .filter(|v| *v > 0)
         .ok_or_else(|| tigshop_core::Error::Validation(MSG_ID_REQUIRED.into()))?;
-    ok(state.merchant_shop_product_category.detail(id).await?)
+    ok(state.merchant.shop_product_category.detail(id).await?)
 }
 
 /// `GET /adminapi/merchant/shopProductCategory/getAllCategory`：全部可见分类树。
@@ -278,7 +278,7 @@ async fn get_all_category(
     headers: HeaderMap,
 ) -> ApiResult<Option<Vec<ShopProductCategoryTreeVO>>> {
     let shop_id = resolve_shop_id(&headers, &auth);
-    ok(state.merchant_shop_product_category.tree(shop_id).await?)
+    ok(state.merchant.shop_product_category.tree(shop_id).await?)
 }
 
 // ——————————————————————————————————————————————
@@ -302,7 +302,7 @@ async fn create(
     Json(dto): Json<ShopProductCategoryCreateDTO>,
 ) -> ApiResult<serde_json::Value> {
     let shop_id = resolve_shop_id(&headers, &auth);
-    let id = state.merchant_shop_product_category.create(&dto, shop_id, now_seconds()).await?;
+    let id = state.merchant.shop_product_category.create(&dto, shop_id, now_seconds()).await?;
     ok(serde_json::json!({ "id": id }))
 }
 
@@ -323,7 +323,7 @@ async fn update(
     Json(dto): Json<ShopProductCategoryUpdateDTO>,
 ) -> ApiResult<bool> {
     let shop_id = resolve_shop_id(&headers, &auth);
-    ok(state.merchant_shop_product_category.update(&dto, shop_id).await?)
+    ok(state.merchant.shop_product_category.update(&dto, shop_id).await?)
 }
 
 /// `POST /adminapi/merchant/shopProductCategory/del`：删除分类。
@@ -341,7 +341,7 @@ async fn del(
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<bool> {
     let shop_id = resolve_shop_id(&headers, &auth);
-    ok(state.merchant_shop_product_category.del(&dto, shop_id).await?)
+    ok(state.merchant.shop_product_category.del(&dto, shop_id).await?)
 }
 
 /// `POST /adminapi/merchant/shopProductCategory/batch`：批量操作（仅 `del`）。
@@ -356,7 +356,7 @@ async fn batch(
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<bool> {
     let shop_id = resolve_shop_id(&headers, &auth);
-    ok(state.merchant_shop_product_category.batch(&dto, shop_id).await?)
+    ok(state.merchant.shop_product_category.batch(&dto, shop_id).await?)
 }
 
 /// `POST /adminapi/merchant/shopProductCategory/updateField`：更新单个字段。
@@ -375,7 +375,7 @@ async fn update_field(
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<bool> {
     let shop_id = resolve_shop_id(&headers, &auth);
-    ok(state.merchant_shop_product_category.update_field(&dto, shop_id).await?)
+    ok(state.merchant.shop_product_category.update_field(&dto, shop_id).await?)
 }
 
 #[cfg(test)]

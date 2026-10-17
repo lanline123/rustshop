@@ -132,93 +132,19 @@ fn openapi_state() -> tigshop_openapi::OpenApiState {
 /// 管理端应用状态。
 #[derive(Clone)]
 pub struct AdminState {
-    // —— identity ——
-    pub identity_auth: Arc<AuthService>,
-    pub identity_authority: Arc<AuthorityService>,
-    pub identity_admin_user: Arc<AdminUserService>,
-    pub identity_admin_log: Arc<AdminLogService>,
-    // —— merchant ——
-    pub merchant_shop_manage: Arc<ShopManageService>,
-    pub merchant_shop: Arc<ShopService>,
-    pub merchant_order_config: Arc<OrderConfigService>,
-    pub merchant_shop_product_category: Arc<ShopProductCategoryService>,
-    pub merchant_vendor_deposit_shop: Arc<VendorDepositShopService>,
-    // —— catalog ——
-    pub catalog_product: Arc<ProductService>,
-    pub catalog_category_all: Arc<CatalogService>,
-    pub catalog_product_manage: Arc<ProductManageService>,
-    pub catalog_product_stock: Arc<ProductStockService>,
-    pub catalog_category: Arc<CategoryService>,
-    pub catalog_brand: Arc<BrandService>,
-    pub catalog_stock_warning: Arc<StockWarningService>,
-    pub catalog_attributes_tpl: Arc<AttributesTplService>,
-    // —— trade ——
-    pub trade_order: Arc<OrderService>,
-    pub trade_order_admin: Arc<OrderAdminService>,
-    pub trade_aftersales: Arc<AftersalesService>,
-    pub trade_proxy_shopping_user: Arc<ProxyShoppingUserService>,
-    pub trade_proxy_shopping_user_coupon: Arc<ProxyShoppingUserCouponService>,
-    pub trade_proxy_shopping_product: Arc<ProxyShoppingProductService>,
-    pub trade_proxy_shopping_user_address: Arc<ProxyShoppingUserAddressService>,
-    pub trade_proxy_shopping_pickup_contact: Arc<ProxyShoppingPickupContactService>,
-    pub trade_proxy_shopping_order_check: Arc<ProxyShoppingOrderCheckService>,
-    // —— payment ——
-    pub payment_paylog: Arc<PaylogService>,
-    pub payment_refund_apply: Arc<RefundApplyService>,
-    pub payment_paylog_batch: Arc<PaylogBatchService>,
-    pub payment_user_balance_log: Arc<UserBalanceLogService>,
-    pub payment_tax_rate: Arc<TaxRateService>,
-    // —— marketing ——
-    pub marketing_coupon: Arc<CouponService>,
-    pub marketing_seckill: Arc<SeckillService>,
-    pub marketing_time_discount: Arc<TimeDiscountService>,
-    pub marketing_salesman: Arc<SalesmanService>,
-    pub marketing_buyer_show_group: Arc<BuyerShowGroupService>,
-    pub marketing_buyer_show: Arc<BuyerShowService>,
-    pub marketing_buyer_show_comment: Arc<BuyerShowCommentService>,
-    pub marketing_salesman_material_category: Arc<SalesmanMaterialCategoryService>,
-    pub marketing_product_style_admin: Arc<ProductStyleAdminService>,
-    // —— member ——
-    pub member_member_lists: Arc<MemberService>,
-    pub member_user_manage: Arc<UserManageService>,
-    pub member_user_points_log: Arc<UserPointsLogService>,
-    pub member_user_company: Arc<UserCompanyService>,
-    pub member_member_tag: Arc<MemberTagService>,
-    pub member_member_tag_group: Arc<MemberTagGroupService>,
-    pub member_feedback: Arc<FeedbackService>,
-    pub member_user_rank: Arc<UserRankService>,
-    // —— logistics ——
-    pub logistics_shipping_list: Arc<LogisticsService>,
-    pub logistics_print_config: Arc<PrintConfigService>,
-    pub logistics_logistics_company_config: Arc<LogisticsCompanyConfigService>,
-    pub logistics_shipping_tpl: Arc<ShippingTplService>,
-    pub logistics_logistics_company: Arc<LogisticsCompanyService>,
-    pub logistics_shipping_type: Arc<ShippingTypeService>,
-    // —— content ——
-    pub content_article: Arc<ContentService>,
-    pub content_decorate: Arc<DecorateService>,
-    pub content_pc_cat_floor: Arc<PcCatFloorService>,
-    pub content_pc_navigation: Arc<PcNavigationService>,
-    pub content_seo: Arc<SeoService>,
-    pub content_mobile_cat_nav: Arc<MobileCatNavService>,
-    // —— system ——
-    pub system_files: Arc<FilesService>,
-    pub system_app_version_admin: Arc<AppVersionAdminService>,
-    pub system_cache_manage: Arc<CacheManageService>,
-    pub system_mail_templates: Arc<MailTemplatesService>,
-    pub system_area_code: Arc<AreaCodeService>,
-    pub system_message_type: Arc<MessageTypeService>,
-    pub system_region: Arc<RegionService>,
-    pub system_example: Arc<ExampleService>,
-    // —— im ——
-    pub im_im_servant: Arc<ImServantService>,
-    pub im_im_message: Arc<ImMessageService>,
-    pub im_im_config: Arc<ImConfigService>,
-    // —— analytics ——
-    pub analytics_statistics: Arc<StatisticsService>,
-    // —— openapi ——
-    pub openapi_workbuddy: Arc<WorkbuddyService>,
-    // —— misc ——
+    pub identity: std::sync::Arc<tigshop_services::identity::Services>,
+    pub merchant: std::sync::Arc<tigshop_services::merchant::Services>,
+    pub catalog: std::sync::Arc<tigshop_services::catalog::Services>,
+    pub trade: std::sync::Arc<tigshop_services::trade::Services>,
+    pub payment: std::sync::Arc<tigshop_services::payment::Services>,
+    pub marketing: std::sync::Arc<tigshop_services::marketing::Services>,
+    pub member: std::sync::Arc<tigshop_services::member::Services>,
+    pub logistics: std::sync::Arc<tigshop_services::logistics::Services>,
+    pub content: std::sync::Arc<tigshop_services::content::Services>,
+    pub system: std::sync::Arc<tigshop_services::system::Services>,
+    pub im: std::sync::Arc<tigshop_services::im::Services>,
+    pub analytics: std::sync::Arc<tigshop_services::analytics::Services>,
+    pub openapi: std::sync::Arc<tigshop_services::openapi::Services>,
     pub jwt: JwtService,
 }
 
@@ -280,7 +206,7 @@ async fn login(
         .and_then(|s| s.split(',').next())
         .unwrap_or("unknown")
         .to_string();
-    let vo = state.identity_auth.login(&dto, &ip).await?;
+    let vo = state.identity.auth.login(&dto, &ip).await?;
     Ok(Json(ApiResponse::success(vo)))
 }
 
@@ -289,7 +215,7 @@ async fn refresh(
     State(state): State<AdminState>,
     Json(dto): Json<RefreshDTO>,
 ) -> Result<Json<ApiResponse<tigshop_core::models::LoginVO>>, AppError> {
-    let vo = state.identity_auth.refresh(&dto.refresh_token)?;
+    let vo = state.identity.auth.refresh(&dto.refresh_token)?;
     Ok(Json(ApiResponse::success(vo)))
 }
 
@@ -303,7 +229,7 @@ async fn product_list(
     State(state): State<AdminState>,
     Query(query): Query<tigshop_core::models::ProductListQuery>,
 ) -> ApiResult<PageResult<tigshop_core::models::ProductVO>> {
-    let page = state.catalog_product.list(&query).await?;
+    let page = state.catalog.product.list(&query).await?;
     ok(page)
 }
 
@@ -320,7 +246,7 @@ async fn change_password(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<ChangePasswordDTO>,
 ) -> ApiResult<&'static str> {
-    state.identity_auth
+    state.identity.auth
         .change_password(auth.id, &dto.old_password, &dto.new_password)
         .await?;
     ok("密码修改成功")

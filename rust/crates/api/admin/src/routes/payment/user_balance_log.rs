@@ -77,7 +77,7 @@ async fn user_balance_log_list(
     State(state): State<AdminState>,
     Query(q): Query<UserBalanceLogListQuery>,
 ) -> ApiResult<PageResult<UserBalanceLogVO>> {
-    ok(state.payment_user_balance_log.list(&q).await?)
+    ok(state.payment.user_balance_log.list(&q).await?)
 }
 
 #[cfg(test)]

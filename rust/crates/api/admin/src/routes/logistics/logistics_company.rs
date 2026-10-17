@@ -164,7 +164,7 @@ async fn detail(
         .id
         .filter(|v| *v > 0)
         .ok_or_else(|| tigshop_core::Error::Validation("id不能为空".into()))?;
-    ok(state.logistics_logistics_company.detail(id).await?)
+    ok(state.logistics.logistics_company.detail(id).await?)
 }
 
 /// `POST /adminapi/setting/logisticsCompany/create`：创建物流公司。
@@ -178,7 +178,7 @@ async fn create(
     State(state): State<AdminState>,
     Json(dto): Json<LogisticsCompanyCreateDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let id = state.logistics_logistics_company.create(&dto).await?;
+    let id = state.logistics.logistics_company.create(&dto).await?;
     ok(serde_json::json!({ "id": id }))
 }
 
@@ -191,7 +191,7 @@ async fn update(
     State(state): State<AdminState>,
     Json(dto): Json<LogisticsCompanyUpdateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.logistics_logistics_company.update(&dto).await?)
+    ok(state.logistics.logistics_company.update(&dto).await?)
 }
 
 /// `POST /adminapi/setting/logisticsCompany/del`：删除物流公司（**硬删除**）。
@@ -203,7 +203,7 @@ async fn update(
 /// ⚠️ Java 删不存在的 id 也返回成功（`removeById` 返回 `false` 但不报错），
 /// 本实现保持这一语义，回传删除是否命中。
 async fn del(State(state): State<AdminState>, Json(dto): Json<OperateDTO>) -> ApiResult<bool> {
-    ok(state.logistics_logistics_company.del(&dto).await?)
+    ok(state.logistics.logistics_company.del(&dto).await?)
 }
 
 /// `POST /adminapi/setting/logisticsCompany/updateField`：更新单个字段。
@@ -221,7 +221,7 @@ async fn update_field(
     State(state): State<AdminState>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<bool> {
-    ok(state.logistics_logistics_company.update_field(&dto).await?)
+    ok(state.logistics.logistics_company.update_field(&dto).await?)
 }
 
 /// `POST /adminapi/setting/logisticsCompany/batch`：批量操作（仅 `del`）。
@@ -230,7 +230,7 @@ async fn update_field(
 /// → `BaseServiceImpl#batch`：`type != "del"` 时**静默返回 `false`**
 /// （HTTP 200，不是报错）。
 async fn batch(State(state): State<AdminState>, Json(dto): Json<BatchDTO>) -> ApiResult<bool> {
-    ok(state.logistics_logistics_company.batch(&dto).await?)
+    ok(state.logistics.logistics_company.batch(&dto).await?)
 }
 
 /// `POST /adminapi/setting/logisticsCompany/syncKdn`：同步快递鸟物流公司。
@@ -251,7 +251,7 @@ async fn sync_kdn(
     State(state): State<AdminState>,
     Query(q): Query<SyncQuery>,
 ) -> ApiResult<SyncLogisticsCompanyResultVO> {
-    ok(state.logistics_logistics_company.sync_kdn(&q).await?)
+    ok(state.logistics.logistics_company.sync_kdn(&q).await?)
 }
 
 /// `POST /adminapi/setting/logisticsCompany/syncKuaidi100`：同步快递100物流公司。
@@ -267,7 +267,7 @@ async fn sync_kuaidi100(
     State(state): State<AdminState>,
     Query(q): Query<SyncQuery>,
 ) -> ApiResult<SyncLogisticsCompanyResultVO> {
-    ok(state.logistics_logistics_company.sync_kuaidi100(&q).await?)
+    ok(state.logistics.logistics_company.sync_kuaidi100(&q).await?)
 }
 
 #[cfg(test)]

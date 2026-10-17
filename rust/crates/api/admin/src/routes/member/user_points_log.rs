@@ -79,7 +79,7 @@ async fn get_points(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
 ) -> ApiResult<i32> {
-    ok(state.member_user_points_log.get_points(auth.id).await?)
+    ok(state.member.user_points_log.get_points(auth.id).await?)
 }
 
 #[cfg(test)]

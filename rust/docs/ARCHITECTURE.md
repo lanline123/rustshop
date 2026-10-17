@@ -73,7 +73,7 @@ rust/crates/
 │   └── src/
 │       ├── lib.rs               # `pub mod <ctx>;`
 │       └── <ctx>/
-│           ├── mod.rs           # 本域 `Services` 结构 + `new(deps)` + `pub mod <feature>;`
+│           ├── mod.rs           # `pub mod <feature>;` + 本域 `Services` 结构
 │           └── <feature>.rs     # 用例服务
 ├── api/
 │   ├── admin/                   # 管理端 /adminapi（薄传输层）
@@ -155,36 +155,47 @@ common ← (所有)
 ## 5. 组合根与状态
 
 ```rust
-// services/src/<ctx>/mod.rs
+// services/src/<ctx>/mod.rs —— 本域服务集合（一次装配，处处共享）
+#[derive(Clone)]
 pub struct Services {
-    pub product: Arc<ProductService>,
-    pub brand: Arc<BrandService>,
-    // …本域全部 feature
+    pub product: Arc<product::ProductService>,
+    pub brand: Arc<brand::BrandService>,
+    // …本域全部已装配 feature
 }
-impl Services { pub fn new(repos: Arc<Repositories>, /* 跨域依赖 */) -> Self { … } }
 
-// api/admin/src/lib.rs
+// api/admin/src/lib.rs —— 每个上下文一个字段
 #[derive(Clone)]
 pub struct AdminState {
-    pub identity: Arc<identity::Services>,
-    pub merchant: Arc<merchant::Services>,
-    // …14 个域字段
+    pub identity: Arc<tigshop_services::identity::Services>,
+    pub merchant: Arc<tigshop_services::merchant::Services>,
+    // …实际 13 个域字段
     pub jwt: JwtService,
 }
 ```
 
-- `bin/src/composition.rs` 按 ctx 构建 `Services`，跨域依赖显式传入（如 `trade::Services::new(repos, &catalog)`）。
+- 装配顺序与跨域依赖在 `bin/src/main.rs` 显式编码（当前组合根文件 435 行，91 个服务构造 + 14 个 `Services` 聚合；无隐藏容器、无反射）。
 - 禁止 80 字段的平铺状态；禁止 `state.sliceNNN` 访问形式。
-- `main.rs` 只负责：配置 → 日志 → 连接池 → Redis → `AppContext` → 双端口 serve。
+- `main.rs` 只负责：配置 → 日志 → 连接池 → Redis → 服务装配 → 双端口 serve。
+
+> 落地状态：`AdminState` 13 字段、`PublicState` 11 字段、`Repositories` 14 个域分组
+> （90 个仓储字段，按 `repo/<ctx>::Repositories` 聚合），全部通过
+> `check_structure.py --strict`（阈值 20）。
 
 ---
 
 ## 6. 迁移映射（slice → ctx::feature）
 
-- 权威映射文件：`docs/domain-map.json`（220 个切片的 `ctx` / `feature` / 类型名 / 目标文件）。
-- 代码迁移由 `tools/restructure/restructure.py` 执行：文件移动 → 模块树重写 → 标识符重命名 → 注册聚合重写。
-- 迁移必须保持 **行为不变**：接口路径、SQL、错误码、响应结构、单测断言一律不改；只改组织结构与命名。
-- 迁移完成后 `git` 历史可通过 `git log --follow` 追溯。
+- 权威映射文件：`docs/domain-map.json`。它同时包含：
+  - `slices[]`：220 个切片的 `ctx` / `feature` / `type_prefix` / `coded` / `real` / `deleted` / `layers`；
+  - `baseline[]`：迁移前 76 个「早期域文件」（非切片）折叠出的 19 个 feature（承载 135 条已实现接口）；
+  - `controllers[]`：251 个 Java 控制器的归属，供后续 929 条待实现接口派工。
+- 迁移工具（`tools/restructure/`，可重复执行）：
+  `_draft_map.py` → `migrate.py`（文件移动/重写/聚合器生成）→ `cleanup_routes.py`（清理零路由壳）
+  → `group_state.py`（Stage-2 域分组）→ `sync_domain_map.py`（回写权威映射）。
+- 迁移保持 **行为不变**：接口路径、SQL、错误码、响应结构、单测断言一律不改；
+  只改组织结构与命名（机械 import 路径更新除外）。
+- 多控制器切片（slice-001/137/194）当前以聚合 feature 落地（`product_manage` / `workbuddy` /
+  `statistics`），`domain-map.json` 的 `split[]` 保留拆分计划，列为 Phase-3 工作。
 
 ---
 
@@ -224,6 +235,48 @@ pub struct AdminState {
 | `tigshop-security` Filter | `security` + `api/*` 中间件 |
 | Spring DI (`@Autowired`) | `bin/src/composition.rs` 显式装配 |
 | `@Transactional` | service 层 `pool.begin()/commit()` |
+
+---
+
+## 10. 落地状态与验收（Stage-1 + Stage-2，2026-10-17）
+
+| 指标 | 迁移前 | 迁移后 |
+|------|--------|--------|
+| `sliceNNN` 文件 | 529 | **0** |
+| `sliceNNN` 引用 | 4,738 | **0** |
+| 模块组织 | 编号切片 × 4 层 | 14 个限界上下文 × 94 个 feature |
+| 空壳路由（可编译不可达） | 59 个切片 / 236 文件 | **0**（已删除） |
+| `AdminState` / `PublicState` 字段 | 115 / 56 | **13 / 11**（域分组） |
+| `Repositories` | 148 字段平铺 | 14 个域 `Repositories` 聚合 |
+| `db/mod.rs` | 540 行 | 277 行 |
+| `services/lib.rs` | 165 行 | 15 行 |
+| `bin/main.rs` | 591 行（含重复注册） | 435 行（单一装配路径） |
+| 接口覆盖率 | 635 / 1564（40.6%） | **635 / 1564（40.6%，行为不变）** |
+| 注册路由 / 多余路由 | 645 / 16 | **645 / 16** |
+| 路由冲突 | 0 | **0** |
+| SQL 语句 / 未知表列 | 1041 / 0 | **1041 / 0** |
+| 单测 | 迁移前未全跑（基线存在 5 个失败） | **全绿**（core 917 / infra 293 / services 1019 / api 256 / 其它） |
+
+验收命令（全部以当前树实测通过）：
+
+```bash
+cd rust/crates && cargo check --workspace --all-targets
+cd rust/crates && cargo test  --workspace
+cd rust && python tools/check_api_coverage.py      # 635 / 1564
+cd rust && python tools/check_route_conflicts.py --strict
+cd rust && python tools/check_sql_columns.py --strict
+cd rust && python tools/check_structure.py --strict   # exit 0
+cd rust && python tools/coverage_by_domain.py
+```
+
+### 已知遗留（不阻塞验收，按优先级）
+
+1. **Phase-3 拆分**：slice-001/137/194 的多控制器聚合 feature（`catalog/product_manage`、
+   `openapi/workbuddy`、`analytics/statistics`）需要按 `domain-map.json#split[]` 拆成独立 feature；
+2. **bootstrap 内联路由**：`api/{admin,public}/src/lib.rs` 仍内联约 20 条早期路由
+   （login/health/cart/order 等），应下沉到 `routes/<ctx>/<feature>.rs`；
+3. **RBAC**：864 条接口带权限码，`security` 目前只校验登录态（见评审 §6.1）；
+4. **事务 / MQ / 定时任务 / i18n**：见 `docs/architecture-review.md` §6。
 
 ---
 

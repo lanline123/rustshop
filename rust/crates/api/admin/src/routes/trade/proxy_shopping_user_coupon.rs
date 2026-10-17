@@ -119,7 +119,7 @@ async fn coupon_claim(
     let coupon_id = payload
         .coupon_id
         .ok_or_else(|| Error::Validation("优惠券主键不能为空".into()))?;
-    let id = state.trade_proxy_shopping_user_coupon
+    let id = state.trade.proxy_shopping_user_coupon
         .claim(payload.user_id, coupon_id, auth.id)
         .await?;
     ok(id)

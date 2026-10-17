@@ -166,7 +166,7 @@ async fn brand_list(
     State(state): State<AdminState>,
     Query(q): Query<BrandListQuery>,
 ) -> ApiResult<PageResult<BrandVO>> {
-    ok(state.catalog_brand.list(&q).await?)
+    ok(state.catalog.brand.list(&q).await?)
 }
 
 /// `GET /adminapi/product/brand/detail?id=`：品牌详情。
@@ -182,7 +182,7 @@ async fn brand_detail(
     State(state): State<AdminState>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<BrandDTO> {
-    ok(state.catalog_brand.detail(q.id).await?)
+    ok(state.catalog.brand.detail(q.id).await?)
 }
 
 /// `POST /adminapi/product/brand/del`：删除品牌。
@@ -195,7 +195,7 @@ async fn brand_del(
     let id = dto
         .id
         .ok_or_else(|| tigshop_core::Error::Validation("ID不能为空".into()))?;
-    state.catalog_brand.delete(id).await?;
+    state.catalog.brand.delete(id).await?;
     ok("删除成功")
 }
 
@@ -211,7 +211,7 @@ async fn brand_create(
     // JWT 尚未携带 shop_id：店铺自建品牌显式传 shopId（前端已带），
     // 未传视为平台操作（shop_id = 0）
     let shop_id = dto.shop_id.unwrap_or(0);
-    state.catalog_brand.create(&dto, shop_id).await?;
+    state.catalog.brand.create(&dto, shop_id).await?;
     ok(if shop_id > 0 {
         "添加成功,等待管理员审核".to_string()
     } else {
@@ -233,7 +233,7 @@ async fn brand_update(
     Json(dto): Json<BrandDTO>,
 ) -> ApiResult<&'static str> {
     let shop_id = dto.shop_id.unwrap_or(0);
-    state.catalog_brand.update(&dto, shop_id).await?;
+    state.catalog.brand.update(&dto, shop_id).await?;
     ok(if shop_id > 0 {
         "修改成功,等待管理员审核"
     } else {
@@ -258,7 +258,7 @@ async fn brand_update_field(
     let val = dto
         .val
         .ok_or_else(|| tigshop_core::Error::Validation("字段值不能为空".into()))?;
-    ok(state.catalog_brand.update_field(id, &field, &val).await?)
+    ok(state.catalog.brand.update_field(id, &field, &val).await?)
 }
 
 /// `POST /adminapi/product/brand/batch`：批量操作。
@@ -269,14 +269,14 @@ async fn brand_batch(
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<u64> {
     let ids = dto.ids.unwrap_or_default();
-    ok(state.catalog_brand.batch(&ids, dto.r#type.as_deref()).await?)
+    ok(state.catalog.brand.batch(&ids, dto.r#type.as_deref()).await?)
 }
 
 /// `GET /adminapi/product/brand/search`：品牌搜索（下拉数据）。
 ///
 /// 对应 Java `BrandController.search`（返回 `BrandSearchVO`）。
 async fn brand_search(State(state): State<AdminState>) -> ApiResult<BrandSearchVO> {
-    ok(state.catalog_brand.search().await?)
+    ok(state.catalog.brand.search().await?)
 }
 
 /// `POST /adminapi/product/brand/updateFirstWord`：批量重算首字母。
@@ -287,7 +287,7 @@ async fn brand_search(State(state): State<AdminState>) -> ApiResult<BrandSearchV
 async fn brand_update_first_word(
     State(state): State<AdminState>,
 ) -> ApiResult<serde_json::Value> {
-    let updated = state.catalog_brand.update_first_word().await?;
+    let updated = state.catalog.brand.update_first_word().await?;
     ok(serde_json::json!({ "updated": updated }))
 }
 
@@ -300,7 +300,7 @@ async fn brand_audit_list(
     Query(mut q): Query<BrandListQuery>,
 ) -> ApiResult<PageResult<BrandVO>> {
     q.is_audit = Some(1);
-    ok(state.catalog_brand.list(&q).await?)
+    ok(state.catalog.brand.list(&q).await?)
 }
 
 /// `POST /adminapi/product/brand/audit`：品牌审核。
@@ -310,7 +310,7 @@ async fn brand_audit(
     State(state): State<AdminState>,
     Json(dto): Json<BrandAuditDTO>,
 ) -> ApiResult<&'static str> {
-    state.catalog_brand.audit(&dto).await?;
+    state.catalog.brand.audit(&dto).await?;
     ok("审核成功")
 }
 
@@ -318,7 +318,7 @@ async fn brand_audit(
 ///
 /// 对应 Java `BrandController.auditWaitNum`（返回 `Long`）。
 async fn brand_audit_wait_num(State(state): State<AdminState>) -> ApiResult<i64> {
-    ok(state.catalog_brand.audit_wait_num().await?)
+    ok(state.catalog.brand.audit_wait_num().await?)
 }
 
 #[cfg(test)]

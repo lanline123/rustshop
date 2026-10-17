@@ -106,7 +106,7 @@ async fn list(
     State(state): State<AdminState>,
     Query(q): Query<TaxRateListQuery>,
 ) -> ApiResult<PageResult<TaxRateVO>> {
-    ok(state.payment_tax_rate.list(&q).await?)
+    ok(state.payment.tax_rate.list(&q).await?)
 }
 
 /// `GET /adminapi/setting/taxRate/detail?taxRateId=`：税率详情。
@@ -121,7 +121,7 @@ async fn detail(
     Query(q): Query<TaxRateIdQuery>,
 ) -> ApiResult<TaxRateVO> {
     let id = require_positive_id(q.tax_rate_id)?;
-    ok(state.payment_tax_rate.detail(id).await?)
+    ok(state.payment.tax_rate.detail(id).await?)
 }
 
 /// `POST /adminapi/setting/taxRate/create`：新增税率。
@@ -135,7 +135,7 @@ async fn create(
     State(state): State<AdminState>,
     Json(dto): Json<TaxRateDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let id = state.payment_tax_rate.create(&dto).await?;
+    let id = state.payment.tax_rate.create(&dto).await?;
     ok(serde_json::json!({ "taxRateId": id }))
 }
 
@@ -151,7 +151,7 @@ async fn update(
     State(state): State<AdminState>,
     Json(dto): Json<TaxRateDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let affected = state.payment_tax_rate.update(&dto).await?;
+    let affected = state.payment.tax_rate.update(&dto).await?;
     ok(serde_json::json!({ "affected": affected }))
 }
 
@@ -169,7 +169,7 @@ async fn del(
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<serde_json::Value> {
     let id = require_positive_id(dto.id)?;
-    let deleted = state.payment_tax_rate.del(id).await?;
+    let deleted = state.payment.tax_rate.del(id).await?;
     ok(serde_json::json!({ "deleted": deleted }))
 }
 

@@ -154,7 +154,7 @@ async fn get_configs_by_print_id(
     let print_id = q
         .print_id
         .ok_or_else(|| tigshop_core::Error::Validation(MSG_PRINT_ID_REQUIRED.into()))?;
-    ok(state.logistics_print_config.get_configs_by_print_id(print_id).await?)
+    ok(state.logistics.print_config.get_configs_by_print_id(print_id).await?)
 }
 
 /// `POST /adminapi/print/printConfig/update`：更新打印配置。
@@ -170,7 +170,7 @@ async fn update(
     State(state): State<AdminState>,
     Json(dto): Json<PrintConfigUpdateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.logistics_print_config.update_config(&dto).await?)
+    ok(state.logistics.print_config.update_config(&dto).await?)
 }
 
 /// `POST /adminapi/print/printConfig/print`：打印订单（手动补打）。
@@ -185,7 +185,7 @@ async fn print(
     State(state): State<AdminState>,
     Json(dto): Json<PrintOrdersDTO>,
 ) -> ApiResult<bool> {
-    ok(state.logistics_print_config.print_orders(&dto, default_shop_id()).await?)
+    ok(state.logistics.print_config.print_orders(&dto, default_shop_id()).await?)
 }
 
 /// 本模块当前使用的店铺 ID。

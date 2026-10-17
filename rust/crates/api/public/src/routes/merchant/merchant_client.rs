@@ -151,7 +151,7 @@ async fn upload_license(
     mut multipart: Multipart,
 ) -> ApiResult<String> {
     let (byte_len, content_type) = read_license_file(&mut multipart).await?;
-    ok(state.merchant_merchant_client.upload_license(byte_len, content_type.as_deref())?)
+    ok(state.merchant.merchant_client.upload_license(byte_len, content_type.as_deref())?)
 }
 
 /// 读取营业执照上传字段（`file` 或 `license`），返回 `(字节长度, MIME)`。
@@ -186,7 +186,7 @@ async fn apply_shop_agreement(
     State(state): State<PublicState>,
     _auth: Option<Extension<AuthUser>>,
 ) -> ApiResult<String> {
-    ok(state.merchant_merchant_client.apply_shop_agreement().await?)
+    ok(state.merchant.merchant_client.apply_shop_agreement().await?)
 }
 
 /// `GET /api/merchant/merchant/myApply`：我的（最新一条）入驻申请。
@@ -199,7 +199,7 @@ async fn my_apply(
     auth: Option<Extension<AuthUser>>,
 ) -> ApiResult<Option<tigshop_core::models::merchant::merchant_client::MerchantMyApplyVO>> {
     let user_id = optional_user_id(&auth).unwrap_or(0);
-    ok(state.merchant_merchant_client.my_apply(user_id).await?)
+    ok(state.merchant.merchant_client.my_apply(user_id).await?)
 }
 
 /// `GET /api/merchant/merchant/applyDetail?id=`：入驻申请详情（仅本人可读）。
@@ -212,7 +212,7 @@ async fn apply_detail(
     Query(q): Query<ApplyDetailQuery>,
 ) -> ApiResult<tigshop_core::models::merchant::merchant_client::MerchantApplyDetailVO> {
     let user_id = optional_user_id(&auth).unwrap_or(0);
-    ok(state.merchant_merchant_client.apply_detail(q.id, user_id).await?)
+    ok(state.merchant.merchant_client.apply_detail(q.id, user_id).await?)
 }
 
 /// `POST /api/merchant/merchant/apply`：提交入驻申请。
@@ -231,7 +231,7 @@ async fn apply(
         Some(id) => id,
         None => return Err(AppError(Error::biz(401, "请先登录"))),
     };
-    ok(state.merchant_merchant_client.apply(user_id, &param).await?)
+    ok(state.merchant.merchant_client.apply(user_id, &param).await?)
 }
 
 #[cfg(test)]
@@ -300,7 +300,7 @@ mod tests {
 }
 
 // uncertain_points:
-// 1. 本文件引用 `state.merchant_merchant_client`（类型 `Arc<tigshop_services::merchant::merchant_client::MerchantClientService>`），
+// 1. 本文件引用 `state.merchant.merchant_client`（类型 `Arc<tigshop_services::merchant::merchant_client::MerchantClientService>`），
 //    但 `api/public/src/lib.rs` 的 `PublicState` 当前**尚未包含** `merchant_client` 字段。
 //    主会话需：在 `PublicState` 新增 `pub merchant_client: Arc<MerchantClientService>`，
 //    并在 `services` 构造处初始化（参考其它 `sliceNNN` 字段）。

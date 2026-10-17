@@ -133,7 +133,7 @@ async fn children_category_tree(
     State(state): State<PublicState>,
     Query(q): Query<ChildrenCategoryQuery>,
 ) -> ApiResult<Vec<CategoryTreeVO>> {
-    ok(state.catalog_category.children_category_tree(q.id).await?)
+    ok(state.catalog.category.children_category_tree(q.id).await?)
 }
 
 /// `GET /api/category/category/relateLookAlso`：商品详情页「看了还看」。
@@ -144,14 +144,14 @@ async fn relate_look_also(
     State(state): State<PublicState>,
     Query(q): Query<ProductRelateQuery>,
 ) -> ApiResult<Vec<ProductLookAlsoVO>> {
-    ok(state.catalog_category.relate_look_also(&q).await?)
+    ok(state.catalog.category.relate_look_also(&q).await?)
 }
 
 /// `GET /api/category/category/hot`：热门分类（`is_hot = 1`，最多 20 条）。
 ///
 /// 对应 Java `CategoryController.getHotCategory` → `CategoryServiceImpl.getHotCategory`。
 async fn hot_category(State(state): State<PublicState>) -> ApiResult<Vec<Category>> {
-    ok(state.catalog_category.hot_categories().await?)
+    ok(state.catalog.category.hot_categories().await?)
 }
 
 /// `GET /api/category/category/relateRank`：相关排行（相同价位 / 品牌 / 类别）。
@@ -162,7 +162,7 @@ async fn relate_rank(
     State(state): State<PublicState>,
     Query(q): Query<ProductRelateQuery>,
 ) -> ApiResult<RelateRankVO> {
-    ok(state.catalog_category.relate_rank(&q).await?)
+    ok(state.catalog.category.relate_rank(&q).await?)
 }
 
 /// `GET /api/category/category/relateArticle`：相关文章。
@@ -173,7 +173,7 @@ async fn relate_article(
     State(state): State<PublicState>,
     Query(q): Query<ProductRelateQuery>,
 ) -> ApiResult<Vec<RelateArticleVO>> {
-    ok(state.catalog_category.relate_article(&q).await?)
+    ok(state.catalog.category.relate_article(&q).await?)
 }
 
 /// `GET /api/category/category/relateBrand`：相关品牌。
@@ -184,7 +184,7 @@ async fn relate_brand(
     State(state): State<PublicState>,
     Query(q): Query<ProductRelateQuery>,
 ) -> ApiResult<Vec<RelateBrandVO>> {
-    ok(state.catalog_category.relate_brand(&q).await?)
+    ok(state.catalog.category.relate_brand(&q).await?)
 }
 
 /// `GET /api/category/category/relateCategory`：相关分类。
@@ -195,7 +195,7 @@ async fn relate_category(
     State(state): State<PublicState>,
     Query(q): Query<ProductRelateQuery>,
 ) -> ApiResult<Vec<RelateCategoryVO>> {
-    ok(state.catalog_category.relate_category(&q).await?)
+    ok(state.catalog.category.relate_category(&q).await?)
 }
 
 /// `GET /api/category/category/parentTree?id=`：父级分类链。
@@ -207,5 +207,5 @@ async fn parent_tree(
     State(state): State<PublicState>,
     Query(q): Query<ChildrenCategoryQuery>,
 ) -> ApiResult<Vec<CategoryParentTreeVO>> {
-    ok(state.catalog_category.parent_tree(q.id).await?)
+    ok(state.catalog.category.parent_tree(q.id).await?)
 }

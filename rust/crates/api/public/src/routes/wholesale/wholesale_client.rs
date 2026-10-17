@@ -132,7 +132,7 @@ async fn wholesale_me(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
 ) -> ApiResult<WholesaleMeVO> {
-    ok(state.wholesale_wholesale_client.me(current_user_id(&auth)).await?)
+    ok(state.wholesale.wholesale_client.me(current_user_id(&auth)).await?)
 }
 
 /// `GET /api/wholesale/product/buyRule?productId=`：商品起批规则。
@@ -157,7 +157,7 @@ async fn wholesale_product_buy_rule(
             "productId 必须为正整数",
         )));
     }
-    ok(state.wholesale_wholesale_client.buy_rule(product_id).await?)
+    ok(state.wholesale.wholesale_client.buy_rule(product_id).await?)
 }
 
 /// `POST /api/wholesale/cart/addBatch`：批量加车（仅批发商）。
@@ -173,7 +173,7 @@ async fn wholesale_cart_add_batch(
     auth: Option<Extension<AuthUser>>,
     Json(dto): Json<WholesaleCartBatchAddDTO>,
 ) -> ApiResult<WholesaleCartBatchResultVO> {
-    ok(state.wholesale_wholesale_client
+    ok(state.wholesale.wholesale_client
         .add_batch(current_user_id(&auth), &dto)
         .await?)
 }

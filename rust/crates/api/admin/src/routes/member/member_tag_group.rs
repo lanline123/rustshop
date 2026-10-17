@@ -196,7 +196,7 @@ async fn detail(
         .id
         .ok_or_else(|| tigshop_core::Error::Validation(MSG_ID_REQUIRED.to_string()))?;
     let shop_id = shop_id_from_headers(&headers);
-    ok(state.member_member_tag_group.detail(id, shop_id).await?)
+    ok(state.member.member_tag_group.detail(id, shop_id).await?)
 }
 
 // ——————————————————————————————————————————————
@@ -218,7 +218,7 @@ async fn create(
 ) -> ApiResult<serde_json::Value> {
     let shop_id = shop_id_from_headers(&headers);
     let operator = operator_from(&auth);
-    let id = state.member_member_tag_group.create(&dto, shop_id, &operator).await?;
+    let id = state.member.member_tag_group.create(&dto, shop_id, &operator).await?;
     ok(serde_json::json!({ "id": id }))
 }
 
@@ -236,7 +236,7 @@ async fn update(
 ) -> ApiResult<serde_json::Value> {
     let shop_id = shop_id_from_headers(&headers);
     let operator = operator_from(&auth);
-    let outcome = state.member_member_tag_group.update(&dto, shop_id, &operator).await?;
+    let outcome = state.member.member_tag_group.update(&dto, shop_id, &operator).await?;
     ok(serde_json::json!({
         "groupId": outcome.group_id,
         "deleted": outcome.deleted,
@@ -260,7 +260,7 @@ async fn del(
 ) -> ApiResult<serde_json::Value> {
     require_group_id(dto.group_id())?;
     let shop_id = shop_id_from_headers(&headers);
-    let outcome = state.member_member_tag_group.del_group(&dto, shop_id).await?;
+    let outcome = state.member.member_tag_group.del_group(&dto, shop_id).await?;
     ok(serde_json::json!({
         "groupId": outcome.group_id,
         "removedLinks": outcome.removed_links,
@@ -286,7 +286,7 @@ async fn set_top(
     require_group_id(dto.group_id())?;
     let shop_id = shop_id_from_headers(&headers);
     let operator = operator_from(&auth);
-    let top = state.member_member_tag_group.set_top(&dto, shop_id, &operator).await?;
+    let top = state.member.member_tag_group.set_top(&dto, shop_id, &operator).await?;
     ok(serde_json::json!({ "isTop": top }))
 }
 
@@ -306,7 +306,7 @@ async fn cancel_top(
     require_group_id(dto.group_id())?;
     let shop_id = shop_id_from_headers(&headers);
     let operator = operator_from(&auth);
-    let affected = state.member_member_tag_group.cancel_top(&dto, shop_id, &operator).await?;
+    let affected = state.member.member_tag_group.cancel_top(&dto, shop_id, &operator).await?;
     ok(serde_json::json!({ "affected": affected }))
 }
 

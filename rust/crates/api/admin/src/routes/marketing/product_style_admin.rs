@@ -161,7 +161,7 @@ async fn list(
     State(state): State<AdminState>,
     Query(q): Query<ProductStyleListQuery>,
 ) -> ApiResult<PageResult<ProductStyleVO>> {
-    ok(state.marketing_product_style_admin.list(&q).await?)
+    ok(state.marketing.product_style_admin.list(&q).await?)
 }
 
 /// `GET /adminapi/promotion/productStyle/detail?id=`：商品样式详情。
@@ -180,7 +180,7 @@ async fn detail(
     State(state): State<AdminState>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<ProductStyleDetailVO> {
-    ok(state.marketing_product_style_admin.detail(q.id).await?)
+    ok(state.marketing.product_style_admin.detail(q.id).await?)
 }
 
 /// `POST /adminapi/promotion/productStyle/create`：创建商品样式。
@@ -193,7 +193,7 @@ async fn create(
     State(state): State<AdminState>,
     Json(dto): Json<ProductStyleSaveDTO>,
 ) -> ApiResult<i32> {
-    ok(state.marketing_product_style_admin.create(&dto).await?)
+    ok(state.marketing.product_style_admin.create(&dto).await?)
 }
 
 /// `POST /adminapi/promotion/productStyle/update`：更新商品样式。
@@ -207,7 +207,7 @@ async fn update(
     State(state): State<AdminState>,
     Json(dto): Json<ProductStyleEditDTO>,
 ) -> ApiResult<bool> {
-    ok(state.marketing_product_style_admin.update(&dto).await?)
+    ok(state.marketing.product_style_admin.update(&dto).await?)
 }
 
 /// `POST /adminapi/promotion/productStyle/updateField`：更新单个字段。
@@ -219,7 +219,7 @@ async fn update_field(
     State(state): State<AdminState>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<bool> {
-    ok(state.marketing_product_style_admin.update_field(&dto).await?)
+    ok(state.marketing.product_style_admin.update_field(&dto).await?)
 }
 
 /// `POST /adminapi/promotion/productStyle/del`：删除商品样式。
@@ -229,7 +229,7 @@ async fn update_field(
 ///
 /// ⚠️ 物理删除（`removeById`），且不清理 `product_style_item`。
 async fn del(State(state): State<AdminState>, Json(dto): Json<OperateDTO>) -> ApiResult<bool> {
-    ok(state.marketing_product_style_admin.del(&dto).await?)
+    ok(state.marketing.product_style_admin.del(&dto).await?)
 }
 
 /// `POST /adminapi/promotion/productStyle/batch`：批量操作。
@@ -238,7 +238,7 @@ async fn del(State(state): State<AdminState>, Json(dto): Json<OperateDTO>) -> Ap
 /// BatchDTO batch)` → `ProductStyleServiceImpl#batch` →
 /// `BaseServiceImpl#batch`（仅 `type = "del"` 生效，其余静默返回 `false`）。
 async fn batch(State(state): State<AdminState>, Json(dto): Json<BatchDTO>) -> ApiResult<bool> {
-    ok(state.marketing_product_style_admin.batch(&dto).await?)
+    ok(state.marketing.product_style_admin.batch(&dto).await?)
 }
 
 /// `POST /adminapi/promotion/productStyle/addProducts`：批量添加关联商品。
@@ -251,7 +251,7 @@ async fn add_products(
     State(state): State<AdminState>,
     Json(dto): Json<ProductStyleItemBatchDTO>,
 ) -> ApiResult<u64> {
-    ok(state.marketing_product_style_admin.add_products(&dto).await?)
+    ok(state.marketing.product_style_admin.add_products(&dto).await?)
 }
 
 /// `POST /adminapi/promotion/productStyle/removeProducts`：批量移除关联商品。
@@ -264,7 +264,7 @@ async fn remove_products(
     State(state): State<AdminState>,
     Json(dto): Json<ProductStyleItemBatchDTO>,
 ) -> ApiResult<u64> {
-    ok(state.marketing_product_style_admin.remove_products(&dto).await?)
+    ok(state.marketing.product_style_admin.remove_products(&dto).await?)
 }
 
 /// `GET /adminapi/promotion/productStyle/brandList?keyword=`：品牌列表（含商品数）。
@@ -285,7 +285,7 @@ async fn brand_list(
     State(state): State<AdminState>,
     Query(q): Query<BrandListQuery>,
 ) -> ApiResult<Vec<BrandProductCountVO>> {
-    ok(state.marketing_product_style_admin.brand_list(q.keyword.as_deref()).await?)
+    ok(state.marketing.product_style_admin.brand_list(q.keyword.as_deref()).await?)
 }
 
 #[cfg(test)]

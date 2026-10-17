@@ -58,7 +58,7 @@ async fn list(
     State(state): State<PublicState>,
     Query(q): Query<ListQuery>,
 ) -> ApiResult<PageResult<TimeDiscountPromotionVO>> {
-    ok(state.marketing_time_discount.active_list(q.page, q.page_size).await?)
+    ok(state.marketing.time_discount.active_list(q.page, q.page_size).await?)
 }
 
 /// 折扣价查询参数。
@@ -79,7 +79,7 @@ async fn price(
     State(state): State<PublicState>,
     Query(q): Query<PriceQuery>,
 ) -> ApiResult<serde_json::Value> {
-    let p: Option<Decimal> = state.marketing_time_discount
+    let p: Option<Decimal> = state.marketing.time_discount
         .current_discount_price(q.product_id, q.sku_id, q.price)
         .await?;
     ok(serde_json::json!({
@@ -94,7 +94,7 @@ async fn can_join(
     Extension(auth): Extension<AuthUser>,
     Query(q): Query<PriceQuery>,
 ) -> ApiResult<bool> {
-    ok(state.marketing_time_discount
+    ok(state.marketing.time_discount
         .can_user_join(q.product_id, q.sku_id, auth.id)
         .await?)
 }

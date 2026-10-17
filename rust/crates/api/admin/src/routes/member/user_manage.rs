@@ -145,7 +145,7 @@ async fn user_list(
     State(state): State<AdminState>,
     Query(q): Query<UserListQuery>,
 ) -> ApiResult<PageResult<UserVO>> {
-    ok(state.member_user_manage.list(&q).await?)
+    ok(state.member.user_manage.list(&q).await?)
 }
 
 /// `GET /adminapi/user/user/detail?id=`：会员详情。
@@ -166,7 +166,7 @@ async fn user_detail(
     let id = q
         .id
         .ok_or_else(|| tigshop_core::Error::Validation("会员ID不能为空".into()))?;
-    ok(state.member_user_manage.detail(id).await?)
+    ok(state.member.user_manage.detail(id).await?)
 }
 
 // ————————————————————————— 新增 / 更新 / 删除 —————————————————————————
@@ -179,7 +179,7 @@ async fn user_create(
     State(state): State<AdminState>,
     Json(param): Json<CreateUserParam>,
 ) -> ApiResult<UserCreateVO> {
-    ok(state.member_user_manage.create_user(&param).await?)
+    ok(state.member.user_manage.create_user(&param).await?)
 }
 
 /// `POST /adminapi/user/user/update`：更新会员。
@@ -189,7 +189,7 @@ async fn user_update(
     State(state): State<AdminState>,
     Json(param): Json<UpdateUserParam>,
 ) -> ApiResult<&'static str> {
-    state.member_user_manage.update_user(&param).await?;
+    state.member.user_manage.update_user(&param).await?;
     ok("更新成功")
 }
 
@@ -201,7 +201,7 @@ async fn user_del(
     State(state): State<AdminState>,
     Json(param): Json<OperateDTO>,
 ) -> ApiResult<&'static str> {
-    state.member_user_manage.delete_user(param.id).await?;
+    state.member.user_manage.delete_user(param.id).await?;
     ok("删除成功")
 }
 
@@ -214,7 +214,7 @@ async fn user_update_field(
     State(state): State<AdminState>,
     Json(param): Json<UpdateFieldDTO>,
 ) -> ApiResult<&'static str> {
-    state.member_user_manage
+    state.member.user_manage
         .update_field(param.id, param.field.as_deref(), param.val.as_deref())
         .await?;
     ok("更新成功")
@@ -231,7 +231,7 @@ async fn user_batch(
     State(state): State<AdminState>,
     Json(param): Json<UserBatchParam>,
 ) -> ApiResult<bool> {
-    ok(state.member_user_manage.batch(&param).await?)
+    ok(state.member.user_manage.batch(&param).await?)
 }
 
 // ————————————————————————— Excel（未迁移） —————————————————————————
@@ -245,7 +245,7 @@ async fn user_batch_import(
     State(state): State<AdminState>,
     _multipart: Multipart,
 ) -> ApiResult<serde_json::Value> {
-    state.member_user_manage.batch_import_users().await?;
+    state.member.user_manage.batch_import_users().await?;
     ok(serde_json::Value::Null)
 }
 
@@ -258,7 +258,7 @@ async fn user_import_error_data(
     State(state): State<AdminState>,
     _multipart: Multipart,
 ) -> ApiResult<serde_json::Value> {
-    state.member_user_manage.get_user_import_error_data().await?;
+    state.member.user_manage.get_user_import_error_data().await?;
     ok(serde_json::Value::Null)
 }
 
@@ -271,7 +271,7 @@ async fn user_import_error_data(
 async fn user_download_import_template(
     State(state): State<AdminState>,
 ) -> ApiResult<serde_json::Value> {
-    state.member_user_manage.download_user_import_template().await?;
+    state.member.user_manage.download_user_import_template().await?;
     ok(serde_json::Value::Null)
 }
 
@@ -294,7 +294,7 @@ async fn user_search(
     State(state): State<AdminState>,
     Query(q): Query<SearchQuery>,
 ) -> ApiResult<Option<UserSearchVO>> {
-    ok(state.member_user_manage
+    ok(state.member.user_manage
         .search_user(q.search.as_deref().unwrap_or_default())
         .await?)
 }
@@ -307,7 +307,7 @@ async fn user_fund_management(
     State(state): State<AdminState>,
     Json(param): Json<FundManagementParam>,
 ) -> ApiResult<&'static str> {
-    state.member_user_manage.fund_management(&param).await?;
+    state.member.user_manage.fund_management(&param).await?;
     ok("操作成功")
 }
 
@@ -320,7 +320,7 @@ async fn user_fund_detail(
     State(state): State<AdminState>,
     Query(q): Query<UserFundDetailQuery>,
 ) -> ApiResult<PageResult<FundDetailItem>> {
-    ok(state.member_user_manage.user_fund_detail(&q).await?)
+    ok(state.member.user_manage.user_fund_detail(&q).await?)
 }
 
 /// `POST /adminapi/user/user/logout`：管理员退出登录。
@@ -330,7 +330,7 @@ async fn user_fund_detail(
 /// 服务层返回明确业务错误，不会假装成功。
 #[allow(clippy::unused_async)]
 async fn user_logout(State(state): State<AdminState>) -> ApiResult<&'static str> {
-    state.member_user_manage.admin_logout().await?;
+    state.member.user_manage.admin_logout().await?;
     ok("退出成功")
 }
 
@@ -342,7 +342,7 @@ async fn user_set_admin_note(
     State(state): State<AdminState>,
     Json(param): Json<SetAdminNoteParam>,
 ) -> ApiResult<&'static str> {
-    state.member_user_manage.set_admin_note(&param).await?;
+    state.member.user_manage.set_admin_note(&param).await?;
     ok("设置成功")
 }
 

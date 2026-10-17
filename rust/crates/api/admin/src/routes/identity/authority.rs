@@ -160,7 +160,7 @@ async fn get_all_authority(
     Query(q): Query<AllAuthorityQuery>,
 ) -> ApiResult<Option<Vec<AuthorityTreeNode>>> {
     let ctx = context_from(&auth, q.shop_id, q.vendor_id);
-    ok(state.identity_authority
+    ok(state.identity.authority
         .get_all_authority(&ctx, q.admin_type.as_deref())
         .await?)
 }
@@ -179,7 +179,7 @@ async fn get_authority(
     Query(q): Query<GetAuthorityQuery>,
 ) -> ApiResult<Vec<AuthorityVO>> {
     let ctx = context_from(&auth, q.shop_id, q.vendor_id);
-    ok(state.identity_authority.get_authority(&ctx).await?)
+    ok(state.identity.authority.get_authority(&ctx).await?)
 }
 
 /// `GET /adminapi/authority/authority/list`：权限分页。
@@ -190,7 +190,7 @@ async fn list(
     State(state): State<AdminState>,
     Query(q): Query<AuthorityListQuery>,
 ) -> ApiResult<PageResult<AuthorityDTO>> {
-    ok(state.identity_authority.list(&q).await?)
+    ok(state.identity.authority.list(&q).await?)
 }
 
 /// `GET /adminapi/authority/authority/getAuthorityParentName?id=`：父级权限名称。
@@ -207,7 +207,7 @@ async fn get_authority_parent_name(
     State(state): State<AdminState>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<Option<String>> {
-    ok(state.identity_authority.get_authority_parent_name(q.id).await?)
+    ok(state.identity.authority.get_authority_parent_name(q.id).await?)
 }
 
 /// `POST /adminapi/authority/authority/batch`：批量操作。
@@ -219,7 +219,7 @@ async fn batch(
     State(state): State<AdminState>,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<&'static str> {
-    state.identity_authority.batch(&dto).await?;
+    state.identity.authority.batch(&dto).await?;
     ok("操作成功")
 }
 
@@ -231,7 +231,7 @@ async fn create(
     State(state): State<AdminState>,
     Json(dto): Json<AuthorityDTO>,
 ) -> ApiResult<i32> {
-    ok(state.identity_authority.create(&dto).await?)
+    ok(state.identity.authority.create(&dto).await?)
 }
 
 /// `POST /adminapi/authority/authority/del`：删除权限。
@@ -242,13 +242,13 @@ async fn del(
     State(state): State<AdminState>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<&'static str> {
-    state.identity_authority.del(dto.id).await?;
+    state.identity.authority.del(dto.id).await?;
     ok("删除成功")
 }
 
 /// `GET /adminapi/authority/authority/detail?id=`：权限详情。
 async fn detail(State(state): State<AdminState>, Query(q): Query<IdQuery>) -> ApiResult<AuthorityDTO> {
-    ok(state.identity_authority.detail(q.id).await?)
+    ok(state.identity.authority.detail(q.id).await?)
 }
 
 /// `POST /adminapi/authority/authority/update`：更新权限。
@@ -256,7 +256,7 @@ async fn update(
     State(state): State<AdminState>,
     Json(dto): Json<AuthorityDTO>,
 ) -> ApiResult<&'static str> {
-    state.identity_authority.update(&dto).await?;
+    state.identity.authority.update(&dto).await?;
     ok("更新成功")
 }
 
@@ -269,7 +269,7 @@ async fn update_field(
     State(state): State<AdminState>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<&'static str> {
-    state.identity_authority.update_field(&dto).await?;
+    state.identity.authority.update_field(&dto).await?;
     ok("更新成功")
 }
 

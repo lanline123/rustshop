@@ -92,7 +92,7 @@ async fn paylog_del(
     State(state): State<AdminState>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.payment_paylog_batch.delete(&dto).await?)
+    ok(state.payment.paylog_batch.delete(&dto).await?)
 }
 
 /// `POST /adminapi/finance/payLog/updateField`：通用单字段更新。
@@ -107,7 +107,7 @@ async fn paylog_update_field(
     State(state): State<AdminState>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<bool> {
-    ok(state.payment_paylog_batch.update_field(&dto).await?)
+    ok(state.payment.paylog_batch.update_field(&dto).await?)
 }
 
 /// `POST /adminapi/finance/payLog/batch`：批量操作（仅 `type = "del"` 删除）。
@@ -120,5 +120,5 @@ async fn paylog_batch(
     State(state): State<AdminState>,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<bool> {
-    ok(state.payment_paylog_batch.batch(&dto).await?)
+    ok(state.payment.paylog_batch.batch(&dto).await?)
 }

@@ -60,7 +60,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 /// 对应原 Java `MailTemplatesController.list` → `MailTemplatesServiceImpl.mailTemplatesList`。
 /// 返回**裸数组**（Java 方法直接返回 `List<MailTemplatesVO>`，非分页）。
 async fn list(State(state): State<AdminState>) -> ApiResult<Vec<MailTemplatesVO>> {
-    ok(state.system_mail_templates.list().await?)
+    ok(state.system.mail_templates.list().await?)
 }
 
 /// `POST /adminapi/setting/mailTemplates/update`：更新邮件模板。
@@ -71,6 +71,6 @@ async fn update(
     State(state): State<AdminState>,
     Json(dto): Json<MailTemplatesDTO>,
 ) -> ApiResult<&'static str> {
-    state.system_mail_templates.update(&dto).await?;
+    state.system.mail_templates.update(&dto).await?;
     ok("更新成功")
 }

@@ -48,7 +48,7 @@ async fn info(
     Extension(auth): Extension<AuthUser>,
     Query(q): Query<InfoQuery>,
 ) -> ApiResult<serde_json::Value> {
-    let order = state.payment_balance_pay
+    let order = state.payment.balance_pay
         .order_payment_context(q.order_id, auth.id)
         .await?;
     ok(serde_json::json!({
@@ -86,7 +86,7 @@ async fn pay(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<PayDTO>,
 ) -> ApiResult<PayVO> {
-    let result = state.payment_balance_pay
+    let result = state.payment.balance_pay
         .pay_order(auth.id, dto.order_id, dto.amount)
         .await?;
     ok(PayVO {

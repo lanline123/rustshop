@@ -136,7 +136,7 @@ struct IdQuery {
 async fn get_all_region_tree(
     State(state): State<AdminState>,
 ) -> ApiResult<Vec<RegionTreeNode>> {
-    ok(state.system_region.region_tree().await?)
+    ok(state.system.region.region_tree().await?)
 }
 
 /// `GET /adminapi/setting/region/list`：地区分页。
@@ -155,7 +155,7 @@ async fn list(
     State(state): State<AdminState>,
     Query(q): Query<RegionListQuery>,
 ) -> ApiResult<PageResult<RegionListVO>> {
-    ok(state.system_region.list(&q).await?)
+    ok(state.system.region.list(&q).await?)
 }
 
 /// `GET /adminapi/setting/region/detail?id=`：地区详情。
@@ -175,7 +175,7 @@ async fn detail(
         .id
         .filter(|v| *v > 0)
         .ok_or_else(|| tigshop_core::Error::Validation("id不能为空".into()))?;
-    ok(state.system_region.detail(id).await?)
+    ok(state.system.region.detail(id).await?)
 }
 
 /// `POST /adminapi/setting/region/updateField`：更新单个字段。
@@ -191,7 +191,7 @@ async fn update_field(
     State(state): State<AdminState>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<bool> {
-    ok(state.system_region.update_field(&dto).await?)
+    ok(state.system.region.update_field(&dto).await?)
 }
 
 /// `POST /adminapi/setting/region/create`：新增地区。
@@ -208,7 +208,7 @@ async fn create(
     State(state): State<AdminState>,
     Json(dto): Json<RegionCreateDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let id = state.system_region.create(&dto).await?;
+    let id = state.system.region.create(&dto).await?;
     ok(serde_json::json!({ "id": id }))
 }
 
@@ -231,7 +231,7 @@ async fn update(
     State(state): State<AdminState>,
     Json(dto): Json<RegionUpdateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.system_region.update(&dto).await?)
+    ok(state.system.region.update(&dto).await?)
 }
 
 /// `POST /adminapi/setting/region/del`：删除地区（硬删除）。
@@ -243,7 +243,7 @@ async fn update(
 /// Java **不校验记录是否存在**（删不存在的 id 也返回成功），
 /// 也**不校验子节点**（删父级会留下孤儿行）—— 本实现保持该语义。
 async fn del(State(state): State<AdminState>, Json(dto): Json<OperateDTO>) -> ApiResult<bool> {
-    ok(state.system_region.del(&dto).await?)
+    ok(state.system.region.del(&dto).await?)
 }
 
 /// `POST /adminapi/setting/region/batch`：批量操作（仅 `del`）。
@@ -252,7 +252,7 @@ async fn del(State(state): State<AdminState>, Json(dto): Json<OperateDTO>) -> Ap
 /// → `BaseServiceImpl#batch`：`type != "del"` 时**静默返回 `false`**
 /// （HTTP 200，不是报错）。
 async fn batch(State(state): State<AdminState>, Json(dto): Json<BatchDTO>) -> ApiResult<bool> {
-    ok(state.system_region.batch(&dto).await?)
+    ok(state.system.region.batch(&dto).await?)
 }
 
 #[cfg(test)]

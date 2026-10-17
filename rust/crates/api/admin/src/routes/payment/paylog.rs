@@ -53,7 +53,7 @@ async fn list(
     State(state): State<AdminState>,
     Query(q): Query<PaylogListQuery>,
 ) -> ApiResult<PageResult<PaylogVO>> {
-    ok(state.payment_paylog.list(&q).await?)
+    ok(state.payment.paylog.list(&q).await?)
 }
 
 /// `GET /adminapi/finance/payLog/detail?id=`：支付日志详情。
@@ -66,7 +66,7 @@ async fn detail(
     State(state): State<AdminState>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<PaylogVO> {
-    ok(state.payment_paylog.detail(q.id).await?)
+    ok(state.payment.paylog.detail(q.id).await?)
 }
 
 /// `POST /adminapi/finance/payLog/create`：手工补录支付日志。
@@ -74,7 +74,7 @@ async fn create(
     State(state): State<AdminState>,
     Json(dto): Json<PaylogCreateDTO>,
 ) -> ApiResult<i32> {
-    ok(state.payment_paylog.create(&dto).await?)
+    ok(state.payment.paylog.create(&dto).await?)
 }
 
 /// `POST /adminapi/finance/payLog/update`：更新支付日志状态。
@@ -82,6 +82,6 @@ async fn update(
     State(state): State<AdminState>,
     Json(dto): Json<PaylogUpdateDTO>,
 ) -> ApiResult<&'static str> {
-    state.payment_paylog.update(&dto).await?;
+    state.payment.paylog.update(&dto).await?;
     ok("更新成功")
 }

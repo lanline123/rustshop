@@ -84,7 +84,7 @@ async fn config_detail(
     Query(q): Query<ImConfigDetailQuery>,
 ) -> ApiResult<Option<ConfigDataDTO>> {
     let scope = resolve_scope(&headers, &auth);
-    ok(state.im_im_config.detail(q.code.as_deref(), scope).await?)
+    ok(state.im.im_config.detail(q.code.as_deref(), scope).await?)
 }
 
 /// `POST /im/config/config/save`：保存 IM 配置。
@@ -100,7 +100,7 @@ async fn config_save(
     Json(dto): Json<ConfigCreateDTO>,
 ) -> ApiResult<serde_json::Value> {
     let scope = resolve_scope(&headers, &auth);
-    let id = state.im_im_config.save(&dto, scope).await?;
+    let id = state.im.im_config.save(&dto, scope).await?;
     ok(serde_json::json!({ "imConfigId": id }))
 }
 

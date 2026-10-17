@@ -131,7 +131,7 @@ async fn category_list(
     State(state): State<AdminState>,
     Query(q): Query<CategoryListQuery>,
 ) -> ApiResult<PageResult<CategoryDTO>> {
-    ok(state.catalog_category.list(&q).await?)
+    ok(state.catalog.category.list(&q).await?)
 }
 
 /// `GET /adminapi/product/category/getParentName?parentId=`：父分类名称。
@@ -142,7 +142,7 @@ async fn get_parent_name(
     State(state): State<AdminState>,
     Query(q): Query<ParentIdQuery>,
 ) -> ApiResult<Option<String>> {
-    ok(state.catalog_category.parent_name(q.parent_id).await?)
+    ok(state.catalog.category.parent_name(q.parent_id).await?)
 }
 
 /// `getParentName` 查询参数。
@@ -160,7 +160,7 @@ async fn category_detail(
     State(state): State<AdminState>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<Option<CategoryDTO>> {
-    ok(state.catalog_category.detail(q.id).await?)
+    ok(state.catalog.category.detail(q.id).await?)
 }
 
 /// 单 ID 查询参数（Java `@RequestParam @NotNull Integer id`，缺失即参数错误）。
@@ -178,7 +178,7 @@ async fn category_create(
     State(state): State<AdminState>,
     Json(dto): Json<CategoryDTO>,
 ) -> ApiResult<i32> {
-    ok(state.catalog_category.create(&dto).await?)
+    ok(state.catalog.category.create(&dto).await?)
 }
 
 /// `POST /adminapi/product/category/update`：更新商品分类。
@@ -188,7 +188,7 @@ async fn category_update(
     State(state): State<AdminState>,
     Json(dto): Json<CategoryDTO>,
 ) -> ApiResult<&'static str> {
-    state.catalog_category.update(&dto).await?;
+    state.catalog.category.update(&dto).await?;
     ok("更新成功")
 }
 
@@ -200,7 +200,7 @@ async fn category_del(
     State(state): State<AdminState>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<&'static str> {
-    state.catalog_category.del(&dto).await?;
+    state.catalog.category.del(&dto).await?;
     ok("删除成功")
 }
 
@@ -212,7 +212,7 @@ async fn category_batch(
     State(state): State<AdminState>,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<&'static str> {
-    state.catalog_category.batch(&dto).await?;
+    state.catalog.category.batch(&dto).await?;
     ok("操作成功")
 }
 
@@ -224,7 +224,7 @@ async fn category_update_field(
     State(state): State<AdminState>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<&'static str> {
-    state.catalog_category.update_field(&dto).await?;
+    state.catalog.category.update_field(&dto).await?;
     ok("更新成功")
 }
 
@@ -236,6 +236,6 @@ async fn category_move_cat(
     State(state): State<AdminState>,
     Json(dto): Json<MoveCatDTO>,
 ) -> ApiResult<&'static str> {
-    state.catalog_category.move_cat(&dto).await?;
+    state.catalog.category.move_cat(&dto).await?;
     ok("移动成功")
 }

@@ -156,244 +156,268 @@ async fn main() -> anyhow::Result<()> {
     // 5. 装配服务
     let repos = Arc::new(Repositories::new(pool));
     let jwt = Arc::new(JwtService::new(cfg.jwt.clone()));
-    let identity_auth = Arc::new(AuthService::new(repos.clone(), jwt.clone(), cfg.jwt.clone()));
-    let catalog_product = Arc::new(ProductService::new(repos.clone(), cache.clone()));
-    let trade_cart = Arc::new(CartService::new(repos.clone(), (*catalog_product).clone()));
-    let trade_order = Arc::new(OrderService::new(
+    let auth = Arc::new(AuthService::new(repos.clone(), jwt.clone(), cfg.jwt.clone()));
+    let product = Arc::new(ProductService::new(repos.clone(), cache.clone()));
+    let cart = Arc::new(CartService::new(repos.clone(), (*product).clone()));
+    let order = Arc::new(OrderService::new(
         repos.clone(),
-        (*catalog_product).clone(),
-        (*trade_cart).clone(),
+        (*product).clone(),
+        (*cart).clone(),
     ));
-    let member_user = Arc::new(UserService::new(repos.clone()));
-    let marketing_coupon = Arc::new(CouponService::new(repos.clone()));
-    let content_article = Arc::new(ContentService::new(repos.clone()));
-    let catalog_category_all = Arc::new(CatalogService::new(repos.clone()));
-    let logistics_shipping_list = Arc::new(LogisticsService::new(repos.clone()));
-    let member_member_lists = Arc::new(MemberService::new(repos.clone()));
-    let marketing_seckill = Arc::new(SeckillService::new(repos.clone()));
-    let marketing_time_discount = Arc::new(TimeDiscountService::new(repos.clone()));
-    let payment_paylog = Arc::new(PaylogService::new(repos.clone()));
-    let payment_refund_apply = Arc::new(RefundApplyService::new(repos.clone()));
-    let payment_balance_pay = Arc::new(BalancePayService::new(repos.clone()));
-    let catalog_product_manage = Arc::new(ProductManageService::new(repos.clone()));
-    let analytics_statistics = Arc::new(StatisticsService::new(repos.clone()));
-    let merchant_merchant_client = Arc::new(MerchantClientService::new(repos.clone()));
-    let member_user_rank = Arc::new(UserRankService::new(repos.clone()));
-    let member_feedback = Arc::new(FeedbackService::new(repos.clone()));
-    let merchant_vendor_deposit_shop = Arc::new(VendorDepositShopService::new(repos.clone()));
-    let member_member_tag_group = Arc::new(MemberTagGroupService::new(repos.clone()));
-    let logistics_shipping_type = Arc::new(ShippingTypeService::new(repos.clone()));
-    let system_config_client = Arc::new(ConfigClientService::new(repos.clone()));
-    let payment_tax_rate = Arc::new(TaxRateService::new(repos.clone()));
-    let system_example = Arc::new(ExampleService::new(repos.clone()));
-    let openapi_workbuddy = Arc::new(WorkbuddyService::new(repos.clone()));
-    let merchant_shop_product_category = Arc::new(ShopProductCategoryService::new(repos.clone()));
-    let marketing_product_style_admin = Arc::new(ProductStyleAdminService::new(repos.clone()));
-    let member_member_tag = Arc::new(MemberTagService::new(repos.clone()));
-    let member_user_company = Arc::new(UserCompanyService::new(repos.clone()));
-    let content_mobile_cat_nav = Arc::new(MobileCatNavService::new(repos.clone()));
-    let logistics_logistics_company = Arc::new(LogisticsCompanyService::new(repos.clone()));
-    let logistics_shipping_tpl = Arc::new(ShippingTplService::new(repos.clone()));
-    let merchant_order_config = Arc::new(OrderConfigService::new(repos.clone()));
-    let system_region = Arc::new(RegionService::new(repos.clone()));
-    let catalog_attributes_tpl = Arc::new(AttributesTplService::new(repos.clone()));
+    let user = Arc::new(UserService::new(repos.clone()));
+    let coupon = Arc::new(CouponService::new(repos.clone()));
+    let article = Arc::new(ContentService::new(repos.clone()));
+    let category_all = Arc::new(CatalogService::new(repos.clone()));
+    let shipping_list = Arc::new(LogisticsService::new(repos.clone()));
+    let member_lists = Arc::new(MemberService::new(repos.clone()));
+    let seckill = Arc::new(SeckillService::new(repos.clone()));
+    let time_discount = Arc::new(TimeDiscountService::new(repos.clone()));
+    let paylog = Arc::new(PaylogService::new(repos.clone()));
+    let refund_apply = Arc::new(RefundApplyService::new(repos.clone()));
+    let balance_pay = Arc::new(BalancePayService::new(repos.clone()));
+    let product_manage = Arc::new(ProductManageService::new(repos.clone()));
+    let statistics = Arc::new(StatisticsService::new(repos.clone()));
+    let merchant_client = Arc::new(MerchantClientService::new(repos.clone()));
+    let user_rank = Arc::new(UserRankService::new(repos.clone()));
+    let feedback = Arc::new(FeedbackService::new(repos.clone()));
+    let vendor_deposit_shop = Arc::new(VendorDepositShopService::new(repos.clone()));
+    let member_tag_group = Arc::new(MemberTagGroupService::new(repos.clone()));
+    let shipping_type = Arc::new(ShippingTypeService::new(repos.clone()));
+    let config_client = Arc::new(ConfigClientService::new(repos.clone()));
+    let tax_rate = Arc::new(TaxRateService::new(repos.clone()));
+    let example = Arc::new(ExampleService::new(repos.clone()));
+    let workbuddy = Arc::new(WorkbuddyService::new(repos.clone()));
+    let shop_product_category = Arc::new(ShopProductCategoryService::new(repos.clone()));
+    let product_style_admin = Arc::new(ProductStyleAdminService::new(repos.clone()));
+    let member_tag = Arc::new(MemberTagService::new(repos.clone()));
+    let user_company = Arc::new(UserCompanyService::new(repos.clone()));
+    let mobile_cat_nav = Arc::new(MobileCatNavService::new(repos.clone()));
+    let logistics_company = Arc::new(LogisticsCompanyService::new(repos.clone()));
+    let shipping_tpl = Arc::new(ShippingTplService::new(repos.clone()));
+    let order_config = Arc::new(OrderConfigService::new(repos.clone()));
+    let region = Arc::new(RegionService::new(repos.clone()));
+    let attributes_tpl = Arc::new(AttributesTplService::new(repos.clone()));
     // proxy_shopping_product 需要 product_manage 作为依赖，只在此处构造一次
     // （此前被注册工具重复插入 4 次，其中 3 次参数个数错误）。
-    let trade_proxy_shopping_product = Arc::new(ProxyShoppingProductService::new(repos.clone(), catalog_product_manage.clone()));
-    let content_share = Arc::new(ShareService::new(repos.clone()));
-    let marketing_salesman_material_category = Arc::new(SalesmanMaterialCategoryService::new(repos.clone()));
-    let logistics_logistics_company_config = Arc::new(LogisticsCompanyConfigService::new(repos.clone()));
-    let system_message_type = Arc::new(MessageTypeService::new(repos.clone()));
-    let system_region_client = Arc::new(RegionClientService::new(repos.clone()));
-    let system_area_code = Arc::new(AreaCodeService::new(repos.clone()));
-        let system_mail_templates = Arc::new(MailTemplatesService::new(repos.clone()));
-                let logistics_print_config = Arc::new(PrintConfigService::new(repos.clone()));
-                            let system_cache_manage = Arc::new(CacheManageService::new(repos.clone()));
-                                                                                                                                                        let identity_admin_log = Arc::new(AdminLogService::new(repos.clone()));
-    let payment_user_balance_log = Arc::new(UserBalanceLogService::new(repos.clone()));
-        let im_web_socket = Arc::new(WebSocketService::new(repos.clone()));
-                let content_wechat_live_sync_callback = Arc::new(WechatLiveSyncCallbackService::new(repos.clone()));
-        let merchant_shop_client_category = Arc::new(ShopClientCategoryService::new(repos.clone()));
-        let logistics_sunmi_print_callback = Arc::new(SunmiPrintCallbackService::new(repos.clone()));
-            let member_user_points_log = Arc::new(UserPointsLogService::new(repos.clone()));
-    let trade_proxy_shopping_order_check = Arc::new(ProxyShoppingOrderCheckService::new(repos.clone()));
-    let trade_proxy_shopping_pickup_contact = Arc::new(ProxyShoppingPickupContactService::new(repos.clone()));
-    let trade_proxy_shopping_user_address = Arc::new(ProxyShoppingUserAddressService::new(repos.clone()));
-    let trade_proxy_shopping_user_coupon = Arc::new(ProxyShoppingUserCouponService::new(repos.clone()));
-    let trade_proxy_shopping_user = Arc::new(ProxyShoppingUserService::new(repos.clone()));
-            let payment_paylog_batch = Arc::new(PaylogBatchService::new(repos.clone()));
-    let catalog_short_url = Arc::new(ShortUrlService::new(repos.clone()));
-    let im_im_message = Arc::new(ImMessageService::new(repos.clone()));
-    let system_files = Arc::new(FilesService::new(repos.clone()));
-        let im_im_servant = Arc::new(ImServantService::new(repos.clone()));
-    let marketing_buyer_show_comment = Arc::new(BuyerShowCommentService::new(repos.clone()));
-    let marketing_buyer_show = Arc::new(BuyerShowService::new(repos.clone()));
-    let marketing_buyer_show_group = Arc::new(BuyerShowGroupService::new(repos.clone()));
-    let marketing_buyer_show_client = Arc::new(BuyerShowClientService::new(repos.clone()));
-    let content_seo = Arc::new(SeoService::new(repos.clone()));
-    let im_im_config = Arc::new(ImConfigService::new(repos.clone()));
-    let system_app_version_admin = Arc::new(AppVersionAdminService::new(repos.clone()));
-    let content_pc_navigation = Arc::new(PcNavigationService::new(repos.clone()));
-    let content_pc_cat_floor = Arc::new(PcCatFloorService::new(repos.clone()));
-    let system_pc = Arc::new(PcService::new(repos.clone()));
-    let wholesale_wholesale_client = Arc::new(WholesaleClientService::new(repos.clone()));
-    let trade_order_admin = Arc::new(OrderAdminService::new(repos.clone()));
-    let catalog_product_stock = Arc::new(ProductStockService::new(repos.clone()));
-    let catalog_category = Arc::new(CategoryService::new(repos.clone()));
-    let catalog_brand = Arc::new(BrandService::new(repos.clone()));
-    let catalog_stock_warning = Arc::new(StockWarningService::new(repos.clone()));
-    let member_user_center = Arc::new(UserCenterService::new(repos.clone()));
-    let trade_aftersales = Arc::new(AftersalesService::new(repos.clone()));
-    let trade_aftersales_client = Arc::new(AftersalesClientService::new(repos.clone()));
-    let identity_authority = Arc::new(AuthorityService::new(repos.clone()));
-    let identity_admin_user = Arc::new(AdminUserService::new(repos.clone()));
-    let member_user_manage = Arc::new(UserManageService::new(repos.clone()));
-    let merchant_shop_client = Arc::new(ShopClientService::new(repos.clone()));
+    let proxy_shopping_product = Arc::new(ProxyShoppingProductService::new(repos.clone(), product_manage.clone()));
+    let share = Arc::new(ShareService::new(repos.clone()));
+    let salesman_material_category = Arc::new(SalesmanMaterialCategoryService::new(repos.clone()));
+    let logistics_company_config = Arc::new(LogisticsCompanyConfigService::new(repos.clone()));
+    let message_type = Arc::new(MessageTypeService::new(repos.clone()));
+    let region_client = Arc::new(RegionClientService::new(repos.clone()));
+    let area_code = Arc::new(AreaCodeService::new(repos.clone()));
+        let mail_templates = Arc::new(MailTemplatesService::new(repos.clone()));
+                let print_config = Arc::new(PrintConfigService::new(repos.clone()));
+                            let cache_manage = Arc::new(CacheManageService::new(repos.clone()));
+                                                                                                                                                        let admin_log = Arc::new(AdminLogService::new(repos.clone()));
+    let user_balance_log = Arc::new(UserBalanceLogService::new(repos.clone()));
+        let web_socket = Arc::new(WebSocketService::new(repos.clone()));
+                let wechat_live_sync_callback = Arc::new(WechatLiveSyncCallbackService::new(repos.clone()));
+        let shop_client_category = Arc::new(ShopClientCategoryService::new(repos.clone()));
+        let sunmi_print_callback = Arc::new(SunmiPrintCallbackService::new(repos.clone()));
+            let user_points_log = Arc::new(UserPointsLogService::new(repos.clone()));
+    let proxy_shopping_order_check = Arc::new(ProxyShoppingOrderCheckService::new(repos.clone()));
+    let proxy_shopping_pickup_contact = Arc::new(ProxyShoppingPickupContactService::new(repos.clone()));
+    let proxy_shopping_user_address = Arc::new(ProxyShoppingUserAddressService::new(repos.clone()));
+    let proxy_shopping_user_coupon = Arc::new(ProxyShoppingUserCouponService::new(repos.clone()));
+    let proxy_shopping_user = Arc::new(ProxyShoppingUserService::new(repos.clone()));
+            let paylog_batch = Arc::new(PaylogBatchService::new(repos.clone()));
+    let short_url = Arc::new(ShortUrlService::new(repos.clone()));
+    let im_message = Arc::new(ImMessageService::new(repos.clone()));
+    let files = Arc::new(FilesService::new(repos.clone()));
+        let im_servant = Arc::new(ImServantService::new(repos.clone()));
+    let buyer_show_comment = Arc::new(BuyerShowCommentService::new(repos.clone()));
+    let buyer_show = Arc::new(BuyerShowService::new(repos.clone()));
+    let buyer_show_group = Arc::new(BuyerShowGroupService::new(repos.clone()));
+    let buyer_show_client = Arc::new(BuyerShowClientService::new(repos.clone()));
+    let seo = Arc::new(SeoService::new(repos.clone()));
+    let im_config = Arc::new(ImConfigService::new(repos.clone()));
+    let app_version_admin = Arc::new(AppVersionAdminService::new(repos.clone()));
+    let pc_navigation = Arc::new(PcNavigationService::new(repos.clone()));
+    let pc_cat_floor = Arc::new(PcCatFloorService::new(repos.clone()));
+    let pc = Arc::new(PcService::new(repos.clone()));
+    let wholesale_client = Arc::new(WholesaleClientService::new(repos.clone()));
+    let order_admin = Arc::new(OrderAdminService::new(repos.clone()));
+    let product_stock = Arc::new(ProductStockService::new(repos.clone()));
+    let category = Arc::new(CategoryService::new(repos.clone()));
+    let brand = Arc::new(BrandService::new(repos.clone()));
+    let stock_warning = Arc::new(StockWarningService::new(repos.clone()));
+    let user_center = Arc::new(UserCenterService::new(repos.clone()));
+    let aftersales = Arc::new(AftersalesService::new(repos.clone()));
+    let aftersales_client = Arc::new(AftersalesClientService::new(repos.clone()));
+    let authority = Arc::new(AuthorityService::new(repos.clone()));
+    let admin_user = Arc::new(AdminUserService::new(repos.clone()));
+    let user_manage = Arc::new(UserManageService::new(repos.clone()));
+    let shop_client = Arc::new(ShopClientService::new(repos.clone()));
     // O2O 开关由 `ShopManageService::new` 内部从环境变量 `TIG_IS_O2O` 读取
     // （对应原 Java `tigshopProperties.isO2o()`，配置服务未迁移）。
-    let merchant_shop_manage = Arc::new(ShopManageService::new(repos.clone()));
-    let merchant_shop = Arc::new(ShopService::new(repos.clone()));
-    let content_decorate = Arc::new(DecorateService::new(repos.clone()));
-    let marketing_salesman = Arc::new(SalesmanService::new(repos.clone()));
+    let shop_manage = Arc::new(ShopManageService::new(repos.clone()));
+    let shop = Arc::new(ShopService::new(repos.clone()));
+    let decorate = Arc::new(DecorateService::new(repos.clone()));
+    let salesman = Arc::new(SalesmanService::new(repos.clone()));
+
+    // ---- identity 域 ----
+    let identity = Arc::new(tigshop_services::identity::Services {
+        admin_log: admin_log.clone(),
+        admin_user: admin_user.clone(),
+        auth: auth.clone(),
+        authority: authority.clone(),
+    });
+    // ---- merchant 域 ----
+    let merchant = Arc::new(tigshop_services::merchant::Services {
+        merchant_client: merchant_client.clone(),
+        order_config: order_config.clone(),
+        shop: shop.clone(),
+        shop_client: shop_client.clone(),
+        shop_client_category: shop_client_category.clone(),
+        shop_manage: shop_manage.clone(),
+        shop_product_category: shop_product_category.clone(),
+        vendor_deposit_shop: vendor_deposit_shop.clone(),
+    });
+    // ---- wholesale 域 ----
+    let wholesale = Arc::new(tigshop_services::wholesale::Services {
+        wholesale_client: wholesale_client.clone(),
+    });
+    // ---- catalog 域 ----
+    let catalog = Arc::new(tigshop_services::catalog::Services {
+        attributes_tpl: attributes_tpl.clone(),
+        brand: brand.clone(),
+        category: category.clone(),
+        category_all: category_all.clone(),
+        product: product.clone(),
+        product_manage: product_manage.clone(),
+        product_stock: product_stock.clone(),
+        short_url: short_url.clone(),
+        stock_warning: stock_warning.clone(),
+    });
+    // ---- trade 域 ----
+    let trade = Arc::new(tigshop_services::trade::Services {
+        aftersales: aftersales.clone(),
+        aftersales_client: aftersales_client.clone(),
+        cart: cart.clone(),
+        order: order.clone(),
+        order_admin: order_admin.clone(),
+        proxy_shopping_order_check: proxy_shopping_order_check.clone(),
+        proxy_shopping_pickup_contact: proxy_shopping_pickup_contact.clone(),
+        proxy_shopping_product: proxy_shopping_product.clone(),
+        proxy_shopping_user: proxy_shopping_user.clone(),
+        proxy_shopping_user_address: proxy_shopping_user_address.clone(),
+        proxy_shopping_user_coupon: proxy_shopping_user_coupon.clone(),
+    });
+    // ---- payment 域 ----
+    let payment = Arc::new(tigshop_services::payment::Services {
+        balance_pay: balance_pay.clone(),
+        paylog: paylog.clone(),
+        paylog_batch: paylog_batch.clone(),
+        refund_apply: refund_apply.clone(),
+        tax_rate: tax_rate.clone(),
+        user_balance_log: user_balance_log.clone(),
+    });
+    // ---- marketing 域 ----
+    let marketing = Arc::new(tigshop_services::marketing::Services {
+        buyer_show: buyer_show.clone(),
+        buyer_show_client: buyer_show_client.clone(),
+        buyer_show_comment: buyer_show_comment.clone(),
+        buyer_show_group: buyer_show_group.clone(),
+        coupon: coupon.clone(),
+        product_style_admin: product_style_admin.clone(),
+        salesman: salesman.clone(),
+        salesman_material_category: salesman_material_category.clone(),
+        seckill: seckill.clone(),
+        time_discount: time_discount.clone(),
+    });
+    // ---- member 域 ----
+    let member = Arc::new(tigshop_services::member::Services {
+        feedback: feedback.clone(),
+        member_lists: member_lists.clone(),
+        member_tag: member_tag.clone(),
+        member_tag_group: member_tag_group.clone(),
+        user: user.clone(),
+        user_center: user_center.clone(),
+        user_company: user_company.clone(),
+        user_manage: user_manage.clone(),
+        user_points_log: user_points_log.clone(),
+        user_rank: user_rank.clone(),
+    });
+    // ---- logistics 域 ----
+    let logistics = Arc::new(tigshop_services::logistics::Services {
+        logistics_company: logistics_company.clone(),
+        logistics_company_config: logistics_company_config.clone(),
+        print_config: print_config.clone(),
+        shipping_list: shipping_list.clone(),
+        shipping_tpl: shipping_tpl.clone(),
+        shipping_type: shipping_type.clone(),
+        sunmi_print_callback: sunmi_print_callback.clone(),
+    });
+    // ---- content 域 ----
+    let content = Arc::new(tigshop_services::content::Services {
+        article: article.clone(),
+        decorate: decorate.clone(),
+        mobile_cat_nav: mobile_cat_nav.clone(),
+        pc_cat_floor: pc_cat_floor.clone(),
+        pc_navigation: pc_navigation.clone(),
+        seo: seo.clone(),
+        share: share.clone(),
+        wechat_live_sync_callback: wechat_live_sync_callback.clone(),
+    });
+    // ---- system 域 ----
+    let system = Arc::new(tigshop_services::system::Services {
+        app_version_admin: app_version_admin.clone(),
+        area_code: area_code.clone(),
+        cache_manage: cache_manage.clone(),
+        config_client: config_client.clone(),
+        example: example.clone(),
+        files: files.clone(),
+        mail_templates: mail_templates.clone(),
+        message_type: message_type.clone(),
+        pc: pc.clone(),
+        region: region.clone(),
+        region_client: region_client.clone(),
+    });
+    // ---- im 域 ----
+    let im = Arc::new(tigshop_services::im::Services {
+        im_config: im_config.clone(),
+        im_message: im_message.clone(),
+        im_servant: im_servant.clone(),
+        web_socket: web_socket.clone(),
+    });
+    // ---- analytics 域 ----
+    let analytics = Arc::new(tigshop_services::analytics::Services {
+        statistics: statistics.clone(),
+    });
+    // ---- openapi 域 ----
+    let openapi = Arc::new(tigshop_services::openapi::Services {
+        workbuddy: workbuddy.clone(),
+    });
 
     let admin_state = AdminState {
-        // —— identity ——
-        identity_auth: identity_auth.clone(),
-        identity_authority: identity_authority.clone(),
-        identity_admin_user: identity_admin_user.clone(),
-        identity_admin_log: identity_admin_log.clone(),
-        // —— merchant ——
-        merchant_shop_manage: merchant_shop_manage.clone(),
-        merchant_shop: merchant_shop.clone(),
-        merchant_order_config: merchant_order_config.clone(),
-        merchant_shop_product_category: merchant_shop_product_category.clone(),
-        merchant_vendor_deposit_shop: merchant_vendor_deposit_shop.clone(),
-        // —— catalog ——
-        catalog_product: catalog_product.clone(),
-        catalog_category_all: catalog_category_all.clone(),
-        catalog_product_manage: catalog_product_manage.clone(),
-        catalog_product_stock: catalog_product_stock.clone(),
-        catalog_category: catalog_category.clone(),
-        catalog_brand: catalog_brand.clone(),
-        catalog_stock_warning: catalog_stock_warning.clone(),
-        catalog_attributes_tpl: catalog_attributes_tpl.clone(),
-        // —— trade ——
-        trade_order: trade_order.clone(),
-        trade_order_admin: trade_order_admin.clone(),
-        trade_aftersales: trade_aftersales.clone(),
-        trade_proxy_shopping_user: trade_proxy_shopping_user.clone(),
-        trade_proxy_shopping_user_coupon: trade_proxy_shopping_user_coupon.clone(),
-        trade_proxy_shopping_product: trade_proxy_shopping_product.clone(),
-        trade_proxy_shopping_user_address: trade_proxy_shopping_user_address.clone(),
-        trade_proxy_shopping_pickup_contact: trade_proxy_shopping_pickup_contact.clone(),
-        trade_proxy_shopping_order_check: trade_proxy_shopping_order_check.clone(),
-        // —— payment ——
-        payment_paylog: payment_paylog.clone(),
-        payment_refund_apply: payment_refund_apply,
-        payment_paylog_batch: payment_paylog_batch.clone(),
-        payment_user_balance_log: payment_user_balance_log.clone(),
-        payment_tax_rate: payment_tax_rate.clone(),
-        // —— marketing ——
-        marketing_coupon: marketing_coupon.clone(),
-        marketing_seckill: marketing_seckill.clone(),
-        marketing_time_discount: marketing_time_discount.clone(),
-        marketing_buyer_show_comment: marketing_buyer_show_comment.clone(),
-        marketing_buyer_show: marketing_buyer_show.clone(),
-        marketing_buyer_show_group: marketing_buyer_show_group.clone(),
-        marketing_salesman: marketing_salesman.clone(),
-        marketing_salesman_material_category: marketing_salesman_material_category.clone(),
-        marketing_product_style_admin: marketing_product_style_admin.clone(),
-        // —— member ——
-        member_member_lists: member_member_lists.clone(),
-        member_user_manage: member_user_manage.clone(),
-        member_user_points_log: member_user_points_log.clone(),
-        member_user_company: member_user_company.clone(),
-        member_member_tag: member_member_tag.clone(),
-        member_member_tag_group: member_member_tag_group.clone(),
-        member_feedback: member_feedback.clone(),
-        member_user_rank: member_user_rank.clone(),
-        // —— logistics ——
-        logistics_shipping_list: logistics_shipping_list.clone(),
-        logistics_print_config: logistics_print_config.clone(),
-        logistics_logistics_company_config: logistics_logistics_company_config.clone(),
-        logistics_shipping_tpl: logistics_shipping_tpl.clone(),
-        logistics_logistics_company: logistics_logistics_company.clone(),
-        logistics_shipping_type: logistics_shipping_type.clone(),
-        // —— content ——
-        content_article: content_article.clone(),
-        content_seo: content_seo.clone(),
-        content_pc_navigation: content_pc_navigation.clone(),
-        content_pc_cat_floor: content_pc_cat_floor.clone(),
-        content_decorate: content_decorate.clone(),
-        content_mobile_cat_nav: content_mobile_cat_nav.clone(),
-        // —— system ——
-        system_app_version_admin: system_app_version_admin.clone(),
-        system_files: system_files.clone(),
-        system_cache_manage: system_cache_manage.clone(),
-        system_mail_templates: system_mail_templates.clone(),
-        system_area_code: system_area_code.clone(),
-        system_message_type: system_message_type.clone(),
-        system_region: system_region.clone(),
-        system_example: system_example.clone(),
-        // —— im ——
-        im_im_config: im_im_config.clone(),
-        im_im_servant: im_im_servant.clone(),
-        im_im_message: im_im_message.clone(),
-        // —— analytics ——
-        analytics_statistics: analytics_statistics.clone(),
-        // —— openapi ——
-        openapi_workbuddy: openapi_workbuddy.clone(),
-        // —— misc ——
+        identity: identity.clone(),
+        merchant: merchant.clone(),
+        catalog: catalog.clone(),
+        trade: trade.clone(),
+        payment: payment.clone(),
+        marketing: marketing.clone(),
+        member: member.clone(),
+        logistics: logistics.clone(),
+        content: content.clone(),
+        system: system.clone(),
+        im: im.clone(),
+        analytics: analytics.clone(),
+        openapi: openapi.clone(),
         jwt: (*jwt).clone(),
     };
     let public_state = PublicState {
-        // —— merchant ——
-        merchant_shop: merchant_shop,
-        merchant_shop_client: merchant_shop_client.clone(),
-        merchant_shop_client_category: merchant_shop_client_category.clone(),
-        merchant_merchant_client: merchant_merchant_client.clone(),
-        // —— wholesale ——
-        wholesale_wholesale_client: wholesale_wholesale_client.clone(),
-        // —— catalog ——
-        catalog_product: catalog_product.clone(),
-        catalog_category_all: catalog_category_all,
-        catalog_product_manage: catalog_product_manage.clone(),
-        catalog_category: catalog_category.clone(),
-        catalog_short_url: catalog_short_url.clone(),
-        // —— trade ——
-        trade_cart: trade_cart.clone(),
-        trade_order: trade_order.clone(),
-        trade_aftersales_client: trade_aftersales_client.clone(),
-        // —— payment ——
-        payment_paylog: payment_paylog,
-        payment_balance_pay: payment_balance_pay,
-        // —— marketing ——
-        marketing_coupon: marketing_coupon,
-        marketing_seckill: marketing_seckill,
-        marketing_time_discount: marketing_time_discount,
-        marketing_salesman: marketing_salesman,
-        marketing_buyer_show_client: marketing_buyer_show_client.clone(),
-        // —— member ——
-        member_user: member_user,
-        member_member_lists: member_member_lists,
-        member_user_center: member_user_center.clone(),
-        // —— logistics ——
-        logistics_shipping_list: logistics_shipping_list,
-        logistics_sunmi_print_callback: logistics_sunmi_print_callback.clone(),
-        // —— content ——
-        content_article: content_article,
-        content_decorate: content_decorate,
-        content_seo: content_seo.clone(),
-        content_wechat_live_sync_callback: content_wechat_live_sync_callback.clone(),
-        content_share: content_share.clone(),
-        // —— system ——
-        system_pc: system_pc.clone(),
-        system_region_client: system_region_client.clone(),
-        system_config_client: system_config_client.clone(),
-        // —— im ——
-        im_im_message: im_im_message.clone(),
-        im_web_socket: im_web_socket.clone(),
-        // —— misc ——
+        merchant: merchant.clone(),
+        wholesale: wholesale.clone(),
+        catalog: catalog.clone(),
+        trade: trade.clone(),
+        payment: payment.clone(),
+        marketing: marketing.clone(),
+        member: member.clone(),
+        logistics: logistics.clone(),
+        content: content.clone(),
+        system: system.clone(),
+        im: im.clone(),
         jwt: (*jwt).clone(),
     };
 

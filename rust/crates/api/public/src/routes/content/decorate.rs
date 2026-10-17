@@ -59,7 +59,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 async fn open_advertising(
     State(state): State<PublicState>,
 ) -> ApiResult<serde_json::Value> {
-    ok(state.content_decorate.open_advertising().await?)
+    ok(state.content.decorate.open_advertising().await?)
 }
 
 /// `GET /api/home/home/index?previewId=`：H5 商城首页装修。
@@ -67,7 +67,7 @@ async fn home_index(
     State(state): State<PublicState>,
     Query(q): Query<HomeDecorateQuery>,
 ) -> ApiResult<tigshop_core::models::content::decorate::DecorateModuleListVO> {
-    ok(state.content_decorate.home_index(&q).await?)
+    ok(state.content.decorate.home_index(&q).await?)
 }
 
 /// `GET /api/home/home/pcIndex?previewId&id&decorateType`：PC 商城首页装修。
@@ -75,5 +75,5 @@ async fn pc_index(
     State(state): State<PublicState>,
     Query(q): Query<HomeDecorateQuery>,
 ) -> ApiResult<tigshop_core::models::content::decorate::DecorateModuleListVO> {
-    ok(state.content_decorate.pc_index(&q).await?)
+    ok(state.content.decorate.pc_index(&q).await?)
 }

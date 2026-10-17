@@ -151,7 +151,7 @@ async fn proxy_product_detail(
     State(state): State<AdminState>,
     Query(q): Query<ProxyProductDetailQuery>,
 ) -> ApiResult<ClientProductDetailVO> {
-    ok(state.trade_proxy_shopping_product.product_detail(&q).await?)
+    ok(state.trade.proxy_shopping_product.product_detail(&q).await?)
 }
 
 /// `GET /adminapi/proxyShopping/product/getProductAvailability`：商品可用数据。
@@ -169,7 +169,7 @@ async fn proxy_get_product_availability(
     State(state): State<AdminState>,
     Query(q): Query<ProxyProductAvailabilityQuery>,
 ) -> ApiResult<ProductAvailabilityVO> {
-    ok(state.trade_proxy_shopping_product.get_product_availability(&q).await?)
+    ok(state.trade.proxy_shopping_product.get_product_availability(&q).await?)
 }
 
 /// `POST /adminapi/proxyShopping/product/getProduct`：商品列表。
@@ -186,7 +186,7 @@ async fn proxy_product_list(
     Json(dto): Json<AdminProductListQuery>,
 ) -> ApiResult<PageResult<ProductListItemVO>> {
     let shop_id = shop_id_from_headers(&headers);
-    ok(state.trade_proxy_shopping_product.product_list(&dto, shop_id).await?)
+    ok(state.trade.proxy_shopping_product.product_list(&dto, shop_id).await?)
 }
 
 #[cfg(test)]

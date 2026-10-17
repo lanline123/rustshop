@@ -70,7 +70,7 @@ async fn send(
     Json(dto): Json<ImMessageSendDTO>,
 ) -> ApiResult<ImMessageSendVO> {
     let user_from = header_str(&headers, "x-client-type");
-    ok(state.im_im_message.send_as_user(&dto, auth.id, user_from).await?)
+    ok(state.im.im_message.send_as_user(&dto, auth.id, user_from).await?)
 }
 
 /// `GET /im/conversation/message/list`：消息列表（前台分支）。
@@ -79,7 +79,7 @@ async fn list(
     Extension(auth): Extension<AuthUser>,
     Query(dto): Query<ImMessageListDTO>,
 ) -> ApiResult<PageResult<ImMessageListVO>> {
-    ok(state.im_im_message.list_as_user(&dto, auth.id).await?)
+    ok(state.im.im_message.list_as_user(&dto, auth.id).await?)
 }
 
 /// `POST /im/conversation/message/setRead`：设置已读（前台分支）。
@@ -88,7 +88,7 @@ async fn set_read(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<ImSetReadDTO>,
 ) -> ApiResult<bool> {
-    ok(state.im_im_message.set_read_as_user(&dto, auth.id).await?)
+    ok(state.im.im_message.set_read_as_user(&dto, auth.id).await?)
 }
 
 /// 读取请求头文本值（缺失 / 非 UTF-8 / 全空白 → `None`）。

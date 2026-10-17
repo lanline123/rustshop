@@ -242,7 +242,7 @@ async fn decorate_list(
     State(state): State<AdminState>,
     Query(q): Query<DecorateListQuery>,
 ) -> ApiResult<PageResult<DecorateVO>> {
-    ok(state.content_decorate.list(&q).await?)
+    ok(state.content.decorate.list(&q).await?)
 }
 
 /// `GET /adminapi/decorate/decorate/detail`：装修页详情。
@@ -250,7 +250,7 @@ async fn decorate_detail(
     State(state): State<AdminState>,
     Query(q): Query<DetailQuery>,
 ) -> ApiResult<DecorateVO> {
-    ok(state.content_decorate
+    ok(state.content.decorate
         .detail(q.id, q.locale_id, q.parent_id, q.decorate_type)
         .await?)
 }
@@ -260,7 +260,7 @@ async fn decorate_create(
     State(state): State<AdminState>,
     Json(dto): Json<DecorateCreateDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let id = state.content_decorate.create(&dto).await?;
+    let id = state.content.decorate.create(&dto).await?;
     ok(serde_json::json!({ "decorateId": id }))
 }
 
@@ -269,7 +269,7 @@ async fn decorate_update(
     State(state): State<AdminState>,
     Json(dto): Json<DecorateUpdateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate.update(&dto).await?)
+    ok(state.content.decorate.update(&dto).await?)
 }
 
 /// `POST /adminapi/decorate/decorate/updateCustomDecorate`：自定义页快速编辑。
@@ -277,7 +277,7 @@ async fn decorate_update_custom(
     State(state): State<AdminState>,
     Json(dto): Json<DecorateUpdateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate.update_custom(&dto).await?)
+    ok(state.content.decorate.update_custom(&dto).await?)
 }
 
 /// `POST /adminapi/decorate/decorate/del`：删除装修页。
@@ -285,7 +285,7 @@ async fn decorate_del(
     State(state): State<AdminState>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate.del(&dto).await?)
+    ok(state.content.decorate.del(&dto).await?)
 }
 
 /// `POST /adminapi/decorate/decorate/updateField`：通用字段更新。
@@ -293,7 +293,7 @@ async fn decorate_update_field(
     State(state): State<AdminState>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate.update_field(&dto).await?)
+    ok(state.content.decorate.update_field(&dto).await?)
 }
 
 /// `POST /adminapi/decorate/decorate/batch`：批量操作。
@@ -301,7 +301,7 @@ async fn decorate_batch(
     State(state): State<AdminState>,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate.batch(&dto).await?)
+    ok(state.content.decorate.batch(&dto).await?)
 }
 
 /// `POST /adminapi/decorate/decorate/copy`：复制装修页。
@@ -309,7 +309,7 @@ async fn decorate_copy(
     State(state): State<AdminState>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate.copy(&dto).await?)
+    ok(state.content.decorate.copy(&dto).await?)
 }
 
 /// `POST /adminapi/decorate/decorate/setHome`：设为首页。
@@ -318,7 +318,7 @@ async fn decorate_set_home(
     Json(body): Json<SetHomeBody>,
 ) -> ApiResult<bool> {
     let operate = OperateDTO { id: body.id };
-    ok(state.content_decorate.set_home(&operate, body.page_type).await?)
+    ok(state.content.decorate.set_home(&operate, body.page_type).await?)
 }
 
 /// `POST /adminapi/decorate/decorate/saveDraft`：保存草稿。
@@ -326,7 +326,7 @@ async fn decorate_save_draft(
     State(state): State<AdminState>,
     Json(dto): Json<DecorateSaveDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate.save_draft(&dto).await?)
+    ok(state.content.decorate.save_draft(&dto).await?)
 }
 
 /// `POST /adminapi/decorate/decorate/publish`：发布装修。
@@ -334,7 +334,7 @@ async fn decorate_publish(
     State(state): State<AdminState>,
     Json(dto): Json<DecorateSaveDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate.publish(&dto).await?)
+    ok(state.content.decorate.publish(&dto).await?)
 }
 
 /// `GET /adminapi/decorate/decorate/loadDraftData?id=`：加载草稿数据。
@@ -342,7 +342,7 @@ async fn decorate_load_draft_data(
     State(state): State<AdminState>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<serde_json::Value> {
-    ok(state.content_decorate
+    ok(state.content.decorate
         .load_draft_data(q.id.unwrap_or_default())
         .await?)
 }
@@ -354,7 +354,7 @@ async fn decorate_h5_list(
 ) -> ApiResult<PageResult<DecorateVO>> {
     q.decorate_type = Some("1".into());
     q.status = Some(1);
-    ok(state.content_decorate.list(&q).await?)
+    ok(state.content.decorate.list(&q).await?)
 }
 
 /// `GET /adminapi/decorate/decorate/getCustomDecorateList`：自定义页列表（type=3、已发布）。
@@ -364,7 +364,7 @@ async fn decorate_custom_list(
 ) -> ApiResult<PageResult<DecorateVO>> {
     q.decorate_type = Some("3".into());
     q.status = Some(1);
-    ok(state.content_decorate.list(&q).await?)
+    ok(state.content.decorate.list(&q).await?)
 }
 
 /// `POST /adminapi/decorate/decorate/bindingH5Decorate`：绑定 H5 页面。
@@ -372,7 +372,7 @@ async fn decorate_binding_h5(
     State(state): State<AdminState>,
     Json(dto): Json<DecorateUpdateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate.binding(&dto).await?)
+    ok(state.content.decorate.binding(&dto).await?)
 }
 
 /// `POST /adminapi/decorate/decorate/bindingCustomDecorate`：绑定自定义页。
@@ -380,7 +380,7 @@ async fn decorate_binding_custom(
     State(state): State<AdminState>,
     Json(dto): Json<DecorateUpdateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate.binding(&dto).await?)
+    ok(state.content.decorate.binding(&dto).await?)
 }
 
 /// `POST /adminapi/decorate/decorate/cancelBinding`：解除绑定。
@@ -388,7 +388,7 @@ async fn decorate_cancel_binding(
     State(state): State<AdminState>,
     Json(dto): Json<DecorateUpdateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate.cancel_binding(&dto).await?)
+    ok(state.content.decorate.cancel_binding(&dto).await?)
 }
 
 // ————————————————————— PC 导航 —————————————————————
@@ -398,7 +398,7 @@ async fn nav_list(
     State(state): State<AdminState>,
     Query(q): Query<PcNavigationListQuery>,
 ) -> ApiResult<PageResult<PcNavigationVO>> {
-    ok(state.content_decorate.pc_navigation_list(&q).await?)
+    ok(state.content.decorate.pc_navigation_list(&q).await?)
 }
 
 /// `GET /adminapi/decorate/pcNavigation/detail?id=`：PC 导航详情。
@@ -406,7 +406,7 @@ async fn nav_detail(
     State(state): State<AdminState>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<PcNavigationVO> {
-    ok(state.content_decorate
+    ok(state.content.decorate
         .pc_navigation_detail(q.id.unwrap_or_default())
         .await?)
 }
@@ -416,7 +416,7 @@ async fn nav_create(
     State(state): State<AdminState>,
     Json(dto): Json<PcNavigationCreateDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let id = state.content_decorate.pc_navigation_create(&dto).await?;
+    let id = state.content.decorate.pc_navigation_create(&dto).await?;
     ok(serde_json::json!({ "id": id }))
 }
 
@@ -425,7 +425,7 @@ async fn nav_update(
     State(state): State<AdminState>,
     Json(dto): Json<PcNavigationUpdateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate.pc_navigation_update(&dto).await?)
+    ok(state.content.decorate.pc_navigation_update(&dto).await?)
 }
 
 /// `POST /adminapi/decorate/pcNavigation/del`：删除 PC 导航。
@@ -433,7 +433,7 @@ async fn nav_del(
     State(state): State<AdminState>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate.pc_navigation_del(&dto).await?)
+    ok(state.content.decorate.pc_navigation_del(&dto).await?)
 }
 
 /// `POST /adminapi/decorate/pcNavigation/updateField`：通用字段更新。
@@ -441,7 +441,7 @@ async fn nav_update_field(
     State(state): State<AdminState>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate.pc_navigation_update_field(&dto).await?)
+    ok(state.content.decorate.pc_navigation_update_field(&dto).await?)
 }
 
 /// `POST /adminapi/decorate/pcNavigation/batch`：批量操作。
@@ -449,12 +449,12 @@ async fn nav_batch(
     State(state): State<AdminState>,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate.pc_navigation_batch(&dto).await?)
+    ok(state.content.decorate.pc_navigation_batch(&dto).await?)
 }
 
 /// `GET /adminapi/decorate/pcNavigation/selectLink`：可选链接地址。
 async fn nav_select_link(State(state): State<AdminState>) -> ApiResult<Vec<serde_json::Value>> {
-    ok(state.content_decorate.pc_navigation_select_link())
+    ok(state.content.decorate.pc_navigation_select_link())
 }
 
 /// `GET /adminapi/decorate/pcNavigation/getParentNav?type=`：上级导航树。
@@ -462,7 +462,7 @@ async fn nav_parent_tree(
     State(state): State<AdminState>,
     Query(q): Query<TypeQuery>,
 ) -> ApiResult<Vec<PcNavTreeVO>> {
-    ok(state.content_decorate
+    ok(state.content.decorate
         .pc_navigation_parent_nav(q.r#type.unwrap_or(0))
         .await?)
 }
@@ -474,7 +474,7 @@ async fn floor_list(
     State(state): State<AdminState>,
     Query(q): Query<PcCatFloorListQuery>,
 ) -> ApiResult<PageResult<PcCatFloorVO>> {
-    ok(state.content_decorate.pc_cat_floor_list(&q).await?)
+    ok(state.content.decorate.pc_cat_floor_list(&q).await?)
 }
 
 /// `GET /adminapi/decorate/pcCatFloor/detail?id=`：分类楼层详情。
@@ -482,7 +482,7 @@ async fn floor_detail(
     State(state): State<AdminState>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<PcCatFloorVO> {
-    ok(state.content_decorate
+    ok(state.content.decorate
         .pc_cat_floor_detail(q.id.unwrap_or_default())
         .await?)
 }
@@ -492,7 +492,7 @@ async fn floor_create(
     State(state): State<AdminState>,
     Json(dto): Json<PcCatFloorCreateDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let id = state.content_decorate.pc_cat_floor_create(&dto).await?;
+    let id = state.content.decorate.pc_cat_floor_create(&dto).await?;
     ok(serde_json::json!({ "id": id }))
 }
 
@@ -501,7 +501,7 @@ async fn floor_update(
     State(state): State<AdminState>,
     Json(dto): Json<PcCatFloorUpdateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate.pc_cat_floor_update(&dto).await?)
+    ok(state.content.decorate.pc_cat_floor_update(&dto).await?)
 }
 
 /// `POST /adminapi/decorate/pcCatFloor/del`：删除分类楼层。
@@ -509,7 +509,7 @@ async fn floor_del(
     State(state): State<AdminState>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate.pc_cat_floor_del(&dto).await?)
+    ok(state.content.decorate.pc_cat_floor_del(&dto).await?)
 }
 
 /// `POST /adminapi/decorate/pcCatFloor/updateField`：通用字段更新。
@@ -517,7 +517,7 @@ async fn floor_update_field(
     State(state): State<AdminState>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate.pc_cat_floor_update_field(&dto).await?)
+    ok(state.content.decorate.pc_cat_floor_update_field(&dto).await?)
 }
 
 /// `POST /adminapi/decorate/pcCatFloor/batch`：批量操作。
@@ -525,12 +525,12 @@ async fn floor_batch(
     State(state): State<AdminState>,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate.pc_cat_floor_batch(&dto).await?)
+    ok(state.content.decorate.pc_cat_floor_batch(&dto).await?)
 }
 
 /// `POST /adminapi/decorate/pcCatFloor/clearCache`：清理楼层缓存（空实现）。
 async fn floor_clear_cache(State(state): State<AdminState>) -> ApiResult<bool> {
-    state.content_decorate.pc_cat_floor_clear_cache();
+    state.content.decorate.pc_cat_floor_clear_cache();
     ok(true)
 }
 
@@ -549,7 +549,7 @@ async fn discrete_detail(
     Query(q): Query<SnQuery>,
 ) -> ApiResult<Option<DecorateDiscreteVO>> {
     let sn = q.decorate_sn.unwrap_or_default();
-    ok(state.content_decorate.discrete_detail(&sn).await?)
+    ok(state.content.decorate.discrete_detail(&sn).await?)
 }
 
 /// `POST /adminapi/decorate/decorateDiscrete/update`：装修组件保存（upsert）。
@@ -557,12 +557,12 @@ async fn discrete_update(
     State(state): State<AdminState>,
     Json(param): Json<DecorateDiscreteUpdateParam>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate.discrete_update(&param).await?)
+    ok(state.content.decorate.discrete_update(&param).await?)
 }
 
 /// `GET /adminapi/decorate/decorateDiscrete/memberDecorateData`：个人中心基础数据。
 async fn discrete_member_data(State(state): State<AdminState>) -> ApiResult<DecorateMemberDataVO> {
-    ok(state.content_decorate.member_decorate_data())
+    ok(state.content.decorate.member_decorate_data())
 }
 
 // ————————————————————— 装修分享 —————————————————————
@@ -572,7 +572,7 @@ async fn share_list(
     State(state): State<AdminState>,
     Query(q): Query<DecorateShareListQuery>,
 ) -> ApiResult<PageResult<DecorateShareVO>> {
-    ok(state.content_decorate.decorate_share_list(&q).await?)
+    ok(state.content.decorate.decorate_share_list(&q).await?)
 }
 
 /// `GET /adminapi/decorate/decorateShare/detail?id=`：分享记录详情。
@@ -580,7 +580,7 @@ async fn share_detail(
     State(state): State<AdminState>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<DecorateShareVO> {
-    ok(state.content_decorate
+    ok(state.content.decorate
         .decorate_share_detail(q.id.unwrap_or_default())
         .await?)
 }
@@ -590,7 +590,7 @@ async fn share_create(
     State(state): State<AdminState>,
     Json(body): Json<ShareCreateBody>,
 ) -> ApiResult<DecorateShareVO> {
-    ok(state.content_decorate
+    ok(state.content.decorate
         .decorate_share_create(body.decorate_id.unwrap_or_default())
         .await?)
 }
@@ -600,7 +600,7 @@ async fn share_update(
     State(state): State<AdminState>,
     Json(body): Json<ShareUpdateBody>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate
+    ok(state.content.decorate
         .decorate_share_update(
             body.share_id.unwrap_or_default(),
             body.decorate_id.unwrap_or_default(),
@@ -613,7 +613,7 @@ async fn share_del(
     State(state): State<AdminState>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate.decorate_share_del(&dto).await?)
+    ok(state.content.decorate.decorate_share_del(&dto).await?)
 }
 
 /// `POST /adminapi/decorate/decorateShare/updateField`：通用字段更新。
@@ -621,7 +621,7 @@ async fn share_update_field(
     State(state): State<AdminState>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate.decorate_share_update_field(&dto).await?)
+    ok(state.content.decorate.decorate_share_update_field(&dto).await?)
 }
 
 /// `POST /adminapi/decorate/decorateShare/batch`：批量操作。
@@ -629,7 +629,7 @@ async fn share_batch(
     State(state): State<AdminState>,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate.decorate_share_batch(&dto).await?)
+    ok(state.content.decorate.decorate_share_batch(&dto).await?)
 }
 
 /// `GET /adminapi/decorate/decorateShare/share?decorateId=`：生成页面分享。
@@ -637,7 +637,7 @@ async fn share_generate(
     State(state): State<AdminState>,
     Query(q): Query<ShareIdQuery>,
 ) -> ApiResult<DecorateShareVO> {
-    ok(state.content_decorate
+    ok(state.content.decorate
         .share(q.decorate_id.unwrap_or_default())
         .await?)
 }
@@ -648,7 +648,7 @@ async fn share_import(
     Query(q): Query<UrlQuery>,
 ) -> ApiResult<bool> {
     let url = q.url.unwrap_or_default();
-    ok(state.content_decorate.decorate_share_import(&url).await?)
+    ok(state.content.decorate.decorate_share_import(&url).await?)
 }
 
 // ————————————————————— 推广 —————————————————————
@@ -658,7 +658,7 @@ async fn promote_save_share_info(
     State(state): State<AdminState>,
     Json(dto): Json<DecorateShareInfoDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_decorate.save_share_info(&dto).await?)
+    ok(state.content.decorate.save_share_info(&dto).await?)
 }
 
 /// `GET /adminapi/decorate/promote/shareInfo?decorateId=`：读取装修页分享信息。
@@ -666,7 +666,7 @@ async fn promote_share_info(
     State(state): State<AdminState>,
     Query(q): Query<ShareIdQuery>,
 ) -> ApiResult<DecorateShareInfoVO> {
-    ok(state.content_decorate
+    ok(state.content.decorate
         .share_info(q.decorate_id.unwrap_or_default())
         .await?)
 }

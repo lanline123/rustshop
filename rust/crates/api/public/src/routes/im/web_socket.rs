@@ -109,5 +109,5 @@ async fn socket_send(
     State(state): State<PublicState>,
     Query(q): Query<SocketSendQuery>,
 ) -> ApiResult<String> {
-    ok(state.im_web_socket.send_message(&q)?)
+    ok(state.im.web_socket.send_message(&q)?)
 }

@@ -105,14 +105,14 @@ async fn list_by_pro(
     State(state): State<AdminState>,
     Query(q): Query<UserRankListQuery>,
 ) -> ApiResult<RankListByProVO> {
-    ok(state.member_user_rank.list_by_pro(&q).await?)
+    ok(state.member.user_rank.list_by_pro(&q).await?)
 }
 
 /// `GET /adminapi/user/userRank/detail`：会员等级详情。
 ///
 /// 对应 Java `UserRankController.detail()`（**无**查询参数）。
 async fn detail(State(state): State<AdminState>) -> ApiResult<UserRankDetailVO<UserRankListVO>> {
-    ok(state.member_user_rank.detail().await?)
+    ok(state.member.user_rank.detail().await?)
 }
 
 // ——————————————————————————————————————————————
@@ -128,7 +128,7 @@ async fn create(
     State(state): State<AdminState>,
     Json(dto): Json<UserRankDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let rank_id = state.member_user_rank.create(&dto).await?;
+    let rank_id = state.member.user_rank.create(&dto).await?;
     ok(serde_json::json!({ "rankId": rank_id }))
 }
 
@@ -141,7 +141,7 @@ async fn update(
     State(state): State<AdminState>,
     Json(param): Json<UserRankEditParam>,
 ) -> ApiResult<&'static str> {
-    state.member_user_rank.update(&param).await?;
+    state.member.user_rank.update(&param).await?;
     ok("更新成功")
 }
 
@@ -154,7 +154,7 @@ async fn update_field(
     State(state): State<AdminState>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let affected = state.member_user_rank.update_field(&dto).await?;
+    let affected = state.member.user_rank.update_field(&dto).await?;
     ok(serde_json::json!({ "affected": affected }))
 }
 
@@ -167,7 +167,7 @@ async fn del(
     State(state): State<AdminState>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let deleted = state.member_user_rank.del(&dto).await?;
+    let deleted = state.member.user_rank.del(&dto).await?;
     ok(serde_json::json!({ "deleted": deleted }))
 }
 
@@ -180,7 +180,7 @@ async fn batch(
     State(state): State<AdminState>,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let affected = state.member_user_rank.batch(&dto).await?;
+    let affected = state.member.user_rank.batch(&dto).await?;
     ok(serde_json::json!({ "affected": affected }))
 }
 

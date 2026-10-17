@@ -45,6 +45,6 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 async fn category_tree(
     State(state): State<PublicState>,
 ) -> ApiResult<Vec<CategoryTreeNode>> {
-    let tree = state.catalog_category_all.category_tree(false).await?;
+    let tree = state.catalog.category_all.category_tree(false).await?;
     ok(tree)
 }

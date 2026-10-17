@@ -190,7 +190,7 @@ async fn list(
     Query(q): Query<FeedbackListQuery>,
 ) -> ApiResult<PageResult<UserFeedbackVO>> {
     let scope = tenant_scope(&headers, &auth)?;
-    ok(state.member_feedback.list(&q, scope).await?)
+    ok(state.member.feedback.list(&q, scope).await?)
 }
 
 /// `GET /adminapi/user/feedback/detail?id=`：会员留言详情。
@@ -207,7 +207,7 @@ async fn detail(
     Query(q): Query<IdQuery>,
 ) -> ApiResult<UserFeedbackDetailVO> {
     let scope = tenant_scope(&headers, &auth)?;
-    ok(state.member_feedback.detail(q.id, scope).await?)
+    ok(state.member.feedback.detail(q.id, scope).await?)
 }
 
 /// `POST /adminapi/user/feedback/del`：删除一条会员留言。
@@ -226,7 +226,7 @@ async fn del(
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<()> {
     let scope = tenant_scope(&headers, &auth)?;
-    state.member_feedback.del(dto.id, scope).await?;
+    state.member.feedback.del(dto.id, scope).await?;
     ok(())
 }
 
@@ -245,7 +245,7 @@ async fn update(
     Json(dto): Json<FeedbackUpdateDTO>,
 ) -> ApiResult<()> {
     let scope = tenant_scope(&headers, &auth)?;
-    state.member_feedback.update(&dto, auth.id, scope).await?;
+    state.member.feedback.update(&dto, auth.id, scope).await?;
     ok(())
 }
 
@@ -263,7 +263,7 @@ async fn batch(
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<()> {
     let scope = tenant_scope(&headers, &auth)?;
-    state.member_feedback.batch(&dto, scope).await?;
+    state.member.feedback.batch(&dto, scope).await?;
     ok(())
 }
 

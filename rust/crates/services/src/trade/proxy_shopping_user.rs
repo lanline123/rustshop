@@ -92,7 +92,7 @@ pub struct ProxyShoppingUserService {
     ///
     /// 本域与 `/adminapi/user/user/*` 共用同一批查询，**委托**而非复制，
     /// 避免两份 `list` / `detail` SQL 随时间漂移。
-    slice012: Arc<UserManageService>,
+    user_manage: Arc<UserManageService>,
 }
 
 impl ProxyShoppingUserService {
@@ -109,11 +109,11 @@ impl ProxyShoppingUserService {
     #[must_use]
     pub fn new(repos: Arc<Repositories>) -> Self {
         let repo = repos.trade_proxy_shopping_user.clone();
-        let slice012 = Arc::new(UserManageService::new(repos.clone()));
+        let user_manage = Arc::new(UserManageService::new(repos.clone()));
         Self {
             repos,
             repo,
-            slice012,
+            user_manage,
         }
     }
 
@@ -144,7 +144,7 @@ impl ProxyShoppingUserService {
         let mut effective = q.clone();
         effective.is_exact = Some(resolve_is_exact(admin_type, q.is_exact));
 
-        let mut page = self.slice012.list(&effective).await?;
+        let mut page = self.user_manage.list(&effective).await?;
         for vo in page.list.iter_mut() {
             mask_password(vo);
         }
@@ -161,7 +161,7 @@ impl ProxyShoppingUserService {
     /// 会员不存在时返回业务错误（Java 对查不到的用户会 NPE，
     /// 这里改为明确报错）。
     pub async fn detail(&self, user_id: i32) -> Result<UserItemVO> {
-        let mut vo = self.slice012.detail(user_id).await?;
+        let mut vo = self.user_manage.detail(user_id).await?;
         vo.member_tags.clear();
         mask_password(&mut vo.user);
         Ok(vo)

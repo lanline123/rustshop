@@ -146,7 +146,7 @@ async fn pickup_contact_list(
     State(state): State<AdminState>,
     Json(dto): Json<PickupContactListQuery>,
 ) -> ApiResult<PageResult<PickupContactVO>> {
-    ok(state.trade_proxy_shopping_pickup_contact.list(&dto).await?)
+    ok(state.trade.proxy_shopping_pickup_contact.list(&dto).await?)
 }
 
 /// `GET /adminapi/proxyShopping/pickupContact/listByUserId?userId=`：
@@ -161,7 +161,7 @@ async fn pickup_contact_list_by_user_id(
     Query(q): Query<PickupContactUserIdQuery>,
 ) -> ApiResult<Vec<PickupContactVO>> {
     let user_id = require_user_id(q.user_id)?;
-    ok(state.trade_proxy_shopping_pickup_contact.list_by_user_id(user_id).await?)
+    ok(state.trade.proxy_shopping_pickup_contact.list_by_user_id(user_id).await?)
 }
 
 /// `GET /adminapi/proxyShopping/pickupContact/detail?id=`：自提联系人详情。
@@ -175,7 +175,7 @@ async fn pickup_contact_detail(
     Query(q): Query<PickupContactIdQuery>,
 ) -> ApiResult<PickupContactVO> {
     let id = require_id(q.id)?;
-    ok(state.trade_proxy_shopping_pickup_contact.detail(id).await?)
+    ok(state.trade.proxy_shopping_pickup_contact.detail(id).await?)
 }
 
 /// `POST /adminapi/proxyShopping/pickupContact/create`：创建自提联系人。
@@ -188,7 +188,7 @@ async fn pickup_contact_create(
     State(state): State<AdminState>,
     Json(dto): Json<PickupContactCreateDTO>,
 ) -> ApiResult<i64> {
-    ok(state.trade_proxy_shopping_pickup_contact.create(&dto).await?)
+    ok(state.trade.proxy_shopping_pickup_contact.create(&dto).await?)
 }
 
 /// `POST /adminapi/proxyShopping/pickupContact/update`：修改自提联系人。
@@ -202,7 +202,7 @@ async fn pickup_contact_update(
     State(state): State<AdminState>,
     Json(dto): Json<PickupContactUpdateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.trade_proxy_shopping_pickup_contact.update(&dto).await?)
+    ok(state.trade.proxy_shopping_pickup_contact.update(&dto).await?)
 }
 
 /// `POST /adminapi/proxyShopping/pickupContact/del?id=`：删除自提联系人。
@@ -217,7 +217,7 @@ async fn pickup_contact_del(
     Query(q): Query<PickupContactIdQuery>,
 ) -> ApiResult<bool> {
     let id = require_id(q.id)?;
-    ok(state.trade_proxy_shopping_pickup_contact.delete(Some(id)).await?)
+    ok(state.trade.proxy_shopping_pickup_contact.delete(Some(id)).await?)
 }
 
 #[cfg(test)]

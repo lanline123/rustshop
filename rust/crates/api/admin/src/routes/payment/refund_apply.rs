@@ -78,7 +78,7 @@ async fn list(
     State(state): State<AdminState>,
     Query(q): Query<RefundApplyListQuery>,
 ) -> ApiResult<PageResult<RefundApplyVO>> {
-    ok(state.payment_refund_apply.list(&q).await?)
+    ok(state.payment.refund_apply.list(&q).await?)
 }
 
 /// `GET /adminapi/finance/refundApply/detail?id=`：申请详情（含日志）。
@@ -91,7 +91,7 @@ async fn detail(
     State(state): State<AdminState>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<RefundApplyDetailVO> {
-    ok(state.payment_refund_apply.detail(q.id).await?)
+    ok(state.payment.refund_apply.detail(q.id).await?)
 }
 
 /// `POST /adminapi/finance/refundApply/audit`：财务审核。
@@ -99,7 +99,7 @@ async fn audit(
     State(state): State<AdminState>,
     Json(dto): Json<RefundApplyAuditDTO>,
 ) -> ApiResult<&'static str> {
-    state.payment_refund_apply.audit(&dto).await?;
+    state.payment.refund_apply.audit(&dto).await?;
     ok("审核完成")
 }
 
@@ -108,7 +108,7 @@ async fn offline_audit(
     State(state): State<AdminState>,
     Json(dto): Json<OfflineAuditDTO>,
 ) -> ApiResult<&'static str> {
-    state.payment_refund_apply.offline_audit(&dto).await?;
+    state.payment.refund_apply.offline_audit(&dto).await?;
     ok("已确认线下转账")
 }
 
@@ -117,7 +117,7 @@ async fn create(
     State(state): State<AdminState>,
     Json(dto): Json<RefundApplyCreateDTO>,
 ) -> ApiResult<i32> {
-    ok(state.payment_refund_apply.create(&dto).await?)
+    ok(state.payment.refund_apply.create(&dto).await?)
 }
 
 /// `POST /adminapi/finance/refundApply/update`：更新申请（仅待处理）。
@@ -125,6 +125,6 @@ async fn update(
     State(state): State<AdminState>,
     Json(dto): Json<RefundApplyUpdateDTO>,
 ) -> ApiResult<&'static str> {
-    state.payment_refund_apply.update(&dto).await?;
+    state.payment.refund_apply.update(&dto).await?;
     ok("更新成功")
 }

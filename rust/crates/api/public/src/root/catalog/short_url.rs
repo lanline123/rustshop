@@ -39,7 +39,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 
 /// `GET /s/{code}`：短链 302 跳转。
 async fn redirect(State(state): State<PublicState>, Path(code): Path<String>) -> Response {
-    match state.catalog_short_url.resolve_redirect(&code).await {
+    match state.catalog.short_url.resolve_redirect(&code).await {
         Ok(target) => Redirect::temporary(&target).into_response(),
         Err(e) => tigshop_security::web::AppError(e).into_response(),
     }

@@ -114,7 +114,7 @@ async fn list(
     State(state): State<AdminState>,
     Query(q): Query<AreaCodeListQuery>,
 ) -> ApiResult<PageResult<AreaCodeVO>> {
-    ok(state.system_area_code.list(&q).await?)
+    ok(state.system.area_code.list(&q).await?)
 }
 
 /// `GET /adminapi/setting/areaCode/detail?id=`：区号详情。
@@ -132,7 +132,7 @@ async fn detail(
         .id
         .filter(|v| *v > 0)
         .ok_or_else(|| tigshop_core::Error::Validation("id不能为空".into()))?;
-    ok(state.system_area_code.detail(id).await?)
+    ok(state.system.area_code.detail(id).await?)
 }
 
 /// `POST /adminapi/setting/areaCode/create`：创建区号。
@@ -146,7 +146,7 @@ async fn create(
     State(state): State<AdminState>,
     Json(dto): Json<AreaCodeSaveDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let id = state.system_area_code.create(&dto).await?;
+    let id = state.system.area_code.create(&dto).await?;
     ok(serde_json::json!({ "id": id }))
 }
 
@@ -159,7 +159,7 @@ async fn update(
     State(state): State<AdminState>,
     Json(dto): Json<AreaCodeEditDTO>,
 ) -> ApiResult<bool> {
-    ok(state.system_area_code.update(&dto).await?)
+    ok(state.system.area_code.update(&dto).await?)
 }
 
 /// `POST /adminapi/setting/areaCode/del`：删除区号（硬删除）。
@@ -170,7 +170,7 @@ async fn update(
 /// ⚠️ Java 删不存在的 id 也返回成功（`removeById` 返回 `false` 但不报错），
 /// 本实现保持这一语义，回传删除是否命中。
 async fn del(State(state): State<AdminState>, Json(dto): Json<OperateDTO>) -> ApiResult<bool> {
-    ok(state.system_area_code.del(&dto).await?)
+    ok(state.system.area_code.del(&dto).await?)
 }
 
 /// `POST /adminapi/setting/areaCode/updateField`：更新单个字段。
@@ -183,7 +183,7 @@ async fn update_field(
     State(state): State<AdminState>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<bool> {
-    ok(state.system_area_code.update_field(&dto).await?)
+    ok(state.system.area_code.update_field(&dto).await?)
 }
 
 /// `POST /adminapi/setting/areaCode/batch`：批量操作（仅 `del`）。
@@ -192,7 +192,7 @@ async fn update_field(
 /// → `BaseServiceImpl#batch`：`type != "del"` 时**静默返回 `false`**
 /// （HTTP 200，不是报错）。
 async fn batch(State(state): State<AdminState>, Json(dto): Json<BatchDTO>) -> ApiResult<bool> {
-    ok(state.system_area_code.batch(&dto).await?)
+    ok(state.system.area_code.batch(&dto).await?)
 }
 
 #[cfg(test)]

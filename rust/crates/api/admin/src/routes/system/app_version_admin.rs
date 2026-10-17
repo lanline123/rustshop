@@ -77,7 +77,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 /// `AppVersionServiceImpl#getDetail`：读 `config` 表 `androidVersion` /
 /// `iosVersion` / `iosLink` / `androidLink` 四项，缺失项为 `null`。
 async fn app_version_detail(State(state): State<AdminState>) -> ApiResult<AppVersionDetailVO> {
-    ok(state.system_app_version_admin.detail().await?)
+    ok(state.system.app_version_admin.detail().await?)
 }
 
 /// `POST /adminapi/setting/appVersion/update`：更新 APP 版本配置。
@@ -90,7 +90,7 @@ async fn app_version_update(
     Extension(auth): Extension<AuthUser>,
     Json(param): Json<AppVersionEditParam>,
 ) -> ApiResult<&'static str> {
-    state.system_app_version_admin
+    state.system.app_version_admin
         .update(&param, Some(i64::from(auth.id)), &auth.username)
         .await?;
     ok("更新成功")
@@ -106,7 +106,7 @@ async fn app_version_upload_file(
     mut multipart: Multipart,
 ) -> ApiResult<String> {
     let form = read_upload_file(&mut multipart).await?;
-    ok(state.system_app_version_admin
+    ok(state.system.app_version_admin
         .upload_file(form.file_name.as_deref(), &form.bytes)?)
 }
 

@@ -60,7 +60,7 @@ async fn article_list(
     Query(q): Query<ArticleListQuery>,
 ) -> ApiResult<PageResult<ArticleVO>> {
     // 前台强制 is_show = 1，由服务层保证
-    ok(state.content_article.list(&q, true).await?)
+    ok(state.content.article.list(&q, true).await?)
 }
 
 #[derive(Debug, Deserialize)]
@@ -73,7 +73,7 @@ async fn article_detail(
     State(state): State<PublicState>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<ArticleDetailVO> {
-    ok(state.content_article.detail(q.id, true).await?)
+    ok(state.content.article.detail(q.id, true).await?)
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -91,19 +91,19 @@ async fn hot_articles(
     State(state): State<PublicState>,
     Query(q): Query<HotQuery>,
 ) -> ApiResult<Vec<ArticleVO>> {
-    ok(state.content_article.hot_articles(q.limit.unwrap_or(10)).await?)
+    ok(state.content.article.hot_articles(q.limit.unwrap_or(10)).await?)
 }
 
 /// `GET /api/article/category/getArticleCategoryList`：文章分类平铺列表。
 async fn category_list(
     State(state): State<PublicState>,
 ) -> ApiResult<Vec<ArticleCategoryVO>> {
-    ok(state.content_article.categories().await?)
+    ok(state.content.article.categories().await?)
 }
 
 /// `GET /api/article/category/list`：文章分类树。
 async fn category_tree(
     State(state): State<PublicState>,
 ) -> ApiResult<Vec<ArticleCategoryTreeNode>> {
-    ok(state.content_article.category_tree().await?)
+    ok(state.content.article.category_tree().await?)
 }

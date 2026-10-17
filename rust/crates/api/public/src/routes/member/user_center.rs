@@ -200,7 +200,7 @@ async fn credit_detail(
     State(state): State<PublicState>,
     Extension(auth): Extension<AuthUser>,
 ) -> ApiResult<Option<CreditDetailVO>> {
-    ok(state.member_user_center.credit_detail(auth.id).await?)
+    ok(state.member.user_center.credit_detail(auth.id).await?)
 }
 
 /// `POST /api/user/user/updateInformation`：更新会员信息。
@@ -212,7 +212,7 @@ async fn update_information(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<UpdateInformationDTO>,
 ) -> ApiResult<&'static str> {
-    state.member_user_center.update_information(auth.id, &dto).await?;
+    state.member.user_center.update_information(auth.id, &dto).await?;
     ok("更新成功")
 }
 
@@ -223,7 +223,7 @@ async fn member_center(
     State(state): State<PublicState>,
     Extension(auth): Extension<AuthUser>,
 ) -> ApiResult<MemberCenterVO> {
-    ok(state.member_user_center.member_center(auth.id).await?)
+    ok(state.member.user_center.member_center(auth.id).await?)
 }
 
 // ————————————————————— 手机/邮箱验证码（未迁移） —————————————————————
@@ -238,7 +238,7 @@ async fn send_mobile_code_by_modify_password(
     Extension(auth): Extension<AuthUser>,
     Json(_dto): Json<RegisterSmsDTO>,
 ) -> ApiResult<&'static str> {
-    state.member_user_center
+    state.member.user_center
         .send_sms_code(auth.id, "modify_password", None)
         .await?;
     ok("验证码已发送")
@@ -253,7 +253,7 @@ async fn check_modify_password_mobile_code(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<CheckModifyPasswordDTO>,
 ) -> ApiResult<&'static str> {
-    state.member_user_center
+    state.member.user_center
         .check_modify_password_mobile_code(auth.id, &dto)
         .await?;
     ok("密码修改成功")
@@ -268,7 +268,7 @@ async fn send_mobile_code_by_mobile_validate(
     Extension(auth): Extension<AuthUser>,
     Json(_dto): Json<RegisterSmsDTO>,
 ) -> ApiResult<&'static str> {
-    state.member_user_center
+    state.member.user_center
         .send_sms_code(auth.id, "mobile_validate", None)
         .await?;
     ok("验证码已发送")
@@ -283,7 +283,7 @@ async fn send_email_code_by_email_validate(
     Extension(auth): Extension<AuthUser>,
     Json(_dto): Json<RegisterEmailDTO>,
 ) -> ApiResult<&'static str> {
-    state.member_user_center
+    state.member.user_center
         .send_email_code(auth.id, "email_validate", None)
         .await?;
     ok("验证码已发送")
@@ -298,7 +298,7 @@ async fn send_mobile_code_by_modify_mobile(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<RegisterSmsDTO>,
 ) -> ApiResult<&'static str> {
-    state.member_user_center
+    state.member.user_center
         .send_sms_code(auth.id, "modify_mobile", dto.mobile.as_deref())
         .await?;
     ok("验证码已发送")
@@ -313,7 +313,7 @@ async fn send_email_code_by_modify_email(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<RegisterEmailDTO>,
 ) -> ApiResult<&'static str> {
-    state.member_user_center
+    state.member.user_center
         .send_email_code(auth.id, "modify_email", dto.email.as_deref())
         .await?;
     ok("验证码已发送")
@@ -328,7 +328,7 @@ async fn modify_mobile(
     Extension(auth): Extension<AuthUser>,
     Json(param): Json<ModifyMobileParam>,
 ) -> ApiResult<&'static str> {
-    state.member_user_center.modify_mobile(auth.id, &param).await?;
+    state.member.user_center.modify_mobile(auth.id, &param).await?;
     ok("手机号修改成功")
 }
 
@@ -341,7 +341,7 @@ async fn modify_email(
     Extension(auth): Extension<AuthUser>,
     Json(param): Json<ModifyEmailParam>,
 ) -> ApiResult<&'static str> {
-    state.member_user_center.modify_email(auth.id, &param).await?;
+    state.member.user_center.modify_email(auth.id, &param).await?;
     ok("邮箱修改成功")
 }
 
@@ -354,7 +354,7 @@ async fn mobile_validate(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<CheckModifyPasswordDTO>,
 ) -> ApiResult<&'static str> {
-    state.member_user_center.mobile_validate(auth.id, &dto).await?;
+    state.member.user_center.mobile_validate(auth.id, &dto).await?;
     ok("验证通过")
 }
 
@@ -367,7 +367,7 @@ async fn email_validate_new(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<CheckModifyEmailDTO>,
 ) -> ApiResult<&'static str> {
-    state.member_user_center.email_validate_new(auth.id, &dto).await?;
+    state.member.user_center.email_validate_new(auth.id, &dto).await?;
     ok("验证通过")
 }
 
@@ -380,7 +380,7 @@ async fn email_validate(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<CheckEmailModifyDTO>,
 ) -> ApiResult<&'static str> {
-    state.member_user_center.email_validate(auth.id, &dto).await?;
+    state.member.user_center.email_validate(auth.id, &dto).await?;
     ok("验证通过")
 }
 
@@ -393,7 +393,7 @@ async fn history_product(
     State(state): State<PublicState>,
     Extension(auth): Extension<AuthUser>,
 ) -> ApiResult<Vec<HistoryProductVO>> {
-    ok(state.member_user_center.history_product(auth.id).await?)
+    ok(state.member.user_center.history_product(auth.id).await?)
 }
 
 /// `POST /api/user/user/delHistoryProduct`：删除最近浏览。
@@ -404,7 +404,7 @@ async fn del_history_product(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<DelHistoryProductDTO>,
 ) -> ApiResult<&'static str> {
-    state.member_user_center.del_history_product(auth.id, &dto).await?;
+    state.member.user_center.del_history_product(auth.id, &dto).await?;
     ok("删除成功")
 }
 
@@ -424,7 +424,7 @@ async fn upload_img(
         .params
         .get("hidden")
         .is_some_and(|v| v.eq_ignore_ascii_case("true") || v == "1");
-    ok(state.member_user_center
+    ok(state.member.user_center
         .upload_img(form.file_name.as_deref(), &form.bytes, is_hidden)?)
 }
 
@@ -437,7 +437,7 @@ async fn upload_video(
     mut multipart: Multipart,
 ) -> ApiResult<UploadVideoInfoVO> {
     let form = read_multipart(&mut multipart).await?;
-    ok(state.member_user_center
+    ok(state.member.user_center
         .upload_video(form.file_name.as_deref(), &form.bytes)?)
 }
 
@@ -450,7 +450,7 @@ async fn modify_avatar(
     mut multipart: Multipart,
 ) -> ApiResult<&'static str> {
     let form = read_multipart(&mut multipart).await?;
-    state.member_user_center
+    state.member.user_center
         .modify_avatar(form.file_name.as_deref(), &form.bytes)?;
     ok("头像修改成功")
 }
@@ -511,14 +511,14 @@ async fn collection_shop(
     Extension(auth): Extension<AuthUser>,
     Query(q): Query<CollectShopQuery>,
 ) -> ApiResult<PageResult<CollectShopVO>> {
-    ok(state.member_user_center.collection_shop(auth.id, &q).await?)
+    ok(state.member.user_center.collection_shop(auth.id, &q).await?)
 }
 
 /// `GET /api/user/user/levelList`：会员等级列表。
 ///
 /// 对应 Java `UserController.levelList()`（不依赖登录态）。
 async fn level_list(State(state): State<PublicState>) -> ApiResult<UserLevelListVO> {
-    ok(state.member_user_center.level_list().await?)
+    ok(state.member.user_center.level_list().await?)
 }
 
 /// `GET /api/user/user/levelInfo?rankId=`：会员等级权益信息。
@@ -528,7 +528,7 @@ async fn level_info(
     State(state): State<PublicState>,
     Query(q): Query<RankIdQuery>,
 ) -> ApiResult<UserLevelInfoVO> {
-    ok(state.member_user_center.level_info(q.rank_id).await?)
+    ok(state.member.user_center.level_info(q.rank_id).await?)
 }
 
 /// `levelInfo` 查询参数（Java `@RequestParam("rankId")` 必填）。
@@ -551,7 +551,7 @@ async fn logout(
     State(state): State<PublicState>,
     Extension(_auth): Extension<AuthUser>,
 ) -> ApiResult<()> {
-    state.member_user_center.logout()?;
+    state.member.user_center.logout()?;
     ok(())
 }
 
@@ -562,6 +562,6 @@ async fn close(
     State(state): State<PublicState>,
     Extension(auth): Extension<AuthUser>,
 ) -> ApiResult<&'static str> {
-    state.member_user_center.close(auth.id).await?;
+    state.member.user_center.close(auth.id).await?;
     ok("账号已注销")
 }

@@ -125,7 +125,7 @@ async fn tree(
     State(state): State<PublicState>,
     Query(q): Query<CategoryTreeQuery>,
 ) -> ApiResult<Vec<ShopCategoryTreeNode>> {
-    ok(state.merchant_shop_client_category.category_tree(q.shop_id).await?)
+    ok(state.merchant.shop_client_category.category_tree(q.shop_id).await?)
 }
 
 /// 父级树入参（原 Java `@RequestParam("id")`，必填）。
@@ -145,5 +145,5 @@ async fn parent_tree(
     State(state): State<PublicState>,
     Query(q): Query<ParentTreeQuery>,
 ) -> ApiResult<Vec<ShopParentTreeVO>> {
-    ok(state.merchant_shop_client_category.parent_tree(q.id).await?)
+    ok(state.merchant.shop_client_category.parent_tree(q.id).await?)
 }

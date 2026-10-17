@@ -116,7 +116,7 @@ async fn comment_list(
         q.buyer_show_id,
         q.status
     );
-    ok(state.marketing_buyer_show_comment.list(&q).await?)
+    ok(state.marketing.buyer_show_comment.list(&q).await?)
 }
 
 /// `POST /adminapi/promotion/buyerShow/commentInfo/audit`：审核（通过、拒绝）。
@@ -128,7 +128,7 @@ async fn comment_audit(
     State(state): State<AdminState>,
     Json(param): Json<BuyerShowCommentAuditParam>,
 ) -> ApiResult<&'static str> {
-    state.marketing_buyer_show_comment.audit(&param).await?;
+    state.marketing.buyer_show_comment.audit(&param).await?;
     ok("审核成功")
 }
 
@@ -142,7 +142,7 @@ async fn comment_batch(
     State(state): State<AdminState>,
     Json(batch): Json<BatchDTO>,
 ) -> ApiResult<bool> {
-    ok(state.marketing_buyer_show_comment.batch(&batch).await?)
+    ok(state.marketing.buyer_show_comment.batch(&batch).await?)
 }
 
 /// `POST /adminapi/promotion/buyerShow/commentInfo/showOrHide`：是否公开（公开、隐藏）。
@@ -154,7 +154,7 @@ async fn comment_show_or_hide(
     State(state): State<AdminState>,
     Json(param): Json<BuyerShowCommentShowOrHideParam>,
 ) -> ApiResult<&'static str> {
-    state.marketing_buyer_show_comment.show_or_hide(&param).await?;
+    state.marketing.buyer_show_comment.show_or_hide(&param).await?;
     ok("操作成功")
 }
 
@@ -167,6 +167,6 @@ async fn comment_is_top(
     State(state): State<AdminState>,
     Json(param): Json<BuyerShowCommentIsTopParam>,
 ) -> ApiResult<&'static str> {
-    state.marketing_buyer_show_comment.is_top(&param).await?;
+    state.marketing.buyer_show_comment.is_top(&param).await?;
     ok("操作成功")
 }

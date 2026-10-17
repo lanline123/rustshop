@@ -189,7 +189,7 @@ async fn list(
     State(state): State<AdminState>,
     Query(q): Query<AdminUserListQuery>,
 ) -> ApiResult<PageResult<AdminUserDTO>> {
-    ok(state.identity_admin_user
+    ok(state.identity.admin_user
         .list(
             q.admin_user_type.as_deref(),
             q.keyword.as_deref(),
@@ -212,7 +212,7 @@ async fn mine_detail(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
 ) -> ApiResult<AdminUserDTO> {
-    ok(state.identity_admin_user.mine_detail(auth.id).await?)
+    ok(state.identity.admin_user.mine_detail(auth.id).await?)
 }
 
 /// `GET /adminapi/authority/adminUser/detail?id=`：管理员详情。
@@ -223,7 +223,7 @@ async fn detail(
     State(state): State<AdminState>,
     Query(q): Query<AdminUserIdQuery>,
 ) -> ApiResult<AdminUserDTO> {
-    ok(state.identity_admin_user.detail(q.id).await?)
+    ok(state.identity.admin_user.detail(q.id).await?)
 }
 
 // ——————————————————————————————————————————————
@@ -238,7 +238,7 @@ async fn create(
     State(state): State<AdminState>,
     Json(dto): Json<AdminUserDTO>,
 ) -> ApiResult<i32> {
-    ok(state.identity_admin_user.create(&dto).await?)
+    ok(state.identity.admin_user.create(&dto).await?)
 }
 
 /// `POST /adminapi/authority/adminUser/update`：更新管理员。
@@ -248,7 +248,7 @@ async fn update(
     State(state): State<AdminState>,
     Json(dto): Json<AdminUserDTO>,
 ) -> ApiResult<&'static str> {
-    state.identity_admin_user.update(&dto).await?;
+    state.identity.admin_user.update(&dto).await?;
     ok("更新成功")
 }
 
@@ -260,7 +260,7 @@ async fn del(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<&'static str> {
-    state.identity_admin_user.del(dto.id, auth.id).await?;
+    state.identity.admin_user.del(dto.id, auth.id).await?;
     ok("删除成功")
 }
 
@@ -273,7 +273,7 @@ async fn batch(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<&'static str> {
-    state.identity_admin_user.batch(&dto, auth.id).await?;
+    state.identity.admin_user.batch(&dto, auth.id).await?;
     ok("操作成功")
 }
 
@@ -287,7 +287,7 @@ async fn modify_manage_accounts(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<AdminUserModifyManageAccountsDTO>,
 ) -> ApiResult<&'static str> {
-    state.identity_admin_user.modify_manage_accounts(&dto, auth.id).await?;
+    state.identity.admin_user.modify_manage_accounts(&dto, auth.id).await?;
     ok("操作成功")
 }
 
@@ -317,7 +317,7 @@ async fn config(
             .and_then(|v| v.parse::<i32>().ok())
             .or(q.vendor_id),
     };
-    ok(state.identity_admin_user.get_config(&effective, admin_type.as_deref()).await?)
+    ok(state.identity.admin_user.get_config(&effective, admin_type.as_deref()).await?)
 }
 
 /// `GET /adminapi/authority/adminUser/getCode`：获取短信验证码。
@@ -330,7 +330,7 @@ async fn get_code(
     Extension(auth): Extension<AuthUser>,
     Query(q): Query<GetCodeQuery>,
 ) -> ApiResult<&'static str> {
-    state.identity_admin_user.get_code(&q, auth.id).await?;
+    state.identity.admin_user.get_code(&q, auth.id).await?;
     ok("验证码已发送")
 }
 
@@ -347,7 +347,7 @@ async fn api_token_generate(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<AdminApiTokenGenerateDTO>,
 ) -> ApiResult<AdminApiTokenGenerateVO> {
-    ok(state.identity_admin_user.generate_api_token(auth.id, &dto).await?)
+    ok(state.identity.admin_user.generate_api_token(auth.id, &dto).await?)
 }
 
 /// `GET /adminapi/authority/adminUser/apiToken/list`：查询当前管理员的 Token 列表。
@@ -357,7 +357,7 @@ async fn api_token_list(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
 ) -> ApiResult<Vec<AdminApiTokenVO>> {
-    ok(state.identity_admin_user.list_api_tokens(auth.id).await?)
+    ok(state.identity.admin_user.list_api_tokens(auth.id).await?)
 }
 
 /// `POST /adminapi/authority/adminUser/apiToken/revoke`：吊销 API Token。
@@ -369,7 +369,7 @@ async fn api_token_revoke(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<&'static str> {
-    state.identity_admin_user.revoke_api_token(dto.id, auth.id).await?;
+    state.identity.admin_user.revoke_api_token(dto.id, auth.id).await?;
     ok("吊销成功")
 }
 

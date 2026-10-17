@@ -161,7 +161,7 @@ async fn get_init_config_settings(
     State(state): State<PublicState>,
     Query(q): Query<PreviewIdQuery>,
 ) -> ApiResult<tigshop_core::models::system::config_client::InitConfigSettingsVO> {
-    ok(state.system_config_client.init_config_settings(&q).await?)
+    ok(state.system.config_client.init_config_settings(&q).await?)
 }
 
 /// `GET /api/common/config/themeSettings`：获取主题配置项。
@@ -171,7 +171,7 @@ async fn get_init_config_settings(
 async fn get_theme_settings(
     State(state): State<PublicState>,
 ) -> ApiResult<tigshop_core::models::system::config_client::ThemeSettingsVO> {
-    ok(state.system_config_client.theme_settings().await?)
+    ok(state.system.config_client.theme_settings().await?)
 }
 
 /// `GET /api/common/config/productDetailStyle`：获取商品详情页风格。
@@ -181,7 +181,7 @@ async fn get_theme_settings(
 ///
 /// 返回裸 `Integer`（1-样式一，2-样式二；空 / 非法 ⇒ 1）。
 async fn get_product_detail_style(State(state): State<PublicState>) -> ApiResult<i32> {
-    ok(state.system_config_client.product_detail_style().await?)
+    ok(state.system.config_client.product_detail_style().await?)
 }
 
 /// `GET /api/common/config/searchStyle`：获取搜索页风格。
@@ -189,7 +189,7 @@ async fn get_product_detail_style(State(state): State<PublicState>) -> ApiResult
 /// 对应 Java `ConfigController.getSearchStyle`（第 102 行）→
 /// `ConfigServiceImpl#getSearchStyleType`。
 async fn get_search_style(State(state): State<PublicState>) -> ApiResult<i32> {
-    ok(state.system_config_client.search_style().await?)
+    ok(state.system.config_client.search_style().await?)
 }
 
 /// `GET /api/common/config/mobileSearchStyle`：获取移动端搜索风格。
@@ -197,7 +197,7 @@ async fn get_search_style(State(state): State<PublicState>) -> ApiResult<i32> {
 /// 对应 Java `ConfigController.getMobileSearchStyle`（第 108 行）→
 /// `ConfigServiceImpl#getMobileSearchStyleType`。
 async fn get_mobile_search_style(State(state): State<PublicState>) -> ApiResult<i32> {
-    ok(state.system_config_client.mobile_search_style().await?)
+    ok(state.system.config_client.mobile_search_style().await?)
 }
 
 /// `GET /api/common/config/base?previewId=`：获取基础配置。
@@ -210,7 +210,7 @@ async fn get_base(
     State(state): State<PublicState>,
     Query(q): Query<PreviewIdQuery>,
 ) -> ApiResult<serde_json::Map<String, serde_json::Value>> {
-    ok(state.system_config_client.base(&q).await?)
+    ok(state.system.config_client.base(&q).await?)
 }
 
 /// `GET /api/common/config/afterSalesService`：获取售后服务。
@@ -220,7 +220,7 @@ async fn get_base(
 async fn get_after_sales_service(
     State(state): State<PublicState>,
 ) -> ApiResult<tigshop_core::models::system::config_client::AfterSalesSettingsVO> {
-    ok(state.system_config_client.after_sales_service().await?)
+    ok(state.system.config_client.after_sales_service().await?)
 }
 
 /// `GET /api/common/config/mobileAreaCode`：获取移动端区号。
@@ -230,7 +230,7 @@ async fn get_after_sales_service(
 async fn get_mobile_area_code(
     State(state): State<PublicState>,
 ) -> ApiResult<Vec<tigshop_core::models::system::config_client::AreaCodeVO>> {
-    ok(state.system_config_client.mobile_area_code().await?)
+    ok(state.system.config_client.mobile_area_code().await?)
 }
 
 /// `GET /api/common/config/getLoginProtocol`：获取登录协议。
@@ -240,7 +240,7 @@ async fn get_mobile_area_code(
 async fn get_login_protocol(
     State(state): State<PublicState>,
 ) -> ApiResult<tigshop_core::models::system::config_client::GetLoginProtocolVO> {
-    ok(state.system_config_client.login_protocol().await?)
+    ok(state.system.config_client.login_protocol().await?)
 }
 
 /// `GET /api/common/config/getLoginProtocolContent?code=`：获取登录协议内容。
@@ -273,7 +273,7 @@ async fn get_login_protocol_content(
             tigshop_services::system::config_client::SERVICE_DATA_ERROR,
             "接口参数缺失",
         )))?;
-    ok(state.system_config_client.login_protocol_content(Some(code)).await?)
+    ok(state.system.config_client.login_protocol_content(Some(code)).await?)
 }
 
 #[cfg(test)]

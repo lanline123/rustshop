@@ -92,7 +92,7 @@ async fn list(
     Query(dto): Query<ImMessageListDTO>,
 ) -> ApiResult<PageResult<ImMessageListVO>> {
     let shop_id = resolve_shop_id(&headers, &auth);
-    ok(state.im_im_message.list_as_admin(&dto, shop_id, auth.id).await?)
+    ok(state.im.im_message.list_as_admin(&dto, shop_id, auth.id).await?)
 }
 
 /// `GET /im/conversation/message/receivedList`：客服消息播报记录列表。
@@ -103,7 +103,7 @@ async fn received_list(
     Query(dto): Query<ImMessageReceivedListDTO>,
 ) -> ApiResult<PageResult<ImMessageListVO>> {
     let shop_id = resolve_shop_id(&headers, &auth);
-    ok(state.im_im_message.received_list(&dto, shop_id, auth.id).await?)
+    ok(state.im.im_message.received_list(&dto, shop_id, auth.id).await?)
 }
 
 /// `POST /im/conversation/message/send`：发送消息（后台分支）。
@@ -114,7 +114,7 @@ async fn send(
     Json(dto): Json<ImMessageSendDTO>,
 ) -> ApiResult<ImMessageSendVO> {
     let shop_id = resolve_shop_id(&headers, &auth);
-    ok(state.im_im_message.send_as_admin(&dto, auth.id, shop_id).await?)
+    ok(state.im.im_message.send_as_admin(&dto, auth.id, shop_id).await?)
 }
 
 /// `POST /im/conversation/message/uploadVideo`：上传视频（multipart）。**未迁移**。
@@ -123,7 +123,7 @@ async fn upload_video(
     mut multipart: Multipart,
 ) -> ApiResult<UploadVideoInfoVO> {
     let (file_name, bytes) = read_upload_file(&mut multipart).await?;
-    ok(state.im_im_message.upload_video(file_name.as_deref(), &bytes)?)
+    ok(state.im.im_message.upload_video(file_name.as_deref(), &bytes)?)
 }
 
 /// `POST /im/conversation/message/setRead`：设置已读（后台分支）。
@@ -134,7 +134,7 @@ async fn set_read(
     Json(dto): Json<ImSetReadDTO>,
 ) -> ApiResult<bool> {
     let shop_id = resolve_shop_id(&headers, &auth);
-    ok(state.im_im_message.set_read_as_admin(&dto, shop_id).await?)
+    ok(state.im.im_message.set_read_as_admin(&dto, shop_id).await?)
 }
 
 /// 读取请求头文本值（缺失 / 非 UTF-8 / 全空白 → `None`）。

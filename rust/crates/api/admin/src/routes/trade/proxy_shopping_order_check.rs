@@ -198,7 +198,7 @@ async fn get_available_payment_type(
     State(state): State<AdminState>,
     Query(q): Query<AvailablePaymentTypeQuery>,
 ) -> ApiResult<Vec<PaymentTypeVO>> {
-    ok(state.trade_proxy_shopping_order_check.available_payment_types(&q).await?)
+    ok(state.trade.proxy_shopping_order_check.available_payment_types(&q).await?)
 }
 
 /// `GET /adminapi/proxyShopping/order/check/pickupList`：获取自提点列表。
@@ -211,7 +211,7 @@ async fn pickup_list(
     State(state): State<AdminState>,
     Query(q): Query<PickupPageQuery>,
 ) -> ApiResult<PageResult<PickupListVO>> {
-    ok(state.trade_proxy_shopping_order_check.pickup_list(&q).await?)
+    ok(state.trade.proxy_shopping_order_check.pickup_list(&q).await?)
 }
 
 /// `POST /adminapi/proxyShopping/order/check/index`：获取结算页信息。
@@ -226,7 +226,7 @@ async fn check_index(
     Json(param): Json<OrderCheckParam>,
 ) -> ApiResult<()> {
     let ctx = request_context_from_headers(&headers);
-    state.trade_proxy_shopping_order_check.check_index(&param, &ctx).await?;
+    state.trade.proxy_shopping_order_check.check_index(&param, &ctx).await?;
     ok(())
 }
 
@@ -241,7 +241,7 @@ async fn check_update(
     Json(param): Json<OrderCheckParam>,
 ) -> ApiResult<()> {
     let ctx = request_context_from_headers(&headers);
-    state.trade_proxy_shopping_order_check.check_update(&param, &ctx).await?;
+    state.trade.proxy_shopping_order_check.check_update(&param, &ctx).await?;
     ok(())
 }
 
@@ -256,7 +256,7 @@ async fn check_update_coupon(
     Json(param): Json<OrderCheckParam>,
 ) -> ApiResult<()> {
     let ctx = request_context_from_headers(&headers);
-    state.trade_proxy_shopping_order_check.check_update_coupon(&param, &ctx).await?;
+    state.trade.proxy_shopping_order_check.check_update_coupon(&param, &ctx).await?;
     ok(())
 }
 
@@ -271,7 +271,7 @@ async fn check_change_price(
     Json(param): Json<OrderCheckParam>,
 ) -> ApiResult<()> {
     let ctx = request_context_from_headers(&headers);
-    state.trade_proxy_shopping_order_check.change_price(&param, &ctx).await?;
+    state.trade.proxy_shopping_order_check.change_price(&param, &ctx).await?;
     ok(())
 }
 
@@ -286,7 +286,7 @@ async fn check_change_price_show(
     Json(param): Json<OrderCheckParam>,
 ) -> ApiResult<()> {
     let ctx = request_context_from_headers(&headers);
-    state.trade_proxy_shopping_order_check.change_price_show(&param, &ctx).await?;
+    state.trade.proxy_shopping_order_check.change_price_show(&param, &ctx).await?;
     ok(())
 }
 
@@ -303,6 +303,6 @@ async fn check_submit(
     Json(param): Json<OrderCheckParam>,
 ) -> ApiResult<()> {
     let ctx = request_context_from_headers(&headers);
-    state.trade_proxy_shopping_order_check.submit(&param, &ctx, auth.id).await?;
+    state.trade.proxy_shopping_order_check.submit(&param, &ctx, auth.id).await?;
     ok(())
 }

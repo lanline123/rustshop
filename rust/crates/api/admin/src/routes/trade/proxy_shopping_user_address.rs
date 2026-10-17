@@ -130,7 +130,7 @@ async fn address_list(
     State(state): State<AdminState>,
     Json(dto): Json<AddressListRequest>,
 ) -> ApiResult<PageResult<AddressVO>> {
-    ok(state.trade_proxy_shopping_user_address.list(&dto).await?)
+    ok(state.trade.proxy_shopping_user_address.list(&dto).await?)
 }
 
 /// `POST /adminapi/proxyShopping/address/create`：为指定会员新增收货地址。
@@ -142,7 +142,7 @@ async fn address_create(
     State(state): State<AdminState>,
     Json(dto): Json<AddressCreateRequest>,
 ) -> ApiResult<i32> {
-    ok(state.trade_proxy_shopping_user_address.create(&dto).await?)
+    ok(state.trade.proxy_shopping_user_address.create(&dto).await?)
 }
 
 /// `POST /adminapi/proxyShopping/address/update`：修改收货地址。
@@ -155,7 +155,7 @@ async fn address_update(
     State(state): State<AdminState>,
     Json(dto): Json<AddressUpdateRequest>,
 ) -> ApiResult<bool> {
-    state.trade_proxy_shopping_user_address.update(&dto).await?;
+    state.trade.proxy_shopping_user_address.update(&dto).await?;
     ok(true)
 }
 
@@ -169,7 +169,7 @@ async fn address_set_selected(
     State(state): State<AdminState>,
     Json(dto): Json<AddressUpdateRequest>,
 ) -> ApiResult<bool> {
-    state.trade_proxy_shopping_user_address.set_selected(&dto).await?;
+    state.trade.proxy_shopping_user_address.set_selected(&dto).await?;
     ok(true)
 }
 
@@ -182,7 +182,7 @@ async fn address_get_region_path(
     State(state): State<AdminState>,
     Query(q): Query<tigshop_core::models::trade::proxy_shopping_user_address::RegionPathQuery>,
 ) -> ApiResult<Vec<RegionPathNode>> {
-    ok(state.trade_proxy_shopping_user_address.get_region_path(q.region_id).await?)
+    ok(state.trade.proxy_shopping_user_address.get_region_path(q.region_id).await?)
 }
 
 /// `GET /adminapi/proxyShopping/address/getAllRegionTree`：获取所有地区（树形）。
@@ -193,5 +193,5 @@ async fn address_get_region_path(
 async fn address_get_all_region_tree(
     State(state): State<AdminState>,
 ) -> ApiResult<Vec<RegionTreeNode>> {
-    ok(state.trade_proxy_shopping_user_address.get_all_region_tree().await?)
+    ok(state.trade.proxy_shopping_user_address.get_all_region_tree().await?)
 }

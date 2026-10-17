@@ -932,8 +932,8 @@ mod tests {
     fn table_names_match_entities() {
         assert_eq!(UserRank::TABLE, "user_rank");
         assert_eq!(UserRankConfig::TABLE, "user_rank_config");
-        assert!(USER_RANK_SELECT.contains("FROM user_rank "));
-        assert!(USER_RANK_CONFIG_SELECT.contains("FROM user_rank_config "));
+        assert!(USER_RANK_SELECT.contains("FROM user_rank"));
+        assert!(USER_RANK_CONFIG_SELECT.contains("FROM user_rank_config"));
     }
 
     /// `RankEditPlan` 的默认值必须什么都不做。

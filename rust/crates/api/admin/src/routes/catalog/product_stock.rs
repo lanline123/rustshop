@@ -331,7 +331,7 @@ async fn stock_page(
     Query(q): Query<StockPageQuery>,
 ) -> ApiResult<PageResult<ProductStockPageVO>> {
     let op = operator_from(&headers, &auth);
-    ok(state.catalog_product_stock.stock_page(&q, &op).await?)
+    ok(state.catalog.product_stock.stock_page(&q, &op).await?)
 }
 
 /// `GET /adminapi/product/stock/stockDetail`：获取出入库明细。
@@ -345,7 +345,7 @@ async fn stock_detail(
     Query(q): Query<StockDetailQuery>,
 ) -> ApiResult<PageResult<ProductStockDetailVO>> {
     let op = operator_from(&headers, &auth);
-    ok(state.catalog_product_stock.stock_detail(&q, &op).await?)
+    ok(state.catalog.product_stock.stock_detail(&q, &op).await?)
 }
 
 /// `GET /adminapi/product/stock/record/page`：获取出入库列表。
@@ -358,7 +358,7 @@ async fn stock_record_page(
     Query(q): Query<StockRecordPageQuery>,
 ) -> ApiResult<PageResult<ProductStockRecordVO>> {
     let op = operator_from(&headers, &auth);
-    ok(state.catalog_product_stock.record_page(&q, &op).await?)
+    ok(state.catalog.product_stock.record_page(&q, &op).await?)
 }
 
 /// `GET /adminapi/product/stock/getRecordDetail?id=`：获取出入库详情。
@@ -373,7 +373,7 @@ async fn stock_record_detail(
     State(state): State<AdminState>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<ProductStockRecordVO> {
-    ok(state.catalog_product_stock.record_detail(q.id).await?)
+    ok(state.catalog.product_stock.record_detail(q.id).await?)
 }
 
 /// `GET /adminapi/product/stock/adjustDetail?productId=&skuId=`：商品调整记录。
@@ -387,7 +387,7 @@ async fn adjust_detail(
     Query(q): Query<AdjustDetailQuery>,
 ) -> ApiResult<Vec<ProductStockAdjustRecordDetailVO>> {
     let op = operator_from(&headers, &auth);
-    ok(state.catalog_product_stock.adjust_detail(&q, &op).await?)
+    ok(state.catalog.product_stock.adjust_detail(&q, &op).await?)
 }
 
 /// `GET /adminapi/product/stock/getAllocateProductStockPage`：获取可调拨商品列表。
@@ -400,7 +400,7 @@ async fn get_allocate_product_stock_page(
     Query(q): Query<StockPageQuery>,
 ) -> ApiResult<PageResult<ProductStockPageVO>> {
     let op = operator_from(&headers, &auth);
-    ok(state.catalog_product_stock.allocate_product_stock_page(&q, &op).await?)
+    ok(state.catalog.product_stock.allocate_product_stock_page(&q, &op).await?)
 }
 
 /// `GET /adminapi/product/stock/productStockAllocateRecordPage`：库存调拨记录。
@@ -414,7 +414,7 @@ async fn allocate_record_page(
     Query(q): Query<AllocatePageQuery>,
 ) -> ApiResult<PageResult<ProductStockAllocateRecordPageVO>> {
     let op = operator_from(&headers, &auth);
-    ok(state.catalog_product_stock.allocate_record_page(&q, &op).await?)
+    ok(state.catalog.product_stock.allocate_record_page(&q, &op).await?)
 }
 
 /// `GET /adminapi/product/stock/productStockAllocateRecordDetail?id=`：库存调拨记录详情。
@@ -425,7 +425,7 @@ async fn allocate_record_detail(
     State(state): State<AdminState>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<ProductStockAllocateRecordDetailVO> {
-    ok(state.catalog_product_stock.allocate_record_detail(q.id).await?)
+    ok(state.catalog.product_stock.allocate_record_detail(q.id).await?)
 }
 
 /// `GET /adminapi/product/stock/getOrgList`：组织集合。
@@ -434,14 +434,14 @@ async fn allocate_record_detail(
 async fn get_org_list(
     State(state): State<AdminState>,
 ) -> ApiResult<Vec<tigshop_core::models::catalog::product_stock::AllocateOrgVO>> {
-    ok(state.catalog_product_stock.get_org_list().await?)
+    ok(state.catalog.product_stock.get_org_list().await?)
 }
 
 /// `GET /adminapi/product/stock/getAddByList`：获取经办人集合。
 ///
 /// 对应 Java `ProductStockController.getAddBy()`。
 async fn get_add_by_list(State(state): State<AdminState>) -> ApiResult<Vec<String>> {
-    ok(state.catalog_product_stock.get_add_by_list().await?)
+    ok(state.catalog.product_stock.get_add_by_list().await?)
 }
 
 /// `GET /adminapi/product/stock/productStockAllocateOperationDetail?allocateId=`：
@@ -462,7 +462,7 @@ async fn allocate_operation_detail(
     State(state): State<AdminState>,
     Query(q): Query<AllocateIdQuery>,
 ) -> ApiResult<Vec<ProductStockAllocateOperationRecordVO>> {
-    ok(state.catalog_product_stock
+    ok(state.catalog.product_stock
         .allocate_operation_detail(q.allocate_id)
         .await?)
 }
@@ -483,7 +483,7 @@ async fn stock_in(
     Json(dto): Json<StockInDTO>,
 ) -> ApiResult<serde_json::Value> {
     let op = operator_from(&headers, &auth);
-    let record_id = state.catalog_product_stock.stock_in(&dto, &op).await?;
+    let record_id = state.catalog.product_stock.stock_in(&dto, &op).await?;
     ok(serde_json::json!({ "productStockId": record_id }))
 }
 
@@ -497,7 +497,7 @@ async fn stock_out(
     Json(dto): Json<StockInDTO>,
 ) -> ApiResult<serde_json::Value> {
     let op = operator_from(&headers, &auth);
-    let record_id = state.catalog_product_stock.stock_out(&dto, &op).await?;
+    let record_id = state.catalog.product_stock.stock_out(&dto, &op).await?;
     ok(serde_json::json!({ "productStockId": record_id }))
 }
 
@@ -511,7 +511,7 @@ async fn stock_adjust(
     Json(dto): Json<StockAdjustDTO>,
 ) -> ApiResult<bool> {
     let op = operator_from(&headers, &auth);
-    ok(state.catalog_product_stock.stock_adjust(&dto, &op).await?)
+    ok(state.catalog.product_stock.stock_adjust(&dto, &op).await?)
 }
 
 // ——————————————————————————————————————————————
@@ -529,7 +529,7 @@ async fn create_allocate(
     Json(dto): Json<CreateAllocateDTO>,
 ) -> ApiResult<bool> {
     let op = operator_from(&headers, &auth);
-    ok(state.catalog_product_stock.create_allocate(&dto, &op).await?)
+    ok(state.catalog.product_stock.create_allocate(&dto, &op).await?)
 }
 
 /// `POST /adminapi/product/stock/auditAllocate?id=&auditType=&remark=`：调拨审核。
@@ -543,7 +543,7 @@ async fn audit_allocate(
     Query(q): Query<AuditAllocateQuery>,
 ) -> ApiResult<bool> {
     let op = operator_from(&headers, &auth);
-    ok(state.catalog_product_stock.audit_allocate(&q, &op).await?)
+    ok(state.catalog.product_stock.audit_allocate(&q, &op).await?)
 }
 
 /// `POST /adminapi/product/stock/cancelAllocate`：调拨作废。
@@ -556,7 +556,7 @@ async fn cancel_allocate(
     Json(ids): Json<Vec<i32>>,
 ) -> ApiResult<bool> {
     let op = operator_from(&headers, &auth);
-    ok(state.catalog_product_stock.cancel_allocate(&ids, &op).await?)
+    ok(state.catalog.product_stock.cancel_allocate(&ids, &op).await?)
 }
 
 /// `POST /adminapi/product/stock/stockOutAllocate`：调拨出库。
@@ -569,7 +569,7 @@ async fn stock_out_allocate(
     Json(dto): Json<AllocateStockOutDTO>,
 ) -> ApiResult<bool> {
     let op = operator_from(&headers, &auth);
-    ok(state.catalog_product_stock.stock_out_allocate(&dto, &op).await?)
+    ok(state.catalog.product_stock.stock_out_allocate(&dto, &op).await?)
 }
 
 /// `POST /adminapi/product/stock/stockInAllocate`：调拨入库。
@@ -582,7 +582,7 @@ async fn stock_in_allocate(
     Json(dto): Json<AllocateStockOutDTO>,
 ) -> ApiResult<bool> {
     let op = operator_from(&headers, &auth);
-    ok(state.catalog_product_stock.stock_in_allocate(&dto, &op).await?)
+    ok(state.catalog.product_stock.stock_in_allocate(&dto, &op).await?)
 }
 
 /// `POST /adminapi/product/stock/exportAllocate`：调拨单导出。
@@ -594,7 +594,7 @@ async fn export_allocate(
     State(state): State<AdminState>,
     Json(dto): Json<AllocateExcelExportDTO>,
 ) -> ApiResult<serde_json::Value> {
-    state.catalog_product_stock.export_allocate(&dto).await?;
+    state.catalog.product_stock.export_allocate(&dto).await?;
     excel_unmigrated()
 }
 

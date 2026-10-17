@@ -238,7 +238,7 @@ async fn list(
     headers: HeaderMap,
     Query(q): Query<AttributesTplListQuery>,
 ) -> ApiResult<PageResult<AttributesTplDTO>> {
-    ok(state.catalog_attributes_tpl.list(&q, shop_id_of(&headers)).await?)
+    ok(state.catalog.attributes_tpl.list(&q, shop_id_of(&headers)).await?)
 }
 
 /// `GET /adminapi/product/productAttributesTpl/listByCategory?categoryId=`：
@@ -254,7 +254,7 @@ async fn list_by_category(
     headers: HeaderMap,
     Query(q): Query<CategoryQuery>,
 ) -> ApiResult<Vec<AttributesTplDTO>> {
-    ok(state.catalog_attributes_tpl
+    ok(state.catalog.attributes_tpl
         .list_by_category(q.category_id, shop_id_of(&headers))
         .await?)
 }
@@ -278,7 +278,7 @@ async fn detail(
     let id = q
         .id
         .ok_or_else(|| tigshop_core::Error::Validation("id不能为空".into()))?;
-    ok(state.catalog_attributes_tpl.detail(id, shop_id_of(&headers)).await?)
+    ok(state.catalog.attributes_tpl.detail(id, shop_id_of(&headers)).await?)
 }
 
 // ——————————————————————————————————————————————
@@ -300,7 +300,7 @@ async fn create(
     headers: HeaderMap,
     Json(dto): Json<AttributesTplSaveDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let id = state.catalog_attributes_tpl.create(&dto, shop_id_of(&headers)).await?;
+    let id = state.catalog.attributes_tpl.create(&dto, shop_id_of(&headers)).await?;
     ok(serde_json::json!({ "id": id }))
 }
 
@@ -319,7 +319,7 @@ async fn update(
     headers: HeaderMap,
     Json(dto): Json<AttributesTplSaveDTO>,
 ) -> ApiResult<bool> {
-    ok(state.catalog_attributes_tpl.update(&dto, shop_id_of(&headers)).await?)
+    ok(state.catalog.attributes_tpl.update(&dto, shop_id_of(&headers)).await?)
 }
 
 /// `POST /adminapi/product/productAttributesTpl/del`：删除属性模板（硬删除）。
@@ -336,7 +336,7 @@ async fn del(
     headers: HeaderMap,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.catalog_attributes_tpl.del(&dto, shop_id_of(&headers)).await?)
+    ok(state.catalog.attributes_tpl.del(&dto, shop_id_of(&headers)).await?)
 }
 
 /// `POST /adminapi/product/productAttributesTpl/batch`：批量操作（仅 `del`）。
@@ -354,7 +354,7 @@ async fn batch(
     headers: HeaderMap,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<bool> {
-    ok(state.catalog_attributes_tpl.batch(&dto, shop_id_of(&headers)).await?)
+    ok(state.catalog.attributes_tpl.batch(&dto, shop_id_of(&headers)).await?)
 }
 
 /// `POST /adminapi/product/productAttributesTpl/updateField`：更新单个字段。
@@ -372,7 +372,7 @@ async fn update_field(
     headers: HeaderMap,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<bool> {
-    ok(state.catalog_attributes_tpl
+    ok(state.catalog.attributes_tpl
         .update_field(&dto, shop_id_of(&headers))
         .await?)
 }

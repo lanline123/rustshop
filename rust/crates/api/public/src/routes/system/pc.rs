@@ -58,7 +58,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 /// 对应 Java `PCController.getNav` → `PcNavigationServiceImpl#getAllNav(0)`
 /// （`is_show = 1` 的导航按 `sort_order` 建两层树后按类型分桶）。
 async fn get_nav(State(state): State<PublicState>) -> ApiResult<NavVO> {
-    ok(state.system_pc.get_nav().await?)
+    ok(state.system.pc.get_nav().await?)
 }
 
 /// `GET /api/common/pc/getCatFloor`：获取阶梯菜单（首页分类抽屉）。
@@ -66,5 +66,5 @@ async fn get_nav(State(state): State<PublicState>) -> ApiResult<NavVO> {
 /// 对应 Java `PCController.getCatFloor` → `PcCatFloorServiceImpl#getCatFloor`
 /// （楼层 `catFloor` + 自定义 ICO 图标库 `icoDefinedCss`）。
 async fn get_cat_floor(State(state): State<PublicState>) -> ApiResult<CatFloorWrapperVO> {
-    ok(state.system_pc.get_cat_floor().await?)
+    ok(state.system.pc.get_cat_floor().await?)
 }

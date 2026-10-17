@@ -118,7 +118,7 @@ async fn list(
 ) -> ApiResult<PageResult<UserCompanyListVO>> {
     // Java `if (StringUtils.isBlank(listDTO.getKeyword())) { setKeyword(getUsername()); }`
     q.apply_keyword_fallback();
-    ok(state.member_user_company.list(&q).await?)
+    ok(state.member.user_company.list(&q).await?)
 }
 
 /// `GET /adminapi/user/userCompany/detail?id=`：会员企业认证详情。
@@ -136,7 +136,7 @@ async fn detail(
         .id
         .filter(|v| *v > 0)
         .ok_or_else(|| tigshop_core::Error::Validation("id不能为空".into()))?;
-    ok(state.member_user_company.detail(id).await?)
+    ok(state.member.user_company.detail(id).await?)
 }
 
 /// `POST /adminapi/user/userCompany/audit`：审核。
@@ -150,7 +150,7 @@ async fn audit(
     State(state): State<AdminState>,
     Json(dto): Json<UserCompanyAuditDTO>,
 ) -> ApiResult<bool> {
-    ok(state.member_user_company.audit(&dto).await?)
+    ok(state.member.user_company.audit(&dto).await?)
 }
 
 /// `POST /adminapi/user/userCompany/del`：删除（硬删除）。
@@ -162,7 +162,7 @@ async fn audit(
 /// 且 Java 删不存在的 id 也返回成功（`removeById` 返回 `false` 但不报错），
 /// 本实现保持这一语义，回传删除是否命中。
 async fn del(State(state): State<AdminState>, Json(dto): Json<OperateDTO>) -> ApiResult<bool> {
-    ok(state.member_user_company.del(dto.id).await?)
+    ok(state.member.user_company.del(dto.id).await?)
 }
 
 #[cfg(test)]

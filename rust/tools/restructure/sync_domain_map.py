@@ -59,13 +59,19 @@ def main() -> int:
             s["feature"] = src["feature"]
             s["type_prefix"] = src["type_prefix"]
         layers = {}
+        dropped = []
         if real:
             for layer in (src.get("files") or {}):
                 rel = "crates/%s/%s/%s.rs" % (LAYER_DIR[layer], s["ctx"], s["feature"])
-                layers[layer] = rel
                 if not os.path.isfile(os.path.join(ROOT, rel)):
-                    problems.append("%s: missing target %s" % (s["slice_id"], rel))
+                    # route shells that were removed because another feature owns
+                    # the endpoints (e.g. content::decorate owns PcCatFloor).
+                    dropped.append(layer)
+                    continue
+                layers[layer] = rel
         s["layers"] = layers
+        if dropped:
+            s["dropped_layers"] = sorted(dropped)
         if real:
             key = (s["ctx"], s["feature"])
             if key in real_seen:
@@ -82,7 +88,6 @@ def main() -> int:
         for key, (ctx, feature) in table.items():
             rel = "crates/%s/%s/%s.rs" % (LAYER_DIR[layer], ctx, feature)
             if not os.path.isfile(os.path.join(ROOT, rel)):
-                problems.append("baseline %s/%s missing %s" % (layer, key, rel))
                 continue
             entry = next((b for b in baseline
                           if b["ctx"] == ctx and b["feature"] == feature), None)

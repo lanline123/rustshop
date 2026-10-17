@@ -137,7 +137,7 @@ async fn get_category_id_by_seo_link(
     State(state): State<PublicState>,
     Query(q): Query<SeoLinkQuery>,
 ) -> ApiResult<i32> {
-    ok(state.content_seo
+    ok(state.content.seo
         .get_category_id_by_seo_link(q.seo_link.as_deref())
         .await?)
 }
@@ -148,7 +148,7 @@ async fn get_category_id_by_seo_link(
 /// `SeoServiceImpl#getSitemapProducts`（`product_status = 1 AND is_delete = 0`）。
 /// ⚠️ 返回的 `lastUpdate` 与 Java 一致为**秒级**原始 `last_update`（未换算）。
 async fn get_sitemap_products(State(state): State<PublicState>) -> ApiResult<Vec<SeoProductVO>> {
-    ok(state.content_seo.sitemap_products().await?)
+    ok(state.content.seo.sitemap_products().await?)
 }
 
 /// `GET /api/sys/seo/categories`：站点地图-分类列表。
@@ -156,7 +156,7 @@ async fn get_sitemap_products(State(state): State<PublicState>) -> ApiResult<Vec
 /// 对应 Java `SeoController.getSitemapCategories()` →
 /// `SeoServiceImpl#getSitemapCategories`（`is_show = 1`，扁平列表）。
 async fn get_sitemap_categories(State(state): State<PublicState>) -> ApiResult<Vec<SeoCategoryVO>> {
-    ok(state.content_seo.sitemap_categories().await?)
+    ok(state.content.seo.sitemap_categories().await?)
 }
 
 /// `GET /api/sys/seo/articles`：站点地图-文章列表。
@@ -164,7 +164,7 @@ async fn get_sitemap_categories(State(state): State<PublicState>) -> ApiResult<V
 /// 对应 Java `SeoController.getSitemapArticles()` →
 /// `SeoServiceImpl#getSitemapArticles`（`is_show = 1`，`add_time` 秒→毫秒）。
 async fn get_sitemap_articles(State(state): State<PublicState>) -> ApiResult<Vec<SeoArticleVO>> {
-    ok(state.content_seo.sitemap_articles().await?)
+    ok(state.content.seo.sitemap_articles().await?)
 }
 
 /// `GET /api/sys/seo/brands`：站点地图-品牌列表。
@@ -173,5 +173,5 @@ async fn get_sitemap_articles(State(state): State<PublicState>) -> ApiResult<Vec
 /// `SeoServiceImpl#getSitemapBrands`（先取有上架未删除商品的品牌 ID，
 /// 再按 `is_show = 1` 取品牌；无候选品牌时直接返回空列表）。
 async fn get_sitemap_brands(State(state): State<PublicState>) -> ApiResult<Vec<SeoBrandVO>> {
-    ok(state.content_seo.sitemap_brands().await?)
+    ok(state.content.seo.sitemap_brands().await?)
 }

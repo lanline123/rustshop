@@ -208,7 +208,7 @@ impl DeletePayload {
 /// 上传对象存储，且每轮 `Thread.sleep(10_000)`（100 轮 ≈ 16 分 40 秒）。
 /// 本接口返回明确业务错误，不伪造实现。
 async fn buyer_show_info(State(state): State<AdminState>) -> ApiResult<&'static str> {
-    state.marketing_buyer_show.info()?;
+    state.marketing.buyer_show.info()?;
     ok("生成成功")
 }
 
@@ -216,7 +216,7 @@ async fn buyer_show_info(State(state): State<AdminState>) -> ApiResult<&'static 
 ///
 /// 对应 Java `BuyerShowController.getBuyerInfo()`。
 async fn buyer_show_get_buyer_info(State(state): State<AdminState>) -> ApiResult<BuyerVO> {
-    ok(state.marketing_buyer_show.get_buyer_info().await?)
+    ok(state.marketing.buyer_show.get_buyer_info().await?)
 }
 
 /// `POST /adminapi/promotion/buyerShow/create`：新建买家秀。
@@ -227,7 +227,7 @@ async fn buyer_show_create(
     State(state): State<AdminState>,
     Json(p): Json<BuyerShowSavePayload>,
 ) -> ApiResult<serde_json::Value> {
-    let id = state.marketing_buyer_show.create(&p).await?;
+    let id = state.marketing.buyer_show.create(&p).await?;
     ok(serde_json::json!({ "buyerShowId": id }))
 }
 
@@ -238,7 +238,7 @@ async fn buyer_show_list(
     State(state): State<AdminState>,
     Query(q): Query<BuyerShowListQuery>,
 ) -> ApiResult<PageResult<BuyerShowPageVO>> {
-    ok(state.marketing_buyer_show.list(&q).await?)
+    ok(state.marketing.buyer_show.list(&q).await?)
 }
 
 /// `GET /adminapi/promotion/buyerShow/detail?buyerShowId=`：买家秀详情。
@@ -252,7 +252,7 @@ async fn buyer_show_detail(
     let buyer_show_id = q
         .buyer_show_id
         .ok_or_else(|| tigshop_core::Error::Validation("买家秀主键不能为空".into()))?;
-    ok(state.marketing_buyer_show.detail(buyer_show_id).await?)
+    ok(state.marketing.buyer_show.detail(buyer_show_id).await?)
 }
 
 /// `POST /adminapi/promotion/buyerShow/update`：更新买家秀。
@@ -262,7 +262,7 @@ async fn buyer_show_update(
     State(state): State<AdminState>,
     Json(p): Json<BuyerShowUpdatePayload>,
 ) -> ApiResult<&'static str> {
-    state.marketing_buyer_show.update(&p).await?;
+    state.marketing.buyer_show.update(&p).await?;
     ok("修改成功")
 }
 
@@ -273,7 +273,7 @@ async fn buyer_show_del(
     State(state): State<AdminState>,
     Json(p): Json<DeletePayload>,
 ) -> ApiResult<&'static str> {
-    state.marketing_buyer_show.delete(&p.into_operate()).await?;
+    state.marketing.buyer_show.delete(&p.into_operate()).await?;
     ok("删除成功")
 }
 
@@ -285,7 +285,7 @@ async fn buyer_show_batch_del(
     State(state): State<AdminState>,
     Json(p): Json<BuyerShowBatchDeletePayload>,
 ) -> ApiResult<bool> {
-    ok(state.marketing_buyer_show.batch_del(&p).await?)
+    ok(state.marketing.buyer_show.batch_del(&p).await?)
 }
 
 /// `POST /adminapi/promotion/buyerShow/audit`：审核（通过 / 拒绝）。
@@ -296,7 +296,7 @@ async fn buyer_show_audit(
     State(state): State<AdminState>,
     Json(p): Json<BuyerShowAuditPayload>,
 ) -> ApiResult<u64> {
-    ok(state.marketing_buyer_show.audit(&p).await?)
+    ok(state.marketing.buyer_show.audit(&p).await?)
 }
 
 /// `POST /adminapi/promotion/buyerShow/batch`：批量操作（仅 `type == "audit"`）。
@@ -307,7 +307,7 @@ async fn buyer_show_batch(
     State(state): State<AdminState>,
     Json(p): Json<BatchDTO>,
 ) -> ApiResult<bool> {
-    ok(state.marketing_buyer_show.batch(&p).await?)
+    ok(state.marketing.buyer_show.batch(&p).await?)
 }
 
 /// `POST /adminapi/promotion/buyerShow/showOrHide`：公开 / 隐藏。
@@ -318,7 +318,7 @@ async fn buyer_show_show_or_hide(
     State(state): State<AdminState>,
     Json(p): Json<BuyerShowShowOrHidePayload>,
 ) -> ApiResult<u64> {
-    ok(state.marketing_buyer_show.show_or_hide(&p).await?)
+    ok(state.marketing.buyer_show.show_or_hide(&p).await?)
 }
 
 /// `POST /adminapi/promotion/buyerShow/comment`：管理端代发评论。
@@ -329,7 +329,7 @@ async fn buyer_show_comment(
     State(state): State<AdminState>,
     Json(p): Json<BuyerShowCommentPayload>,
 ) -> ApiResult<serde_json::Value> {
-    let id = state.marketing_buyer_show.comment(&p).await?;
+    let id = state.marketing.buyer_show.comment(&p).await?;
     ok(serde_json::json!({ "buyerShowCommentId": id }))
 }
 
@@ -342,7 +342,7 @@ async fn buyer_show_update_field(
     State(state): State<AdminState>,
     Json(p): Json<UpdateFieldDTO>,
 ) -> ApiResult<bool> {
-    ok(state.marketing_buyer_show.update_field(&p).await?)
+    ok(state.marketing.buyer_show.update_field(&p).await?)
 }
 
 #[cfg(test)]

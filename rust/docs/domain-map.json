@@ -402,9 +402,11 @@
    "layers": {
     "models": "crates/core/src/models/content/pc_cat_floor.rs",
     "repo": "crates/infrastructure/src/db/repo/content/pc_cat_floor.rs",
-    "service": "crates/services/src/content/pc_cat_floor.rs",
-    "admin_route": "crates/api/admin/src/routes/content/pc_cat_floor.rs"
-   }
+    "service": "crates/services/src/content/pc_cat_floor.rs"
+   },
+   "dropped_layers": [
+    "admin_route"
+   ]
   },
   {
    "slice_id": "slice-018",
@@ -423,9 +425,11 @@
    "layers": {
     "models": "crates/core/src/models/content/pc_navigation.rs",
     "repo": "crates/infrastructure/src/db/repo/content/pc_navigation.rs",
-    "service": "crates/services/src/content/pc_navigation.rs",
-    "admin_route": "crates/api/admin/src/routes/content/pc_navigation.rs"
-   }
+    "service": "crates/services/src/content/pc_navigation.rs"
+   },
+   "dropped_layers": [
+    "admin_route"
+   ]
   },
   {
    "slice_id": "slice-019",
@@ -5989,8 +5993,7 @@
     "models": "crates/core/src/models/logistics/shipping_list.rs",
     "repo": "crates/infrastructure/src/db/repo/logistics/shipping_list.rs",
     "service": "crates/services/src/logistics/shipping_list.rs",
-    "admin_route": "crates/api/admin/src/routes/logistics/shipping_list.rs",
-    "public_route": "crates/api/public/src/routes/logistics/shipping_list.rs"
+    "admin_route": "crates/api/admin/src/routes/logistics/shipping_list.rs"
    }
   },
   {
@@ -6013,8 +6016,7 @@
     "models": "crates/core/src/models/marketing/salesman.rs",
     "repo": "crates/infrastructure/src/db/repo/marketing/salesman.rs",
     "service": "crates/services/src/marketing/salesman.rs",
-    "admin_route": "crates/api/admin/src/routes/marketing/salesman.rs",
-    "public_route": "crates/api/public/src/routes/marketing/salesman.rs"
+    "admin_route": "crates/api/admin/src/routes/marketing/salesman.rs"
    }
   },
   {
@@ -6070,8 +6072,7 @@
     "models": "crates/core/src/models/merchant/shop.rs",
     "repo": "crates/infrastructure/src/db/repo/merchant/shop.rs",
     "service": "crates/services/src/merchant/shop.rs",
-    "admin_route": "crates/api/admin/src/routes/merchant/shop.rs",
-    "public_route": "crates/api/public/src/routes/merchant/shop.rs"
+    "admin_route": "crates/api/admin/src/routes/merchant/shop.rs"
    }
   },
   {
@@ -6135,7 +6136,7 @@
   }
  ],
  "migration": {
-  "stage": 1,
+  "stage": "1+2",
   "tool": "tools/restructure/migrate.py",
   "real_slices": 73,
   "deleted_scaffolds": 59,

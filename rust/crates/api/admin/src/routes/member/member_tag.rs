@@ -136,7 +136,7 @@ async fn list_by_group(
     let group_id = q
         .group_id
         .ok_or_else(|| tigshop_core::Error::Validation(MSG_GROUP_ID_REQUIRED.into()))?;
-    ok(state.member_member_tag
+    ok(state.member.member_tag
         .list_by_group(group_id, default_shop_id())
         .await?)
 }
@@ -152,7 +152,7 @@ async fn create(
     State(state): State<AdminState>,
     Json(dto): Json<MemberTagCreateDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let id = state.member_member_tag.create(&dto, default_shop_id()).await?;
+    let id = state.member.member_tag.create(&dto, default_shop_id()).await?;
     ok(serde_json::json!({ "id": id }))
 }
 
@@ -167,7 +167,7 @@ async fn update(
     State(state): State<AdminState>,
     Json(dto): Json<MemberTagUpdateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.member_member_tag.update(&dto, default_shop_id()).await?)
+    ok(state.member.member_tag.update(&dto, default_shop_id()).await?)
 }
 
 /// `POST /adminapi/user/memberTag/del`：删除标签。
@@ -182,7 +182,7 @@ async fn del(
     State(state): State<AdminState>,
     Json(dto): Json<MemberTagDelDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let outcome = state.member_member_tag.del(&dto, default_shop_id()).await?;
+    let outcome = state.member.member_tag.del(&dto, default_shop_id()).await?;
     ok(serde_json::json!({
         "removedLinks": outcome.removed_links,
         "deleted": outcome.deleted,

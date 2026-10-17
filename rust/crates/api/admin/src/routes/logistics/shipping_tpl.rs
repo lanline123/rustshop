@@ -156,7 +156,7 @@ async fn detail(
     State(state): State<AdminState>,
     Query(q): Query<DetailQuery>,
 ) -> ApiResult<ShippingTplVO> {
-    ok(state.logistics_shipping_tpl.detail(&q).await?)
+    ok(state.logistics.shipping_tpl.detail(&q).await?)
 }
 
 /// `POST /adminapi/setting/shippingTpl/create`：创建运费模板。
@@ -168,7 +168,7 @@ async fn create(
     State(state): State<AdminState>,
     Json(dto): Json<ShippingTplSaveDTO>,
 ) -> ApiResult<i32> {
-    ok(state.logistics_shipping_tpl.create(&dto, current_shop_id()).await?)
+    ok(state.logistics.shipping_tpl.create(&dto, current_shop_id()).await?)
 }
 
 /// `POST /adminapi/setting/shippingTpl/update`：更新运费模板。
@@ -184,7 +184,7 @@ async fn update(
     State(state): State<AdminState>,
     Json(dto): Json<ShippingTplUpdateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.logistics_shipping_tpl.update(&dto, current_shop_id()).await?)
+    ok(state.logistics.shipping_tpl.update(&dto, current_shop_id()).await?)
 }
 
 /// `POST /adminapi/setting/shippingTpl/del`：删除运费模板。
@@ -195,7 +195,7 @@ async fn update(
 /// ⚠️ Java 不级联删除 `shipping_tpl_info` 子表记录（留下孤儿行），
 /// 本实现逐字复刻。
 async fn del(State(state): State<AdminState>, Json(dto): Json<OperateDTO>) -> ApiResult<bool> {
-    ok(state.logistics_shipping_tpl.del(&dto).await?)
+    ok(state.logistics.shipping_tpl.del(&dto).await?)
 }
 
 /// `POST /adminapi/setting/shippingTpl/updateField`：更新单个字段。
@@ -210,7 +210,7 @@ async fn update_field(
     State(state): State<AdminState>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<bool> {
-    ok(state.logistics_shipping_tpl.update_field(&dto).await?)
+    ok(state.logistics.shipping_tpl.update_field(&dto).await?)
 }
 
 /// `POST /adminapi/setting/shippingTpl/batch`：批量操作。
@@ -218,7 +218,7 @@ async fn update_field(
 /// 对应 Java `ShippingTplController.batch`（`@RequestBody BatchDTO`）→
 /// `BaseServiceImpl#batch`。仅 `type == "del"` 生效，其余**静默返回 false**。
 async fn batch(State(state): State<AdminState>, Json(dto): Json<BatchDTO>) -> ApiResult<bool> {
-    ok(state.logistics_shipping_tpl.batch(&dto).await?)
+    ok(state.logistics.shipping_tpl.batch(&dto).await?)
 }
 
 /// `GET /adminapi/setting/shippingTpl/config`：获取运费模板（运送方式下拉）。
@@ -232,7 +232,7 @@ async fn batch(State(state): State<AdminState>, Json(dto): Json<BatchDTO>) -> Ap
 /// 「查库的真实实现」保留在
 /// `ShippingTplService::config_from_db`，待产品确认后一行切换。
 async fn config(State(state): State<AdminState>) -> ApiResult<Vec<ShippingTypeVO>> {
-    ok(state.logistics_shipping_tpl.config(current_shop_id())?)
+    ok(state.logistics.shipping_tpl.config(current_shop_id())?)
 }
 
 /// `POST /adminapi/setting/shippingTpl/setDefault?id=`：设置默认运费模板。
@@ -246,7 +246,7 @@ async fn set_default(
     State(state): State<AdminState>,
     Query(q): Query<SetDefaultQuery>,
 ) -> ApiResult<bool> {
-    ok(state.logistics_shipping_tpl.set_default(&q, current_shop_id()).await?)
+    ok(state.logistics.shipping_tpl.set_default(&q, current_shop_id()).await?)
 }
 
 #[cfg(test)]

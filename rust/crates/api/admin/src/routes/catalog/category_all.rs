@@ -54,5 +54,5 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 
 /// `GET /adminapi/product/category/getAllCategory`：全部分类树（管理端含隐藏）。
 async fn all_category(State(state): State<AdminState>) -> ApiResult<Vec<CategoryTreeNode>> {
-    ok(state.catalog_category_all.category_tree(true).await?)
+    ok(state.catalog.category_all.category_tree(true).await?)
 }

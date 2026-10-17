@@ -108,7 +108,7 @@ async fn group_create(
     Json(param): Json<BuyerShowGroupSaveParam>,
 ) -> ApiResult<serde_json::Value> {
     let scope = resolve_scope(&headers, &auth);
-    let buyer_show_group_id = state.marketing_buyer_show_group.create(&param, scope).await?;
+    let buyer_show_group_id = state.marketing.buyer_show_group.create(&param, scope).await?;
     ok(serde_json::json!({ "buyerShowGroupId": buyer_show_group_id }))
 }
 
@@ -122,7 +122,7 @@ async fn group_list(
     Query(query): Query<BuyerShowGroupPageQuery>,
 ) -> ApiResult<PageResult<BuyerShowGroupPageVO>> {
     let scope = resolve_scope(&headers, &auth);
-    ok(state.marketing_buyer_show_group.list(&query, scope).await?)
+    ok(state.marketing.buyer_show_group.list(&query, scope).await?)
 }
 
 /// `GET /adminapi/promotion/buyerShow/group/detail?buyerShowGroupId=`：买家秀分组详情。
@@ -143,7 +143,7 @@ async fn group_detail(
     Query(query): Query<GroupDetailQuery>,
 ) -> ApiResult<BuyerShowGroupVO> {
     let buyer_show_group_id = require_group_id(query.buyer_show_group_id)?;
-    ok(state.marketing_buyer_show_group.detail(buyer_show_group_id).await?)
+    ok(state.marketing.buyer_show_group.detail(buyer_show_group_id).await?)
 }
 
 /// `POST /adminapi/promotion/buyerShow/group/update`：更新买家秀分组。
@@ -155,7 +155,7 @@ async fn group_update(
     State(state): State<AdminState>,
     Json(param): Json<BuyerShowGroupUpdateParam>,
 ) -> ApiResult<&'static str> {
-    state.marketing_buyer_show_group.update(&param).await?;
+    state.marketing.buyer_show_group.update(&param).await?;
     ok("更新成功")
 }
 
@@ -168,7 +168,7 @@ async fn group_delete(
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<&'static str> {
     let id = require_operate_id(dto.id)?;
-    state.marketing_buyer_show_group.delete(id).await?;
+    state.marketing.buyer_show_group.delete(id).await?;
     ok("删除成功")
 }
 

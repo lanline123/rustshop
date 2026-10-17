@@ -204,7 +204,7 @@ async fn client_list(
     Query(q): Query<BuyerShowPageClientQuery>,
 ) -> ApiResult<PageResult<BuyerShowPageClientVO>> {
     let user_id = current_user_id(&auth);
-    ok(state.marketing_buyer_show_client.client_list(&q, user_id).await?)
+    ok(state.marketing.buyer_show_client.client_list(&q, user_id).await?)
 }
 
 /// `GET /api/buyerShow/buyerShow/videoFeed`：买家秀视频流（游标翻页）。
@@ -216,7 +216,7 @@ async fn video_feed(
     Query(q): Query<BuyerShowVideoFeedClientQuery>,
 ) -> ApiResult<BuyerShowVideoFeedPageClientVO> {
     let user_id = current_user_id(&auth);
-    ok(state.marketing_buyer_show_client.video_feed(&q, user_id).await?)
+    ok(state.marketing.buyer_show_client.video_feed(&q, user_id).await?)
 }
 
 /// `POST /api/buyerShow/buyerShow/like`：买家秀点赞 / 取消点赞。
@@ -229,7 +229,7 @@ async fn like_buyer_show(
     Json(param): Json<BuyerShowLikeClientParam>,
 ) -> ApiResult<ToggleResultVO> {
     let user_id = current_user_id(&auth);
-    ok(state.marketing_buyer_show_client.like(&param, user_id).await?)
+    ok(state.marketing.buyer_show_client.like(&param, user_id).await?)
 }
 
 /// `POST /api/buyerShow/buyerShow/favorite`：买家秀收藏 / 取消收藏。
@@ -241,7 +241,7 @@ async fn favorite_buyer_show(
     Json(param): Json<BuyerShowFavoriteClientParam>,
 ) -> ApiResult<ToggleResultVO> {
     let user_id = current_user_id(&auth);
-    ok(state.marketing_buyer_show_client.favorite(&param, user_id).await?)
+    ok(state.marketing.buyer_show_client.favorite(&param, user_id).await?)
 }
 
 /// `POST /api/buyerShow/buyerShow/followAuthor`：关注 / 取关买家秀作者。
@@ -254,7 +254,7 @@ async fn follow_author(
     Json(param): Json<BuyerShowFollowAuthorClientParam>,
 ) -> ApiResult<ToggleResultVO> {
     let user_id = current_user_id(&auth);
-    ok(state.marketing_buyer_show_client.follow_author(&param, user_id).await?)
+    ok(state.marketing.buyer_show_client.follow_author(&param, user_id).await?)
 }
 
 /// `POST /api/buyerShow/buyerShow/add`：添加买家秀信息。
@@ -267,14 +267,14 @@ async fn client_add(
     Json(param): Json<BuyerShowSaveClientParam>,
 ) -> ApiResult<CreatedIdVO> {
     let user_id = current_user_id(&auth);
-    ok(state.marketing_buyer_show_client.client_add(&param, user_id).await?)
+    ok(state.marketing.buyer_show_client.client_add(&param, user_id).await?)
 }
 
 /// `GET /api/buyerShow/buyerShow/groupList`：分组列表。
 ///
 /// 对应 Java `BuyerShowController.groupList()` → `BuyerShowGroupServiceImpl#list()`。
 async fn group_list(State(state): State<PublicState>) -> ApiResult<Vec<BuyerShowGroupVO>> {
-    ok(state.marketing_buyer_show_client.group_list().await?)
+    ok(state.marketing.buyer_show_client.group_list().await?)
 }
 
 /// `GET /api/buyerShow/buyerShow/detail?buyerShowId=`：获取买家秀详情。
@@ -290,7 +290,7 @@ async fn client_detail(
         .buyer_show_id
         .ok_or_else(|| AppError(Error::biz(1001, "买家秀主键不能为空")))?;
     let user_id = current_user_id(&auth);
-    ok(state.marketing_buyer_show_client.client_detail(buyer_show_id, user_id).await?)
+    ok(state.marketing.buyer_show_client.client_detail(buyer_show_id, user_id).await?)
 }
 
 /// `GET /api/buyerShow/buyerShow/share?buyerShowId=`：买家秀分享落地页。
@@ -305,7 +305,7 @@ async fn share_page(
     let buyer_show_id = q
         .buyer_show_id
         .ok_or_else(|| AppError(Error::biz(1001, "买家秀主键不能为空")))?;
-    let html = state.marketing_buyer_show_client.get_share_page_html(buyer_show_id).await;
+    let html = state.marketing.buyer_show_client.get_share_page_html(buyer_show_id).await;
     Ok(Html(html))
 }
 
@@ -319,7 +319,7 @@ async fn client_comment(
     Json(param): Json<BuyerShowCommentClientParam>,
 ) -> ApiResult<CreatedIdVO> {
     let user_id = current_user_id(&auth);
-    ok(state.marketing_buyer_show_client.client_comment(&param, user_id).await?)
+    ok(state.marketing.buyer_show_client.client_comment(&param, user_id).await?)
 }
 
 /// `GET /api/buyerShow/buyerShow/comment/pageList`：评论分页列表。
@@ -332,7 +332,7 @@ async fn client_comment_page_list(
     Query(q): Query<BuyerShowCommentPageClientQuery>,
 ) -> ApiResult<PageResult<BuyerShowCommentPageClientVO>> {
     let user_id = current_user_id(&auth);
-    ok(state.marketing_buyer_show_client.client_comment_page_list(&q, user_id).await?)
+    ok(state.marketing.buyer_show_client.client_comment_page_list(&q, user_id).await?)
 }
 
 /// `POST /api/buyerShow/buyerShow/comment/like`：买家秀评论点赞 / 取消点赞。
@@ -345,5 +345,5 @@ async fn comment_like(
     Json(param): Json<BuyerShowCommentLikeClientParam>,
 ) -> ApiResult<ToggleResultVO> {
     let user_id = current_user_id(&auth);
-    ok(state.marketing_buyer_show_client.comment_like(&param, user_id).await?)
+    ok(state.marketing.buyer_show_client.comment_like(&param, user_id).await?)
 }

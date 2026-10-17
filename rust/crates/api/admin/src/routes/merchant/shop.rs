@@ -97,7 +97,7 @@ async fn shop_list(
     State(state): State<AdminState>,
     Query(q): Query<ShopListQuery>,
 ) -> ApiResult<PageResult<ShopVO>> {
-    ok(state.merchant_shop.list(&q).await?)
+    ok(state.merchant.shop.list(&q).await?)
 }
 
 /// 店铺详情入参（原 Java `@RequestParam("shopId")`）。
@@ -112,7 +112,7 @@ async fn shop_detail(
     State(state): State<AdminState>,
     Query(q): Query<ShopIdQuery>,
 ) -> ApiResult<ShopVO> {
-    ok(state.merchant_shop.detail(q.shop_id).await?)
+    ok(state.merchant.shop.detail(q.shop_id).await?)
 }
 
 /// `POST /adminapi/merchant/shop/update`：更新店铺。
@@ -120,7 +120,7 @@ async fn shop_update(
     State(state): State<AdminState>,
     Json(dto): Json<ShopUpdateDTO>,
 ) -> ApiResult<&'static str> {
-    state.merchant_shop.update(&dto).await?;
+    state.merchant.shop.update(&dto).await?;
     ok("更新成功")
 }
 
@@ -129,7 +129,7 @@ async fn account_log_list(
     State(state): State<AdminState>,
     Query(q): Query<ShopAccountLogListQuery>,
 ) -> ApiResult<PageResult<ShopAccountLogVO>> {
-    ok(state.merchant_shop.account_logs(&q).await?)
+    ok(state.merchant.shop.account_logs(&q).await?)
 }
 
 /// `GET /adminapi/merchant/shopWithdraw/list`：提现记录分页。
@@ -137,7 +137,7 @@ async fn withdraw_list(
     State(state): State<AdminState>,
     Query(q): Query<ShopWithdrawListQuery>,
 ) -> ApiResult<PageResult<ShopWithdrawVO>> {
-    ok(state.merchant_shop.withdraw_list(&q).await?)
+    ok(state.merchant.shop.withdraw_list(&q).await?)
 }
 
 /// 提现详情入参（原 Java `@RequestParam("id")`）。
@@ -151,13 +151,13 @@ async fn withdraw_detail(
     State(state): State<AdminState>,
     Query(q): Query<WithdrawIdQuery>,
 ) -> ApiResult<ShopWithdrawVO> {
-    ok(state.merchant_shop.withdraw_detail(q.id).await?)
+    ok(state.merchant.shop.withdraw_detail(q.id).await?)
 }
 
 /// `GET /adminapi/merchant/shopWithdraw/config`：提现状态配置
 /// （`{"statusList": {...}}`，隐藏 code=1）。
 async fn withdraw_config(State(state): State<AdminState>) -> ApiResult<serde_json::Value> {
-    ok(state.merchant_shop.withdraw_status_config())
+    ok(state.merchant.shop.withdraw_status_config())
 }
 
 /// `POST /adminapi/merchant/shopWithdraw/audit`：审核提现。
@@ -167,7 +167,7 @@ async fn withdraw_audit(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<ShopWithdrawAuditDTO>,
 ) -> ApiResult<&'static str> {
-    state.merchant_shop
+    state.merchant.shop
         .withdraw_audit(&dto, auth.admin_type.as_deref())
         .await?;
     ok("操作成功")

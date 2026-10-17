@@ -117,7 +117,7 @@ async fn sunmi_callback(
     raw: axum::body::Bytes,
 ) -> ApiResult<SunmiCallbackAck> {
     let body = tigshop_services::logistics::sunmi_print_callback::decode_body(&raw);
-    let ack = state.logistics_sunmi_print_callback.handle_callback(&body);
+    let ack = state.logistics.sunmi_print_callback.handle_callback(&body);
     // Java 直接返回 Map（无异常路径）→ 恒 HTTP 200，只有成功应答
     ok(ack)
 }

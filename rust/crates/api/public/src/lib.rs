@@ -69,53 +69,17 @@ pub mod root;
 /// 商城前台应用状态。
 #[derive(Clone)]
 pub struct PublicState {
-    // —— merchant ——
-    pub merchant_shop: Arc<ShopService>,
-    pub merchant_shop_client: Arc<ShopClientService>,
-    pub merchant_shop_client_category: Arc<ShopClientCategoryService>,
-    pub merchant_merchant_client: Arc<MerchantClientService>,
-    // —— wholesale ——
-    pub wholesale_wholesale_client: Arc<WholesaleClientService>,
-    // —— catalog ——
-    pub catalog_product: Arc<ProductService>,
-    pub catalog_category_all: Arc<CatalogService>,
-    pub catalog_product_manage: Arc<ProductManageService>,
-    pub catalog_category: Arc<CategoryService>,
-    pub catalog_short_url: Arc<ShortUrlService>,
-    // —— trade ——
-    pub trade_cart: Arc<CartService>,
-    pub trade_order: Arc<OrderService>,
-    pub trade_aftersales_client: Arc<AftersalesClientService>,
-    // —— payment ——
-    pub payment_paylog: Arc<PaylogService>,
-    pub payment_balance_pay: Arc<tigshop_services::payment::balance_pay::BalancePayService>,
-    // —— marketing ——
-    pub marketing_coupon: Arc<CouponService>,
-    pub marketing_seckill: Arc<SeckillService>,
-    pub marketing_time_discount: Arc<TimeDiscountService>,
-    pub marketing_salesman: Arc<SalesmanService>,
-    pub marketing_buyer_show_client: Arc<BuyerShowClientService>,
-    // —— member ——
-    pub member_user: Arc<UserService>,
-    pub member_member_lists: Arc<MemberService>,
-    pub member_user_center: Arc<UserCenterService>,
-    // —— logistics ——
-    pub logistics_shipping_list: Arc<LogisticsService>,
-    pub logistics_sunmi_print_callback: Arc<SunmiPrintCallbackService>,
-    // —— content ——
-    pub content_article: Arc<ContentService>,
-    pub content_decorate: Arc<DecorateService>,
-    pub content_seo: Arc<SeoService>,
-    pub content_wechat_live_sync_callback: Arc<WechatLiveSyncCallbackService>,
-    pub content_share: Arc<ShareService>,
-    // —— system ——
-    pub system_pc: Arc<PcService>,
-    pub system_region_client: Arc<RegionClientService>,
-    pub system_config_client: Arc<ConfigClientService>,
-    // —— im ——
-    pub im_im_message: Arc<ImMessageService>,
-    pub im_web_socket: Arc<WebSocketService>,
-    // —— misc ——
+    pub merchant: std::sync::Arc<tigshop_services::merchant::Services>,
+    pub wholesale: std::sync::Arc<tigshop_services::wholesale::Services>,
+    pub catalog: std::sync::Arc<tigshop_services::catalog::Services>,
+    pub trade: std::sync::Arc<tigshop_services::trade::Services>,
+    pub payment: std::sync::Arc<tigshop_services::payment::Services>,
+    pub marketing: std::sync::Arc<tigshop_services::marketing::Services>,
+    pub member: std::sync::Arc<tigshop_services::member::Services>,
+    pub logistics: std::sync::Arc<tigshop_services::logistics::Services>,
+    pub content: std::sync::Arc<tigshop_services::content::Services>,
+    pub system: std::sync::Arc<tigshop_services::system::Services>,
+    pub im: std::sync::Arc<tigshop_services::im::Services>,
     pub jwt: JwtService,
 }
 
@@ -228,7 +192,7 @@ async fn product_list(
     if query.product_status.is_none() {
         query.product_status = Some(1);
     }
-    let page = state.catalog_product.list(&query).await?;
+    let page = state.catalog.product.list(&query).await?;
     ok(page)
 }
 
@@ -254,7 +218,7 @@ async fn user_register(
     State(state): State<PublicState>,
     Json(dto): Json<RegisterDTO>,
 ) -> ApiResult<i32> {
-    let id = state.member_user
+    let id = state.member.user
         .register(&dto.mobile, &dto.password, dto.nickname.as_deref())
         .await?;
     ok(id)
@@ -265,7 +229,7 @@ async fn user_login(
     State(state): State<PublicState>,
     Json(dto): Json<LoginDTO>,
 ) -> Result<Json<ApiResponse<LoginVO>>, AppError> {
-    let user = state.member_user.login(&dto.username, &dto.password).await?;
+    let user = state.member.user.login(&dto.username, &dto.password).await?;
     let user_id = user.user_id;
     let username = user.display_name();
     let (access, refresh, expires_in) =
@@ -287,7 +251,7 @@ async fn profile(
     State(state): State<PublicState>,
     Extension(auth): Extension<AuthUser>,
 ) -> ApiResult<Option<serde_json::Value>> {
-    let user = state.member_user.find(auth.id).await?.map(|u| {
+    let user = state.member.user.find(auth.id).await?.map(|u| {
         serde_json::json!({
             "userId": u.user_id,
             "username": u.display_name(),
@@ -308,7 +272,7 @@ async fn cart_list(
     State(state): State<PublicState>,
     Extension(auth): Extension<AuthUser>,
 ) -> ApiResult<tigshop_services::trade::cart::CartSummaryVO> {
-    ok(state.trade_cart.summary(auth.id).await?)
+    ok(state.trade.cart.summary(auth.id).await?)
 }
 
 #[derive(Debug, Deserialize)]
@@ -330,7 +294,7 @@ async fn cart_add(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<CartAddDTO>,
 ) -> ApiResult<i32> {
-    let cart_id = state.trade_cart
+    let cart_id = state.trade.cart
         .add(auth.id, dto.product_id, dto.sku_id, dto.quantity)
         .await?;
     ok(cart_id)
@@ -349,7 +313,7 @@ async fn cart_update(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<CartUpdateDTO>,
 ) -> ApiResult<&'static str> {
-    state.trade_cart
+    state.trade.cart
         .update_quantity(auth.id, dto.cart_id, dto.quantity)
         .await?;
     ok("已更新")
@@ -368,7 +332,7 @@ async fn cart_check(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<CartCheckDTO>,
 ) -> ApiResult<&'static str> {
-    state.trade_cart
+    state.trade.cart
         .set_checked(auth.id, dto.cart_id, dto.checked)
         .await?;
     ok("已更新")
@@ -386,7 +350,7 @@ async fn cart_remove(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<CartRemoveDTO>,
 ) -> ApiResult<&'static str> {
-    state.trade_cart.remove(auth.id, &dto.cart_ids).await?;
+    state.trade.cart.remove(auth.id, &dto.cart_ids).await?;
     ok("已删除")
 }
 
@@ -395,7 +359,7 @@ async fn cart_clear(
     State(state): State<PublicState>,
     Extension(auth): Extension<AuthUser>,
 ) -> ApiResult<&'static str> {
-    state.trade_cart.clear(auth.id).await?;
+    state.trade.cart.clear(auth.id).await?;
     ok("已清空")
 }
 
@@ -407,7 +371,7 @@ async fn order_create(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<OrderCreateDTO>,
 ) -> ApiResult<OrderCreateVO> {
-    let vo = state.trade_order.create(auth.id, &dto).await?;
+    let vo = state.trade.order.create(auth.id, &dto).await?;
     ok(vo)
 }
 
@@ -429,7 +393,7 @@ async fn order_list(
         page: q.page.unwrap_or(1),
         page_size: q.page_size.unwrap_or(20),
     };
-    let vo = state.trade_order
+    let vo = state.trade.order
         .list(Some(auth.id), q.order_status, None, &page)
         .await?;
     ok(vo)
@@ -441,7 +405,7 @@ async fn order_detail(
     Extension(auth): Extension<AuthUser>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<serde_json::Value> {
-    let (vo, items) = state.trade_order.detail(q.id, Some(auth.id)).await?;
+    let (vo, items) = state.trade.order.detail(q.id, Some(auth.id)).await?;
     ok(serde_json::json!({ "order": vo, "items": items }))
 }
 
@@ -457,7 +421,7 @@ async fn order_cancel(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<OrderIdDTO>,
 ) -> ApiResult<&'static str> {
-    state.trade_order.cancel(dto.order_id, Some(auth.id)).await?;
+    state.trade.order.cancel(dto.order_id, Some(auth.id)).await?;
     ok("订单已取消")
 }
 

@@ -57,7 +57,7 @@ async fn list(
     State(state): State<AdminState>,
     Query(q): Query<TimeDiscountListQuery>,
 ) -> ApiResult<PageResult<TimeDiscountDetailVO>> {
-    ok(state.marketing_time_discount.list(&q).await?)
+    ok(state.marketing.time_discount.list(&q).await?)
 }
 
 /// `GET /adminapi/promotion/timeDiscount/detail?id=`：活动详情。
@@ -70,7 +70,7 @@ async fn detail(
     State(state): State<AdminState>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<TimeDiscountDetailVO> {
-    ok(state.marketing_time_discount.detail(q.id).await?)
+    ok(state.marketing.time_discount.detail(q.id).await?)
 }
 
 /// `POST /adminapi/promotion/timeDiscount/create`：创建活动。
@@ -78,7 +78,7 @@ async fn create(
     State(state): State<AdminState>,
     Json(dto): Json<TimeDiscountCreateDTO>,
 ) -> ApiResult<i32> {
-    ok(state.marketing_time_discount.create(&dto).await?)
+    ok(state.marketing.time_discount.create(&dto).await?)
 }
 
 /// `POST /adminapi/promotion/timeDiscount/update`：更新活动。
@@ -86,7 +86,7 @@ async fn update(
     State(state): State<AdminState>,
     Json(dto): Json<TimeDiscountUpdateDTO>,
 ) -> ApiResult<&'static str> {
-    state.marketing_time_discount.update(&dto).await?;
+    state.marketing.time_discount.update(&dto).await?;
     ok("更新成功")
 }
 
@@ -101,6 +101,6 @@ async fn del(
     State(state): State<AdminState>,
     Json(dto): Json<DelDTO>,
 ) -> ApiResult<&'static str> {
-    state.marketing_time_discount.delete(dto.discount_id).await?;
+    state.marketing.time_discount.delete(dto.discount_id).await?;
     ok("删除成功")
 }

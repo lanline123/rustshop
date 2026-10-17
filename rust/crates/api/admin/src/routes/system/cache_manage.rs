@@ -54,5 +54,5 @@ async fn cleanup(
     State(state): State<AdminState>,
     Query(q): Query<CacheCleanupQuery>,
 ) -> ApiResult<CacheCleanupVO> {
-    ok(state.system_cache_manage.cleanup(&q).await?)
+    ok(state.system.cache_manage.cleanup(&q).await?)
 }

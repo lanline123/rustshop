@@ -141,7 +141,7 @@ async fn proxy_shopping_user_list(
     Query(q): Query<UserListQuery>,
 ) -> ApiResult<PageResult<MemberVO>> {
     let admin_type = resolve_admin_type(&headers, &auth);
-    let page = state.trade_proxy_shopping_user.list(&q, admin_type.as_deref()).await?;
+    let page = state.trade.proxy_shopping_user.list(&q, admin_type.as_deref()).await?;
     let list: Vec<MemberVO> = page.list.into_iter().map(MemberVO::from).collect();
     ok(PageResult {
         total: page.total,
@@ -166,7 +166,7 @@ async fn proxy_shopping_user_detail(
     let id = q
         .id
         .ok_or_else(|| tigshop_core::Error::Validation("会员ID不能为空".into()))?;
-    let UserItemVO { user, member_tags } = state.trade_proxy_shopping_user.detail(id).await?;
+    let UserItemVO { user, member_tags } = state.trade.proxy_shopping_user.detail(id).await?;
     ok(MemberItemVO {
         user: MemberVO::from(user),
         member_tags,

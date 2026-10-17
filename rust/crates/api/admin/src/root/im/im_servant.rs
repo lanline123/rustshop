@@ -84,7 +84,7 @@ async fn transfer_list(
     Query(q): Query<ImServantListQuery>,
 ) -> ApiResult<PageResult<ImServantVO>> {
     let scope = resolve_scope(&headers, &auth);
-    ok(state.im_im_servant.list(&q, scope).await?)
+    ok(state.im.im_servant.list(&q, scope).await?)
 }
 
 /// `POST /im/servant/servant/modifyStatus`：修改当前客服状态。
@@ -100,7 +100,7 @@ async fn modify_status(
 ) -> ApiResult<serde_json::Value> {
     let scope = resolve_scope(&headers, &auth);
     // Java：dto.setServantId(SecurityUtils.getCurrentAdminId()) → 用登录态，忽略请求体
-    let id = state.im_im_servant.modify_status(dto.status, auth.id, scope).await?;
+    let id = state.im.im_servant.modify_status(dto.status, auth.id, scope).await?;
     ok(serde_json::json!({ "id": id }))
 }
 
@@ -114,7 +114,7 @@ async fn get_status(
     headers: HeaderMap,
 ) -> ApiResult<ImServantVO> {
     let scope = resolve_scope(&headers, &auth);
-    ok(state.im_im_servant.get_status(auth.id, scope).await?)
+    ok(state.im.im_servant.get_status(auth.id, scope).await?)
 }
 
 /// 读取请求头文本值（缺失 / 非 UTF-8 / 全空白时返回 `None`）。

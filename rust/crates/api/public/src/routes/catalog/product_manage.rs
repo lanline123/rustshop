@@ -78,14 +78,14 @@ async fn product_detail(
         Some(sn) => sn.to_string(),
         // 对应 Java `getProductSnById`：按 ID 反查货号后走同一逻辑
         None => match q.id {
-            Some(id) => state.catalog_product_manage
+            Some(id) => state.catalog.product_manage
                 .product_sn_by_id(id)
                 .await?
                 .ok_or_else(|| AppError(Error::biz(400, "商品不存在")))?,
             None => return Err(AppError(Error::biz(400, "商品不存在"))),
         },
     };
-    ok(state.catalog_product_manage
+    ok(state.catalog.product_manage
         .client_detail(&sn, q.shop_id, q.nearest_shop_id)
         .await?)
 }

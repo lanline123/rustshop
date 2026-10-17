@@ -584,7 +584,9 @@ mod tests {
         assert!(scope_denied(feedback_type::PRODUCT, Some(-1), platform));
         // shop_id = 0 或为 NULL → 放行
         assert!(!scope_denied(feedback_type::PRODUCT, Some(0), platform));
-        assert!(!scope_denied(feedback_type::PRODUCT, None, platform));
+        // Java uses `!Objects.equals(getShopId(), 0)`; Objects.equals(null, 0) == false
+        // => shop_id = NULL is also denied.
+        assert!(scope_denied(feedback_type::PRODUCT, None, platform));
         // 非店铺类型一律放行
         for t in [
             feedback_type::SUGGESTION,

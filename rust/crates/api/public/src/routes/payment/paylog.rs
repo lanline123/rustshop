@@ -105,7 +105,7 @@ async fn prepare(
         presale_type: dto.presale_type,
     };
 
-    let paylog = state.payment_paylog
+    let paylog = state.payment.paylog
         .create_or_reuse(
             None,
             &order,
@@ -167,7 +167,7 @@ async fn notify(
     let transaction_id = dto.transaction_id.as_deref().unwrap_or_default();
     let raw = dto.raw.as_deref().unwrap_or_default();
 
-    let affected = state.payment_paylog
+    let affected = state.payment.paylog
         .mark_paid_by_pay_sn(pay_sn, transaction_id, raw)
         .await?;
 
@@ -202,7 +202,7 @@ async fn refund_notify(
     let status = RefundStatus::try_from(dto.status.unwrap_or(1))
         .map_err(|_| tigshop_core::Error::Validation("退款状态非法（应为 0/1/2）".into()))?;
 
-    state.payment_paylog.update_refund_status(refund_id, status).await?;
+    state.payment.paylog.update_refund_status(refund_id, status).await?;
 
     ok(serde_json::json!({
         "refundSn": dto.refund_sn,
@@ -224,5 +224,5 @@ async fn refunds(
     Extension(_auth): Extension<AuthUser>,
     Query(q): Query<RefundQuery>,
 ) -> ApiResult<Vec<PaylogRefundVO>> {
-    ok(state.payment_paylog.refunds_of_order(q.order_id).await?)
+    ok(state.payment.paylog.refunds_of_order(q.order_id).await?)
 }

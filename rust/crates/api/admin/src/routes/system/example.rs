@@ -110,7 +110,7 @@ async fn list(
     State(state): State<AdminState>,
     Query(q): Query<ExampleListQuery>,
 ) -> ApiResult<PageResult<ExampleVO>> {
-    ok(state.system_example.list(&q).await?)
+    ok(state.system.example.list(&q).await?)
 }
 
 /// `GET /adminapi/example/example/detail?id=`：示例详情。
@@ -119,7 +119,7 @@ async fn list(
 /// → `ExampleServiceImpl#detail`。
 async fn detail(State(state): State<AdminState>, Query(q): Query<IdQuery>) -> ApiResult<ExampleVO> {
     let id = require_positive_id(q.id)?;
-    ok(state.system_example.detail(id).await?)
+    ok(state.system.example.detail(id).await?)
 }
 
 /// `POST /adminapi/example/example/create`：新增示例。
@@ -133,7 +133,7 @@ async fn create(
     State(state): State<AdminState>,
     Json(dto): Json<ExampleCreateDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let id = state.system_example.create(&dto).await?;
+    let id = state.system.example.create(&dto).await?;
     ok(serde_json::json!({ "exampleId": id }))
 }
 
@@ -148,7 +148,7 @@ async fn update(
     State(state): State<AdminState>,
     Json(dto): Json<ExampleUpdateDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let affected = state.system_example.update(&dto).await?;
+    let affected = state.system.example.update(&dto).await?;
     ok(serde_json::json!({ "affected": affected }))
 }
 
@@ -161,7 +161,7 @@ async fn del(
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<serde_json::Value> {
     let id = require_positive_id(dto.id)?;
-    let deleted = state.system_example.del(id).await?;
+    let deleted = state.system.example.del(id).await?;
     ok(serde_json::json!({ "deleted": deleted }))
 }
 
@@ -174,7 +174,7 @@ async fn update_field(
     State(state): State<AdminState>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let affected = state.system_example.update_field(&dto).await?;
+    let affected = state.system.example.update_field(&dto).await?;
     ok(serde_json::json!({ "affected": affected }))
 }
 
@@ -187,7 +187,7 @@ async fn batch(
     State(state): State<AdminState>,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let affected = state.system_example.batch(&dto).await?;
+    let affected = state.system.example.batch(&dto).await?;
     let success = dto.is_delete() && affected > 0;
     ok(serde_json::json!({ "success": success, "affected": affected }))
 }

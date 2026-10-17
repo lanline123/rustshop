@@ -38,5 +38,5 @@ async fn salesman_list(
     State(state): State<AdminState>,
     Query(q): Query<SalesmanListQuery>,
 ) -> ApiResult<PageResult<SalesmanVO>> {
-    ok(state.marketing_salesman.list(&q).await?)
+    ok(state.marketing.salesman.list(&q).await?)
 }

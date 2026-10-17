@@ -57,7 +57,7 @@ async fn coupon_list(
     State(state): State<AdminState>,
     Query(q): Query<CouponListQuery>,
 ) -> ApiResult<PageResult<CouponVO>> {
-    ok(state.marketing_coupon.list(&q).await?)
+    ok(state.marketing.coupon.list(&q).await?)
 }
 
 #[derive(Debug, Deserialize)]
@@ -78,7 +78,7 @@ async fn coupon_list_by_ids(
     // 管理端列表复用 VO：逐个取详情（券数量有限，避免额外的批量 VO 映射）
     let mut list = Vec::with_capacity(ids.len());
     for id in ids {
-        if let Ok(vo) = state.marketing_coupon.detail_vo(id).await {
+        if let Ok(vo) = state.marketing.coupon.detail_vo(id).await {
             list.push(vo);
         }
     }
@@ -95,7 +95,7 @@ async fn coupon_detail(
     State(state): State<AdminState>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<CouponVO> {
-    ok(state.marketing_coupon.detail_vo(q.id).await?)
+    ok(state.marketing.coupon.detail_vo(q.id).await?)
 }
 
 /// `GET /adminapi/promotion/coupon/validList`：有效（进行中）优惠券列表，供选择器使用。
@@ -104,7 +104,7 @@ async fn valid_list(
     Query(mut q): Query<CouponListQuery>,
 ) -> ApiResult<PageResult<CouponVO>> {
     q.status = Some(1); // 进行中
-    ok(state.marketing_coupon.list(&q).await?)
+    ok(state.marketing.coupon.list(&q).await?)
 }
 
 /// `GET /adminapi/promotion/coupon/issue/users`：可发放会员搜索。
@@ -114,7 +114,7 @@ async fn issue_users(
     State(state): State<AdminState>,
     Query(q): Query<MemberSearchQuery>,
 ) -> ApiResult<PageResult<serde_json::Value>> {
-    let page = state.member_member_lists
+    let page = state.member.member_lists
         .paginate_users(q.keyword.as_deref(), q.page.unwrap_or(1), q.page_size.unwrap_or(20))
         .await?;
     let list: Vec<serde_json::Value> = page
@@ -165,7 +165,7 @@ async fn issue_send(
     let mut success = 0u32;
     let mut fail = 0u32;
     for user_id in dto.user_ids.iter().copied().filter(|id| *id > 0) {
-        match state.marketing_coupon.issue_to_user(dto.coupon_id, user_id).await {
+        match state.marketing.coupon.issue_to_user(dto.coupon_id, user_id).await {
             Ok(_) => success += 1,
             Err(e) => {
                 tracing::warn!("手动发放优惠券失败 coupon_id={} user_id={}: {e}", dto.coupon_id, user_id);

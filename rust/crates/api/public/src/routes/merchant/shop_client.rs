@@ -184,7 +184,7 @@ async fn client_list(
     State(state): State<PublicState>,
     Query(q): Query<ClientShopListQuery>,
 ) -> ApiResult<PageResult<ClientShopVO>> {
-    ok(state.merchant_shop_client.client_list(&q).await?)
+    ok(state.merchant.shop_client.client_list(&q).await?)
 }
 
 /// `POST /api/shop/shop/collect`：收藏/取消收藏店铺（切换）。
@@ -198,7 +198,7 @@ async fn shop_collect(
     Json(param): Json<CollectShopParam>,
 ) -> ApiResult<CollectShopResultVO> {
     let user_id = require_user_id(&auth)?;
-    ok(state.merchant_shop_client.collect(param.shop_id, user_id).await?)
+    ok(state.merchant.shop_client.collect(param.shop_id, user_id).await?)
 }
 
 /// `GET /api/shop/shop/head?shopId=`：店铺头部装修（`shopHead` 组件）。
@@ -209,7 +209,7 @@ async fn shop_head(
     State(state): State<PublicState>,
     Query(q): Query<ShopIdQuery>,
 ) -> ApiResult<tigshop_core::models::content::decorate::DecorateDiscreteVO> {
-    ok(state.merchant_shop_client.shop_head(&q).await?)
+    ok(state.merchant.shop_client.shop_head(&q).await?)
 }
 
 /// `GET /api/shop/shop/detail?shopId=`：前台店铺详情。
@@ -221,7 +221,7 @@ async fn shop_detail(
     Query(q): Query<ShopIdQuery>,
 ) -> ApiResult<ClientShopDetailVO> {
     // Java：游客 `getCurrentUserId()` 返回 0，`collectShop` 恒为 false
-    ok(state.merchant_shop_client.client_detail(q.shop_id, current_user_id(&auth)).await?)
+    ok(state.merchant.shop_client.client_detail(q.shop_id, current_user_id(&auth)).await?)
 }
 
 /// `GET /api/shop/shop/decorate?shopId=&previewId=`：店铺首页装修数据。
@@ -237,7 +237,7 @@ async fn shop_decorate(
     let locale_code = headers
         .get("X-Locale-Code")
         .and_then(|v| v.to_str().ok());
-    ok(state.merchant_shop_client.shop_decorate(&q, locale_code).await?)
+    ok(state.merchant.shop_client.shop_decorate(&q, locale_code).await?)
 }
 
 /// `GET /api/shop/shop/pickupList`：店铺关联自提点分页。
@@ -248,7 +248,7 @@ async fn pickup_list(
     State(state): State<PublicState>,
     Query(q): Query<PickupListQuery>,
 ) -> ApiResult<PageResult<PickupListVO>> {
-    ok(state.merchant_shop_client.pickup_list(&q).await?)
+    ok(state.merchant.shop_client.pickup_list(&q).await?)
 }
 
 /// `GET /api/shop/shop/pickupDetail?shopId=`：自提点详情。
@@ -259,7 +259,7 @@ async fn pickup_detail(
     State(state): State<PublicState>,
     Query(q): Query<ShopIdQuery>,
 ) -> ApiResult<PickupListVO> {
-    ok(state.merchant_shop_client.pickup_detail(&q).await?)
+    ok(state.merchant.shop_client.pickup_detail(&q).await?)
 }
 
 /// `GET /api/shop/shop/storeList`：O2O 门店分页。
@@ -271,7 +271,7 @@ async fn store_list(
     auth: Option<Extension<AuthUser>>,
     Query(q): Query<StoreListQuery>,
 ) -> ApiResult<PageResult<StoreListVO>> {
-    ok(state.merchant_shop_client.store_list(&q, current_user_id(&auth)).await?)
+    ok(state.merchant.shop_client.store_list(&q, current_user_id(&auth)).await?)
 }
 
 /// `GET /api/shop/shop/storeDetail?shopId=`：门店详情。
@@ -283,7 +283,7 @@ async fn store_detail(
     auth: Option<Extension<AuthUser>>,
     Query(q): Query<StoreDetailQuery>,
 ) -> ApiResult<StoreDetailVO> {
-    ok(state.merchant_shop_client.store_detail(&q, current_user_id(&auth)).await?)
+    ok(state.merchant.shop_client.store_detail(&q, current_user_id(&auth)).await?)
 }
 
 /// `GET /api/shop/shop/getCommentList?page=&type=&shopId=`：店铺评论分页。
@@ -294,5 +294,5 @@ async fn get_comment_list(
     State(state): State<PublicState>,
     Query(q): Query<ShopCommentListQuery>,
 ) -> ApiResult<PageResult<CommentVO>> {
-    ok(state.merchant_shop_client.comment_list(&q).await?)
+    ok(state.merchant.shop_client.comment_list(&q).await?)
 }

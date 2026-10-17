@@ -224,7 +224,7 @@ fn current_username(auth: &AuthUser) -> Option<&str> {
 async fn aftersales_apply_type(
     State(state): State<AdminState>,
 ) -> ApiResult<std::collections::BTreeMap<i32, String>> {
-    ok(state.trade_aftersales.apply_type())
+    ok(state.trade.aftersales.apply_type())
 }
 
 /// `GET /adminapi/order/aftersales/returnGoodsStatus`：退换货状态。
@@ -237,7 +237,7 @@ async fn aftersales_return_goods_status(
     headers: HeaderMap,
 ) -> ApiResult<std::collections::BTreeMap<i32, String>> {
     let scope = resolve_scope(&headers, &auth);
-    ok(state.trade_aftersales.return_goods_status(scope.admin_type.as_deref()))
+    ok(state.trade.aftersales.return_goods_status(scope.admin_type.as_deref()))
 }
 
 // ——————————————————————————————————————————————
@@ -256,7 +256,7 @@ async fn aftersales_list(
     Query(query): Query<AftersalesListQuery>,
 ) -> ApiResult<PageResult<AftersalesVO>> {
     let scope = resolve_scope(&headers, &auth);
-    ok(state.trade_aftersales
+    ok(state.trade.aftersales
         .list(
             &query,
             scope.filter_shop_id(),
@@ -290,7 +290,7 @@ async fn aftersales_detail(
     State(state): State<AdminState>,
     Query(query): Query<IdQuery>,
 ) -> ApiResult<AftersalesVO> {
-    ok(state.trade_aftersales.detail(query.resolved_id()?).await?)
+    ok(state.trade.aftersales.detail(query.resolved_id()?).await?)
 }
 
 // ——————————————————————————————————————————————
@@ -311,7 +311,7 @@ async fn aftersales_create(
     State(state): State<AdminState>,
     Json(param): Json<AftersalesCreateParam>,
 ) -> ApiResult<serde_json::Value> {
-    let aftersale_id = state.trade_aftersales.create(&param).await?;
+    let aftersale_id = state.trade.aftersales.create(&param).await?;
     ok(serde_json::json!({ "aftersaleId": aftersale_id }))
 }
 
@@ -328,7 +328,7 @@ async fn aftersales_update(
     State(state): State<AdminState>,
     Json(param): Json<AftersalesEditParam>,
 ) -> ApiResult<&'static str> {
-    state.trade_aftersales.update(&param).await?;
+    state.trade.aftersales.update(&param).await?;
     ok("操作成功")
 }
 
@@ -340,7 +340,7 @@ async fn aftersales_receive(
     State(state): State<AdminState>,
     Json(param): Json<AftersalesReceiveParam>,
 ) -> ApiResult<&'static str> {
-    state.trade_aftersales.receive(&param).await?;
+    state.trade.aftersales.receive(&param).await?;
     ok("确认收货成功")
 }
 
@@ -352,7 +352,7 @@ async fn aftersales_reject_receive(
     State(state): State<AdminState>,
     Json(param): Json<AfterSalesRejectReceiveParam>,
 ) -> ApiResult<&'static str> {
-    state.trade_aftersales.reject_receive(&param).await?;
+    state.trade.aftersales.reject_receive(&param).await?;
     ok("拒收成功")
 }
 
@@ -366,7 +366,7 @@ async fn aftersales_record(
     Extension(auth): Extension<AuthUser>,
     Json(param): Json<AftersalesRecordCreateParam>,
 ) -> ApiResult<&'static str> {
-    state.trade_aftersales
+    state.trade.aftersales
         .submit_record(&param, Some(auth.id), current_username(&auth))
         .await?;
     ok("提交成功")
@@ -379,6 +379,6 @@ async fn aftersales_complete(
     State(state): State<AdminState>,
     Json(param): Json<AfterSalesCompleteParam>,
 ) -> ApiResult<&'static str> {
-    state.trade_aftersales.complete(&param).await?;
+    state.trade.aftersales.complete(&param).await?;
     ok("售后已关闭")
 }

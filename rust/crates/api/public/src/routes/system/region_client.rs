@@ -183,7 +183,7 @@ async fn get_region(
     State(state): State<PublicState>,
     Query(q): Query<RegionIdsQuery>,
 ) -> ApiResult<Vec<Vec<Region>>> {
-    ok(state.system_region_client.region_cascade(q.region_ids.as_deref()).await?)
+    ok(state.system.region_client.region_cascade(q.region_ids.as_deref()).await?)
 }
 
 /// `GET /api/sys/region/getProvinceList`：省份列表。
@@ -192,7 +192,7 @@ async fn get_region(
 /// `RegionServiceImpl#getProvinceList`：`level = 2`，名字去掉「省」「市」
 /// 「自治区」，按 `first_word` 排序。
 async fn get_province_list(State(state): State<PublicState>) -> ApiResult<Vec<Region>> {
-    ok(state.system_region_client.province_list().await?)
+    ok(state.system.region_client.province_list().await?)
 }
 
 /// `GET /api/sys/region/getUserRegion`：用户所在地区。
@@ -204,7 +204,7 @@ async fn get_province_list(State(state): State<PublicState>) -> ApiResult<Vec<Re
 /// 定位不到/内网时兜底 `"北京"`。Rust 侧未接入 ip2region，
 /// 目前**固定走兜底分支**（等价于 Java 在 IP 为空时的行为）。
 async fn get_user_region(State(state): State<PublicState>) -> ApiResult<Region> {
-    ok(state.system_region_client.user_region().await?)
+    ok(state.system.region_client.user_region().await?)
 }
 
 /// `GET /api/sys/region/getCityRegion`：城市列表（热门 + 全量）。
@@ -215,7 +215,7 @@ async fn get_user_region(State(state): State<PublicState>) -> ApiResult<Region> 
 /// Java 结果缓存在 Redis（key `city_pinying_list`）；Rust 侧未接 Redis，
 /// 每次实查。
 async fn get_city_region(State(state): State<PublicState>) -> ApiResult<CityRegionVO> {
-    ok(state.system_region_client.city_region().await?)
+    ok(state.system.region_client.city_region().await?)
 }
 
 /// `GET /api/sys/region/getCityListByCityName?cityName=...`：按名称模糊查城市。
@@ -234,7 +234,7 @@ async fn get_city_list_by_city_name(
     let Some(name) = q.city_name.as_deref() else {
         return ok(Vec::new());
     };
-    ok(state.system_region_client.city_list_by_name(name).await?)
+    ok(state.system.region_client.city_list_by_name(name).await?)
 }
 
 /// `GET /api/sys/region/getRegionListByRegionId?regionId=...`：取直接子节点。
@@ -249,7 +249,7 @@ async fn get_region_list_by_region_id(
     State(state): State<PublicState>,
     Query(q): Query<RegionIdQuery>,
 ) -> ApiResult<Vec<Region>> {
-    ok(state.system_region_client.region_list_by_parent_id(q.region_id).await?)
+    ok(state.system.region_client.region_list_by_parent_id(q.region_id).await?)
 }
 
 /// `GET /api/sys/region/getRegionPath?regionId=...`：完整地区路径（根 → 叶）。
@@ -262,5 +262,5 @@ async fn get_region_path(
     State(state): State<PublicState>,
     Query(q): Query<RegionIdQuery>,
 ) -> ApiResult<Vec<Region>> {
-    ok(state.system_region_client.region_path(q.region_id).await?)
+    ok(state.system.region_client.region_path(q.region_id).await?)
 }

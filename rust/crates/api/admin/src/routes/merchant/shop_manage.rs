@@ -229,7 +229,7 @@ async fn shop_list(
     State(state): State<AdminState>,
     Query(q): Query<ShopListQuery>,
 ) -> ApiResult<PageResult<ShopVO>> {
-    ok(state.merchant_shop_manage.list(&q, q.shop_id).await?)
+    ok(state.merchant.shop_manage.list(&q, q.shop_id).await?)
 }
 
 /// `GET /adminapi/merchant/shop/detail?shopId=`：店铺详情（含评星 / 商品评分）。
@@ -246,7 +246,7 @@ async fn shop_detail(
     let shop_id = q
         .shop_id
         .ok_or_else(|| tigshop_core::Error::Validation("店铺ID不能为空".into()))?;
-    ok(state.merchant_shop_manage.detail_with_score(shop_id).await?)
+    ok(state.merchant.shop_manage.detail_with_score(shop_id).await?)
 }
 
 /// `GET /adminapi/merchant/shop/currentDetail?shopId=`：当前登录用户的店铺信息。
@@ -261,7 +261,7 @@ async fn shop_current_detail(
     let shop_id = q
         .shop_id
         .ok_or_else(|| tigshop_core::Error::Validation("店铺ID不能为空".into()))?;
-    ok(state.merchant_shop_manage.current_detail(shop_id, auth.id).await?)
+    ok(state.merchant.shop_manage.current_detail(shop_id, auth.id).await?)
 }
 
 /// `POST /adminapi/merchant/shop/create`：创建店铺。
@@ -275,7 +275,7 @@ async fn shop_create(
     Query(q): Query<ShopIdQuery>,
     Json(p): Json<ShopWritePayload>,
 ) -> ApiResult<serde_json::Value> {
-    let shop_id = state.merchant_shop_manage.create(&p, auth.id, q.shop_id).await?;
+    let shop_id = state.merchant.shop_manage.create(&p, auth.id, q.shop_id).await?;
     ok(serde_json::json!({ "shopId": shop_id }))
 }
 
@@ -290,7 +290,7 @@ async fn shop_update(
     State(state): State<AdminState>,
     Json(p): Json<ShopWritePayload>,
 ) -> ApiResult<&'static str> {
-    state.merchant_shop_manage.update(&p).await?;
+    state.merchant.shop_manage.update(&p).await?;
     ok("修改成功")
 }
 
@@ -304,7 +304,7 @@ async fn shop_del(
     let id = dto
         .id
         .ok_or_else(|| tigshop_core::Error::Validation("ID不能为空".into()))?;
-    state.merchant_shop_manage.delete(id).await?;
+    state.merchant.shop_manage.delete(id).await?;
     ok("删除成功")
 }
 
@@ -316,7 +316,7 @@ async fn shop_update_field(
     State(state): State<AdminState>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<&'static str> {
-    state.merchant_shop_manage.update_field(&dto).await?;
+    state.merchant.shop_manage.update_field(&dto).await?;
     ok("修改成功")
 }
 
@@ -328,7 +328,7 @@ async fn shop_batch(
     State(state): State<AdminState>,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<bool> {
-    ok(state.merchant_shop_manage.batch(&dto).await?)
+    ok(state.merchant.shop_manage.batch(&dto).await?)
 }
 
 /// `GET /adminapi/merchant/shop/myShop`：当前登录用户的店铺 / 供应商 / 账号信息。
@@ -340,7 +340,7 @@ async fn shop_my_shop(
     Extension(auth): Extension<AuthUser>,
     Query(q): Query<ShopListQuery>,
 ) -> ApiResult<serde_json::Value> {
-    ok(state.merchant_shop_manage.my_shop(&q, auth.id, q.shop_id).await?)
+    ok(state.merchant.shop_manage.my_shop(&q, auth.id, q.shop_id).await?)
 }
 
 /// `POST /adminapi/merchant/shop/setPosLoginDefault`：设置登录后默认进收银台。
@@ -352,7 +352,7 @@ async fn shop_set_pos_login_default(
     Extension(auth): Extension<AuthUser>,
     Json(p): Json<PosLoginSettingPayload>,
 ) -> ApiResult<&'static str> {
-    state.merchant_shop_manage.set_pos_login_default(&p, auth.id).await?;
+    state.merchant.shop_manage.set_pos_login_default(&p, auth.id).await?;
     ok("设置成功")
 }
 
@@ -365,7 +365,7 @@ async fn shop_record_login_system(
     Extension(auth): Extension<AuthUser>,
     Json(p): Json<PosLoginSettingPayload>,
 ) -> ApiResult<&'static str> {
-    state.merchant_shop_manage.record_login_system(&p, auth.id).await?;
+    state.merchant.shop_manage.record_login_system(&p, auth.id).await?;
     ok("记录成功")
 }
 
@@ -381,7 +381,7 @@ async fn shop_choose(
     Extension(auth): Extension<AuthUser>,
     Json(p): Json<LoginChooseParam>,
 ) -> ApiResult<serde_json::Value> {
-    let (shop_view, authorities) = state.merchant_shop_manage.choose(&p, auth.id).await?;
+    let (shop_view, authorities) = state.merchant.shop_manage.choose(&p, auth.id).await?;
     ok(serde_json::json!({
         "shopView": shop_view,
         "authorities": authorities,
@@ -398,7 +398,7 @@ async fn shop_list_picker(
     State(state): State<AdminState>,
     Query(q): Query<ShopListQuery>,
 ) -> ApiResult<Vec<serde_json::Value>> {
-    let shops = state.merchant_shop_manage.shop_list(&q).await?;
+    let shops = state.merchant.shop_manage.shop_list(&q).await?;
     ok(shops
         .iter()
         .map(|s| {
@@ -423,7 +423,7 @@ async fn shop_staff_show(
     let shop_id = q
         .shop_id
         .ok_or_else(|| tigshop_core::Error::Validation("店铺ID不能为空".into()))?;
-    ok(state.merchant_shop_manage.staff_show(shop_id).await?)
+    ok(state.merchant.shop_manage.staff_show(shop_id).await?)
 }
 
 /// `POST /adminapi/merchant/shop/updateInfo`：更新店铺信息。
@@ -444,7 +444,7 @@ async fn shop_update_info(
     Query(q): Query<ShopIdQuery>,
     Json(p): Json<ShopWritePayload>,
 ) -> ApiResult<serde_json::Value> {
-    let shop = state.merchant_shop_manage.update_info(&p, q.shop_id).await?;
+    let shop = state.merchant.shop_manage.update_info(&p, q.shop_id).await?;
     ok(shop_entity_json(&shop))
 }
 
@@ -481,7 +481,7 @@ async fn shop_setting(
     Query(q): Query<ShopIdQuery>,
     Json(p): Json<ShopSettingPayload>,
 ) -> ApiResult<&'static str> {
-    state.merchant_shop_manage.setting(&p, q.shop_id).await?;
+    state.merchant.shop_manage.setting(&p, q.shop_id).await?;
     ok("设置成功")
 }
 
@@ -496,7 +496,7 @@ async fn shop_get_vendor_setting(
     let shop_id = q
         .shop_id
         .ok_or_else(|| tigshop_core::Error::Validation("店铺ID不能为空".into()))?;
-    ok(state.merchant_shop_manage.get_vendor_setting(shop_id).await?)
+    ok(state.merchant.shop_manage.get_vendor_setting(shop_id).await?)
 }
 
 /// `POST /adminapi/merchant/shop/updateVendorSetting?shopId=`：保存供应商配置。
@@ -512,7 +512,7 @@ async fn shop_update_vendor_setting(
     let shop_id = q
         .shop_id
         .ok_or_else(|| tigshop_core::Error::Validation("店铺ID不能为空".into()))?;
-    state.merchant_shop_manage.update_vendor_setting(shop_id, &p).await?;
+    state.merchant.shop_manage.update_vendor_setting(shop_id, &p).await?;
     ok("保存成功")
 }
 
@@ -534,7 +534,7 @@ async fn shop_store_list_by_product_id(
         .product_id
         .filter(|v| *v > 0)
         .ok_or_else(|| tigshop_core::Error::Validation("商品ID不能为空".into()))?;
-    ok(state.merchant_shop_manage.store_list_by_product_id(product_id).await?)
+    ok(state.merchant.shop_manage.store_list_by_product_id(product_id).await?)
 }
 
 /// `POST /adminapi/merchant/shop/delShop`：删除店铺 / 门店 / 自提点（软删除）。
@@ -545,5 +545,5 @@ async fn shop_del_shop(
     State(state): State<AdminState>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.merchant_shop_manage.del_shop(&dto).await?)
+    ok(state.merchant.shop_manage.del_shop(&dto).await?)
 }

@@ -84,7 +84,7 @@ async fn order_list(
         .admin_type
         .as_deref()
         .is_none_or(|t| t.is_empty() || t == "admin");
-    ok(state.trade_order_admin.list(&q, platform_view).await?)
+    ok(state.trade.order_admin.list(&q, platform_view).await?)
 }
 
 /// `GET /adminapi/order/order/detail?id=`：订单详情。
@@ -99,7 +99,7 @@ async fn order_detail(
     State(state): State<AdminState>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<OrderVO> {
-    ok(state.trade_order_admin.detail(q.id).await?)
+    ok(state.trade.order_admin.detail(q.id).await?)
 }
 
 /// `POST /adminapi/order/order/deliver`：发货。
@@ -110,7 +110,7 @@ async fn order_deliver(
     State(state): State<AdminState>,
     Json(param): Json<DeliverOrderParam>,
 ) -> ApiResult<&'static str> {
-    state.trade_order_admin.deliver(&param).await?;
+    state.trade.order_admin.deliver(&param).await?;
     ok("发货成功")
 }
 
@@ -126,7 +126,7 @@ async fn order_cancel_by_admin(
     Extension(auth): Extension<AuthUser>,
     Json(param): Json<AftersalesApplyAdminParam>,
 ) -> ApiResult<serde_json::Value> {
-    let aftersale_id = state.trade_order_admin
+    let aftersale_id = state.trade.order_admin
         .cancel_order_by_admin(&param, Some(auth.username.as_str()))
         .await?;
     ok(serde_json::json!({ "aftersaleId": aftersale_id }))

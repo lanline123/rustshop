@@ -113,7 +113,7 @@ async fn list(
     State(state): State<AdminState>,
     Query(q): Query<MobileCatNavListQuery>,
 ) -> ApiResult<PageResult<MobileCatNavVO>> {
-    ok(state.content_mobile_cat_nav.list(&q).await?)
+    ok(state.content.mobile_cat_nav.list(&q).await?)
 }
 
 /// `GET /adminapi/decorate/mobileCatNav/detail?id=`：首页分类栏详情。
@@ -131,7 +131,7 @@ async fn detail(
     State(state): State<AdminState>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<MobileCatNavVO> {
-    ok(state.content_mobile_cat_nav.detail(q.id).await?)
+    ok(state.content.mobile_cat_nav.detail(q.id).await?)
 }
 
 /// `POST /adminapi/decorate/mobileCatNav/create`：创建首页分类栏。
@@ -144,7 +144,7 @@ async fn create(
     State(state): State<AdminState>,
     Json(dto): Json<MobileCatNavCreateDTO>,
 ) -> ApiResult<i32> {
-    ok(state.content_mobile_cat_nav.create(&dto).await?)
+    ok(state.content.mobile_cat_nav.create(&dto).await?)
 }
 
 /// `POST /adminapi/decorate/mobileCatNav/update`：更新首页分类栏。
@@ -156,7 +156,7 @@ async fn update(
     State(state): State<AdminState>,
     Json(dto): Json<MobileCatNavUpdateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_mobile_cat_nav.update(&dto).await?)
+    ok(state.content.mobile_cat_nav.update(&dto).await?)
 }
 
 /// `POST /adminapi/decorate/mobileCatNav/del`：删除首页分类栏（硬删除）。
@@ -168,7 +168,7 @@ async fn update(
 /// ⚠️ Java 删不存在的 id 也返回成功（`removeById` 返回 `false` 但不报错），
 /// 本实现保持这一语义，回传删除是否命中。
 async fn del(State(state): State<AdminState>, Json(dto): Json<OperateDTO>) -> ApiResult<bool> {
-    ok(state.content_mobile_cat_nav.del(&dto).await?)
+    ok(state.content.mobile_cat_nav.del(&dto).await?)
 }
 
 /// `POST /adminapi/decorate/mobileCatNav/updateField`：更新单个字段。
@@ -180,7 +180,7 @@ async fn update_field(
     State(state): State<AdminState>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<bool> {
-    ok(state.content_mobile_cat_nav.update_field(&dto).await?)
+    ok(state.content.mobile_cat_nav.update_field(&dto).await?)
 }
 
 /// `POST /adminapi/decorate/mobileCatNav/batch`：批量操作（仅 `del`）。
@@ -189,7 +189,7 @@ async fn update_field(
 /// → `BaseServiceImpl#batch`：`type != "del"` 时**静默返回 `false`**
 /// （HTTP 200，不是报错）。
 async fn batch(State(state): State<AdminState>, Json(dto): Json<BatchDTO>) -> ApiResult<bool> {
-    ok(state.content_mobile_cat_nav.batch(&dto).await?)
+    ok(state.content.mobile_cat_nav.batch(&dto).await?)
 }
 
 #[cfg(test)]

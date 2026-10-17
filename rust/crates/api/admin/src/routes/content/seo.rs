@@ -98,7 +98,7 @@ async fn translate_to_seo_identification(
     State(state): State<AdminState>,
     Query(q): Query<TranslateSeoQuery>,
 ) -> ApiResult<String> {
-    ok(state.content_seo
+    ok(state.content.seo
         .translate_to_seo_identification(q.chinese_text.as_deref())
         .await?)
 }
@@ -110,7 +110,7 @@ async fn translate_to_seo_identification(
 ///
 /// **未迁移**：依赖翻译服务与 Redis 缓存清理，恒定返回业务码 1001。
 async fn batch_update_category_link(State(state): State<AdminState>) -> ApiResult<()> {
-    state.content_seo.batch_update_category_link().await?;
+    state.content.seo.batch_update_category_link().await?;
     ok(())
 }
 
@@ -121,6 +121,6 @@ async fn batch_update_category_link(State(state): State<AdminState>) -> ApiResul
 ///
 /// **未迁移**：依赖翻译服务，恒定返回业务码 1001。
 async fn batch_update_product_link(State(state): State<AdminState>) -> ApiResult<()> {
-    state.content_seo.batch_update_product_link().await?;
+    state.content.seo.batch_update_product_link().await?;
     ok(())
 }

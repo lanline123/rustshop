@@ -3,8 +3,6 @@
 pub mod article;
 pub mod decorate;
 pub mod mobile_cat_nav;
-pub mod pc_cat_floor;
-pub mod pc_navigation;
 pub mod seo;
 
 use axum::Router;
@@ -18,8 +16,6 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(article::routes(state))
         .merge(decorate::routes(state))
         .merge(mobile_cat_nav::routes(state))
-        .merge(pc_cat_floor::routes(state))
-        .merge(pc_navigation::routes(state))
         .merge(seo::routes(state))
 }
 
@@ -30,8 +26,6 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(article::implemented_routes());
     out.extend(decorate::implemented_routes());
     out.extend(mobile_cat_nav::implemented_routes());
-    out.extend(pc_cat_floor::implemented_routes());
-    out.extend(pc_navigation::implemented_routes());
     out.extend(seo::implemented_routes());
     out
 }

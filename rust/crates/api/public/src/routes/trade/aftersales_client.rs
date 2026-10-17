@@ -149,7 +149,7 @@ async fn aftersales_list(
     let user_id = current_user_id(&auth)?;
     // Java：`listDTO.setUserId(getCurrentUserId())` 覆盖请求参数
     q.user_id = Some(user_id);
-    ok(state.trade_aftersales_client.list(&q, user_id).await?)
+    ok(state.trade.aftersales_client.list(&q, user_id).await?)
 }
 
 /// `GET /api/user/aftersales/config?orderId=`：售后类型与原因配置。
@@ -163,7 +163,7 @@ async fn aftersales_config(
     Query(q): Query<ConfigQuery>,
 ) -> ApiResult<AftersalesConfigVO> {
     let _ = current_user_id(&auth)?;
-    ok(state.trade_aftersales_client.config(q.order_id).await?)
+    ok(state.trade.aftersales_client.config(q.order_id).await?)
 }
 
 /// `/user/aftersales/config` 查询参数。
@@ -182,7 +182,7 @@ async fn aftersales_apply_data(
     Query(q): Query<ApplyDataQuery>,
 ) -> ApiResult<AfterSalesApplyDataVO> {
     let _ = current_user_id(&auth)?;
-    ok(state.trade_aftersales_client.apply_data(q.item_id, q.order_id).await?)
+    ok(state.trade.aftersales_client.apply_data(q.item_id, q.order_id).await?)
 }
 
 /// `/user/aftersales/applyData` 查询参数。
@@ -204,7 +204,7 @@ async fn aftersales_create(
     Json(param): Json<CreateAftersalesParam>,
 ) -> ApiResult<tigshop_services::trade::aftersales_client::CreateAftersalesResult> {
     let user_id = current_user_id(&auth)?;
-    ok(state.trade_aftersales_client.create(&param, user_id).await?)
+    ok(state.trade.aftersales_client.create(&param, user_id).await?)
 }
 
 /// `POST /api/user/aftersales/update`：修改售后申请。
@@ -217,7 +217,7 @@ async fn aftersales_update(
     Json(param): Json<ClientAfterSalesUpdateParam>,
 ) -> ApiResult<&'static str> {
     let user_id = current_user_id(&auth)?;
-    state.trade_aftersales_client.update(&param, user_id).await?;
+    state.trade.aftersales_client.update(&param, user_id).await?;
     ok("修改成功")
 }
 
@@ -232,7 +232,7 @@ async fn aftersales_get_record(
 ) -> ApiResult<PageResult<AftersalesVO>> {
     let user_id = current_user_id(&auth)?;
     q.user_id = Some(user_id);
-    ok(state.trade_aftersales_client.get_record(&q, user_id).await?)
+    ok(state.trade.aftersales_client.get_record(&q, user_id).await?)
 }
 
 /// `GET /api/user/aftersales/detail?id=`：售后详情（含关联订单）。
@@ -244,7 +244,7 @@ async fn aftersales_detail(
     Query(q): Query<IdQuery>,
 ) -> ApiResult<AfterSalesClientDetailVO> {
     let user_id = current_user_id(&auth)?;
-    ok(state.trade_aftersales_client.detail(q.id, user_id).await?)
+    ok(state.trade.aftersales_client.detail(q.id, user_id).await?)
 }
 
 /// `/user/aftersales/detail`、`/user/aftersales/detailLog` 查询参数。
@@ -264,7 +264,7 @@ async fn aftersales_detail_log(
     Query(q): Query<IdQuery>,
 ) -> ApiResult<Vec<AftersalesLogVO>> {
     let user_id = current_user_id(&auth)?;
-    ok(state.trade_aftersales_client.detail_log(q.id, user_id).await?)
+    ok(state.trade.aftersales_client.detail_log(q.id, user_id).await?)
 }
 
 /// `POST /api/user/aftersales/feedback`：提交回寄物流/反馈记录。
@@ -277,7 +277,7 @@ async fn aftersales_feedback(
     Json(param): Json<AftersalesFeedbackParam>,
 ) -> ApiResult<&'static str> {
     let user_id = current_user_id(&auth)?;
-    state.trade_aftersales_client.feedback(&param, user_id).await?;
+    state.trade.aftersales_client.feedback(&param, user_id).await?;
     ok("提交成功")
 }
 
@@ -291,6 +291,6 @@ async fn aftersales_cancel(
     Json(param): Json<AftersalesCancelParam>,
 ) -> ApiResult<&'static str> {
     let user_id = current_user_id(&auth)?;
-    state.trade_aftersales_client.cancel(&param, user_id).await?;
+    state.trade.aftersales_client.cancel(&param, user_id).await?;
     ok("已取消")
 }

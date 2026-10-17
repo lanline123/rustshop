@@ -56,7 +56,7 @@ async fn list(
     State(state): State<AdminState>,
     Query(q): Query<SeckillListQuery>,
 ) -> ApiResult<PageResult<SeckillVO>> {
-    ok(state.marketing_seckill.list(&q).await?)
+    ok(state.marketing.seckill.list(&q).await?)
 }
 
 /// `GET /adminapi/promotion/seckill/detail?id=`：秒杀活动详情。
@@ -69,7 +69,7 @@ async fn detail(
     State(state): State<AdminState>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<SeckillVO> {
-    ok(state.marketing_seckill.detail(q.id).await?)
+    ok(state.marketing.seckill.detail(q.id).await?)
 }
 
 /// `POST /adminapi/promotion/seckill/create`：创建秒杀活动。
@@ -77,7 +77,7 @@ async fn create(
     State(state): State<AdminState>,
     Json(dto): Json<SeckillCreateDTO>,
 ) -> ApiResult<i32> {
-    ok(state.marketing_seckill.create(&dto).await?)
+    ok(state.marketing.seckill.create(&dto).await?)
 }
 
 /// `POST /adminapi/promotion/seckill/update`：更新秒杀活动。
@@ -85,7 +85,7 @@ async fn update(
     State(state): State<AdminState>,
     Json(dto): Json<SeckillUpdateDTO>,
 ) -> ApiResult<&'static str> {
-    state.marketing_seckill.update(&dto).await?;
+    state.marketing.seckill.update(&dto).await?;
     ok("更新成功")
 }
 
@@ -100,6 +100,6 @@ async fn del(
     State(state): State<AdminState>,
     Json(dto): Json<DelDTO>,
 ) -> ApiResult<&'static str> {
-    state.marketing_seckill.delete(dto.seckill_id).await?;
+    state.marketing.seckill.delete(dto.seckill_id).await?;
     ok("删除成功")
 }

@@ -151,7 +151,7 @@ async fn access_statistics(
     Query(q): Query<AccessStatisticsQuery>,
 ) -> ApiResult<AxisVO> {
     let _ = &auth;
-    ok(state.analytics_statistics.access_statistics(&q).await?)
+    ok(state.analytics.statistics.access_statistics(&q).await?)
 }
 
 /// `GET /adminapi/panel/statisticsUser/addUserTrends`：新增会员趋势。
@@ -168,7 +168,7 @@ async fn add_user_trends(
     Query(q): Query<UserTrendsQuery>,
 ) -> ApiResult<AxisVO> {
     let _ = &auth;
-    ok(state.analytics_statistics.add_user_trends(&q).await?)
+    ok(state.analytics.statistics.add_user_trends(&q).await?)
 }
 
 /// `GET /adminapi/panel/statisticsUser/userConsumptionRanking`：会员消费排行。
@@ -186,7 +186,7 @@ async fn user_consumption_ranking(
     Query(q): Query<UserConsumptionRankingDTO>,
 ) -> ApiResult<PageResult<UserConsumptionRankingVO>> {
     let _ = &auth;
-    ok(state.analytics_statistics.user_consumption_ranking(&q).await?)
+    ok(state.analytics.statistics.user_consumption_ranking(&q).await?)
 }
 
 /// `GET /adminapi/panel/statisticsUser/userStatisticsPanel`：用户统计面板。
@@ -204,7 +204,7 @@ async fn user_statistics_panel(
     Query(q): Query<UserStatisticsPanelDTO>,
 ) -> ApiResult<UserStatisticsPanelVO> {
     let _ = &auth;
-    ok(state.analytics_statistics.user_statistics_panel(&q).await?)
+    ok(state.analytics.statistics.user_statistics_panel(&q).await?)
 }
 
 #[cfg(test)]
@@ -297,7 +297,7 @@ mod tests {
 // uncertain_points
 // ——————————————————————————————————————————————
 //
-// 1. 【须主会话处理】本文件引用 `state.analytics_statistics`，但 `AdminState`
+// 1. 【须主会话处理】本文件引用 `state.analytics.statistics`，但 `AdminState`
 //    （api/admin/src/lib.rs，共享文件，禁止本任务修改）当前**未声明**
 //    `statistics: Arc<StatisticsService>` 字段；`routes/mod.rs` 也未 `pub mod statistics;`。
 //    主会话需：

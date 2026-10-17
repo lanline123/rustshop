@@ -221,7 +221,7 @@ async fn list(
     Query(q): Query<LogisticsCompanyConfigListQuery>,
 ) -> ApiResult<PageResult<LogisticsCompanyConfigVO>> {
     let tenant = resolve_tenant(&headers, &auth);
-    ok(state.logistics_logistics_company_config
+    ok(state.logistics.logistics_company_config
         .list(&q, tenant.shop_id, tenant.vendor_id)
         .await?)
 }
@@ -234,7 +234,7 @@ async fn detail(
     State(state): State<AdminState>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<Option<LogisticsCompanyConfigVO>> {
-    ok(state.logistics_logistics_company_config.detail(q.id).await?)
+    ok(state.logistics.logistics_company_config.detail(q.id).await?)
 }
 
 /// `POST /adminapi/setting/logisticsCompanyConfig/create`：绑定物流公司。
@@ -248,7 +248,7 @@ async fn create(
     Json(dto): Json<LogisticsCompanyConfigCreateDTO>,
 ) -> ApiResult<i32> {
     let tenant = resolve_tenant(&headers, &auth);
-    ok(state.logistics_logistics_company_config
+    ok(state.logistics.logistics_company_config
         .create(&dto, tenant.shop_id, tenant.vendor_id)
         .await?)
 }
@@ -260,7 +260,7 @@ async fn update(
     State(state): State<AdminState>,
     Json(dto): Json<LogisticsCompanyConfigUpdateDTO>,
 ) -> ApiResult<&'static str> {
-    state.logistics_logistics_company_config.update(&dto).await?;
+    state.logistics.logistics_company_config.update(&dto).await?;
     ok("更新成功")
 }
 
@@ -271,7 +271,7 @@ async fn del(
     State(state): State<AdminState>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<&'static str> {
-    state.logistics_logistics_company_config.delete(dto.id).await?;
+    state.logistics.logistics_company_config.delete(dto.id).await?;
     ok("删除成功")
 }
 
@@ -286,7 +286,7 @@ async fn set_default(
     let id = q
         .id
         .ok_or_else(|| tigshop_core::Error::Validation("配置ID不能为空".into()))?;
-    state.logistics_logistics_company_config.set_default(id).await?;
+    state.logistics.logistics_company_config.set_default(id).await?;
     ok("设置成功")
 }
 
@@ -298,7 +298,7 @@ async fn update_field(
     State(state): State<AdminState>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<&'static str> {
-    state.logistics_logistics_company_config.update_field(&dto).await?;
+    state.logistics.logistics_company_config.update_field(&dto).await?;
     ok("更新成功")
 }
 

@@ -73,7 +73,7 @@ async fn share_import(
     State(state): State<PublicState>,
     Query(q): Query<DecorateShareImportQuery>,
 ) -> ApiResult<DecorateVO> {
-    ok(state.content_share
+    ok(state.content.share
         .import_by_sn(
             q.sn.as_deref().unwrap_or(""),
             q.token.as_deref().unwrap_or(""),

@@ -43,14 +43,14 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 async fn rank_list(
     State(state): State<AdminState>,
 ) -> ApiResult<Vec<UserRankVO>> {
-    ok(state.member_member_lists.ranks().await?)
+    ok(state.member.member_lists.ranks().await?)
 }
 
 /// `GET /adminapi/user/memberTagGroup/list`：标签组列表。
 async fn tag_group_list(
     State(state): State<AdminState>,
 ) -> ApiResult<Vec<serde_json::Value>> {
-    let groups = state.member_member_lists.tag_groups().await?;
+    let groups = state.member.member_lists.tag_groups().await?;
     let list: Vec<serde_json::Value> = groups
         .iter()
         .map(|g| {
@@ -71,7 +71,7 @@ async fn points_log_list(
     State(state): State<AdminState>,
     Query(q): Query<UserPointsLogQuery>,
 ) -> ApiResult<PageResult<serde_json::Value>> {
-    let page = state.member_member_lists.points_logs(&q).await?;
+    let page = state.member.member_lists.points_logs(&q).await?;
     let list: Vec<serde_json::Value> = page
         .list
         .iter()
