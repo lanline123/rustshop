@@ -199,7 +199,7 @@ impl ProxyShoppingProductService {
             .filter(|s| !s.is_empty());
         // Java 无条件先按 productTsn 查一行（`getProductBySn` 的 tsn 分支语义）
         let by_tsn: Option<Product> = match tsn {
-            Some(tsn) => self.repos.catalog_product_manage.find_product_by_sn(tsn).await?,
+            Some(tsn) => self.repos.catalog.product_manage.find_product_by_sn(tsn).await?,
             None => None,
         };
 
@@ -256,7 +256,7 @@ impl ProxyShoppingProductService {
             return Err(Error::Validation("id 不能为空".into()));
         };
 
-        let product = self.repos.catalog_product_manage.find_product(product_id).await?;
+        let product = self.repos.catalog.product_manage.find_product(product_id).await?;
         let extra_ids = parse_extra_attr_ids(q.extra_attr_ids.as_deref());
 
         // Java：`productDetail` 为空 DTO → `productPrice` 为 null
@@ -283,7 +283,7 @@ impl ProxyShoppingProductService {
         };
 
         // Java `productSkuService.getProductSkusByPid(productId)`：含禁用规格
-        let sku_rows = self.repos.catalog_product_manage.find_skus(product_id, true).await?;
+        let sku_rows = self.repos.catalog.product_manage.find_skus(product_id, true).await?;
         let all_skus: Vec<ProductSkuVO> = sku_rows.iter().map(to_availability_sku_vo).collect();
 
         // 解析实际使用的 skuId（含「仅 1 个规格自动选中」）
@@ -317,7 +317,7 @@ impl ProxyShoppingProductService {
             Decimal::ZERO
         } else {
             let rows = self
-                .repos.trade_proxy_shopping_product
+                .repos.trade.proxy_shopping_product
                 .find_attribute_prices(&extra_ids)
                 .await?;
             sum_attr_price(&price_map(&rows), &extra_ids)
@@ -378,7 +378,7 @@ impl ProxyShoppingProductService {
         match product.product_type {
             Some(PRODUCT_TYPE_CARD) => {
                 let count = self
-                    .repos.trade_proxy_shopping_product
+                    .repos.trade.proxy_shopping_product
                     .count_unused_ecards(product.card_group_id)
                     .await?;
                 Ok(i32::try_from(count).unwrap_or(i32::MAX))
@@ -389,7 +389,7 @@ impl ProxyShoppingProductService {
                     return Ok(0);
                 };
                 let Some((status, availability_stock)) = self
-                    .repos.trade_proxy_shopping_product
+                    .repos.trade.proxy_shopping_product
                     .find_gift_card_group_stock(group_id)
                     .await?
                 else {
@@ -452,7 +452,7 @@ impl ProxyShoppingProductService {
             .map(|i| (i.name.clone(), i.value.clone()))
             .collect();
         let thumbs = self
-            .repos.trade_proxy_shopping_product
+            .repos.trade.proxy_shopping_product
             .find_sku_attr_pic_thumbs(product.product_id, &pairs)
             .await?;
         for (item, thumb) in items.iter_mut().zip(thumbs) {

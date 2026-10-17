@@ -50,7 +50,7 @@ impl ShopService {
         let add_end = day_range(q.add_end_time.as_deref(), true)?;
 
         let (total, rows) = self
-            .repos.merchant_shop
+            .repos.merchant.shop
             .paginate(
                 keyword,
                 shop_type,
@@ -91,14 +91,14 @@ impl ShopService {
     /// `< 100`/空/0 时固定 4.8，否则取 `shop_star`。
     pub async fn detail(&self, shop_id: i32) -> Result<ShopVO> {
         let shop = self
-            .repos.merchant_shop
+            .repos.merchant.shop
             .find_by_id(shop_id)
             .await?
             .ok_or_else(|| Error::NotFound("店铺不存在".into()))?;
         let mut vo = ShopVO::from(&shop);
         vo.shop_star = calc_shop_star(&shop);
         vo.product_score = Some(
-            self.repos.merchant_shop
+            self.repos.merchant.shop
                 .avg_comment_rank(shop_id)
                 .await?
                 .unwrap_or(Decimal::ZERO),
@@ -124,11 +124,11 @@ impl ShopService {
         if dto.shop_id <= 0 {
             return Err(Error::Validation("店铺ID不能为空".into()));
         }
-        let exists = self.repos.merchant_shop.find_by_id(dto.shop_id).await?;
+        let exists = self.repos.merchant.shop.find_by_id(dto.shop_id).await?;
         if exists.is_none() {
             return Err(Error::NotFound("店铺不存在".into()));
         }
-        if !self.repos.merchant_shop.update_shop(dto).await? {
+        if !self.repos.merchant.shop.update_shop(dto).await? {
             return Err(Error::NotFound("店铺不存在".into()));
         }
         Ok(())
@@ -164,7 +164,7 @@ impl ShopService {
         let keyword = q.keyword.as_deref().map(str::trim).filter(|s| !s.is_empty());
 
         let (total, rows) = self
-            .repos.merchant_shop
+            .repos.merchant.shop
             .paginate_account_logs(
                 balance_type,
                 pay_channel.as_deref(),
@@ -187,7 +187,7 @@ impl ShopService {
             ids
         };
         let titles: HashMap<i32, String> = self
-            .repos.merchant_shop
+            .repos.merchant.shop
             .find_shop_titles(&ids)
             .await?
             .into_iter()
@@ -225,7 +225,7 @@ impl ShopService {
         let end = day_range(q.add_time_end.as_deref(), true)?;
 
         let (total, rows) = self
-            .repos.merchant_shop
+            .repos.merchant.shop
             .paginate_withdraws(
                 q.status,
                 q.withdraw_type,
@@ -245,7 +245,7 @@ impl ShopService {
     /// 提现详情（`ShopWithdrawController.detail`）。
     pub async fn withdraw_detail(&self, id: i32) -> Result<ShopWithdrawVO> {
         let w = self
-            .repos.merchant_shop
+            .repos.merchant.shop
             .find_withdraw(id)
             .await?
             .ok_or_else(|| Error::NotFound("提现记录不存在".into()))?;
@@ -282,7 +282,7 @@ impl ShopService {
             return Err(Error::Forbidden("没有权限".into()));
         }
         let w = self
-            .repos.merchant_shop
+            .repos.merchant.shop
             .find_withdraw(dto.id)
             .await?
             .ok_or_else(|| Error::NotFound("提现记录不存在".into()))?;
@@ -299,7 +299,7 @@ impl ShopService {
         if dto.status == 2 {
             // 审核不通过：返还冻结金额并写流水（事务）
             let hit = self
-                .repos.merchant_shop
+                .repos.merchant.shop
                 .reject_withdraw(&w, dto.audit_remark.as_deref())
                 .await?;
             if !hit {
@@ -307,7 +307,7 @@ impl ShopService {
             }
         } else {
             let hit = self
-                .repos.merchant_shop
+                .repos.merchant.shop
                 .approve_withdraw(dto.id, dto.status, dto.audit_remark.as_deref())
                 .await?;
             if !hit {
@@ -332,7 +332,7 @@ impl ShopService {
         };
         let keyword = q.keyword.as_deref().map(str::trim).filter(|s| !s.is_empty());
         let (total, rows) = self
-            .repos.merchant_shop
+            .repos.merchant.shop
             .paginate_product_categories(
                 q.parent_id,
                 q.shop_id,
@@ -344,7 +344,7 @@ impl ShopService {
             .await?;
 
         let ids: Vec<i32> = rows.iter().map(|c| c.category_id).collect();
-        let children = self.repos.merchant_shop.count_children_map(&ids).await?;
+        let children = self.repos.merchant.shop.count_children_map(&ids).await?;
         let list = rows
             .iter()
             .map(|c| {
@@ -363,7 +363,7 @@ impl ShopService {
     /// 经营类目详情（`ShopProductCategoryController.detail`）。
     pub async fn product_category_detail(&self, id: i32) -> Result<ShopProductCategoryVO> {
         let c = self
-            .repos.merchant_shop
+            .repos.merchant.shop
             .find_product_category(id)
             .await?
             .ok_or_else(|| Error::NotFound("该分类不存在".into()))?;
@@ -379,7 +379,7 @@ impl ShopService {
         if shop_id <= 0 {
             return Err(Error::Validation("请选择店铺".into()));
         }
-        let cats = self.repos.merchant_shop.find_categories_for_tree(shop_id).await?;
+        let cats = self.repos.merchant.shop.find_categories_for_tree(shop_id).await?;
         if cats.is_empty() {
             return Ok(Vec::new());
         }
@@ -400,7 +400,7 @@ impl ShopService {
             });
         }
         let shop = self
-            .repos.merchant_shop
+            .repos.merchant.shop
             .find_by_id(shop_id)
             .await?
             .ok_or_else(|| Error::NotFound("店铺不存在".into()))?;
@@ -429,13 +429,13 @@ impl ShopService {
             shop_star: calc_shop_star(&shop),
             shop_region_id: shop.shop_region_id.clone(),
             shop_detailed_address: shop.shop_detailed_address.clone(),
-            collect_count: self.repos.merchant_shop.count_collect_users(shop_id).await?,
-            product_count: self.repos.merchant_shop.count_products(shop_id).await?,
-            new_product_count: self.repos.merchant_shop.count_new_products(shop_id).await?,
+            collect_count: self.repos.merchant.shop.count_collect_users(shop_id).await?,
+            product_count: self.repos.merchant.shop.count_products(shop_id).await?,
+            new_product_count: self.repos.merchant.shop.count_new_products(shop_id).await?,
             // 公开接口无登录态，未收藏
             collect_shop: false,
             product_score: self
-                .repos.merchant_shop
+                .repos.merchant.shop
                 .avg_comment_rank(shop_id)
                 .await?
                 .unwrap_or(Decimal::ZERO),
@@ -444,7 +444,7 @@ impl ShopService {
         };
 
         if let Some(mid) = shop.merchant_id.filter(|id| *id > 0) {
-            let merchants = self.repos.merchant_shop.find_merchants(&[mid]).await?;
+            let merchants = self.repos.merchant.shop.find_merchants(&[mid]).await?;
             vo.merchant = merchants.first().map(|m| merchant_vo(m, true));
         }
         Ok(vo)
@@ -469,8 +469,8 @@ impl ShopService {
         shop_ids.sort_unstable();
         shop_ids.dedup();
 
-        let merchants = self.repos.merchant_shop.find_merchants(&merchant_ids).await?;
-        let admins = self.repos.merchant_shop.find_shop_admins(&shop_ids).await?;
+        let merchants = self.repos.merchant.shop.find_merchants(&merchant_ids).await?;
+        let admins = self.repos.merchant.shop.find_shop_admins(&shop_ids).await?;
         Ok((
             merchants
                 .iter()

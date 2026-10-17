@@ -148,7 +148,7 @@ impl AttributesTplService {
 
     /// 本域仓储的便捷访问。
     fn repo(&self) -> &AttributesTplRepository {
-        &self.repos.catalog_attributes_tpl
+        &self.repos.catalog.attributes_tpl
     }
 
     // ————————————————————— 列表 / 详情 —————————————————————

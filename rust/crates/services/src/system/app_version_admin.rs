@@ -188,7 +188,7 @@ impl AppVersionAdminService {
     /// Java 返回 `AppVersionDetailVO`（`config` 中缺失项为 `null`），不抛错。
     pub async fn detail(&self) -> Result<AppVersionDetailVO> {
         let map = self
-            .repos.system_app_version_admin
+            .repos.system.app_version_admin
             .find_config_vals(&DETAIL_BIZ_CODES)
             .await?;
         Ok(build_detail(&map))
@@ -214,7 +214,7 @@ impl AppVersionAdminService {
 
         let entries = build_config_entries(param);
         let name = normalize_admin_name(admin_name);
-        self.repos.system_app_version_admin
+        self.repos.system.app_version_admin
             .replace_configs(&entries, admin_id, &name)
             .await
     }

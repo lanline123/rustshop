@@ -81,8 +81,7 @@ impl ProductGroupService {
     ) -> Result<PageResult<ProductGroupVO>> {
         let page = q.page_query();
         let (total, rows) = self
-            .repos
-            .catalog_product_group
+            .repos.catalog.product_group
             .paginate(q, shop_id, &page)
             .await?;
         let list: Vec<ProductGroupVO> = rows.iter().map(group_to_vo).collect();
@@ -92,8 +91,7 @@ impl ProductGroupService {
     /// 分组详情（对应 Java `ProductGroupServiceImpl#detail`）。
     pub async fn detail(&self, id: i32) -> Result<ProductGroupVO> {
         let entity = self
-            .repos
-            .catalog_product_group
+            .repos.catalog.product_group
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::biz(500, GROUP_NOT_FOUND))?;
@@ -110,8 +108,7 @@ impl ProductGroupService {
     /// `productGroupId` / `productGroupName`，不受影响（见 `uncertain_points`）。
     pub async fn client_list(&self, q: &ProductGroupListQuery) -> Result<Vec<ProductGroupVO>> {
         let rows = self
-            .repos
-            .catalog_product_group
+            .repos.catalog.product_group
             .client_list(q.effective_group_name())
             .await?;
         Ok(rows.iter().map(group_to_vo).collect())
@@ -139,7 +136,7 @@ impl ProductGroupService {
             add_time: now_seconds() as i32,
             shop_id,
         };
-        let id = self.repos.catalog_product_group.insert(&row).await?;
+        let id = self.repos.catalog.product_group.insert(&row).await?;
         tracing::info!("创建商品分组成功: id={id}, shop_id={shop_id}");
         Ok(id)
     }
@@ -151,8 +148,7 @@ impl ProductGroupService {
     pub async fn update(&self, dto: &ProductGroupUpdateDTO) -> Result<()> {
         let (id, patch) = build_update_patch(dto)?;
         let affected = self
-            .repos
-            .catalog_product_group
+            .repos.catalog.product_group
             .update(id, &patch)
             .await?;
         // Java `updateById` 影响 0 行返回 false，控制器忽略 ⇒ 不报错
@@ -166,7 +162,7 @@ impl ProductGroupService {
     /// （不发 SQL），控制器返回 `void` ⇒ 静默成功。本实现保持一致。
     pub async fn delete(&self, dto: &OperateDTO) -> Result<()> {
         if let Some(id) = dto.id {
-            let deleted = self.repos.catalog_product_group.delete(id).await?;
+            let deleted = self.repos.catalog.product_group.delete(id).await?;
             tracing::info!("删除商品分组: id={id}, deleted={deleted}");
         }
         Ok(())
@@ -190,7 +186,7 @@ impl ProductGroupService {
         let Some(ids) = batch_delete_ids(dto) else {
             return Ok(false);
         };
-        let n = self.repos.catalog_product_group.delete_batch(ids).await?;
+        let n = self.repos.catalog.product_group.delete_batch(ids).await?;
         tracing::info!("批量删除商品分组: {n} 条");
         Ok(n > 0)
     }

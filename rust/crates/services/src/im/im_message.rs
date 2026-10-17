@@ -64,7 +64,7 @@ impl ImMessageService {
     /// 本片仓储。
     #[must_use]
     pub fn repo(&self) -> &ImMessageRepository {
-        &self.repos.im_im_message
+        &self.repos.im.im_message
     }
 
     // ————————————————————— 列表 —————————————————————

@@ -109,7 +109,7 @@ impl PcService {
 
     /// 便捷访问本切片独占仓储。
     fn repo(&self) -> &PcRepository {
-        &self.repos.system_pc
+        &self.repos.system.pc
     }
 
     // ——————————————————————————————————————————————

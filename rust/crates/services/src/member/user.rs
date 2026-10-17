@@ -20,7 +20,7 @@ impl UserService {
 
     /// 按 ID 查询会员。
     pub async fn find(&self, user_id: i32) -> Result<Option<User>> {
-        self.repos.member_user.find_by_id(user_id).await
+        self.repos.member.user.find_by_id(user_id).await
     }
 
     /// 手机号注册（密码 BCrypt 存储，与原 Java 兼容）。
@@ -31,7 +31,7 @@ impl UserService {
         if password.len() < 6 {
             return Err(Error::Validation("密码长度不能少于6位".into()));
         }
-        if self.repos.member_user.find_by_mobile(mobile).await?.is_some() {
+        if self.repos.member.user.find_by_mobile(mobile).await?.is_some() {
             return Err(Error::biz(400, "该手机号已注册"));
         }
         let hash = hash_password(password)?;
@@ -48,13 +48,13 @@ impl UserService {
             order_count: 0,
             ..Default::default()
         };
-        self.repos.member_user.insert(&user).await
+        self.repos.member.user.insert(&user).await
     }
 
     /// 手机号+密码登录。
     pub async fn login(&self, mobile: &str, password: &str) -> Result<User> {
         let user = self
-            .repos.member_user
+            .repos.member.user
             .find_by_mobile(mobile)
             .await?
             .ok_or_else(|| Error::biz(400, "手机号或密码错误"))?;
@@ -71,7 +71,7 @@ impl UserService {
 
     /// 修改资料（昵称/头像）。
     pub async fn update_profile(&self, user_id: i32, nickname: Option<&str>, avatar: Option<&str>) -> Result<()> {
-        self.repos.member_user.update_profile(user_id, nickname, avatar).await
+        self.repos.member.user.update_profile(user_id, nickname, avatar).await
     }
 
     /// 余额入账（充值/退款），带非负约束。
@@ -79,7 +79,7 @@ impl UserService {
         if amount <= Decimal::ZERO {
             return Err(Error::Validation("入账金额必须大于0".into()));
         }
-        self.repos.member_user.adjust_balance(user_id, amount).await
+        self.repos.member.user.adjust_balance(user_id, amount).await
     }
 
     /// 余额出账（下单支付），余额不足返回错误。
@@ -88,7 +88,7 @@ impl UserService {
             return Err(Error::Validation("扣款金额必须大于0".into()));
         }
         let affected = self
-            .repos.member_user
+            .repos.member.user
             .try_debit_balance(user_id, amount)
             .await?;
         if !affected {

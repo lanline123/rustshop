@@ -130,8 +130,7 @@ impl CommentService {
             sort_order: q.sort_order.as_deref(),
         };
         let (total, rows) = self
-            .repos
-            .catalog_comment
+            .repos.catalog.comment
             .paginate(&filters, &page)
             .await?;
         if rows.is_empty() {
@@ -147,8 +146,7 @@ impl CommentService {
             .into_iter()
             .collect();
         let product_map: HashMap<i32, Product> = self
-            .repos
-            .catalog_comment
+            .repos.catalog.comment
             .find_products(&product_ids)
             .await?
             .into_iter()
@@ -158,8 +156,7 @@ impl CommentService {
         // 子评论（Java `in(parentId, commentIds)` + groupingBy）
         let comment_ids: Vec<i32> = rows.iter().map(|c| c.comment_id).collect();
         let replies = self
-            .repos
-            .catalog_comment
+            .repos.catalog.comment
             .find_replies(&comment_ids)
             .await?;
         let mut reply_map: HashMap<i32, Vec<Comment>> = HashMap::new();
@@ -176,8 +173,7 @@ impl CommentService {
             .into_iter()
             .collect();
         let order_item_map: HashMap<i32, OrderItem> = self
-            .repos
-            .catalog_comment
+            .repos.catalog.comment
             .find_order_items(&order_item_ids)
             .await?
             .into_iter()
@@ -221,12 +217,11 @@ impl CommentService {
     /// 对应 Java `detail`：查不到抛「评价不存在」（`GlobalException` → 业务码 1001）。
     pub async fn detail(&self, id: i32) -> Result<CommentVO> {
         let c = self
-            .repos
-            .catalog_comment
+            .repos.catalog.comment
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::biz(1001, "评价不存在"))?;
-        let replies = self.repos.catalog_comment.find_replies(&[id]).await?;
+        let replies = self.repos.catalog.comment.find_replies(&[id]).await?;
         let default_avatar = self.default_avatar().await?;
         Ok(build_comment_vo(&c, None, &replies, None, &default_avatar))
     }
@@ -245,8 +240,7 @@ impl CommentService {
             .product_id
             .ok_or_else(|| Error::Validation("产品ID不能为空".into()))?;
         let shop_id = self
-            .repos
-            .catalog_comment
+            .repos.catalog.comment
             .find_product_shop_id(product_id)
             .await?
             .ok_or_else(|| Error::biz(1001, "商品不存在"))?;
@@ -286,7 +280,7 @@ impl CommentService {
             sort_order: param.sort_order.unwrap_or(DEFAULT_SORT_ORDER),
             shop_id,
         };
-        let id = self.repos.catalog_comment.insert(&comment).await?;
+        let id = self.repos.catalog.comment.insert(&comment).await?;
         tracing::info!("新增评价成功: id={id}, product_id={product_id}");
         Ok(id)
     }
@@ -307,8 +301,7 @@ impl CommentService {
             .ok_or_else(|| Error::Validation("评价管理id不能为空".into()))?;
 
         let existing = self
-            .repos
-            .catalog_comment
+            .repos.catalog.comment
             .find_by_id(comment_id)
             .await?
             .ok_or_else(|| Error::biz(1001, "评价不存在"))?;
@@ -364,7 +357,7 @@ impl CommentService {
             sort_order: dto.sort_order.unwrap_or(existing.sort_order),
             shop_id,
         };
-        let affected = self.repos.catalog_comment.update(&comment).await?;
+        let affected = self.repos.catalog.comment.update(&comment).await?;
         if affected == 0 {
             // Java `updateById` 影响 0 行会静默返回 false，接口仍 200
             tracing::warn!("更新评价未命中任何行: comment_id={comment_id}");
@@ -376,7 +369,7 @@ impl CommentService {
 
     /// 删除单条评价（`POST /adminapi/product/comment/del`，物理删除）。
     pub async fn delete(&self, id: i32) -> Result<()> {
-        let deleted = self.repos.catalog_comment.delete(id).await?;
+        let deleted = self.repos.catalog.comment.delete(id).await?;
         if !deleted {
             // Java `BaseServiceImpl#del` 返回 false，接口仍 200
             tracing::warn!("删除评价未命中: comment_id={id}");
@@ -402,8 +395,7 @@ impl CommentService {
             .ok_or_else(|| Error::Validation("值不能为空".into()))?;
         let column = normalize_update_field(field)
             .ok_or_else(|| Error::biz(1001, "field 的值有误"))?;
-        self.repos
-            .catalog_comment
+        self.repos.catalog.comment
             .update_field(id, column, val)
             .await?;
         Ok(())
@@ -420,7 +412,7 @@ impl CommentService {
         }
         let empty: [i32; 0] = [];
         let ids = dto.ids.as_deref().unwrap_or(&empty);
-        let n = self.repos.catalog_comment.delete_batch(ids).await?;
+        let n = self.repos.catalog.comment.delete_batch(ids).await?;
         tracing::info!("批量删除评价: {n} 条");
         Ok(n)
     }
@@ -444,12 +436,12 @@ impl CommentService {
         let content = xss_clean(dto.content.as_deref().unwrap_or_default());
         let now = utils::now_seconds() as i32;
 
-        if let Some(mut reply) = self.repos.catalog_comment.find_one_reply(parent_id).await? {
+        if let Some(mut reply) = self.repos.catalog.comment.find_one_reply(parent_id).await? {
             reply.content = content;
             reply.username = admin_username.to_string();
             reply.add_time = now;
             reply.user_id = admin_id;
-            self.repos.catalog_comment.update(&reply).await?;
+            self.repos.catalog.comment.update(&reply).await?;
             tracing::info!("更新评价回复: parent_id={parent_id}");
         } else {
             let reply = Comment {
@@ -464,16 +456,14 @@ impl CommentService {
                 sort_order: DEFAULT_SORT_ORDER,
                 ..Default::default()
             };
-            self.repos.catalog_comment.insert(&reply).await?;
+            self.repos.catalog.comment.insert(&reply).await?;
             // Java：新增回复成功后把父评价审核状态置 1（`updateById`）
             let parent = self
-                .repos
-                .catalog_comment
+                .repos.catalog.comment
                 .find_by_id(parent_id)
                 .await?
                 .ok_or_else(|| Error::biz(1001, "评价不存在"))?;
-            self.repos
-                .catalog_comment
+            self.repos.catalog.comment
                 .set_status(parent.comment_id, COMMENT_STATUS_APPROVED)
                 .await?;
             tracing::info!("新增评价回复: parent_id={parent_id}");
@@ -495,23 +485,19 @@ impl CommentService {
             return Ok(CommentSubNumVO::default());
         }
         let order_ids = self
-            .repos
-            .catalog_comment
+            .repos.catalog.comment
             .find_order_ids_by_user(user_id)
             .await?;
         let show_pics = self
-            .repos
-            .catalog_comment
+            .repos.catalog.comment
             .count_pending_show_pics(&order_ids, user_id)
             .await?;
         let await_comment = self
-            .repos
-            .catalog_comment
+            .repos.catalog.comment
             .count_await_comment(user_id)
             .await?;
         let commented = self
-            .repos
-            .catalog_comment
+            .repos.catalog.comment
             .count_comments_by_user(user_id)
             .await?;
         Ok(CommentSubNumVO {
@@ -548,8 +534,7 @@ impl CommentService {
         };
 
         let user = self
-            .repos
-            .member_user
+            .repos.member.user
             .find_by_id(user_id)
             .await?
             .ok_or_else(|| Error::biz(1001, "用户不存在"))?;
@@ -563,8 +548,7 @@ impl CommentService {
         };
 
         let existing = self
-            .repos
-            .catalog_comment
+            .repos.catalog.comment
             .find_one_by_order_item(user_id, order_id, order_item_id)
             .await?;
 
@@ -574,8 +558,7 @@ impl CommentService {
                 return Err(Error::biz(1001, "您已评价完成，不能重复评价"));
             }
             let pics = show_pics_json.ok_or_else(|| Error::biz(1001, "请上传晒单图片"))?;
-            self.repos
-                .catalog_comment
+            self.repos.catalog.comment
                 .update_show_pics(comment.comment_id, &pics, SHOWED)
                 .await?;
         } else {
@@ -617,23 +600,20 @@ impl CommentService {
                 sort_order: DEFAULT_SORT_ORDER,
                 shop_id: param.shop_id.unwrap_or(0),
             };
-            self.repos.catalog_comment.insert(&comment).await?;
+            self.repos.catalog.comment.insert(&comment).await?;
         }
 
         // 整单评价状态：`commentCount == orderItemIds.size()`
         let item_ids = self
-            .repos
-            .catalog_comment
+            .repos.catalog.comment
             .find_order_item_ids(order_id, user_id)
             .await?;
         let comment_count = self
-            .repos
-            .catalog_comment
+            .repos.catalog.comment
             .count_commented_order_items(order_id, user_id, &item_ids)
             .await?;
         if comment_count == item_ids.len() as i64 {
-            self.repos
-                .catalog_comment
+            self.repos.catalog.comment
                 .mark_order_commented(order_id)
                 .await?;
             tracing::info!("订单商品已全部评价: order_id={order_id}, user_id={user_id}");
@@ -649,8 +629,7 @@ impl CommentService {
     /// —— 配置缺失时按开启处理。
     pub async fn is_product_comment_enabled(&self) -> Result<bool> {
         let raw = self
-            .repos
-            .catalog_comment
+            .repos.catalog.comment
             .find_config_val(CFG_PRODUCT_COMMENT_ENABLED)
             .await?;
         Ok(!is_config_zero(raw.as_deref()))
@@ -659,8 +638,7 @@ impl CommentService {
     /// 匿名评价功能是否开启。
     async fn is_anonymous_comment_enabled(&self) -> Result<bool> {
         let raw = self
-            .repos
-            .catalog_comment
+            .repos.catalog.comment
             .find_config_val(CFG_ANONYMOUS_COMMENT_ENABLED)
             .await?;
         Ok(!is_config_zero(raw.as_deref()))
@@ -669,8 +647,7 @@ impl CommentService {
     /// 新评价初始审核状态：`commentCheck == "1"` → 待审核，否则审核通过。
     async fn comment_initial_status(&self) -> Result<i32> {
         let raw = self
-            .repos
-            .catalog_comment
+            .repos.catalog.comment
             .find_config_val(CFG_COMMENT_CHECK)
             .await?;
         Ok(initial_status(raw.as_deref()))
@@ -679,8 +656,7 @@ impl CommentService {
     /// 会员默认头像（Java `configService.getConfigByCode(DEFAULT_AVATAR).getBizVal()`）。
     async fn default_avatar(&self) -> Result<String> {
         Ok(self
-            .repos
-            .catalog_comment
+            .repos.catalog.comment
             .find_config_val(CFG_DEFAULT_AVATAR)
             .await?
             .unwrap_or_default())

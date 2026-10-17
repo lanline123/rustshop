@@ -2,6 +2,7 @@
 
 pub mod config_client;
 pub mod csrf;
+pub mod log;
 pub mod pc;
 pub mod region_client;
 
@@ -28,6 +29,7 @@ pub fn anonymous_routes(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
         .merge(csrf::anonymous_routes(state))
+        .merge(log::anonymous_routes(state))
 }
 
 /// 需登录路由（外层统一套 require_auth）。
@@ -41,6 +43,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     let mut out = Vec::new();
     out.extend(config_client::implemented_routes());
     out.extend(csrf::implemented_routes());
+    out.extend(log::implemented_routes());
     out.extend(pc::implemented_routes());
     out.extend(region_client::implemented_routes());
     out

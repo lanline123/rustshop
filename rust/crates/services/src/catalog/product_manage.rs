@@ -122,11 +122,11 @@ impl ProductManageService {
     ) -> Result<PageResult<ProductListItemVO>> {
         let page = q.page_query();
         let filter = self.build_list_filter(q, &page).await?;
-        let (total, rows) = self.repos.catalog_product_manage.paginate_products(&filter).await?;
+        let (total, rows) = self.repos.catalog.product_manage.paginate_products(&filter).await?;
 
         let ids: Vec<i32> = rows.iter().map(|p| p.product_id).collect();
         let skus = self
-            .repos.catalog_product_manage
+            .repos.catalog.product_manage
             .find_skus_by_product_ids(&ids, false)
             .await?;
         let mut sku_map: HashMap<i32, Vec<ProductSku>> = HashMap::new();
@@ -160,7 +160,7 @@ impl ProductManageService {
         // Java：categoryId > 0 时按「本分类 + 全部子孙分类」过滤
         let category_ids = match q.category_id.filter(|v| *v > 0) {
             Some(root) => {
-                let cats = self.repos.catalog_product_manage.find_categories().await?;
+                let cats = self.repos.catalog.product_manage.find_categories().await?;
                 let pairs: Vec<(i32, i32)> =
                     cats.iter().map(|c| (c.category_id, c.parent_id)).collect();
                 descendant_category_ids(&pairs, root)
@@ -173,7 +173,7 @@ impl ProductManageService {
         let group_product_ids = match q.product_group_id.filter(|v| *v > 0) {
             Some(gid) => {
                 let raw = self
-                    .repos.catalog_product_manage
+                    .repos.catalog.product_manage
                     .find_group_product_ids(gid)
                     .await?
                     .unwrap_or_default();
@@ -248,18 +248,18 @@ impl ProductManageService {
     /// Java 在商品不存在时返回 `null`（HTTP 200 + `data: null`），
     /// 因此这里返回 `Option`。
     pub async fn admin_detail(&self, product_id: i32) -> Result<Option<AdminProductDetailVO>> {
-        let Some(product) = self.repos.catalog_product_manage.find_product(product_id).await? else {
+        let Some(product) = self.repos.catalog.product_manage.find_product(product_id).await? else {
             return Ok(None);
         };
         // Java：detail 每次访问 clickCount + 1 并回写
-        self.repos.catalog_product_manage.inc_click_count(product_id).await?;
+        self.repos.catalog.product_manage.inc_click_count(product_id).await?;
 
-        let gallery = self.repos.catalog_product_manage.find_gallery(product_id).await?;
-        let videos = self.repos.catalog_product_manage.find_videos(product_id).await?;
-        let attrs = self.repos.catalog_product_manage.find_attributes(product_id).await?;
-        let article_ids = self.repos.catalog_product_manage.find_article_ids(product_id).await?;
+        let gallery = self.repos.catalog.product_manage.find_gallery(product_id).await?;
+        let videos = self.repos.catalog.product_manage.find_videos(product_id).await?;
+        let attrs = self.repos.catalog.product_manage.find_attributes(product_id).await?;
+        let article_ids = self.repos.catalog.product_manage.find_article_ids(product_id).await?;
         // Java：`getProductSkusByPid(productId, true)` —— 详情包含禁用规格
-        let skus = self.repos.catalog_product_manage.find_skus(product_id, true).await?;
+        let skus = self.repos.catalog.product_manage.find_skus(product_id, true).await?;
 
         Ok(Some(to_admin_detail(
             &product,
@@ -279,8 +279,8 @@ impl ProductManageService {
     /// `catAndBrandList`），这里按「商品编辑表单所需下拉数据」实现：
     /// 全量分类（id/名称/父级/排序/显示）+ 显示中的品牌。
     pub async fn cat_and_brand_list(&self) -> Result<CatAndBrandVO> {
-        let cats = self.repos.catalog_product_manage.find_categories().await?;
-        let brands = self.repos.catalog_product_manage.find_brands(Some(1)).await?;
+        let cats = self.repos.catalog.product_manage.find_categories().await?;
+        let brands = self.repos.catalog.product_manage.find_brands(Some(1)).await?;
         Ok(CatAndBrandVO {
             cat_list: cats.iter().map(to_category_option).collect(),
             brand_list: brands.iter().map(to_brand_option).collect(),
@@ -297,7 +297,7 @@ impl ProductManageService {
         validate_product_name(dto.product_name.as_deref())?;
         validate_product_price(dto.product_price)?;
         if let Some(sn) = non_empty(dto.product_sn.as_deref()) {
-            if self.repos.catalog_product_manage.count_product_sn(sn, None).await? > 0 {
+            if self.repos.catalog.product_manage.count_product_sn(sn, None).await? > 0 {
                 return Err(Error::biz(400, ERR_SN_EXIST));
             }
         }
@@ -315,7 +315,7 @@ impl ProductManageService {
         product.last_update = now;
         sync_free_shipping_with_shipping_type(&mut product);
 
-        let product_id = self.repos.catalog_product_manage.insert_product(&product).await?;
+        let product_id = self.repos.catalog.product_manage.insert_product(&product).await?;
         product.product_id = product_id;
 
         // 3. 子表（SKU / 相册 / 属性 / 视频 / 关联文章）
@@ -347,7 +347,7 @@ impl ProductManageService {
                 shop_id: product.shop_id,
                 ..Default::default()
             };
-            self.repos.catalog_product_manage.insert_inventory_log(&log).await?;
+            self.repos.catalog.product_manage.insert_inventory_log(&log).await?;
         }
 
         tracing::info!("创建商品成功: product_id={product_id}, sn={:?}", product.product_sn);
@@ -362,7 +362,7 @@ impl ProductManageService {
             .product_id
             .ok_or_else(|| Error::biz(400, "商品ID不能为空"))?;
         let mut db = self
-            .repos.catalog_product_manage
+            .repos.catalog.product_manage
             .find_product(product_id)
             .await?
             .ok_or_else(|| Error::biz(400, ERR_NOT_EXIST))?;
@@ -377,7 +377,7 @@ impl ProductManageService {
 
         // 2. 货号唯一（Java：自身已占用同一货号时跳过校验）
         if let Some(sn) = non_empty(dto.product_sn.as_deref()) {
-            if db.product_sn != sn && self.repos.catalog_product_manage.count_product_sn(sn, None).await? > 0 {
+            if db.product_sn != sn && self.repos.catalog.product_manage.count_product_sn(sn, None).await? > 0 {
                 return Err(Error::biz(400, ERR_SN_EXIST));
             }
         }
@@ -403,7 +403,7 @@ impl ProductManageService {
         db.last_update = utils::now_seconds() as i32;
         sync_free_shipping_with_shipping_type(&mut db);
 
-        let affected = self.repos.catalog_product_manage.update_product(&db).await?;
+        let affected = self.repos.catalog.product_manage.update_product(&db).await?;
         if affected == 0 {
             return Ok(MSG_UPDATE_FAIL.to_string());
         }
@@ -433,7 +433,7 @@ impl ProductManageService {
                     shop_id: db.shop_id,
                     ..Default::default()
                 };
-                self.repos.catalog_product_manage.insert_inventory_log(&log).await?;
+                self.repos.catalog.product_manage.insert_inventory_log(&log).await?;
             }
         }
 
@@ -452,7 +452,7 @@ impl ProductManageService {
         if ids.is_empty() {
             return Err(Error::biz(400, "商品ID不能为空"));
         }
-        let affected = self.repos.catalog_product_manage.soft_delete_products(ids).await?;
+        let affected = self.repos.catalog.product_manage.soft_delete_products(ids).await?;
         tracing::info!("软删除商品 {} 个", affected);
         Ok(affected)
     }
@@ -474,7 +474,7 @@ impl ProductManageService {
         for item in &items {
             if let Some(sn) = non_empty(item.product_sn.as_deref()) {
                 let exclude = item.product_id;
-                if self.repos.catalog_product_manage.count_product_sn(sn, exclude).await? > 0 {
+                if self.repos.catalog.product_manage.count_product_sn(sn, exclude).await? > 0 {
                     return Err(Error::biz(400, format!("{ERR_SN_EXIST}：{sn}")));
                 }
             }
@@ -485,12 +485,12 @@ impl ProductManageService {
             let Some(product_id) = item.product_id else {
                 return Err(Error::biz(400, "商品ID不能为空"));
             };
-            let Some(mut product) = self.repos.catalog_product_manage.find_product(product_id).await? else {
+            let Some(mut product) = self.repos.catalog.product_manage.find_product(product_id).await? else {
                 tracing::warn!("批量修改跳过不存在的商品: product_id={product_id}");
                 continue;
             };
             apply_batch_item(&mut product, item);
-            self.repos.catalog_product_manage.update_product(&product).await?;
+            self.repos.catalog.product_manage.update_product(&product).await?;
         }
 
         tracing::info!("商品批量修改完成: {} 行", items.len());
@@ -585,7 +585,7 @@ impl ProductManageService {
     /// 供 `GET /api/product/product/detail?id=` 使用）。
     pub async fn product_sn_by_id(&self, product_id: i32) -> Result<Option<String>> {
         Ok(self
-            .repos.catalog_product_manage
+            .repos.catalog.product_manage
             .find_product(product_id)
             .await?
             .map(|p| p.product_sn))
@@ -611,7 +611,7 @@ impl ProductManageService {
             return Err(Error::biz(400, ERR_NOT_EXIST));
         }
         let product = self
-            .repos.catalog_product_manage
+            .repos.catalog.product_manage
             .find_product_by_sn(sn)
             .await?
             .ok_or_else(|| Error::biz(400, ERR_NOT_EXIST))?;
@@ -622,13 +622,13 @@ impl ProductManageService {
         }
 
         let product_id = product.product_id;
-        let skus = self.repos.catalog_product_manage.find_skus(product_id, false).await?;
-        let gallery = self.repos.catalog_product_manage.find_gallery(product_id).await?;
-        let videos = self.repos.catalog_product_manage.find_videos(product_id).await?;
-        let attrs = self.repos.catalog_product_manage.find_attributes(product_id).await?;
+        let skus = self.repos.catalog.product_manage.find_skus(product_id, false).await?;
+        let gallery = self.repos.catalog.product_manage.find_gallery(product_id).await?;
+        let videos = self.repos.catalog.product_manage.find_videos(product_id).await?;
+        let attrs = self.repos.catalog.product_manage.find_attributes(product_id).await?;
         let service_ids = parse_id_json_lossy(product.product_service_ids.as_deref().unwrap_or(""));
         let services = self
-            .repos.catalog_product_manage
+            .repos.catalog.product_manage
             .find_services_by_ids(&service_ids)
             .await?;
 
@@ -680,16 +680,16 @@ impl ProductManageService {
     ) -> Result<()> {
         let product_id = product.product_id;
         let Some(list) = submitted else {
-            self.repos.catalog_product_manage.delete_enabled_skus(product_id).await?;
+            self.repos.catalog.product_manage.delete_enabled_skus(product_id).await?;
             return Ok(());
         };
         if list.is_empty() {
-            self.repos.catalog_product_manage.delete_enabled_skus(product_id).await?;
+            self.repos.catalog.product_manage.delete_enabled_skus(product_id).await?;
             return Ok(());
         }
         validate_sku_list(list)?;
 
-        let db_skus = self.repos.catalog_product_manage.find_skus(product_id, true).await?;
+        let db_skus = self.repos.catalog.product_manage.find_skus(product_id, true).await?;
         let db_map: HashMap<i32, ProductSku> =
             db_skus.iter().map(|s| (s.sku_id, s.clone())).collect();
         let disabled_values: HashSet<String> = db_skus
@@ -711,10 +711,10 @@ impl ProductManageService {
             }
             for item in adds {
                 let mut sku = build_sku_from_dto(item, product_id, None)?;
-                let sku_id = self.repos.catalog_product_manage.insert_sku(&sku).await?;
+                let sku_id = self.repos.catalog.product_manage.insert_sku(&sku).await?;
                 if sku.sku_sn.as_deref().is_none_or(str::is_empty) {
                     let generated = format!("{}-{sku_id}", product.product_sn);
-                    self.repos.catalog_product_manage.update_sku_sn(sku_id, &generated).await?;
+                    self.repos.catalog.product_manage.update_sku_sn(sku_id, &generated).await?;
                     sku.sku_sn = Some(generated);
                 }
                 let log = ProductInventoryLog {
@@ -729,7 +729,7 @@ impl ProductManageService {
                     shop_id: product.shop_id,
                     ..Default::default()
                 };
-                self.repos.catalog_product_manage.insert_inventory_log(&log).await?;
+                self.repos.catalog.product_manage.insert_inventory_log(&log).await?;
             }
         }
 
@@ -755,9 +755,9 @@ impl ProductManageService {
                     shop_id: product.shop_id,
                     ..Default::default()
                 };
-                self.repos.catalog_product_manage.insert_inventory_log(&log).await?;
+                self.repos.catalog.product_manage.insert_inventory_log(&log).await?;
             }
-            self.repos.catalog_product_manage.delete_skus(&dels).await?;
+            self.repos.catalog.product_manage.delete_skus(&dels).await?;
         }
 
         // — 编辑 —
@@ -775,7 +775,7 @@ impl ProductManageService {
             } else {
                 build_sku_from_dto(item, product_id, Some(db_sku))?
             };
-            self.repos.catalog_product_manage.update_sku(&merged).await?;
+            self.repos.catalog.product_manage.update_sku(&merged).await?;
             let old = db_sku.sku_stock.unwrap_or(0);
             let new = merged.sku_stock.unwrap_or(0);
             if old != new {
@@ -793,14 +793,14 @@ impl ProductManageService {
                     shop_id: product.shop_id,
                     ..Default::default()
                 };
-                self.repos.catalog_product_manage.insert_inventory_log(&log).await?;
+                self.repos.catalog.product_manage.insert_inventory_log(&log).await?;
             }
         }
 
         // — 汇总回写（Java `updateProductSkuSummary`）—
-        let saved = self.repos.catalog_product_manage.find_skus(product_id, true).await?;
+        let saved = self.repos.catalog.product_manage.find_skus(product_id, true).await?;
         if let Some((stock, price)) = summary_from_entities(&saved) {
-            self.repos.catalog_product_manage
+            self.repos.catalog.product_manage
                 .update_product_summary(product_id, stock, price)
                 .await?;
         }
@@ -816,7 +816,7 @@ impl ProductManageService {
         if list.is_empty() {
             return Ok(());
         }
-        self.repos.catalog_product_manage.delete_gallery(product.product_id).await?;
+        self.repos.catalog.product_manage.delete_gallery(product.product_id).await?;
         for (idx, pic) in list.iter().enumerate() {
             let pic_url = pic.pic_url.clone().unwrap_or_default();
             let row = ProductGallery {
@@ -831,7 +831,7 @@ impl ProductManageService {
                 shop_id: 0,
                 ..Default::default()
             };
-            self.repos.catalog_product_manage.insert_gallery(&row).await?;
+            self.repos.catalog.product_manage.insert_gallery(&row).await?;
         }
         Ok(())
     }
@@ -857,7 +857,7 @@ impl ProductManageService {
             .collect();
 
         if flattened.is_empty() {
-            self.repos.catalog_product_manage
+            self.repos.catalog.product_manage
                 .delete_attributes_except(product_id, &[])
                 .await?;
             return Ok(());
@@ -867,7 +867,7 @@ impl ProductManageService {
             .iter()
             .filter_map(|a| a.attributes_id)
             .collect();
-        self.repos.catalog_product_manage
+        self.repos.catalog.product_manage
             .delete_attributes_except(product_id, &keep_ids)
             .await?;
 
@@ -885,9 +885,9 @@ impl ProductManageService {
                 sort_order: Some(i32::try_from(idx).unwrap_or(i32::MAX)),
             };
             if a.attributes_id.is_some() {
-                self.repos.catalog_product_manage.update_attribute(&row).await?;
+                self.repos.catalog.product_manage.update_attribute(&row).await?;
             } else {
-                self.repos.catalog_product_manage.insert_attribute(&row).await?;
+                self.repos.catalog.product_manage.insert_attribute(&row).await?;
             }
         }
         Ok(())
@@ -897,7 +897,7 @@ impl ProductManageService {
     /// 先清空该商品全部视频，再按入参写入；入参为空也清空）。
     async fn sync_videos(&self, product: &Product, videos: Option<&[ProductVideoVO]>) -> Result<()> {
         let product_id = product.product_id;
-        self.repos.catalog_product_manage.delete_videos(product_id).await?;
+        self.repos.catalog.product_manage.delete_videos(product_id).await?;
         let Some(list) = videos else { return Ok(()) };
         for v in list {
             let row = ProductVideo {
@@ -909,7 +909,7 @@ impl ProductManageService {
                 video_cover: v.video_cover.clone().unwrap_or_default(),
                 format: v.format.clone().unwrap_or_default(),
             };
-            self.repos.catalog_product_manage.insert_video(&row).await?;
+            self.repos.catalog.product_manage.insert_video(&row).await?;
         }
         Ok(())
     }
@@ -922,11 +922,11 @@ impl ProductManageService {
             return Ok(());
         }
         let product_id = product.product_id;
-        self.repos.catalog_product_manage
+        self.repos.catalog.product_manage
             .delete_articles_in(product_id, list)
             .await?;
         for article_id in list {
-            self.repos.catalog_product_manage
+            self.repos.catalog.product_manage
                 .insert_article(&ProductArticle {
                     goods_id: product_id,
                     article_id: *article_id,

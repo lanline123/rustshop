@@ -47,7 +47,7 @@ impl UserBalanceLogService {
     /// 本片仓储。
     #[must_use]
     pub fn repo(&self) -> &tigshop_infrastructure::db::repo::payment::user_balance_log::UserBalanceLogRepository {
-        &self.repos.payment_user_balance_log
+        &self.repos.payment.user_balance_log
     }
 
     /// 余额日志分页列表（对应 Java `UserBalanceLogServiceImpl#list`）。

@@ -123,6 +123,26 @@ def extract_route_args(text, open_paren):
     return text[open_paren + 1 :]
 
 
+ROUTE_TABLE_RE = re.compile(r"const\s+ROUTE_TABLE\s*:\s*\[[^\]]*\]\s*=\s*\[(.*?)\n\];", re.S)
+TABLE_ENTRY_RE = re.compile(r'\(\s*"(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)"\s*,\s*"([^"]+)"\s*,\s*"([^"]*)"')
+
+
+def extract_route_table(text):
+    """Extract (method, mount_path, java_ref) from a literal `ROUTE_TABLE` const.
+
+    Several features (e.g. system/config_basic with 102 endpoints) register their
+    handlers in a loop over a specification table instead of writing one
+    `.route("literal", ...)` per endpoint.  The table is the feature's contract,
+    so coverage must count it too; entries are de-duplicated against literal
+    `.route(...)` matches by (method, full_path).
+    """
+    out = []
+    for block in ROUTE_TABLE_RE.findall(text):
+        for m in TABLE_ENTRY_RE.finditer(block):
+            out.append((m.group(1), m.group(2), m.group(3)))
+    return out
+
+
 def collect_rust_routes(crates_dir):
     """返回 ``[(method, path, java_ref, source)]``。"""
     results = []
@@ -164,6 +184,21 @@ def collect_rust_routes(crates_dir):
                                 ]
                             )
                         )
+                # 3) 规格表注册（ROUTE_TABLE + 循环注册的 feature，如 config_basic）
+                table_line = text.find("const ROUTE_TABLE")
+                tline = text[:table_line].count("\n") + 1 if table_line >= 0 else 0
+                for verb, mount, java_ref in extract_route_table(text):
+                    results.append(
+                        OrderedDict(
+                            [
+                                ("method", verb.upper()),
+                                ("path", join_path(eff_prefix, mount)),
+                                ("handler", "(ROUTE_TABLE)"),
+                                ("java_ref", java_ref),
+                                ("source", "%s:%d" % (rel, tline)),
+                            ]
+                        )
+                    )
     # 去重（同一路由可能在多处 merge）
     seen = {}
     for r in results:

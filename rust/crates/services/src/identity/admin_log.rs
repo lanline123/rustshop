@@ -55,7 +55,7 @@ impl AdminLogService {
     /// 本片仓储。
     #[must_use]
     pub fn repo(&self) -> &tigshop_infrastructure::db::repo::identity::admin_log::AdminLogRepository {
-        &self.repos.identity_admin_log
+        &self.repos.identity.admin_log
     }
 
     /// 管理员日志分页（对应 Java `AdminLogServiceImpl#adminLogPage`）。

@@ -4,7 +4,7 @@
 //! `product_attributes`（附加规格价 / 规格缩略图）、`e_card`（卡密商品可用库存）、
 //! `gift_card_groups`（礼品卡组可用库存与状态）。
 //!
-//! 商品主表 / 规格表 / 商品列表分页**直接复用** `repos.catalog_product_manage`
+//! 商品主表 / 规格表 / 商品列表分页**直接复用** `repos.catalog.product_manage`
 //! （`find_product` / `find_product_by_sn` / `find_skus` / `paginate_products`），
 //! 因为 `crates/infrastructure/src/db/repo/product_manage.rs` 是其它实现者的独占文件，
 //! 本切片不得修改；而它的方法签名已完全满足本域需求，无需重复实现。

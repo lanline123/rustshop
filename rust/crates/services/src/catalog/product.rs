@@ -29,7 +29,7 @@ impl ProductService {
             page: query.page.unwrap_or(1),
             page_size: query.page_size.unwrap_or(20),
         };
-        let (total, products) = self.repos.catalog_product.paginate(query).await?;
+        let (total, products) = self.repos.catalog.product.paginate(query).await?;
         let list = products.into_iter().map(to_vo).collect();
         Ok(PageResult::new(total, list, &page))
     }
@@ -40,7 +40,7 @@ impl ProductService {
 
         let loader = || async {
             let p = self
-                .repos.catalog_product
+                .repos.catalog.product
                 .find_by_id(product_id)
                 .await?
                 .ok_or_else(|| Error::NotFound(format!("商品 {product_id} 不存在")))?;
@@ -67,7 +67,7 @@ impl ProductService {
             return Err(Error::Validation("购买数量必须大于0".into()));
         }
         if !self
-            .repos.catalog_product
+            .repos.catalog.product
             .check_purchasable(product_id, sku_id, quantity)
             .await?
         {
@@ -87,7 +87,7 @@ impl ProductService {
         quantity: i32,
     ) -> Result<()> {
         let ok = self
-            .repos.catalog_product
+            .repos.catalog.product
             .deduct_stock(product_id, sku_id, quantity)
             .await?;
         if !ok {
@@ -108,7 +108,7 @@ impl ProductService {
         sku_id: Option<i32>,
         quantity: i32,
     ) -> Result<()> {
-        self.repos.catalog_product
+        self.repos.catalog.product
             .restore_stock(product_id, sku_id, quantity)
             .await?;
         self.invalidate_detail_cache(product_id).await;

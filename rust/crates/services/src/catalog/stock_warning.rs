@@ -486,7 +486,7 @@ impl StockWarningService {
     /// 无记录视为开启（升级后存量环境的预警能力不中断）。
     pub async fn get_setting(&self, shop_id: Option<i32>) -> Result<StockWarningSettingVO> {
         let owner_shop_id = normalize_shop_id(shop_id);
-        let setting = self.repos.catalog_stock_warning.find_setting(owner_shop_id).await?;
+        let setting = self.repos.catalog.stock_warning.find_setting(owner_shop_id).await?;
         Ok(StockWarningSettingVO {
             shop_id: owner_shop_id,
             notify_enabled: setting.map_or(ENABLED, |s| s.notify_enabled),
@@ -503,7 +503,7 @@ impl StockWarningService {
         // Java：`Objects.equals(notifyEnabled, 1) ? 1 : 0`
         let notify_enabled = i32::from(notify_enabled == ENABLED);
         let now = utils::now_seconds();
-        match self.repos.catalog_stock_warning.find_setting(owner_shop_id).await? {
+        match self.repos.catalog.stock_warning.find_setting(owner_shop_id).await? {
             None => {
                 let setting = StockWarningSetting {
                     shop_id: owner_shop_id,
@@ -511,10 +511,10 @@ impl StockWarningService {
                     create_time: now,
                     update_time: now,
                 };
-                self.repos.catalog_stock_warning.insert_setting(&setting).await
+                self.repos.catalog.stock_warning.insert_setting(&setting).await
             }
             Some(_) => {
-                self.repos.catalog_stock_warning
+                self.repos.catalog.stock_warning
                     .update_setting(owner_shop_id, notify_enabled, now)
                     .await
             }
@@ -547,7 +547,7 @@ impl StockWarningService {
             sort_field: query.sort_field.clone(),
             sort_order: query.sort_order.clone(),
         };
-        let (total, rows) = self.repos.catalog_stock_warning.paginate_warning(&spec, &page).await?;
+        let (total, rows) = self.repos.catalog.stock_warning.paginate_warning(&spec, &page).await?;
         if rows.is_empty() {
             return Ok(PageResult::new(total, Vec::new(), &page));
         }
@@ -581,7 +581,7 @@ impl StockWarningService {
             sort_field: None,
             sort_order: None,
         };
-        let rows = self.repos.catalog_stock_warning.list_warning(&spec).await?;
+        let rows = self.repos.catalog.stock_warning.list_warning(&spec).await?;
         if rows.is_empty() {
             return Ok(Vec::new());
         }
@@ -678,7 +678,7 @@ impl StockWarningService {
         let enabled = i32::from(warn_enabled == Some(ENABLED));
         let now = utils::now_seconds();
         match self
-            .repos.catalog_stock_warning
+            .repos.catalog.stock_warning
             .find_rule(owner_shop_id, product_id, sku_id)
             .await?
         {
@@ -697,7 +697,7 @@ impl StockWarningService {
                     create_time: now,
                     update_time: now,
                 };
-                self.repos.catalog_stock_warning.insert_rule(&rule).await?;
+                self.repos.catalog.stock_warning.insert_rule(&rule).await?;
             }
             Some(mut rule) => {
                 rule.warn_enabled = enabled;
@@ -705,7 +705,7 @@ impl StockWarningService {
                 rule.upper_limit = upper_limit;
                 rule.last_warn_status = StockWarningStatus::Normal.code();
                 rule.update_time = now;
-                self.repos.catalog_stock_warning.update_rule(&rule).await?;
+                self.repos.catalog.stock_warning.update_rule(&rule).await?;
             }
         }
         Ok(())
@@ -881,7 +881,7 @@ impl StockWarningService {
         // 行数不可控，分批查询避免 IN 列表过长
         for batch in sn_list.chunks(SN_QUERY_BATCH_SIZE) {
             for target in self
-                .repos.catalog_stock_warning
+                .repos.catalog.stock_warning
                 .select_targets_by_sn(owner_shop_id, batch)
                 .await?
             {
@@ -928,7 +928,7 @@ impl StockWarningService {
                 owner_type: StockWarningOwnerType::SelfOperated,
             });
         }
-        match self.repos.catalog_stock_warning.find_shop_brief(owner_shop_id).await? {
+        match self.repos.catalog.stock_warning.find_shop_brief(owner_shop_id).await? {
             None => Ok(Owner {
                 name: String::new(),
                 owner_type: StockWarningOwnerType::Shop,
@@ -966,7 +966,7 @@ impl StockWarningService {
             return Ok(HashSet::new());
         }
         Ok(self
-            .repos.catalog_stock_warning
+            .repos.catalog.stock_warning
             .select_visible_product_ids(owner_shop_id, &ids)
             .await?
             .into_iter()

@@ -374,7 +374,7 @@ impl WorkbuddyService {
 
     /// 本域仓储的便捷取用。
     fn r(&self) -> &WorkbuddyRepository {
-        &self.repos.openapi_workbuddy
+        &self.repos.openapi.workbuddy
     }
 
     /// 当前毫秒时间戳（Java `System.currentTimeMillis()`）。

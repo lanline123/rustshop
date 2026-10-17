@@ -108,7 +108,7 @@ impl OrderConfigService {
     /// 详见模块头「核心结论」与 `uncertain_points`。
     pub async fn list(&self, q: &OrderConfigListQuery) -> Result<PageResult<OrderConfigVO>> {
         let page = q.page_query();
-        let (total, rows) = self.repos.merchant_order_config.paginate(q).await?;
+        let (total, rows) = self.repos.merchant.order_config.paginate(q).await?;
         let list: Vec<OrderConfigVO> = rows.iter().map(OrderConfigVO::from).collect();
         Ok(PageResult::new(total, list, &page))
     }
@@ -126,7 +126,7 @@ impl OrderConfigService {
     /// ⚠️ VO 形状的取舍同 [`OrderConfigService::list`]。
     pub async fn detail(&self, id: i32) -> Result<OrderConfigVO> {
         let c = self
-            .repos.merchant_order_config
+            .repos.merchant.order_config
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::NotFound(MSG_ORDER_CONFIG_NOT_FOUND.into()))?;
@@ -176,7 +176,7 @@ impl OrderConfigService {
 
         // 3. 入库（`data` 可空 ⇒ None 时走 MySQL 列默认值 NULL）
         let id = self
-            .repos.merchant_order_config
+            .repos.merchant.order_config
             .insert(&OrderConfigInsert {
                 shop_id: Some(shop_id),
                 code: Some(code.to_string()),
@@ -229,11 +229,11 @@ impl OrderConfigService {
 
         // 4. 记录必须存在（Java `updateById` 命中 0 行静默返回 false，
         //    这里先查一次以便区分「不存在」与「值未变化」）
-        if self.repos.merchant_order_config.find_by_id(id).await?.is_none() {
+        if self.repos.merchant.order_config.find_by_id(id).await?.is_none() {
             return Err(Error::NotFound(MSG_ORDER_CONFIG_NOT_FOUND.into()));
         }
 
-        let affected = self.repos.merchant_order_config.update(id, &patch).await?;
+        let affected = self.repos.merchant.order_config.update(id, &patch).await?;
         tracing::info!("更新订单配置: id={id}, 影响 {affected} 行");
         Ok(affected > 0)
     }
@@ -255,7 +255,7 @@ impl OrderConfigService {
             .id
             .filter(|v| *v > 0)
             .ok_or_else(|| Error::Validation(MSG_ID_REQUIRED.into()))?;
-        self.repos.merchant_order_config.delete(id).await
+        self.repos.merchant.order_config.delete(id).await
     }
 
     // ————————————————————— 单字段更新 —————————————————————
@@ -308,7 +308,7 @@ impl OrderConfigService {
         }
 
         let val = dto.val.as_deref().unwrap_or_default();
-        let affected = self.repos.merchant_order_config.update_field(id, column, val).await?;
+        let affected = self.repos.merchant.order_config.update_field(id, column, val).await?;
         Ok(affected > 0)
     }
 
@@ -331,7 +331,7 @@ impl OrderConfigService {
             // Java `removeByIds(空集合)` 直接返回 false，不产生 SQL
             return Ok(false);
         }
-        let affected = self.repos.merchant_order_config.delete_many(&dto.ids).await?;
+        let affected = self.repos.merchant.order_config.delete_many(&dto.ids).await?;
         Ok(affected > 0)
     }
 
@@ -352,7 +352,7 @@ impl OrderConfigService {
         code: &str,
     ) -> Result<Option<String>> {
         let c = self
-            .repos.merchant_order_config
+            .repos.merchant.order_config
             .find_by_shop_and_code(shop_id, code)
             .await?;
         Ok(c.and_then(|c| c.data))

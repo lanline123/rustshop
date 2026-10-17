@@ -428,7 +428,7 @@ impl BuyerShowService {
     /// 本实现返回明确业务错误 [`MSG_VIRTUAL_USER_NOT_FOUND`]。
     pub async fn get_buyer_info(&self) -> Result<BuyerVO> {
         let row = self
-            .repos.marketing_buyer_show
+            .repos.marketing.buyer_show
             .find_random_virtual_user()
             .await?
             .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, MSG_VIRTUAL_USER_NOT_FOUND))?;
@@ -487,7 +487,7 @@ impl BuyerShowService {
 
         // 3、落库（主记录 + 素材在同一事务）
         let id = self
-            .repos.marketing_buyer_show
+            .repos.marketing.buyer_show
             .create_buyer_show_with_assets(&row, &assets)
             .await?;
         if id <= 0 {
@@ -517,7 +517,7 @@ impl BuyerShowService {
         let order_sql = order_by_clause(q.sort_field.as_deref(), q.sort_order.as_deref());
 
         let (total, rows) = self
-            .repos.marketing_buyer_show
+            .repos.marketing.buyer_show
             .paginate_buyer_shows(q, start_ts, end_ts, &order_sql)
             .await?;
 
@@ -537,16 +537,16 @@ impl BuyerShowService {
             v
         };
 
-        let users = username_map(self.repos.marketing_buyer_show.find_users(&user_ids).await?);
-        let gallery_map = group_by_show(self.repos.marketing_buyer_show.find_gallery_in(&ids).await?, |g| {
+        let users = username_map(self.repos.marketing.buyer_show.find_users(&user_ids).await?);
+        let gallery_map = group_by_show(self.repos.marketing.buyer_show.find_gallery_in(&ids).await?, |g| {
             g.buyer_show_id
         });
-        let video_map = group_by_show(self.repos.marketing_buyer_show.find_videos_in(&ids).await?, |v| {
+        let video_map = group_by_show(self.repos.marketing.buyer_show.find_videos_in(&ids).await?, |v| {
             v.buyer_show_id
         });
-        let like_map = count_map(self.repos.marketing_buyer_show.count_likes_by_show(&ids).await?);
-        let comment_map = count_map(self.repos.marketing_buyer_show.count_comments_by_show(&ids).await?);
-        let groups = self.repos.marketing_buyer_show.find_all_groups().await?;
+        let like_map = count_map(self.repos.marketing.buyer_show.count_likes_by_show(&ids).await?);
+        let comment_map = count_map(self.repos.marketing.buyer_show.count_comments_by_show(&ids).await?);
+        let groups = self.repos.marketing.buyer_show.find_all_groups().await?;
 
         let list = rows
             .iter()
@@ -601,20 +601,20 @@ impl BuyerShowService {
     /// 本实现照抄（`find_gallery` / `find_videos` 不带排序）。
     pub async fn detail(&self, buyer_show_id: i32) -> Result<BuyerShowVO> {
         let b = self
-            .repos.marketing_buyer_show
+            .repos.marketing.buyer_show
             .find_buyer_show(buyer_show_id)
             .await?
             .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, MSG_BUYER_SHOW_NOT_FOUND))?;
 
         let (buyer_name, buyer_photo) = if b.user_id > VIRTUAL_USER_ID {
-            let owners = owner_map(self.repos.marketing_buyer_show.find_users(&[b.user_id]).await?);
+            let owners = owner_map(self.repos.marketing.buyer_show.find_users(&[b.user_id]).await?);
             detail_owner(&b, owners.get(&b.user_id))
         } else {
             (b.buyer_name.clone(), b.buyer_photo.clone())
         };
 
-        let img_list = self.repos.marketing_buyer_show.find_gallery(buyer_show_id).await?;
-        let video_list = self.repos.marketing_buyer_show.find_videos(buyer_show_id).await?;
+        let img_list = self.repos.marketing.buyer_show.find_gallery(buyer_show_id).await?;
+        let video_list = self.repos.marketing.buyer_show.find_videos(buyer_show_id).await?;
 
         let (group_id_list, group_name_list) = match b.group_data.as_deref() {
             Some(raw) => {
@@ -622,7 +622,7 @@ impl BuyerShowService {
                 if wanted.is_empty() {
                     (None, None)
                 } else {
-                    let groups = self.repos.marketing_buyer_show.find_groups_in(&wanted).await?;
+                    let groups = self.repos.marketing.buyer_show.find_groups_in(&wanted).await?;
                     (
                         Some(wanted),
                         Some(groups.into_iter().map(|g| g.group_name).collect()),
@@ -664,7 +664,7 @@ impl BuyerShowService {
         assert_gallery_inputs(p.img_list.as_deref())?;
 
         let existing = self
-            .repos.marketing_buyer_show
+            .repos.marketing.buyer_show
             .find_buyer_show(buyer_show_id)
             .await?
             .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, MSG_BUYER_SHOW_NOT_FOUND))?;
@@ -698,10 +698,10 @@ impl BuyerShowService {
 
         // Java 顺序：先素材、后主记录
         let assets = build_assets(p.img_list.as_deref(), p.buyer_show_video_list.as_deref());
-        self.repos.marketing_buyer_show
+        self.repos.marketing.buyer_show
             .replace_assets(buyer_show_id, &assets)
             .await?;
-        self.repos.marketing_buyer_show
+        self.repos.marketing.buyer_show
             .update_buyer_show(buyer_show_id, &row)
             .await?;
         Ok(())
@@ -747,7 +747,7 @@ impl BuyerShowService {
             return Ok(false);
         }
         let affected = self
-            .repos.marketing_buyer_show
+            .repos.marketing.buyer_show
             .delete_buyer_shows_cascade(ids, is_deletable_status)
             .await?;
         Ok(affected > 0)
@@ -769,7 +769,7 @@ impl BuyerShowService {
             .status
             .ok_or_else(|| Error::Validation(MSG_AUDIT_STATUS_REQUIRED.into()))?;
         let is_show = if status == STATUS_APPROVED { YES } else { NO };
-        self.repos.marketing_buyer_show
+        self.repos.marketing.buyer_show
             .update_audit(buyer_show_id, status, is_show)
             .await
     }
@@ -791,7 +791,7 @@ impl BuyerShowService {
         }
         let value = dto.value.unwrap_or(0);
         let is_show = if value == STATUS_APPROVED { YES } else { NO };
-        self.repos.marketing_buyer_show
+        self.repos.marketing.buyer_show
             .batch_audit(&sort_dedup(&ids), value, is_show)
             .await?;
         Ok(true)
@@ -810,7 +810,7 @@ impl BuyerShowService {
         let is_show = p
             .is_show
             .ok_or_else(|| Error::Validation(MSG_IS_SHOW_REQUIRED.into()))?;
-        self.repos.marketing_buyer_show
+        self.repos.marketing.buyer_show
             .update_is_show(buyer_show_id, is_show)
             .await
     }
@@ -857,7 +857,7 @@ impl BuyerShowService {
             content: Some(content),
             add_time: tigshop_common::utils::now_seconds(),
         };
-        self.repos.marketing_buyer_show.insert_admin_comment(&row).await
+        self.repos.marketing.buyer_show.insert_admin_comment(&row).await
     }
 
     /// `POST /adminapi/promotion/buyerShow/updateField`：更新单个字段。
@@ -885,7 +885,7 @@ impl BuyerShowService {
             .map_err(|_| Error::biz(SERVICE_DATA_ERROR, MSG_FIELD_VALUE_NOT_INTEGER))?;
         let affected = match field {
             tigshop_core::models::marketing::buyer_show::BuyerShowEditableField::SortOrder => {
-                self.repos.marketing_buyer_show.update_sort_order(id, val).await?
+                self.repos.marketing.buyer_show.update_sort_order(id, val).await?
             }
         };
         Ok(affected > 0)

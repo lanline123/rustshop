@@ -23,13 +23,25 @@ use tigshop_infrastructure::cache::CacheService;
 use tigshop_infrastructure::db::{self, Repositories};
 use tigshop_security::JwtService;
 use tigshop_services::catalog::comment::CommentService;
+use tigshop_services::catalog::e_card::ECardService;
+use tigshop_services::catalog::e_card_group::ECardGroupService;
+use tigshop_services::catalog::exchange::ExchangeService;
 use tigshop_services::catalog::price_inquiry::PriceInquiryService;
+use tigshop_services::catalog::product_batch::ProductBatchService;
 use tigshop_services::catalog::product_group::ProductGroupService;
+use tigshop_services::catalog::product_inventory_log::ProductInventoryLogService;
+use tigshop_services::catalog::product_search::ProductSearchService;
+use tigshop_services::catalog::search_admin::SearchAdminService;
+use tigshop_services::catalog::services::ServicesService;
+use tigshop_services::identity::admin_account::AdminAccountService;
 use tigshop_services::identity::admin_role::AdminRoleService;
 use tigshop_services::identity::auth::AuthService;
 use tigshop_services::logistics::print::PrintService;
 use tigshop_services::logistics::print_log::PrintLogService;
+use tigshop_services::system::config_basic::ConfigBasicService;
 use tigshop_services::system::csrf::CsrfService;
+use tigshop_services::system::log::LogService;
+use tigshop_services::system::tips_manage::TipsManageService;
 use tigshop_services::trade::cart::CartService;
 use tigshop_services::catalog::category_all::CatalogService;
 use tigshop_services::content::article::ContentService;
@@ -264,6 +276,7 @@ async fn main() -> anyhow::Result<()> {
     let salesman = Arc::new(SalesmanService::new(repos.clone()));
 
     let admin_role = Arc::new(AdminRoleService::new(repos.clone()));
+    let admin_account = Arc::new(AdminAccountService::new(repos.clone()));
     // ---- identity 域 ----
     let identity = Arc::new(tigshop_services::identity::Services {
         admin_log: admin_log.clone(),
@@ -271,6 +284,7 @@ async fn main() -> anyhow::Result<()> {
         auth: auth.clone(),
         authority: authority.clone(),
             admin_role: admin_role.clone(),
+        admin_account: admin_account.clone(),
 });
     // ---- merchant 域 ----
     let merchant = Arc::new(tigshop_services::merchant::Services {
@@ -290,6 +304,14 @@ async fn main() -> anyhow::Result<()> {
     let comment = Arc::new(CommentService::new(repos.clone()));
     let price_inquiry = Arc::new(PriceInquiryService::new(repos.clone()));
     let product_group = Arc::new(ProductGroupService::new(repos.clone()));
+    let e_card_group = Arc::new(ECardGroupService::new(repos.clone()));
+    let e_card = Arc::new(ECardService::new(repos.clone()));
+    let product_batch = Arc::new(ProductBatchService::new(repos.clone()));
+    let search_admin = Arc::new(SearchAdminService::new(repos.clone()));
+    let product_inventory_log = Arc::new(ProductInventoryLogService::new(repos.clone()));
+    let product_search = Arc::new(ProductSearchService::new(repos.clone()));
+    let services = Arc::new(ServicesService::new(repos.clone()));
+    let exchange = Arc::new(ExchangeService::new(repos.clone()));
     // ---- catalog 域 ----
     let catalog = Arc::new(tigshop_services::catalog::Services {
         attributes_tpl: attributes_tpl.clone(),
@@ -304,6 +326,14 @@ async fn main() -> anyhow::Result<()> {
             comment: comment.clone(),
         price_inquiry: price_inquiry.clone(),
         product_group: product_group.clone(),
+        e_card_group: e_card_group.clone(),
+        e_card: e_card.clone(),
+        product_batch: product_batch.clone(),
+        search_admin: search_admin.clone(),
+        product_inventory_log: product_inventory_log.clone(),
+        product_search: product_search.clone(),
+        services: services.clone(),
+        exchange: exchange.clone(),
 });
     // ---- trade 域 ----
     let trade = Arc::new(tigshop_services::trade::Services {
@@ -380,6 +410,9 @@ async fn main() -> anyhow::Result<()> {
         wechat_live_sync_callback: wechat_live_sync_callback.clone(),
     });
     let csrf = Arc::new(CsrfService::new(cache.clone()));
+    let config_basic = Arc::new(ConfigBasicService::new(repos.clone()));
+    let tips_manage = Arc::new(TipsManageService::new(repos.clone()));
+    let log = Arc::new(LogService::new(repos.clone()));
     // ---- system 域 ----
     let system = Arc::new(tigshop_services::system::Services {
         app_version_admin: app_version_admin.clone(),
@@ -394,6 +427,9 @@ async fn main() -> anyhow::Result<()> {
         region: region.clone(),
         region_client: region_client.clone(),
             csrf: csrf.clone(),
+        config_basic: config_basic.clone(),
+        tips_manage: tips_manage.clone(),
+        log: log.clone(),
 });
     // ---- im 域 ----
     let im = Arc::new(tigshop_services::im::Services {

@@ -54,7 +54,7 @@ impl TimeDiscountService {
         };
         let now = utils::now_seconds() as i32;
         let (total, rows) = self
-            .repos.marketing_time_discount
+            .repos.marketing.time_discount
             .paginate(q.keyword.as_deref(), q.shop_id, &page)
             .await?;
 
@@ -68,7 +68,7 @@ impl TimeDiscountService {
     /// 活动详情。
     pub async fn detail(&self, discount_id: i32) -> Result<TimeDiscountDetailVO> {
         let d = self
-            .repos.marketing_time_discount
+            .repos.marketing.time_discount
             .find_by_id(discount_id)
             .await?
             .ok_or_else(|| Error::NotFound("限时折扣活动不存在".into()))?;
@@ -96,11 +96,11 @@ impl TimeDiscountService {
             add_time: Some(utils::now_seconds() as i32),
             ..Default::default()
         };
-        let discount_id = self.repos.marketing_time_discount.insert(&activity).await?;
+        let discount_id = self.repos.marketing.time_discount.insert(&activity).await?;
 
         for item in &dto.item {
             let row = build_item(discount_id, item, start, end);
-            self.repos.marketing_time_discount.insert_item(&row).await?;
+            self.repos.marketing.time_discount.insert_item(&row).await?;
         }
 
         tracing::info!(
@@ -114,7 +114,7 @@ impl TimeDiscountService {
     pub async fn update(&self, dto: &TimeDiscountUpdateDTO) -> Result<()> {
         let (start, end) = self.validate(&dto.base)?;
 
-        self.repos.marketing_time_discount
+        self.repos.marketing.time_discount
             .find_by_id(dto.discount_id)
             .await?
             .ok_or_else(|| Error::NotFound("限时折扣活动不存在".into()))?;
@@ -131,14 +131,14 @@ impl TimeDiscountService {
             shop_id: dto.base.shop_id.unwrap_or(0),
             ..Default::default()
         };
-        self.repos.marketing_time_discount.update(&activity).await?;
+        self.repos.marketing.time_discount.update(&activity).await?;
 
-        self.repos.marketing_time_discount
+        self.repos.marketing.time_discount
             .delete_items(dto.discount_id)
             .await?;
         for item in &dto.base.item {
             let row = build_item(dto.discount_id, item, start, end);
-            self.repos.marketing_time_discount.insert_item(&row).await?;
+            self.repos.marketing.time_discount.insert_item(&row).await?;
         }
 
         tracing::info!("更新限时折扣活动成功: id={}", dto.discount_id);
@@ -147,11 +147,11 @@ impl TimeDiscountService {
 
     /// 删除活动（连同明细）。
     pub async fn delete(&self, discount_id: i32) -> Result<()> {
-        self.repos.marketing_time_discount
+        self.repos.marketing.time_discount
             .find_by_id(discount_id)
             .await?
             .ok_or_else(|| Error::NotFound("限时折扣活动不存在".into()))?;
-        self.repos.marketing_time_discount.delete(discount_id).await?;
+        self.repos.marketing.time_discount.delete(discount_id).await?;
         tracing::info!("删除限时折扣活动: id={discount_id}");
         Ok(())
     }
@@ -214,7 +214,7 @@ impl TimeDiscountService {
     ) -> Result<Option<Decimal>> {
         let now = utils::now_seconds() as i32;
         let items = self
-            .repos.marketing_time_discount
+            .repos.marketing.time_discount
             .find_active_items(product_id, now)
             .await?;
 
@@ -246,7 +246,7 @@ impl TimeDiscountService {
 
         for (product_id, group) in by_product {
             let items = self
-                .repos.marketing_time_discount
+                .repos.marketing.time_discount
                 .find_items_for_product(discount_id, product_id)
                 .await?;
             for line in group {
@@ -300,7 +300,7 @@ impl TimeDiscountService {
         };
         let now = utils::now_seconds() as i32;
         let (total, items) = self
-            .repos.marketing_time_discount
+            .repos.marketing.time_discount
             .find_active_page(now, &page)
             .await?;
         let list = items.iter().map(|it| to_promotion_vo(it, now)).collect();
@@ -326,7 +326,7 @@ impl TimeDiscountService {
         }
         let now = utils::now_seconds() as i32;
         let items = self
-            .repos.marketing_time_discount
+            .repos.marketing.time_discount
             .find_active_items(product_id, now)
             .await?;
         let applies = items.iter().any(|it| Self::applies_to_sku(it, sku_id));
@@ -417,7 +417,7 @@ impl TimeDiscountService {
         }
 
         let discount_conflicts = self
-            .repos.marketing_time_discount
+            .repos.marketing.time_discount
             .count_conflicting_discount(product_ids, start, end, exclude_discount_id)
             .await?;
         if discount_conflicts > 0 {
@@ -425,7 +425,7 @@ impl TimeDiscountService {
         }
 
         let seckill_conflicts = self
-            .repos.marketing_time_discount
+            .repos.marketing.time_discount
             .count_conflicting_seckill(product_ids, start, end)
             .await?;
         if seckill_conflicts > 0 {
@@ -437,7 +437,7 @@ impl TimeDiscountService {
 
     /// 实体 → 详情 VO。
     async fn to_vo(&self, d: &TimeDiscount, now: i32) -> Result<TimeDiscountDetailVO> {
-        let items = self.repos.marketing_time_discount.find_items(d.discount_id).await?;
+        let items = self.repos.marketing.time_discount.find_items(d.discount_id).await?;
         let status = PromotionTimeStatus::of(now, d.start_time, d.end_time);
         Ok(TimeDiscountDetailVO {
             discount_id: d.discount_id,

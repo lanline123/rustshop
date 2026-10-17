@@ -85,7 +85,7 @@ impl CategoryService {
 
     /// 便捷访问本切片独占仓储。
     fn repo(&self) -> &CategoryRepository {
-        &self.repos.catalog_category
+        &self.repos.catalog.category
     }
 
     // ═══════════════════════ 管理端 ═══════════════════════

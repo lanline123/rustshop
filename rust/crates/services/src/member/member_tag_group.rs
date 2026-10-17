@@ -209,7 +209,7 @@ impl MemberTagGroupService {
     /// 仓储引用（便于测试与后续切片复用）。
     #[must_use]
     pub fn repo(&self) -> &MemberTagGroupRepository {
-        &self.repos.member_member_tag_group
+        &self.repos.member.member_tag_group
     }
 
     // ————————————————————— 详情 —————————————————————
@@ -233,7 +233,7 @@ impl MemberTagGroupService {
     /// - 数据库失败 → `Error::Database`
     pub async fn detail(&self, id: i64, shop_id: i32) -> Result<MemberTagGroupDetailVO> {
         let group = self
-            .repos.member_member_tag_group
+            .repos.member.member_tag_group
             .find_group_by_id(id)
             .await?
             .ok_or_else(|| Error::NotFound(MSG_GROUP_NOT_FOUND.into()))?;
@@ -242,7 +242,7 @@ impl MemberTagGroupService {
         }
 
         let tags = self
-            .repos.member_member_tag_group
+            .repos.member.member_tag_group
             .list_tags_by_group(shop_id, id)
             .await?;
         let tag_vos: Vec<MemberTagVO> = tags.iter().map(MemberTagVO::from).collect();
@@ -288,13 +288,13 @@ impl MemberTagGroupService {
         let now = now_secs();
 
         // 2–5. 同一事务：先插组拿主键，再逐条插标签（Java `@Transactional`）
-        let mut tx = self.repos.member_member_tag_group.begin().await?;
+        let mut tx = self.repos.member.member_tag_group.begin().await?;
         let group_id = self
-            .repos.member_member_tag_group
+            .repos.member.member_tag_group
             .insert_group(&mut tx, shop_id, &group_name, operator, now)
             .await?;
         for tag_name in &tag_names {
-            self.repos.member_member_tag_group
+            self.repos.member.member_tag_group
                 .insert_tag(&mut tx, shop_id, group_id, tag_name, operator, now)
                 .await?;
         }
@@ -344,11 +344,11 @@ impl MemberTagGroupService {
         let (id, group_name, items) = validate_update(dto).map_err(Error::Validation)?;
         let now = now_secs();
 
-        let mut tx = self.repos.member_member_tag_group.begin().await?;
+        let mut tx = self.repos.member.member_tag_group.begin().await?;
 
         // 3. 归属校验（Java `selectById` + 三重判定）
         let group = self
-            .repos.member_member_tag_group
+            .repos.member.member_tag_group
             .find_group_by_id_in_tx(&mut tx, id)
             .await?
             .ok_or_else(|| Error::NotFound(MSG_GROUP_NOT_FOUND.into()))?;
@@ -357,13 +357,13 @@ impl MemberTagGroupService {
         }
 
         // 4. `group.setGroupName(...); updateById(group)`
-        self.repos.member_member_tag_group
+        self.repos.member.member_tag_group
             .update_group_name(&mut tx, id, &group_name, operator, now)
             .await?;
 
         // 5. 组下已有标签
         let existing_rows = self
-            .repos.member_member_tag_group
+            .repos.member.member_tag_group
             .list_tags_by_group_in_tx(&mut tx, shop_id, id)
             .await?;
         let existing = to_existing_tags(&existing_rows);
@@ -373,24 +373,24 @@ impl MemberTagGroupService {
 
         // 6① 删除：逻辑删标签 + 物理清关联（顺序与 Java 一致：先清关联）
         for tag_id in &plan.delete_ids {
-            self.repos.member_member_tag_group
+            self.repos.member.member_tag_group
                 .delete_user_tag_links(&mut tx, shop_id, *tag_id)
                 .await?;
-            self.repos.member_member_tag_group
+            self.repos.member.member_tag_group
                 .logical_delete_tag(&mut tx, *tag_id)
                 .await?;
         }
 
         // 6② 改名（Java 只在名称变化时才 `updateById`）
         for (tag_id, name) in &plan.rename_ids {
-            self.repos.member_member_tag_group
+            self.repos.member.member_tag_group
                 .update_tag_name(&mut tx, *tag_id, name, operator, now)
                 .await?;
         }
 
         // 6③ 新增（提交项无 ID）
         for name in &plan.insert_names {
-            self.repos.member_member_tag_group
+            self.repos.member.member_tag_group
                 .insert_tag(&mut tx, shop_id, id, name, operator, now)
                 .await?;
         }
@@ -443,11 +443,11 @@ impl MemberTagGroupService {
             .group_id()
             .ok_or_else(|| Error::Validation(MSG_ID_REQUIRED.into()))?;
 
-        let mut tx = self.repos.member_member_tag_group.begin().await?;
+        let mut tx = self.repos.member.member_tag_group.begin().await?;
 
         // 3. 归属校验
         let group = self
-            .repos.member_member_tag_group
+            .repos.member.member_tag_group
             .find_group_by_id_in_tx(&mut tx, id)
             .await?
             .ok_or_else(|| Error::NotFound(MSG_GROUP_NOT_FOUND.into()))?;
@@ -457,7 +457,7 @@ impl MemberTagGroupService {
 
         // 4. 组下标签
         let tags = self
-            .repos.member_member_tag_group
+            .repos.member.member_tag_group
             .list_tags_by_group_in_tx(&mut tx, shop_id, id)
             .await?;
         let tag_ids: Vec<i64> = tags.iter().map(|t| t.id).collect();
@@ -465,7 +465,7 @@ impl MemberTagGroupService {
         // 5. 清理用户关联（物理删除；`tag_ids` 为空时仓储层直接返回 0，
         //    复刻 Java `if (!tagIds.isEmpty())` 守卫）
         let removed_links = self
-            .repos.member_member_tag_group
+            .repos.member.member_tag_group
             .delete_user_tag_links_in(&mut tx, shop_id, &tag_ids)
             .await?;
 
@@ -473,14 +473,14 @@ impl MemberTagGroupService {
         let mut deleted_tags = 0_u64;
         for tag_id in &tag_ids {
             deleted_tags += self
-                .repos.member_member_tag_group
+                .repos.member.member_tag_group
                 .logical_delete_tag(&mut tx, *tag_id)
                 .await?;
         }
 
         // 7. 逻辑删除标签组
         let deleted_group = self
-            .repos.member_member_tag_group
+            .repos.member.member_tag_group
             .logical_delete_group(&mut tx, id)
             .await?;
 
@@ -531,10 +531,10 @@ impl MemberTagGroupService {
             .ok_or_else(|| Error::Validation(MSG_ID_REQUIRED.into()))?;
         let now = now_secs();
 
-        let mut tx = self.repos.member_member_tag_group.begin().await?;
+        let mut tx = self.repos.member.member_tag_group.begin().await?;
 
         let group = self
-            .repos.member_member_tag_group
+            .repos.member.member_tag_group
             .find_group_by_id_in_tx(&mut tx, id)
             .await?
             .ok_or_else(|| Error::NotFound(MSG_GROUP_NOT_FOUND.into()))?;
@@ -544,12 +544,12 @@ impl MemberTagGroupService {
 
         // `selectMaxIsTop` 与写入同事务（Java 也在同一 `@Transactional` 内）
         let max_top = self
-            .repos.member_member_tag_group
+            .repos.member.member_tag_group
             .select_max_is_top(&mut tx, shop_id)
             .await?;
         let top = next_top(max_top);
 
-        self.repos.member_member_tag_group
+        self.repos.member.member_tag_group
             .update_is_top(&mut tx, id, top, operator, now)
             .await?;
         tx.commit()
@@ -585,10 +585,10 @@ impl MemberTagGroupService {
             .ok_or_else(|| Error::Validation(MSG_ID_REQUIRED.into()))?;
         let now = now_secs();
 
-        let mut tx = self.repos.member_member_tag_group.begin().await?;
+        let mut tx = self.repos.member.member_tag_group.begin().await?;
 
         let group = self
-            .repos.member_member_tag_group
+            .repos.member.member_tag_group
             .find_group_by_id_in_tx(&mut tx, id)
             .await?
             .ok_or_else(|| Error::NotFound(MSG_GROUP_NOT_FOUND.into()))?;
@@ -597,7 +597,7 @@ impl MemberTagGroupService {
         }
 
         let affected = self
-            .repos.member_member_tag_group
+            .repos.member.member_tag_group
             .update_is_top(&mut tx, id, CANCEL_TOP_VALUE, operator, now)
             .await?;
         tx.commit()

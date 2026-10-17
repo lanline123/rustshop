@@ -40,7 +40,7 @@ impl ShopClientCategoryService {
     /// 本片仓储。
     #[must_use]
     pub fn repo(&self) -> &tigshop_infrastructure::db::repo::merchant::shop_client_category::ShopClientCategoryRepository {
-        &self.repos.merchant_shop_client_category
+        &self.repos.merchant.shop_client_category
     }
 
     /// `GET /api/shop/category/tree?shopId=`：店铺经营类目树。

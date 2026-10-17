@@ -130,7 +130,7 @@ impl PaylogBatchService {
         let Some(id) = resolve_delete_id(dto.id) else {
             return Ok(false);
         };
-        self.repos.payment_paylog_batch.delete(id).await
+        self.repos.payment.paylog_batch.delete(id).await
     }
 
     /// 通用字段更新。
@@ -149,7 +149,7 @@ impl PaylogBatchService {
             .id
             .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, INVALID_FIELD_VALUE))?;
         let val = dto.val.as_deref().unwrap_or_default();
-        self.repos.payment_paylog_batch.update_field(id, column, val).await
+        self.repos.payment.paylog_batch.update_field(id, column, val).await
     }
 
     /// 批量操作（仅 `type == "del"` 有副作用）。
@@ -168,7 +168,7 @@ impl PaylogBatchService {
         if ids.is_empty() {
             return Ok(false);
         }
-        self.repos.payment_paylog_batch.delete_many(&ids).await
+        self.repos.payment.paylog_batch.delete_many(&ids).await
     }
 }
 

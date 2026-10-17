@@ -497,7 +497,7 @@ impl UserCenterService {
     /// 读取系统配置（Java `ConfigService.getConfigVal`：缺行 → 空串）。
     async fn config_val(&self, biz_code: &str) -> Result<String> {
         Ok(self
-            .repos.member_user_center
+            .repos.member.user_center
             .find_config_val(biz_code)
             .await?
             .unwrap_or_default())
@@ -505,7 +505,7 @@ impl UserCenterService {
 
     /// 按 ID 取会员，不存在即报错（Java `Assert.notNull(user, USER_NOT_EXIST)`）。
     async fn require_user(&self, user_id: i32) -> Result<User> {
-        self.repos.member_user_center
+        self.repos.member.user_center
             .find_user_by_id(user_id)
             .await?
             .ok_or_else(|| Error::biz_msg(ERR_MEMBER_NOT_EXIST))
@@ -523,7 +523,7 @@ impl UserCenterService {
             return Ok(None);
         }
         let credit_user = self
-            .repos.member_user_center
+            .repos.member.user_center
             .find_credit_by_user(user_id)
             .await?
             .ok_or_else(|| Error::biz_msg("您不是授信会员，无法查看账期信息"))?;
@@ -538,7 +538,7 @@ impl UserCenterService {
         );
         let window = current_period_window(base_start, days, today);
         let pending_before = self
-            .repos.member_user_center
+            .repos.member.user_center
             .count_credit_orders_before(
                 user_id,
                 &[
@@ -552,7 +552,7 @@ impl UserCenterService {
         let remaining = remaining_days(window, today, pending_before);
 
         let pending = self
-            .repos.member_user_center
+            .repos.member.user_center
             .find_credit_orders(
                 user_id,
                 &[
@@ -563,7 +563,7 @@ impl UserCenterService {
             )
             .await?;
         let settled = self
-            .repos.member_user_center
+            .repos.member.user_center
             .find_credit_orders(user_id, &[credit_order_status::SETTLED], true)
             .await?;
 
@@ -596,7 +596,7 @@ impl UserCenterService {
         }
         let order_ids: Vec<i32> = distinct_i32(orders.iter().map(|o| o.order_id));
         let items = self
-            .repos.member_user_center
+            .repos.member.user_center
             .find_items_by_order_ids(&order_ids)
             .await?;
         let mut items_by_order: HashMap<i32, Vec<OrderItem>> = HashMap::new();
@@ -665,14 +665,14 @@ impl UserCenterService {
             .map(str::trim)
             .filter(|s| !s.is_empty())
         {
-            if self.repos.member_user_center.exists_by_mobile(mobile, user_id).await? {
+            if self.repos.member.user_center.exists_by_mobile(mobile, user_id).await? {
                 return Err(Error::biz_msg("手机号已注册"));
             }
         }
 
         // Java：`this.getGrowthPoints(user, 1)`（在字段更新**之前**判定昵称/生日）
         self.log_information_growth(&user).await?;
-        self.repos.member_user_center
+        self.repos.member.user_center
             .update_information(user_id, dto)
             .await?;
         self.add_user_growth_points(user_id, rank_growth_type::INFORMATION)
@@ -683,7 +683,7 @@ impl UserCenterService {
     /// Java `UserServiceImpl.getGrowthPoints(user, 1)`：昵称与生日均为空且
     /// `grow_config.evpi` 非空时，写一条 `rank_growth_log`。
     async fn log_information_growth(&self, user: &User) -> Result<()> {
-        let Some(cfg) = self.repos.member_user_center.find_rank_config("grow_config").await? else {
+        let Some(cfg) = self.repos.member.user_center.find_rank_config("grow_config").await? else {
             return Ok(());
         };
         let Some(grow) = cfg
@@ -712,7 +712,7 @@ impl UserCenterService {
             return Ok(());
         }
         let now = tigshop_common::utils::now_seconds() as i32;
-        self.repos.member_user_center
+        self.repos.member.user_center
             .insert_rank_growth_log(&RankGrowthLog {
                 id: 0,
                 user_id: user.user_id,
@@ -733,13 +733,13 @@ impl UserCenterService {
         if !IS_PRO {
             return Ok(());
         }
-        let Some(rank_config) = self.repos.member_user_center.find_rank_config("rank_config").await? else {
+        let Some(rank_config) = self.repos.member.user_center.find_rank_config("rank_config").await? else {
             return Ok(());
         };
         if rank_config.rank_type != 1 {
             return Ok(());
         }
-        let Some(grow_cfg) = self.repos.member_user_center.find_rank_config("grow_config").await? else {
+        let Some(grow_cfg) = self.repos.member.user_center.find_rank_config("grow_config").await? else {
             // Java 此处会 NPE；Rust 侧按「无配置则不加成长值」处理
             return Ok(());
         };
@@ -754,7 +754,7 @@ impl UserCenterService {
         let growth = if type_code == rank_growth_type::INFORMATION {
             let enabled = json_i32_field(&grow, "evpi") == 1;
             let used = self
-                .repos.member_user_center
+                .repos.member.user_center
                 .count_rank_growth_log(user_id, rank_growth_type::INFORMATION)
                 .await?
                 > 0;
@@ -766,7 +766,7 @@ impl UserCenterService {
         } else if type_code == rank_growth_type::BIND_PHONE {
             let enabled = json_i32_field(&grow, "bindPhone") == 1;
             let used = self
-                .repos.member_user_center
+                .repos.member.user_center
                 .count_rank_growth_log(user_id, rank_growth_type::BIND_PHONE)
                 .await?
                 > 0;
@@ -783,23 +783,23 @@ impl UserCenterService {
         }
 
         let now = tigshop_common::utils::now_seconds() as i32;
-        self.repos.member_user_center
+        self.repos.member.user_center
             .add_growth_points(user_id, growth)
             .await?;
         // Java `updateUserRank(user)`：按成长值重新匹配等级，只回写 rank_id
         let user = self.require_user(user_id).await?;
         if let Some(rank) = self
-            .repos.member_user_center
+            .repos.member.user_center
             .find_rank_by_growth(user.growth_points)
             .await?
         {
             if rank.rank_id != user.rank_id {
-                self.repos.member_user_center
+                self.repos.member.user_center
                     .set_rank_id(user_id, rank.rank_id)
                     .await?;
             }
         }
-        self.repos.member_user_center
+        self.repos.member.user_center
             .insert_growth_points_log(&UserGrowthPointsLog {
                 log_id: 0,
                 user_id,
@@ -809,7 +809,7 @@ impl UserCenterService {
                 change_type: 1,
             })
             .await?;
-        self.repos.member_user_center
+        self.repos.member.user_center
             .insert_rank_growth_log(&RankGrowthLog {
                 id: 0,
                 user_id,
@@ -827,7 +827,7 @@ impl UserCenterService {
     /// 会员中心（Java `UserController.memberCenter` → `UserServiceImpl.memberCenter`）。
     pub async fn member_center(&self, user_id: i32) -> Result<MemberCenterVO> {
         let user = self.require_user(user_id).await?;
-        let rank = self.repos.member_user_center.find_user_rank(user.rank_id).await?;
+        let rank = self.repos.member.user_center.find_user_rank(user.rank_id).await?;
 
         let avatar_raw = if user.avatar.trim().is_empty() {
             DEFAULT_MEMBER_AVATAR.to_string()
@@ -878,26 +878,26 @@ impl UserCenterService {
             rank_level: None,
             security_lv: security_level(user.mobile_validated, user.email_validated),
             await_pay: self
-                .repos.member_user_center
+                .repos.member.user_center
                 .count_orders_by_status(user_id, order_status::PENDING)
                 .await?,
             await_shipping: self
-                .repos.member_user_center
+                .repos.member.user_center
                 .count_orders_by_status(user_id, order_status::CONFIRMED)
                 .await?,
             await_received: self
-                .repos.member_user_center
+                .repos.member.user_center
                 .count_orders_by_status(user_id, order_status::PROCESSING)
                 .await?,
             await_comment: self
-                .repos.member_user_center
+                .repos.member.user_center
                 .count_orders_by_comment_status(
                     user_id,
                     comment_status::PENDING,
                     order_status::COMPLETED,
                 )
                 .await?,
-            await_coupon: self.repos.member_user_center.count_user_coupons(user_id).await?,
+            await_coupon: self.repos.member.user_center.count_user_coupons(user_id).await?,
         })
     }
 
@@ -985,11 +985,11 @@ impl UserCenterService {
     pub async fn email_validate(&self, user_id: i32, dto: &CheckEmailModifyDTO) -> Result<()> {
         let user = self.require_user(user_id).await?;
         let email = require_non_blank(dto.email.as_deref(), "邮箱不能为空")?;
-        if self.repos.member_user_center.exists_by_email(&email, user_id).await? {
+        if self.repos.member.user_center.exists_by_email(&email, user_id).await? {
             return Err(Error::biz_msg("邮箱已经被绑定"));
         }
         if dto.type_.is_some_and(|t| t > 0) {
-            self.repos.member_user_center
+            self.repos.member.user_center
                 .bind_email(user.user_id, &email)
                 .await?;
         }
@@ -1005,7 +1005,7 @@ impl UserCenterService {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
-        let mut products = self.repos.member_user_center.find_products_by_ids(&ids).await?;
+        let mut products = self.repos.member.user_center.find_products_by_ids(&ids).await?;
         if products.is_empty() {
             return Ok(Vec::new());
         }
@@ -1015,7 +1015,7 @@ impl UserCenterService {
         products.truncate(HISTORY_PRODUCT_LIMIT);
         let product_ids: Vec<i32> = products.iter().map(|p| p.product_id).collect();
         let sku_counts = self
-            .repos.member_user_center
+            .repos.member.user_center
             .count_skus_by_product_ids(&product_ids)
             .await?;
         Ok(products
@@ -1040,7 +1040,7 @@ impl UserCenterService {
         if let Some(remove) = dto.ids.as_ref().filter(|v| !v.is_empty()) {
             ids.retain(|id| !remove.contains(id));
         }
-        self.repos.member_user_center
+        self.repos.member.user_center
             .update_history(user_id, &json_i32_list(&ids))
             .await?;
         Ok(())
@@ -1090,7 +1090,7 @@ impl UserCenterService {
         );
         let (limit, offset) = page.limit_offset();
         let (total, rows) = self
-            .repos.member_user_center
+            .repos.member.user_center
             .paginate_collect_shop(user_id, q.exclude_self_operated(), &order_by, limit, offset)
             .await?;
         if rows.is_empty() {
@@ -1102,7 +1102,7 @@ impl UserCenterService {
                 .map(|r| r.shop_id)
                 .filter(|id| *id != SELF_OPERATED_SHOP_ID),
         );
-        let shops = self.repos.member_user_center.find_shops(&shop_ids).await?;
+        let shops = self.repos.member.user_center.find_shops(&shop_ids).await?;
         let shop_map: HashMap<i32, &Shop> = shops.iter().map(|s| (s.shop_id, s)).collect();
 
         let self_operated = if rows.iter().any(|r| r.shop_id == SELF_OPERATED_SHOP_ID) {
@@ -1137,10 +1137,10 @@ impl UserCenterService {
                 shop_id: row.shop_id,
                 add_time: handel_time(i64::from(row.add_time)),
                 product_count: self
-                    .repos.member_user_center
+                    .repos.member.user_center
                     .count_shop_on_sale_products(row.shop_id)
                     .await?,
-                collect_count: self.repos.member_user_center.count_shop_collects(row.shop_id).await?,
+                collect_count: self.repos.member.user_center.count_shop_collects(row.shop_id).await?,
                 shop: shop_vo,
             });
         }
@@ -1194,15 +1194,15 @@ impl UserCenterService {
             is_contact_kefu: 0,
             kefu_inlet: None,
             hot_product: self
-                .repos.member_user_center
+                .repos.member.user_center
                 .top_products_by_flag(SELF_OPERATED_SHOP_ID, flag_of("is_hot"), SHOP_PRODUCT_LIMIT)
                 .await?,
             new_product: self
-                .repos.member_user_center
+                .repos.member.user_center
                 .top_products_by_flag(SELF_OPERATED_SHOP_ID, flag_of("is_new"), SHOP_PRODUCT_LIMIT)
                 .await?,
             best_product: self
-                .repos.member_user_center
+                .repos.member.user_center
                 .top_products_by_flag(SELF_OPERATED_SHOP_ID, flag_of("is_best"), SHOP_PRODUCT_LIMIT)
                 .await?,
         })
@@ -1231,15 +1231,15 @@ impl UserCenterService {
             // Java：目标 List<Integer> ← 源 String，静默跳过 → null
             kefu_inlet: None,
             hot_product: self
-                .repos.member_user_center
+                .repos.member.user_center
                 .top_products_by_flag(shop.shop_id, flag_of("is_hot"), SHOP_PRODUCT_LIMIT)
                 .await?,
             new_product: self
-                .repos.member_user_center
+                .repos.member.user_center
                 .top_products_by_flag(shop.shop_id, flag_of("is_new"), SHOP_PRODUCT_LIMIT)
                 .await?,
             best_product: self
-                .repos.member_user_center
+                .repos.member.user_center
                 .top_products_by_flag(shop.shop_id, flag_of("is_best"), SHOP_PRODUCT_LIMIT)
                 .await?,
         })
@@ -1249,11 +1249,11 @@ impl UserCenterService {
 
     /// 会员等级列表（Java `UserController.levelList`）。
     pub async fn level_list(&self) -> Result<UserLevelListVO> {
-        let ranks = self.repos.member_user_center.all_user_rank().await?;
+        let ranks = self.repos.member.user_center.all_user_rank().await?;
         let item = ranks.iter().map(to_user_rank_list_vo).collect();
 
         let rank_config = self
-            .repos.member_user_center
+            .repos.member.user_center
             .find_rank_config("rank_config")
             .await?
             .map(|cfg| {
@@ -1269,7 +1269,7 @@ impl UserCenterService {
                 }
             });
         let grow_config = self
-            .repos.member_user_center
+            .repos.member.user_center
             .find_rank_config("grow_config")
             .await?
             .and_then(|cfg| {
@@ -1288,18 +1288,18 @@ impl UserCenterService {
     /// 获取会员等级权益信息（Java `UserController.levelInfo` →
     /// `UserRankServiceImpl.getRankInfo`）。
     pub async fn level_info(&self, rank_id: i32) -> Result<UserLevelInfoVO> {
-        match self.repos.member_user_center.find_user_rank(rank_id).await? {
+        match self.repos.member.user_center.find_user_rank(rank_id).await? {
             Some(rank) => {
                 let user_rank = serde_json::to_value(to_user_rank_json(&rank))
                     .unwrap_or(Value::Null);
                 let rank_config = self
-                    .repos.member_user_center
+                    .repos.member.user_center
                     .find_rank_config("rank_config")
                     .await?
                     .map(|cfg| to_rank_config_value(&cfg));
                 // Java：`growUpSetting = growSetting.getData()`（**原始字符串**）
                 let grow_up_setting = self
-                    .repos.member_user_center
+                    .repos.member.user_center
                     .find_rank_config("grow_setting")
                     .await?
                     .and_then(|cfg| cfg.data)
@@ -1341,7 +1341,7 @@ impl UserCenterService {
     /// 禁用（注销）当前用户（Java `UserController.close` → `closeUser`）。
     pub async fn close(&self, user_id: i32) -> Result<()> {
         if user_id > 0 {
-            self.repos.member_user_center.disable_user(user_id).await?;
+            self.repos.member.user_center.disable_user(user_id).await?;
         }
         Ok(())
     }

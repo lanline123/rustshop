@@ -64,7 +64,7 @@ impl PaylogService {
             page_size: q.page_size.unwrap_or(20),
         };
         let (total, rows) = self
-            .repos.payment_paylog
+            .repos.payment.paylog
             .paginate(q.order_sn.as_deref(), q.pay_status, q.order_type, &page)
             .await?;
         let list = rows.iter().map(to_vo).collect();
@@ -74,7 +74,7 @@ impl PaylogService {
     /// 支付日志详情。
     pub async fn detail(&self, paylog_id: i32) -> Result<PaylogVO> {
         let p = self
-            .repos.payment_paylog
+            .repos.payment.paylog
             .find_by_id(paylog_id)
             .await?
             .ok_or_else(|| Error::NotFound("支付日志不存在".into()))?;
@@ -108,7 +108,7 @@ impl PaylogService {
         let ot = order_type as i32;
 
         let latest = self
-            .repos.payment_paylog
+            .repos.payment.paylog
             .find_latest_by_order_and_code(order.order_id, ot, &order.order_sn, pay_code)
             .await?;
 
@@ -162,7 +162,7 @@ impl PaylogService {
             token_code: String::new(),
             appid: None,
         };
-        let paylog_id = self.repos.payment_paylog.insert(&paylog).await?;
+        let paylog_id = self.repos.payment.paylog.insert(&paylog).await?;
         tracing::info!(
             "创建支付日志: id={paylog_id} pay_sn={} order_id={} amount={}",
             paylog.pay_sn,
@@ -213,12 +213,12 @@ impl PaylogService {
             add_time: Some(utils::now_seconds() as i32),
             ..Default::default()
         };
-        self.repos.payment_paylog.insert(&p).await
+        self.repos.payment.paylog.insert(&p).await
     }
 
     /// 更新支付日志（管理端修正，对应 Java `update(PaylogUpdateDTO)`）。
     pub async fn update(&self, dto: &PaylogUpdateDTO) -> Result<()> {
-        self.repos.payment_paylog
+        self.repos.payment.paylog
             .find_by_id(dto.paylog_id)
             .await?
             .ok_or_else(|| Error::NotFound("支付日志不存在".into()))?;
@@ -231,7 +231,7 @@ impl PaylogService {
         // 仅允许推进为「已支付」这一受控路径，避免误改金额/订单号
         if dto.pay_status == Some(PAYLOG_STATUS_PAID) {
             let ok = self
-                .repos.payment_paylog
+                .repos.payment.paylog
                 .mark_paid(
                     dto.paylog_id,
                     dto.transaction_id.as_deref().unwrap_or_default(),
@@ -262,7 +262,7 @@ impl PaylogService {
             return Err(Error::Validation("支付金额不能为负数".into()));
         }
         let ok = self
-            .repos.payment_paylog
+            .repos.payment.paylog
             .mark_paid(paylog_id, transaction_id, pay_amount, notify_data)
             .await?;
         if ok {
@@ -286,7 +286,7 @@ impl PaylogService {
             return Err(Error::Validation("支付单号不能为空".into()));
         }
         let n = self
-            .repos.payment_paylog
+            .repos.payment.paylog
             .mark_paid_by_pay_sn(pay_sn, transaction_id, notify_data)
             .await?;
         tracing::info!("按支付单号标记成功: pay_sn={pay_sn} 影响 {n} 行");
@@ -311,7 +311,7 @@ impl PaylogService {
         let target = require_channel(channel).map_err(Error::Validation)?;
 
         let existing = self
-            .repos.payment_paylog
+            .repos.payment.paylog
             .find_latest_by_pay_sn(pay_sn)
             .await?
             .ok_or_else(|| Error::biz(400, "支付日志不存在"))?;
@@ -328,7 +328,7 @@ impl PaylogService {
         }
 
         let ok = self
-            .repos.payment_paylog
+            .repos.payment.paylog
             .bind_profit_sharing_channel(existing.paylog_id, &existing.pay_sn, &target)
             .await?;
         if ok {
@@ -338,7 +338,7 @@ impl PaylogService {
 
         // CAS 失败：可能是并发已绑定相同值（幂等）或冲突
         let concurrent = self
-            .repos.payment_paylog
+            .repos.payment.paylog
             .find_by_id(existing.paylog_id)
             .await?;
         if let Some(c) = concurrent {
@@ -351,7 +351,7 @@ impl PaylogService {
 
     /// 取分账发起依据（已支付 + 正金额 + 合法渠道快照的商品订单支付证据）。
     pub async fn paid_profit_sharing_paylog(&self, order_id: i32) -> Result<Option<Paylog>> {
-        self.repos.payment_paylog
+        self.repos.payment.paylog
             .find_paid_profit_sharing(order_id, &PROFIT_SHARING_CHANNELS)
             .await
     }
@@ -378,13 +378,13 @@ impl PaylogService {
         }
 
         let paylog = self
-            .repos.payment_paylog
+            .repos.payment.paylog
             .find_by_id(paylog_id)
             .await?
             .ok_or_else(|| Error::NotFound("支付日志不存在".into()))?;
 
         // 已成功退款总额 + 本次 ≤ 实付金额
-        let refunded = self.repos.payment_paylog.sum_refunded(order_id).await?;
+        let refunded = self.repos.payment.paylog.sum_refunded(order_id).await?;
         let total_refund = refunded + amount;
         if total_refund > paylog.pay_amount {
             return Err(Error::biz(
@@ -411,10 +411,10 @@ impl PaylogService {
             status: Some(RefundStatus::Processing as i32),
             notify_time: None,
         };
-        let id = self.repos.payment_paylog.insert_refund(&r).await?;
+        let id = self.repos.payment.paylog.insert_refund(&r).await?;
 
         // 同步累加 paylog 的退款金额
-        self.repos.payment_paylog
+        self.repos.payment.paylog
             .add_refund_amount(paylog_id, amount)
             .await?;
 
@@ -430,7 +430,7 @@ impl PaylogService {
         paylog_refund_id: i32,
         status: RefundStatus,
     ) -> Result<()> {
-        self.repos.payment_paylog
+        self.repos.payment.paylog
             .update_refund_status(paylog_refund_id, status as i32, utils::now_seconds() as i32)
             .await?;
         tracing::info!("退款状态更新: id={paylog_refund_id} status={}", status.name());
@@ -439,13 +439,13 @@ impl PaylogService {
 
     /// 订单退款日志列表。
     pub async fn refunds_of_order(&self, order_id: i32) -> Result<Vec<PaylogRefundVO>> {
-        let rows = self.repos.payment_paylog.find_refunds_by_order(order_id).await?;
+        let rows = self.repos.payment.paylog.find_refunds_by_order(order_id).await?;
         Ok(rows.iter().map(to_refund_vo).collect())
     }
 
     /// 订单已成功退款总额。
     pub async fn refunded_amount(&self, order_id: i32) -> Result<Decimal> {
-        self.repos.payment_paylog.sum_refunded(order_id).await
+        self.repos.payment.paylog.sum_refunded(order_id).await
     }
 }
 

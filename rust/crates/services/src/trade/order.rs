@@ -67,14 +67,14 @@ impl OrderService {
 
         // 订单号防重
         let mut retries = 0;
-        while self.repos.trade_order.sn_exists(&order_sn).await? && retries < 5 {
+        while self.repos.trade.order.sn_exists(&order_sn).await? && retries < 5 {
             order_sn = utils::generate_order_sn();
             retries += 1;
         }
 
         // 批量取价：一次查询替代循环内逐条 current_price（消除 N+1）。
         let product_ids: Vec<i32> = lines.iter().map(|l| l.product_id).collect();
-        let prices = self.repos.catalog_product.current_prices(&product_ids).await?;
+        let prices = self.repos.catalog.product.current_prices(&product_ids).await?;
 
         for line in &lines {
             let pid = line.product_id;
@@ -130,7 +130,7 @@ impl OrderService {
         // 事务整体回滚，不残留已扣库存（原 Java 由 @Transactional 保证）。
         let order_id = {
             let mut tx = self
-                .repos.trade_order
+                .repos.trade.order
                 .begin()
                 .await
                 .map_err(|e| Error::Database(e.to_string()))?;
@@ -142,7 +142,7 @@ impl OrderService {
                 let pid = item.product_id;
                 let qty = item.quantity;
                 match self
-                    .repos.catalog_product
+                    .repos.catalog.product
                     .deduct_stock_in_tx(&mut tx, pid, Some(item.sku_id), qty)
                     .await
                 {
@@ -163,7 +163,7 @@ impl OrderService {
 
             if result.is_ok() {
                 result = self
-                    .repos.trade_order
+                    .repos.trade.order
                     .insert_order_in_tx(&mut tx, &order, &items)
                     .await;
             }
@@ -215,7 +215,7 @@ impl OrderService {
     /// 订单详情。
     pub async fn detail(&self, order_id: i32, user_id: Option<i32>) -> Result<(OrderVO, Vec<OrderItem>)> {
         let order = self
-            .repos.trade_order
+            .repos.trade.order
             .find_by_id(order_id)
             .await?
             .ok_or_else(|| Error::NotFound("订单不存在".into()))?;
@@ -227,7 +227,7 @@ impl OrderService {
             }
         }
 
-        let items = self.repos.trade_order.find_items(order_id).await?;
+        let items = self.repos.trade.order.find_items(order_id).await?;
         Ok((to_vo(&order, items.len() as i32), items))
     }
 
@@ -240,7 +240,7 @@ impl OrderService {
         page: &PageQuery,
     ) -> Result<PageResult<OrderVO>> {
         let (total, orders) = self
-            .repos.trade_order
+            .repos.trade.order
             .paginate(user_id, order_status, keyword, page.page, page.page_size)
             .await?;
         let list = orders
@@ -253,7 +253,7 @@ impl OrderService {
     /// 取消订单（仅待付款可取消，取消后回滚库存）。
     pub async fn cancel(&self, order_id: i32, user_id: Option<i32>) -> Result<()> {
         let order = self
-            .repos.trade_order
+            .repos.trade.order
             .find_by_id(order_id)
             .await?
             .ok_or_else(|| Error::NotFound("订单不存在".into()))?;
@@ -268,7 +268,7 @@ impl OrderService {
 
         // 原子状态流转：0 → 40
         let ok = self
-            .repos.trade_order
+            .repos.trade.order
             .transition_status(order_id, &[status::UNPAID], status::CANCELED)
             .await?;
         if !ok {
@@ -276,7 +276,7 @@ impl OrderService {
         }
 
         // 回滚库存
-        let items = self.repos.trade_order.find_items(order_id).await?;
+        let items = self.repos.trade.order.find_items(order_id).await?;
         for item in items {
             let pid = item.product_id;
             let qty = item.quantity;
@@ -296,7 +296,7 @@ impl OrderService {
         out_trade_no: Option<String>,
     ) -> Result<()> {
         let order = self
-            .repos.trade_order
+            .repos.trade.order
             .find_by_id(order_id)
             .await?
             .ok_or_else(|| Error::NotFound("订单不存在".into()))?;
@@ -306,7 +306,7 @@ impl OrderService {
             return Ok(()); // 幂等
         }
 
-        self.repos.trade_order
+        self.repos.trade.order
             .mark_paid(order_id, utils::now_seconds() as i32, paid_amount)
             .await?;
         if let Some(no) = out_trade_no {
@@ -318,13 +318,13 @@ impl OrderService {
     /// 发货（后台操作）。
     pub async fn ship(&self, order_id: i32, tracking_no: &str, logistics_name: &str) -> Result<()> {
         let ok = self
-            .repos.trade_order
+            .repos.trade.order
             .transition_status(order_id, &[status::PAID], status::SHIPPED)
             .await?;
         if !ok {
             return Err(Error::Conflict("订单当前状态不可发货".into()));
         }
-        self.repos.trade_order
+        self.repos.trade.order
             .update_shipping(order_id, tracking_no, logistics_name, utils::now_seconds() as i32)
             .await?;
         tracing::info!("订单已发货: {order_id}, 运单号: {tracking_no}");

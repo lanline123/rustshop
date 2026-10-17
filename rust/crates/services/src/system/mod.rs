@@ -3,15 +3,18 @@
 pub mod app_version_admin;
 pub mod area_code;
 pub mod cache_manage;
+pub mod config_basic;
 pub mod config_client;
 pub mod csrf;
 pub mod example;
 pub mod files;
+pub mod log;
 pub mod mail_templates;
 pub mod message_type;
 pub mod pc;
 pub mod region;
 pub mod region_client;
+pub mod tips_manage;
 
 use std::sync::Arc;
 
@@ -30,4 +33,7 @@ pub struct Services {
     pub region: Arc<region::RegionService>,
     pub region_client: Arc<region_client::RegionClientService>,
     pub csrf: Arc<csrf::CsrfService>,
+    pub config_basic: Arc<config_basic::ConfigBasicService>,
+    pub tips_manage: Arc<tips_manage::TipsManageService>,
+    pub log: Arc<log::LogService>,
 }

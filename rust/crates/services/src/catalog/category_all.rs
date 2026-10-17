@@ -39,16 +39,16 @@ impl CatalogService {
     /// `include_hidden = false` 时仅保留前台显示（`is_show = 1`）的分类。
     pub async fn category_tree(&self, include_hidden: bool) -> Result<Vec<CategoryTreeNode>> {
         let all = if include_hidden {
-            self.repos.catalog_category_all.find_all_categories().await?
+            self.repos.catalog.category_all.find_all_categories().await?
         } else {
-            self.repos.catalog_category_all.find_visible_categories().await?
+            self.repos.catalog.category_all.find_visible_categories().await?
         };
         Ok(build_tree(&all, Category::ROOT_PARENT, 1))
     }
 
     /// 分类详情。
     pub async fn category_detail(&self, category_id: i32) -> Result<Category> {
-        self.repos.catalog_category_all
+        self.repos.catalog.category_all
             .find_category(category_id)
             .await?
             .ok_or_else(|| Error::NotFound("分类不存在".into()))
@@ -67,7 +67,7 @@ impl CatalogService {
             page_size: query.size.unwrap_or(15).max(1),
         };
         let (total, rows) = self
-            .repos.catalog_category_all
+            .repos.catalog.category_all
             .paginate_categories(
                 query.parent_id,
                 query.sort_field.as_deref(),
@@ -78,7 +78,7 @@ impl CatalogService {
 
         let ids: Vec<i32> = rows.iter().map(|c| c.category_id).collect();
         let child_counts = self
-            .repos.catalog_category_all
+            .repos.catalog.category_all
             .count_children_by_parent_ids(&ids)
             .await?
             .into_iter()
@@ -101,7 +101,7 @@ impl CatalogService {
         match parent_id {
             None => Ok(None),
             Some(id) => Ok(self
-                .repos.catalog_category_all
+                .repos.catalog.category_all
                 .find_category(id)
                 .await?
                 .map(|c| c.category_name)),
@@ -123,7 +123,7 @@ impl CatalogService {
         self.check_name_unique(dto.category_name.as_deref(), dto.parent_id, None)
             .await?;
         let entity = to_entity(dto)?;
-        self.repos.catalog_category_all.insert_category(&entity).await
+        self.repos.catalog.category_all.insert_category(&entity).await
     }
 
     /// 更新分类。
@@ -137,7 +137,7 @@ impl CatalogService {
             .await?;
         let mut entity = to_entity(dto)?;
         entity.category_id = id;
-        self.repos.catalog_category_all.update_category(&entity).await
+        self.repos.catalog.category_all.update_category(&entity).await
     }
 
     /// 删除单个分类。
@@ -148,13 +148,13 @@ impl CatalogService {
     pub async fn delete_category(&self, dto: &OperateDTO) -> Result<()> {
         let id = dto.id.ok_or_else(|| Error::Validation("分类ID不能为空".into()))?;
 
-        if self.repos.catalog_category_all.has_child(id).await? {
+        if self.repos.catalog.category_all.has_child(id).await? {
             return Err(Error::biz(
                 500,
                 "当前分类下有子分类,无法删除".to_string(),
             ));
         }
-        let count = self.repos.catalog_category_all.count_products_in_category(id).await?;
+        let count = self.repos.catalog.category_all.count_products_in_category(id).await?;
         if count > 0 {
             return Err(Error::biz(
                 500,
@@ -163,7 +163,7 @@ impl CatalogService {
                 ),
             ));
         }
-        self.repos.catalog_category_all.delete_category(id).await?;
+        self.repos.catalog.category_all.delete_category(id).await?;
         Ok(())
     }
 
@@ -190,7 +190,7 @@ impl CatalogService {
         if ids.is_empty() {
             return Ok(());
         }
-        let categories = self.repos.catalog_category_all.find_categories_by_ids(ids).await?;
+        let categories = self.repos.catalog.category_all.find_categories_by_ids(ids).await?;
         let by_id: std::collections::HashMap<i32, Category> = categories
             .iter()
             .map(|c| (c.category_id, c.clone()))
@@ -208,7 +208,7 @@ impl CatalogService {
         for c in &sorted {
             let name = c.category_name.as_str();
             if self
-                .repos.catalog_category_all
+                .repos.catalog.category_all
                 .has_child_excluding(c.category_id, ids)
                 .await?
             {
@@ -218,7 +218,7 @@ impl CatalogService {
                 ));
             }
             let count = self
-                .repos.catalog_category_all
+                .repos.catalog.category_all
                 .count_products_in_category(c.category_id)
                 .await?;
             if count > 0 {
@@ -231,7 +231,7 @@ impl CatalogService {
 
         // 校验通过后执行删除
         for c in &sorted {
-            self.repos.catalog_category_all.delete_category(c.category_id).await?;
+            self.repos.catalog.category_all.delete_category(c.category_id).await?;
         }
         Ok(())
     }
@@ -244,7 +244,7 @@ impl CatalogService {
             .as_deref()
             .ok_or_else(|| Error::Validation("字段名不能为空".into()))?;
         let val = dto.val.clone().unwrap_or_default();
-        self.repos.catalog_category_all
+        self.repos.catalog.category_all
             .update_category_field(id, field, &val)
             .await
     }
@@ -257,7 +257,7 @@ impl CatalogService {
             (Some(a), Some(b)) => (a, b),
             _ => return Err(Error::Validation("参数错误".into())),
         };
-        self.repos.catalog_category_all.move_products_category(from, to).await
+        self.repos.catalog.category_all.move_products_category(from, to).await
     }
 
     // ————————————————— 品牌 —————————————————
@@ -268,7 +268,7 @@ impl CatalogService {
         keyword: Option<&str>,
         page: &PageQuery,
     ) -> Result<PageResult<BrandVO>> {
-        let (total, rows) = self.repos.catalog_category_all.paginate_brands(keyword, page).await?;
+        let (total, rows) = self.repos.catalog.category_all.paginate_brands(keyword, page).await?;
         let list: Vec<BrandVO> = rows
             .iter()
             .map(|b| BrandVO {
@@ -300,7 +300,7 @@ impl CatalogService {
             Some(n) => n,
         };
         if self
-            .repos.catalog_category_all
+            .repos.catalog.category_all
             .exists_same_name(name, parent_id, exclude_id)
             .await?
         {

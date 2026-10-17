@@ -97,7 +97,7 @@ impl StatisticsService {
     /// 本片仓储。
     #[must_use]
     pub fn repo(&self) -> &StatisticsRepository {
-        &self.repos.analytics_statistics
+        &self.repos.analytics.statistics
     }
 
     // ————————————————————— 1) 访问统计 —————————————————————

@@ -434,7 +434,7 @@ impl ProxyShoppingUserAddressService {
 
     /// 直达本域仓储（避免与其他切片的 `repo` 字段重名歧义）。
     fn repo(&self) -> &ProxyShoppingUserAddressRepository {
-        &self.repos.trade_proxy_shopping_user_address
+        &self.repos.trade.proxy_shopping_user_address
     }
 
     /// 收货地址列表。

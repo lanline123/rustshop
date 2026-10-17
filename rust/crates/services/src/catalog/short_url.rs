@@ -50,7 +50,7 @@ impl ShortUrlService {
     /// 解析短码 → 302 目标地址。
     pub async fn resolve_redirect(&self, code: &str) -> Result<String> {
         let row = self
-            .repos.catalog_short_url
+            .repos.catalog.short_url
             .find_by_code(code)
             .await?
             .ok_or_else(|| Error::biz_msg("短链接暂时无法访问，请稍后再试..."))?;
@@ -66,7 +66,7 @@ impl ShortUrlService {
     /// Java `ConfigService.getConfigVal`：缺行 → 空串。
     async fn config_val(&self, biz_code: &str) -> Result<String> {
         Ok(self
-            .repos.catalog_short_url
+            .repos.catalog.short_url
             .find_config_val(biz_code)
             .await?
             .unwrap_or_default())

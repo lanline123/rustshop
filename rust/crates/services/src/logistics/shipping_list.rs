@@ -28,7 +28,7 @@ impl LogisticsService {
             page_size: q.page_size.unwrap_or(20),
         };
         let (total, list) = self
-            .repos.logistics_shipping_list
+            .repos.logistics.shipping_list
             .paginate_tpls(q.keyword.as_deref(), &page)
             .await?;
         Ok(PageResult::new(total, list, &page))
@@ -36,7 +36,7 @@ impl LogisticsService {
 
     /// 运费模板详情。
     pub async fn tpl_detail(&self, tpl_id: i32) -> Result<ShippingTpl> {
-        self.repos.logistics_shipping_list
+        self.repos.logistics.shipping_list
             .find_tpl(tpl_id)
             .await?
             .ok_or_else(|| Error::NotFound("运费模板不存在".into()))
@@ -44,12 +44,12 @@ impl LogisticsService {
 
     /// 启用的物流公司。
     pub async fn companies(&self) -> Result<Vec<LogisticsCompany>> {
-        self.repos.logistics_shipping_list.find_enabled_companies().await
+        self.repos.logistics.shipping_list.find_enabled_companies().await
     }
 
     /// 配送方式。
     pub async fn shipping_types(&self) -> Result<Vec<ShippingType>> {
-        self.repos.logistics_shipping_list.find_all_types().await
+        self.repos.logistics.shipping_list.find_all_types().await
     }
 
     /// 计算运费（简化版：首件/首重 + 续件/续重）。

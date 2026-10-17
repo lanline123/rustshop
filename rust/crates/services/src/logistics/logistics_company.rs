@@ -124,10 +124,10 @@ impl LogisticsCompanyService {
         q: &LogisticsCompanyListQuery,
     ) -> Result<PageResult<LogisticsCompanyVO>> {
         let page = q.page_query();
-        let (total, rows) = self.repos.logistics_logistics_company.paginate(q).await?;
+        let (total, rows) = self.repos.logistics.logistics_company.paginate(q).await?;
 
         // Java：platform 账号（shopId/vendorId 均为 null）⇒ realShopId = realVendorId = 0
-        let bound_ids = self.repos.logistics_logistics_company.find_bound_logistics_ids(0, 0).await?;
+        let bound_ids = self.repos.logistics.logistics_company.find_bound_logistics_ids(0, 0).await?;
         let bound: BTreeSet<i32> = bound_ids.into_iter().collect();
 
         let list: Vec<LogisticsCompanyVO> = rows
@@ -149,7 +149,7 @@ impl LogisticsCompanyService {
     /// （Java 只在 `list` 里 set 它）。
     pub async fn detail(&self, id: i32) -> Result<LogisticsCompanyVO> {
         let e = self
-            .repos.logistics_logistics_company
+            .repos.logistics.logistics_company
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::NotFound(MSG_LOGISTICS_COMPANY_NOT_FOUND.into()))?;
@@ -169,7 +169,7 @@ impl LogisticsCompanyService {
     /// （见 `uncertain_points`）。
     pub async fn resolve_active_provider_type(&self) -> Result<i32> {
         let val = self
-            .repos.logistics_logistics_company
+            .repos.logistics.logistics_company
             .find_config_val(CONFIG_KEY_LOGISTICS_PROVIDER)
             .await?;
         Ok(resolve_provider_type(val.as_deref()))
@@ -204,7 +204,7 @@ impl LogisticsCompanyService {
         tracing::info!("新增物流公司:{}", dto.logistics_name.as_deref().unwrap_or(""));
 
         let id = self
-            .repos.logistics_logistics_company
+            .repos.logistics.logistics_company
             .insert(&LogisticsCompanyInsert {
                 logistics_code: dto.logistics_code.clone(),
                 logistics_name: dto.logistics_name.clone(),
@@ -270,7 +270,7 @@ impl LogisticsCompanyService {
         // Java `getById(id)`：只为拼日志文案，但 null 会 NPE ⇒ 记录必须存在。
         // 本实现把 NPE 转成可诊断的 404（见 `uncertain_points`）。
         let old = self
-            .repos.logistics_logistics_company
+            .repos.logistics.logistics_company
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::NotFound(MSG_LOGISTICS_COMPANY_NOT_FOUND.into()))?;
@@ -310,7 +310,7 @@ impl LogisticsCompanyService {
             return Ok(false);
         }
 
-        let affected = self.repos.logistics_logistics_company.update(id, &patch).await?;
+        let affected = self.repos.logistics.logistics_company.update(id, &patch).await?;
         tracing::info!("更新物流公司: id={id}, 影响 {affected} 行");
         Ok(affected > 0)
     }
@@ -328,7 +328,7 @@ impl LogisticsCompanyService {
             .id
             .filter(|v| *v > 0)
             .ok_or_else(|| Error::Validation(MSG_ID_REQUIRED.into()))?;
-        self.repos.logistics_logistics_company.delete(id).await
+        self.repos.logistics.logistics_company.delete(id).await
     }
 
     // ————————————————————— 单字段更新 —————————————————————
@@ -362,7 +362,7 @@ impl LogisticsCompanyService {
             .map_err(Error::Validation)?;
         let val = dto.val.as_deref().unwrap_or_default();
 
-        let affected = self.repos.logistics_logistics_company.update_field(id, column, val).await?;
+        let affected = self.repos.logistics.logistics_company.update_field(id, column, val).await?;
         Ok(affected > 0)
     }
 
@@ -384,7 +384,7 @@ impl LogisticsCompanyService {
             // Java `removeByIds(空集合)` 直接返回 false，不产生 SQL
             return Ok(false);
         }
-        let affected = self.repos.logistics_logistics_company.delete_many(&dto.ids).await?;
+        let affected = self.repos.logistics.logistics_company.delete_many(&dto.ids).await?;
         Ok(affected > 0)
     }
 
@@ -690,10 +690,10 @@ impl LogisticsCompanyService {
     /// （本仓储未提供跨语句事务封装，见 `uncertain_points`）。
     pub async fn apply_kdn_plan(&self, plan: &KdnSyncPlan) -> Result<SyncLogisticsCompanyResultVO> {
         for insert in &plan.inserts {
-            self.repos.logistics_logistics_company.insert(insert).await?;
+            self.repos.logistics.logistics_company.insert(insert).await?;
         }
         if !plan.renames.is_empty() {
-            self.repos.logistics_logistics_company.batch_update_name(&plan.renames).await?;
+            self.repos.logistics.logistics_company.batch_update_name(&plan.renames).await?;
         }
         Ok(SyncLogisticsCompanyResultVO {
             remote_total: plan.remote_total,
@@ -711,10 +711,10 @@ impl LogisticsCompanyService {
         plan: &Kuaidi100SyncPlan,
     ) -> Result<SyncLogisticsCompanyResultVO> {
         for insert in &plan.inserts {
-            self.repos.logistics_logistics_company.insert(insert).await?;
+            self.repos.logistics.logistics_company.insert(insert).await?;
         }
         if !plan.updates.is_empty() {
-            self.repos.logistics_logistics_company
+            self.repos.logistics.logistics_company
                 .batch_update_kuaidi100_and_name(&plan.updates)
                 .await?;
         }

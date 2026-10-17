@@ -51,7 +51,7 @@ impl RefundApplyService {
             page_size: q.page_size.unwrap_or(20),
         };
         let (total, rows) = self
-            .repos.payment_refund_apply
+            .repos.payment.refund_apply
             .paginate(q.order_sn.as_deref(), q.refund_status, q.shop_id, &page)
             .await?;
         let list = rows.iter().map(to_vo).collect();
@@ -61,11 +61,11 @@ impl RefundApplyService {
     /// 退款申请详情（含操作日志）。
     pub async fn detail(&self, refund_id: i32) -> Result<RefundApplyDetailVO> {
         let r = self
-            .repos.payment_refund_apply
+            .repos.payment.refund_apply
             .find_by_id(refund_id)
             .await?
             .ok_or_else(|| Error::NotFound("退款申请不存在".into()))?;
-        let logs = self.repos.payment_refund_apply.find_logs(refund_id).await?;
+        let logs = self.repos.payment.refund_apply.find_logs(refund_id).await?;
         Ok(RefundApplyDetailVO {
             base: to_vo(&r),
             logs: logs.iter().map(to_log_vo).collect(),
@@ -78,7 +78,7 @@ impl RefundApplyService {
         paylog_refund_id: i32,
     ) -> Result<Option<RefundApplyVO>> {
         let r = self
-            .repos.payment_refund_apply
+            .repos.payment.refund_apply
             .find_by_paylog_refund_id(paylog_refund_id)
             .await?;
         Ok(r.as_ref().map(to_vo))
@@ -155,7 +155,7 @@ impl RefundApplyService {
             shop_id,
             payment_voucher: None,
         };
-        let id = self.repos.payment_refund_apply.insert(&r).await?;
+        let id = self.repos.payment.refund_apply.insert(&r).await?;
         tracing::info!(
             "创建退款申请: id={id} order_id={order_id} amount={total}（线上{online}/线下{offline}）"
         );
@@ -165,7 +165,7 @@ impl RefundApplyService {
     /// 更新退款申请金额/备注（仅待处理状态可改）。
     pub async fn update(&self, dto: &RefundApplyUpdateDTO) -> Result<()> {
         let existing = self
-            .repos.payment_refund_apply
+            .repos.payment.refund_apply
             .find_by_id(dto.refund_id)
             .await?
             .ok_or_else(|| Error::NotFound("退款申请不存在".into()))?;
@@ -186,7 +186,7 @@ impl RefundApplyService {
 
         // 差额校验：新总额不能超过「可退额度 + 原申请占用」
         let occupied = self
-            .repos.payment_refund_apply
+            .repos.payment.refund_apply
             .sum_occupied_by_order(existing.order_id)
             .await?;
         let paid = self.paid_amount(existing.order_id).await?;
@@ -207,7 +207,7 @@ impl RefundApplyService {
         if let Some(note) = &dto.refund_note {
             updated.refund_note = note.clone();
         }
-        self.repos.payment_refund_apply.update_amounts(&updated).await
+        self.repos.payment.refund_apply.update_amounts(&updated).await
     }
 
     // ————————————————————— 审核 —————————————————————
@@ -235,7 +235,7 @@ impl RefundApplyService {
         }
 
         let existing = self
-            .repos.payment_refund_apply
+            .repos.payment.refund_apply
             .find_by_id(dto.refund_id)
             .await?
             .ok_or_else(|| Error::biz(400, "该申请不存在"))?;
@@ -253,7 +253,7 @@ impl RefundApplyService {
                 let reason = validate_reject_reason(dto.refund_note.as_deref())
                     .map_err(Error::Validation)?;
                 let ok = self
-                    .repos.payment_refund_apply
+                    .repos.payment.refund_apply
                     .transition_status(
                         dto.refund_id,
                         &[RefundApplyStatus::Wait as i32],
@@ -280,7 +280,7 @@ impl RefundApplyService {
             RefundApplyStatus::Cancel => {
                 // 退回售后人员重新处理：释放占用额度（状态不在 occupies_quota 集合内）
                 let ok = self
-                    .repos.payment_refund_apply
+                    .repos.payment.refund_apply
                     .transition_status(
                         dto.refund_id,
                         &[RefundApplyStatus::Wait as i32],
@@ -309,7 +309,7 @@ impl RefundApplyService {
                 self.assert_refundable(existing.order_id, existing.refund_balance)
                     .await?;
                 let ok = self
-                    .repos.payment_refund_apply
+                    .repos.payment.refund_apply
                     .transition_status(
                         dto.refund_id,
                         &[RefundApplyStatus::Wait as i32],
@@ -344,7 +344,7 @@ impl RefundApplyService {
     /// 对应 Java `offlineAudit`：线下退款需人工确认到账并留痕凭证。
     pub async fn offline_audit(&self, dto: &OfflineAuditDTO) -> Result<()> {
         let existing = self
-            .repos.payment_refund_apply
+            .repos.payment.refund_apply
             .find_by_id(dto.refund_id)
             .await?
             .ok_or_else(|| Error::NotFound("退款申请不存在".into()))?;
@@ -354,12 +354,12 @@ impl RefundApplyService {
         }
 
         if let Some(v) = &dto.payment_voucher {
-            self.repos.payment_refund_apply
+            self.repos.payment.refund_apply
                 .update_voucher(dto.refund_id, v)
                 .await?;
         }
 
-        let ok = self.repos.payment_refund_apply.confirm_receive(dto.refund_id).await?;
+        let ok = self.repos.payment.refund_apply.confirm_receive(dto.refund_id).await?;
         if !ok {
             return Err(Error::biz(400, "已确认收款，无需重复操作"));
         }
@@ -386,7 +386,7 @@ impl RefundApplyService {
     /// 标记退款完成（渠道扣款成功后调用）。
     pub async fn mark_processed(&self, refund_id: i32, transaction_id: &str) -> Result<()> {
         let ok = self
-            .repos.payment_refund_apply
+            .repos.payment.refund_apply
             .transition_status(
                 refund_id,
                 &[RefundApplyStatus::Processing as i32],
@@ -399,7 +399,7 @@ impl RefundApplyService {
         }
 
         let existing = self
-            .repos.payment_refund_apply
+            .repos.payment.refund_apply
             .find_by_id(refund_id)
             .await?
             .unwrap_or_default();
@@ -428,7 +428,7 @@ impl RefundApplyService {
     pub async fn assert_refundable(&self, order_id: i32, refund_amount: Decimal) -> Result<()> {
         let paid = self.paid_amount(order_id).await?;
         let occupied = self
-            .repos.payment_refund_apply
+            .repos.payment.refund_apply
             .sum_occupied_by_order(order_id)
             .await?;
         let refundable = (paid - occupied).max(Decimal::ZERO);
@@ -455,7 +455,7 @@ impl RefundApplyService {
     pub async fn refundable_amount(&self, order_id: i32) -> Result<Decimal> {
         let paid = self.paid_amount(order_id).await?;
         let occupied = self
-            .repos.payment_refund_apply
+            .repos.payment.refund_apply
             .sum_occupied_by_order(order_id)
             .await?;
         Ok((paid - occupied).max(Decimal::ZERO))
@@ -469,7 +469,7 @@ impl RefundApplyService {
     /// `order_id` 会撞号。
     async fn paid_amount(&self, order_id: i32) -> Result<Decimal> {
         match self
-            .repos.payment_paylog
+            .repos.payment.paylog
             .find_last_by_order(order_id, ORDER_TYPE_PRODUCT)
             .await?
         {
@@ -503,7 +503,7 @@ impl RefundApplyService {
             description: Some(description),
             user_id,
         };
-        self.repos.payment_refund_apply.insert_log(&log).await?;
+        self.repos.payment.refund_apply.insert_log(&log).await?;
         Ok(())
     }
 }

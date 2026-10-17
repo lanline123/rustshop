@@ -46,7 +46,7 @@ impl SunmiPrintCallbackService {
     /// 本片仓储（当前占位实现不使用，保留供 DR-01=β/γ 升级）。
     #[must_use]
     pub fn repo(&self) -> &tigshop_infrastructure::db::repo::logistics::sunmi_print_callback::SunmiPrintCallbackRepository {
-        &self.repos.logistics_sunmi_print_callback
+        &self.repos.logistics.sunmi_print_callback
     }
 
     /// 处理商米云打印回调（对应 Java `callback` 方法体）。

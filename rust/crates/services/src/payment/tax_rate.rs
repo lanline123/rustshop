@@ -126,7 +126,7 @@ impl TaxRateService {
         };
 
         let (total, rows) = self
-            .repos.payment_tax_rate
+            .repos.payment.tax_rate
             .paginate(q, start_ts, end_ts, order_clause)
             .await?;
         let list: Vec<TaxRateVO> = rows.iter().map(TaxRateVO::from).collect();
@@ -138,7 +138,7 @@ impl TaxRateService {
     /// Java 记录不存在时抛 `GlobalException("税率不存在")` ⇒ 本实现 404 同文案。
     pub async fn detail(&self, tax_rate_id: i32) -> Result<TaxRateVO> {
         let row = self
-            .repos.payment_tax_rate
+            .repos.payment.tax_rate
             .find_by_id(tax_rate_id)
             .await?
             .ok_or_else(|| Error::NotFound(MSG_TAX_RATE_NOT_FOUND.to_string()))?;
@@ -188,7 +188,7 @@ impl TaxRateService {
             create_time: Some(now),
             update_time: Some(now),
         };
-        self.repos.payment_tax_rate.insert(&insert).await
+        self.repos.payment.tax_rate.insert(&insert).await
     }
 
     /// 更新税率（对应 Java `TaxRateServiceImpl#update`）。
@@ -205,7 +205,7 @@ impl TaxRateService {
 
         // ② `getById` 取旧行；不存在 → "税率不存在"
         let old = self
-            .repos.payment_tax_rate
+            .repos.payment.tax_rate
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::NotFound(MSG_TAX_RATE_NOT_FOUND.to_string()))?;
@@ -246,7 +246,7 @@ impl TaxRateService {
             create_time: Some(old.create_time),
             update_time: Some(Some(now_secs())),
         };
-        self.repos.payment_tax_rate.update(id, &patch).await
+        self.repos.payment.tax_rate.update(id, &patch).await
     }
 
     /// 删除税率（对应 Java `TaxRateServiceImpl#del` → `removeById`）。
@@ -254,7 +254,7 @@ impl TaxRateService {
     /// 硬删除（表无软删列）。Java 的 `removeById` 返回 `boolean`，
     /// 本实现同样返回「是否删掉了行」。
     pub async fn del(&self, id: i32) -> Result<bool> {
-        self.repos.payment_tax_rate.delete(id).await
+        self.repos.payment.tax_rate.delete(id).await
     }
 
     // ————————————————————— 内部辅助 —————————————————————
@@ -266,7 +266,7 @@ impl TaxRateService {
     /// 「`region == null` 就不 `setRegionName`」的可观测行为一致，
     /// **不**报错（Java 此处不抛异常）。
     async fn lookup_region_name(&self, region_id: i32) -> Result<Option<String>> {
-        self.repos.payment_tax_rate.find_region_name(region_id).await
+        self.repos.payment.tax_rate.find_region_name(region_id).await
     }
 }
 

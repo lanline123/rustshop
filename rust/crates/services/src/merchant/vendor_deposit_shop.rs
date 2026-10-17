@@ -98,7 +98,7 @@ impl VendorDepositShopService {
     /// 本片仓储。
     #[must_use]
     pub fn repo(&self) -> &tigshop_infrastructure::db::repo::merchant::vendor_deposit_shop::VendorDepositShopRepository {
-        &self.repos.merchant_vendor_deposit_shop
+        &self.repos.merchant.vendor_deposit_shop
     }
 
     // ————————————————————— 总览 —————————————————————

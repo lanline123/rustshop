@@ -728,19 +728,19 @@ impl AftersalesClientService {
     /// 读取本域需要的全部配置快照。
     async fn load_configs(&self) -> Result<Configs> {
         let review = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_config_raw(CFG_AFTER_SALES_REVIEW)
             .await?;
         let reason_enabled = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_config_raw(CFG_AFTER_SALES_REASON_ENABLED)
             .await?;
         let reason_list = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_config_raw(CFG_AFTER_SALES_REASON_LIST)
             .await?;
         let auto_days = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_config_raw(CFG_AUTO_RETURN_GOODS_DAYS)
             .await?;
         Ok(Configs {
@@ -780,7 +780,7 @@ impl AftersalesClientService {
     pub async fn list(&self, q: &AftersalesListQuery, user_id: i32) -> Result<PageResult<AfterSalesClientVO>> {
         let page = q.page_query();
         let (total, orders) = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .paginate_aftersales_orders(q, user_id)
             .await?;
         if orders.is_empty() {
@@ -789,7 +789,7 @@ impl AftersalesClientService {
 
         let order_ids: Vec<i32> = orders.iter().map(|o| o.order_id).collect();
         let items = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_order_items_by_order_ids(&order_ids)
             .await?;
         let mut items_by_order: HashMap<i32, Vec<OrderItem>> = HashMap::new();
@@ -805,7 +805,7 @@ impl AftersalesClientService {
                 .filter(|id| *id > 0),
         );
         let products: HashMap<i32, Product> = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_products(&product_ids)
             .await?
             .into_iter()
@@ -816,14 +816,14 @@ impl AftersalesClientService {
         let mut applied: HashMap<i32, Vec<AppliedItem>> = HashMap::new();
         for order in &orders {
             let rows = self
-                .repos.trade_aftersales_client
+                .repos.trade.aftersales_client
                 .find_in_progress_aftersales(order.order_id, &aftersales_status::applied_statuses())
                 .await?;
             let ids: Vec<i32> = rows.iter().map(|a| a.aftersale_id).collect();
             let status_of: HashMap<i32, i32> =
                 rows.iter().map(|a| (a.aftersale_id, a.status)).collect();
             let detail = self
-                .repos.trade_aftersales_client
+                .repos.trade.aftersales_client
                 .find_items_by_aftersale_ids(&ids)
                 .await?;
             let mut list: Vec<AppliedItem> = Vec::new();
@@ -848,7 +848,7 @@ impl AftersalesClientService {
         for it in items_by_order.values().flatten() {
             if it.shop_id > 0 && !shop_instant_close.contains_key(&it.shop_id) {
                 let raw = self
-                    .repos.trade_aftersales_client
+                    .repos.trade.aftersales_client
                     .find_order_config(it.shop_id, "order_config")
                     .await?;
                 let date_type = raw
@@ -940,14 +940,14 @@ impl AftersalesClientService {
     ) -> Result<AfterSalesApplyDataVO> {
         let order_id = order_id.ok_or_else(|| Error::Validation("orderId 不能为空".into()))?;
         let order = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_order(order_id)
             .await?
             .ok_or_else(|| Error::biz_msg(ERR_ORDER_NOT_EXIST))?;
 
         // 店铺「确认收货后 N 天不可申请」限制
         let config_raw = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_order_config(order.shop_id, "order_config")
             .await?;
         if order.order_status == ORDER_STATUS_COMPLETED {
@@ -969,7 +969,7 @@ impl AftersalesClientService {
         }
 
         let order_items = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_order_items(order_id, item_id)
             .await?;
         if order_items.is_empty() {
@@ -979,7 +979,7 @@ impl AftersalesClientService {
         // 云支付渠道（微信/支付宝/云闪付）下单件退款不受支持
         if item_id.is_some()
             && self
-                .repos.trade_aftersales_client
+                .repos.trade.aftersales_client
                 .has_success_paylog_with_codes(
                     order_id,
                     &["yunpay_wechat", "yunpay_alipay", "yunpay_yunshanfu"],
@@ -990,12 +990,12 @@ impl AftersalesClientService {
         }
 
         let applied = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_in_progress_aftersales(order_id, &aftersales_status::applied_statuses())
             .await?;
         let applied_ids: Vec<i32> = applied.iter().map(|a| a.aftersale_id).collect();
         let applied_items = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_items_by_aftersale_ids(&applied_ids)
             .await?;
         let mut applied_qty: HashMap<i32, i32> = HashMap::new();
@@ -1094,7 +1094,7 @@ impl AftersalesClientService {
         // Java：先逐条校验礼品卡兑换商品
         let item_ids: Vec<i32> = items.iter().filter_map(|i| i.order_item_id).collect();
         let requested_items = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_order_items_by_ids(&item_ids)
             .await?;
         if requested_items
@@ -1105,7 +1105,7 @@ impl AftersalesClientService {
         }
 
         let order = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_order(order_id)
             .await?
             .ok_or_else(|| Error::biz_msg(ERR_ORDER_NOT_EXIST))?;
@@ -1113,7 +1113,7 @@ impl AftersalesClientService {
         // 电子礼品卡（虚拟）不支持售后
         if !item_ids.is_empty() {
             let apply_items = self
-                .repos.trade_aftersales_client
+                .repos.trade.aftersales_client
                 .find_order_items(order.order_id, None)
                 .await?;
             let contains_virtual_gift_card = apply_items.iter().any(|it| {
@@ -1191,7 +1191,7 @@ impl AftersalesClientService {
             })
             .collect();
 
-        let username = self.repos.trade_aftersales_client.find_username(user_id).await?;
+        let username = self.repos.trade.aftersales_client.find_username(user_id).await?;
         let log = AftersalesLog {
             log_id: 0,
             aftersale_id: 0,
@@ -1212,7 +1212,7 @@ impl AftersalesClientService {
         };
 
         let aftersale_id = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .insert_aftersales_bundle(&aftersales, &af_items, &log)
             .await?;
         aftersales.aftersale_id = aftersale_id;
@@ -1232,7 +1232,7 @@ impl AftersalesClientService {
 
         // ——— 审核关闭：按 Java 逻辑自动审核 ———
         let all_order_items = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_order_items(order.order_id, None)
             .await?;
 
@@ -1243,7 +1243,7 @@ impl AftersalesClientService {
             let base = if refund_amount_provided.is_none() {
                 suggest_refund_amount(&order, &all_order_items, &items)
             } else {
-                let as_items = self.repos.trade_aftersales_client.find_items(aftersale_id).await?;
+                let as_items = self.repos.trade.aftersales_client.find_items(aftersale_id).await?;
                 base_refund_amount(&order, &all_order_items, &as_items, aftersales.refund_amount)
             };
             let (full_with, full_without) = self.coverage(&order, aftersale_id).await?;
@@ -1260,7 +1260,7 @@ impl AftersalesClientService {
             aftersales.return_goods_tip = "您的售后申请已通过".into();
         } else if aftersale_type_value == aftersales_type::RETURN {
             // 退货退款：重算商品金额（> 0 才覆盖），流转到「待回寄」
-            let as_items = self.repos.trade_aftersales_client.find_items(aftersale_id).await?;
+            let as_items = self.repos.trade.aftersales_client.find_items(aftersale_id).await?;
             let vos = self.build_item_vos(&order, &as_items).await?;
             let recalc = calc_refund_product_amount(&order, &vos);
             if recalc > Decimal::ZERO {
@@ -1274,7 +1274,7 @@ impl AftersalesClientService {
         if final_status != aftersales_status::IN_REVIEW {
             aftersales.status = final_status;
             aftersales.audit_time = utils::now_seconds() as i32;
-            self.repos.trade_aftersales_client.update_aftersales(&aftersales).await?;
+            self.repos.trade.aftersales_client.update_aftersales(&aftersales).await?;
 
             // 自动审核留痕（Java `orderLogService.quickCreateBySystemAdmin` 属订单域，
             // 未迁移；此处只追加售后日志，保持前台可见的进度可解释）
@@ -1292,7 +1292,7 @@ impl AftersalesClientService {
                 shop_id: None,
                 vendor_id: None,
             };
-            self.repos.trade_aftersales_client
+            self.repos.trade.aftersales_client
                 .insert_aftersales_log(&auto_log)
                 .await?;
         }
@@ -1327,7 +1327,7 @@ impl AftersalesClientService {
             // 新增时才判「是否已有进行中申请」
             if exclude_aftersale_id.is_none()
                 && self
-                    .repos.trade_aftersales_client
+                    .repos.trade.aftersales_client
                     .has_applied_aftersales(
                         order_id,
                         order_item_id,
@@ -1339,13 +1339,13 @@ impl AftersalesClientService {
             }
 
             let quantity = self
-                .repos.trade_aftersales_client
+                .repos.trade.aftersales_client
                 .find_order_items(order_id, Some(order_item_id))
                 .await?
                 .first()
                 .map_or(0, |it| it.quantity);
             let used = self
-                .repos.trade_aftersales_client
+                .repos.trade.aftersales_client
                 .valid_quantity_by_item(
                     order_id,
                     &aftersales_status::valid_statuses(),
@@ -1372,16 +1372,16 @@ impl AftersalesClientService {
     /// - 「不含当前单」= 其余有效状态售后的明细。
     async fn coverage(&self, order: &Order, aftersale_id: i32) -> Result<(bool, bool)> {
         let order_items = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_order_items(order.order_id, None)
             .await?;
         if order_items.is_empty() {
             return Ok((false, false));
         }
 
-        let current = self.repos.trade_aftersales_client.find_items(aftersale_id).await?;
+        let current = self.repos.trade.aftersales_client.find_items(aftersale_id).await?;
         let valid = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_valid_aftersales(order.order_id, &aftersales_status::valid_statuses())
             .await?;
         let other_ids: Vec<i32> = valid
@@ -1390,7 +1390,7 @@ impl AftersalesClientService {
             .filter(|id| *id != aftersale_id)
             .collect();
         let other_items = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_items_by_aftersale_ids(&other_ids)
             .await?;
         let others_flat: Vec<AftersalesItem> = other_items.into_values().flatten().collect();
@@ -1417,7 +1417,7 @@ impl AftersalesClientService {
             .aftersale_id
             .ok_or_else(|| Error::Validation("售后id不能为空".into()))?;
         let mut aftersales = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_aftersales(aftersale_id)
             .await?
             .ok_or_else(|| Error::biz_msg(ERR_AFTERSALES_NOT_EXIST))?;
@@ -1474,7 +1474,7 @@ impl AftersalesClientService {
 
         // Java 日志使用**入参**的 aftersaleType
         let log_type = param.aftersale_type.unwrap_or(aftersales.aftersale_type);
-        let username = self.repos.trade_aftersales_client.find_username(user_id).await?;
+        let username = self.repos.trade.aftersales_client.find_username(user_id).await?;
         let log = AftersalesLog {
             log_id: 0,
             aftersale_id,
@@ -1494,7 +1494,7 @@ impl AftersalesClientService {
             vendor_id: None,
         };
 
-        self.repos.trade_aftersales_client
+        self.repos.trade.aftersales_client
             .update_aftersales_with_items_and_log(&aftersales, &af_items, &log)
             .await
     }
@@ -1510,7 +1510,7 @@ impl AftersalesClientService {
     ) -> Result<PageResult<AftersalesVO>> {
         let page = q.page_query();
         let (total, rows) = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .paginate_aftersales(q, user_id)
             .await?;
         if rows.is_empty() {
@@ -1519,13 +1519,13 @@ impl AftersalesClientService {
 
         let ids: Vec<i32> = rows.iter().map(|a| a.aftersale_id).collect();
         let items = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_items_by_aftersale_ids(&ids)
             .await?;
 
         let order_ids = distinct(rows.iter().filter_map(|a| a.order_id));
         let orders: HashMap<i32, Order> = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_orders_by_ids(&order_ids)
             .await?
             .into_iter()
@@ -1601,7 +1601,7 @@ impl AftersalesClientService {
     /// `AftersalesServiceImpl#clientDetail`）。
     async fn client_detail(&self, id: i32, user_id: i32) -> Result<AfterSalesClientDetailVO> {
         let a = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_aftersales(id)
             .await?
             .ok_or_else(|| Error::biz_msg(ERR_AFTERSALES_NOT_EXIST))?;
@@ -1614,7 +1614,7 @@ impl AftersalesClientService {
             return Err(Error::biz(SERVICE_DATA_ERROR, "无权限查看此售后记录"));
         }
 
-        let items = self.repos.trade_aftersales_client.find_items(id).await?;
+        let items = self.repos.trade.aftersales_client.find_items(id).await?;
         let item_vos = self.build_item_vos_by_order(&a, &items).await?;
         let logs = self.build_log_vos(id).await?;
 
@@ -1628,9 +1628,9 @@ impl AftersalesClientService {
             aftersales_status::IN_REVIEW | aftersales_status::WAIT_FOR_SUPPLIER_AUDIT
         ) {
             if let Some(order_id) = a.order_id {
-                if let Some(order) = self.repos.trade_aftersales_client.find_order(order_id).await? {
+                if let Some(order) = self.repos.trade.aftersales_client.find_order(order_id).await? {
                     let order_items = self
-                        .repos.trade_aftersales_client
+                        .repos.trade.aftersales_client
                         .find_order_items(order.order_id, None)
                         .await?;
                     let mut qty: HashMap<i32, i32> = HashMap::new();
@@ -1662,7 +1662,7 @@ impl AftersalesClientService {
 
         let cfg = self.load_configs().await?;
         let auto_return_goods = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_config_raw(CFG_AUTO_RETURN_GOODS)
             .await?;
 
@@ -1744,7 +1744,7 @@ impl AftersalesClientService {
             .id
             .ok_or_else(|| Error::Validation("售后id不能为空".into()))?;
         let mut a = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_aftersales(id)
             .await?
             .ok_or_else(|| Error::biz_msg(ERR_APPLY_NOT_EXIST))?;
@@ -1761,13 +1761,13 @@ impl AftersalesClientService {
                     aftersales_status::RETURNED
                 };
             }
-            self.repos.trade_aftersales_client.update_aftersales(&a).await?;
+            self.repos.trade.aftersales_client.update_aftersales(&a).await?;
             let _ = before_status;
             // Java：状态由待回寄流转时投递「自动确认收货」延时队列
             // （RabbitMQ 未迁移），见 `uncertain_points`。
         }
 
-        let username = self.repos.trade_aftersales_client.find_username(user_id).await?;
+        let username = self.repos.trade.aftersales_client.find_username(user_id).await?;
         let log = AftersalesLog {
             log_id: 0,
             aftersale_id: id,
@@ -1786,7 +1786,7 @@ impl AftersalesClientService {
             shop_id: None,
             vendor_id: None,
         };
-        self.repos.trade_aftersales_client.insert_aftersales_log(&log).await?;
+        self.repos.trade.aftersales_client.insert_aftersales_log(&log).await?;
         Ok(())
     }
 
@@ -1799,7 +1799,7 @@ impl AftersalesClientService {
             .aftersale_id
             .ok_or_else(|| Error::Validation("售后id不能为空".into()))?;
         let mut a = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_aftersales(aftersale_id)
             .await?
             .ok_or_else(|| Error::biz_msg(ERR_RECORD_NOT_EXIST))?;
@@ -1807,9 +1807,9 @@ impl AftersalesClientService {
             return Err(Error::biz_msg(ERR_STATUS_CANNOT_CANCEL));
         }
         a.status = aftersales_status::CANCEL;
-        self.repos.trade_aftersales_client.update_aftersales(&a).await?;
+        self.repos.trade.aftersales_client.update_aftersales(&a).await?;
 
-        let username = self.repos.trade_aftersales_client.find_username(user_id).await?;
+        let username = self.repos.trade.aftersales_client.find_username(user_id).await?;
         let log = AftersalesLog {
             log_id: 0,
             aftersale_id,
@@ -1824,7 +1824,7 @@ impl AftersalesClientService {
             shop_id: None,
             vendor_id: None,
         };
-        self.repos.trade_aftersales_client.insert_aftersales_log(&log).await?;
+        self.repos.trade.aftersales_client.insert_aftersales_log(&log).await?;
         // Java 另有：账期订单恢复待结算、微信小程序订单同步（依赖未迁移服务）
         Ok(())
     }
@@ -1838,7 +1838,7 @@ impl AftersalesClientService {
         items: &[AftersalesItem],
     ) -> Result<Vec<AftersalesItemVO>> {
         let order_items = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_order_items_by_ids(
                 &items.iter().filter_map(|i| i.order_item_id).collect::<Vec<_>>(),
             )
@@ -1858,11 +1858,11 @@ impl AftersalesClientService {
         items: &[AftersalesItem],
     ) -> Result<Vec<AftersalesItemVO>> {
         let order = match a.order_id {
-            Some(id) => self.repos.trade_aftersales_client.find_order(id).await?,
+            Some(id) => self.repos.trade.aftersales_client.find_order(id).await?,
             None => None,
         };
         let order_items = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_order_items_by_ids(
                 &items.iter().filter_map(|i| i.order_item_id).collect::<Vec<_>>(),
             )
@@ -1878,7 +1878,7 @@ impl AftersalesClientService {
     /// 多订单混合明细（`getRecord`）：逐条取所属订单的税率。
     async fn build_item_vos_multi(&self, items: &[AftersalesItem]) -> Result<Vec<AftersalesItemVO>> {
         let order_items = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_order_items_by_ids(
                 &items.iter().filter_map(|i| i.order_item_id).collect::<Vec<_>>(),
             )
@@ -1887,7 +1887,7 @@ impl AftersalesClientService {
             order_items.iter().map(|it| (it.item_id, it)).collect();
         let order_ids = distinct(order_items.iter().map(|it| it.order_id));
         let orders: HashMap<i32, Order> = self
-            .repos.trade_aftersales_client
+            .repos.trade.aftersales_client
             .find_orders_by_ids(&order_ids)
             .await?
             .into_iter()
@@ -1946,7 +1946,7 @@ impl AftersalesClientService {
     /// 售后日志 VO（对应 Java `AftersalesLogServiceImpl#getList` +
     /// `translateForLogInfo`）。
     async fn build_log_vos(&self, aftersale_id: i32) -> Result<Vec<AftersalesLogVO>> {
-        let rows: Vec<AftersalesLogRow> = self.repos.trade_aftersales_client.find_logs(aftersale_id).await?;
+        let rows: Vec<AftersalesLogRow> = self.repos.trade.aftersales_client.find_logs(aftersale_id).await?;
         Ok(rows
             .into_iter()
             .map(|r| AftersalesLogVO {

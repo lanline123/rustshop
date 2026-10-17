@@ -88,9 +88,9 @@ pub struct UserManageService {
 }
 
 impl UserManageService {
-    /// 构造服务（`repos.member_user_manage` 由主会话在 `Repositories` 中注册）。
+    /// 构造服务（`repos.member.user_manage` 由主会话在 `Repositories` 中注册）。
     pub fn new(repos: Arc<Repositories>) -> Self {
-        let repo = repos.member_user_manage.clone();
+        let repo = repos.member.user_manage.clone();
         Self { repos, repo }
     }
 

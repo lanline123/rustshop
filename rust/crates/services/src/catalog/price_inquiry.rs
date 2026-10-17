@@ -111,8 +111,7 @@ impl PriceInquiryService {
         // 1. 关键词 → 商品 ID（Java 先查 product 再 `IN`；无匹配直接空页）
         let product_ids = match q.effective_keyword() {
             Some(keyword) => Some(
-                self.repos
-                    .catalog_price_inquiry
+                self.repos.catalog.price_inquiry
                     .find_product_ids_by_keyword(keyword)
                     .await?,
             ),
@@ -126,8 +125,7 @@ impl PriceInquiryService {
 
         // 2. 分页查询价
         let (total, rows) = self
-            .repos
-            .catalog_price_inquiry
+            .repos.catalog.price_inquiry
             .paginate(q, product_ids.as_deref(), &page)
             .await?;
 
@@ -136,8 +134,7 @@ impl PriceInquiryService {
         let mut products: HashMap<i32, ProductBrief> = HashMap::new();
         if !product_ids.is_empty() {
             for p in self
-                .repos
-                .catalog_price_inquiry
+                .repos.catalog.price_inquiry
                 .find_products_by_ids(&product_ids)
                 .await?
             {
@@ -163,20 +160,17 @@ impl PriceInquiryService {
     /// Java 查不到抛 `GlobalException("询价信息不存在")`（业务 500）。
     pub async fn detail(&self, id: i32) -> Result<PriceInquiryVO> {
         let entity = self
-            .repos
-            .catalog_price_inquiry
+            .repos.catalog.price_inquiry
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::biz(500, INQUIRY_NOT_FOUND))?;
 
         let product = self
-            .repos
-            .catalog_price_inquiry
+            .repos.catalog.price_inquiry
             .find_product_by_id(entity.product_id)
             .await?;
         let records = self
-            .repos
-            .catalog_price_inquiry
+            .repos.catalog.price_inquiry
             .find_reply_records(entity.id)
             .await?;
 
@@ -194,17 +188,15 @@ impl PriceInquiryService {
     pub async fn reply(&self, dto: &PriceInquiryReplyDTO, operator: &AdminOperator) -> Result<()> {
         let (id, remark) = validate_reply(dto)?;
 
-        let mut tx = self.repos.catalog_price_inquiry.begin().await?;
+        let mut tx = self.repos.catalog.price_inquiry.begin().await?;
         let inquiry = self
-            .repos
-            .catalog_price_inquiry
+            .repos.catalog.price_inquiry
             .find_by_id_in_tx(&mut tx, id)
             .await?
             .ok_or_else(|| Error::biz(500, INQUIRY_NOT_FOUND))?;
 
         // Java `lambdaUpdate().set(status,1).set(remark, dto.getRemark())`
-        self.repos
-            .catalog_price_inquiry
+        self.repos.catalog.price_inquiry
             .update_reply_in_tx(&mut tx, id, remark)
             .await?;
 
@@ -220,8 +212,7 @@ impl PriceInquiryService {
             user_id: 0,
             create_time: now_seconds() as i32,
         };
-        self.repos
-            .catalog_price_inquiry
+        self.repos.catalog.price_inquiry
             .insert_reply_record_in_tx(&mut tx, &record)
             .await?;
 
@@ -242,8 +233,7 @@ impl PriceInquiryService {
     /// Java 控制器**忽略返回值**，因此不存在的 ID 也返回成功。
     pub async fn delete(&self, id: i32) -> Result<()> {
         let deleted = self
-            .repos
-            .catalog_price_inquiry
+            .repos.catalog.price_inquiry
             .delete(id)
             .await?;
         tracing::info!("删除询价: id={id}, deleted={deleted}");
@@ -266,8 +256,7 @@ impl PriceInquiryService {
             .ok_or_else(|| Error::Validation(OPERATION_TYPE_REQUIRED.into()))?;
         if op_type == "del" {
             let n = self
-                .repos
-                .catalog_price_inquiry
+                .repos.catalog.price_inquiry
                 .delete_batch(ids)
                 .await?;
             tracing::info!("批量删除询价: {n} 条");

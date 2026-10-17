@@ -44,7 +44,7 @@ impl ImServantService {
     /// 本片仓储。
     #[must_use]
     pub fn repo(&self) -> &tigshop_infrastructure::db::repo::im::im_servant::ImServantRepository {
-        &self.repos.im_im_servant
+        &self.repos.im.im_servant
     }
 
     /// `GET /im/servant/servant/transferList`：客服分页列表。

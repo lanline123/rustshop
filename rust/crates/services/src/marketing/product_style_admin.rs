@@ -99,7 +99,7 @@ impl ProductStyleAdminService {
 
     /// 仓储句柄。
     fn repo(&self) -> &ProductStyleAdminRepository {
-        &self.repos.marketing_product_style_admin
+        &self.repos.marketing.product_style_admin
     }
 
     // ————————————————————— 列表 / 详情 —————————————————————

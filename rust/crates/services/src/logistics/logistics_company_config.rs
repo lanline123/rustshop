@@ -191,7 +191,7 @@ impl LogisticsCompanyConfigService {
 
     /// 本片仓储。
     fn repo(&self) -> &LogisticsCompanyConfigRepository {
-        &self.repos.logistics_logistics_company_config
+        &self.repos.logistics.logistics_company_config
     }
 
     // ————————————————————— 管理端 —————————————————————

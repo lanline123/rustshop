@@ -47,7 +47,7 @@ impl CouponService {
         };
         let now = now_seconds();
         let (total, list) = self
-            .repos.marketing_coupon
+            .repos.marketing.coupon
             .paginate(
                 q.keyword.as_deref(),
                 q.status,
@@ -58,7 +58,7 @@ impl CouponService {
             .await?;
 
         let ids: Vec<i32> = list.iter().map(|c| c.coupon_id).collect();
-        let counts = self.repos.marketing_coupon.count_issued_batch(&ids).await?;
+        let counts = self.repos.marketing.coupon.count_issued_batch(&ids).await?;
 
         let vos: Vec<CouponVO> = list
             .iter()
@@ -71,7 +71,7 @@ impl CouponService {
     pub async fn status_count(&self, shop_id: Option<i32>) -> Result<CouponStatusCountVO> {
         let now = now_seconds();
         let (processing, pending, expired) =
-            self.repos.marketing_coupon.count_by_status(shop_id, now).await?;
+            self.repos.marketing.coupon.count_by_status(shop_id, now).await?;
         Ok(CouponStatusCountVO {
             processing,
             pending,
@@ -81,7 +81,7 @@ impl CouponService {
 
     /// 优惠券详情（管理端）。
     pub async fn detail(&self, coupon_id: i32) -> Result<Coupon> {
-        self.repos.marketing_coupon
+        self.repos.marketing.coupon
             .find_by_id(coupon_id)
             .await?
             .ok_or_else(|| Error::NotFound("优惠券不存在".into()))
@@ -90,7 +90,7 @@ impl CouponService {
     /// 优惠券详情（含派生状态与已领取数量）。
     pub async fn detail_vo(&self, coupon_id: i32) -> Result<CouponVO> {
         let coupon = self.detail(coupon_id).await?;
-        let issued = self.repos.marketing_coupon.count_issued(coupon_id).await?;
+        let issued = self.repos.marketing.coupon.count_issued(coupon_id).await?;
         Ok(to_coupon_vo(&coupon, now_seconds(), issued))
     }
 
@@ -108,12 +108,12 @@ impl CouponService {
         };
         let now = now_seconds();
         let (total, list) = self
-            .repos.marketing_coupon
+            .repos.marketing.coupon
             .paginate_claimable(now, q.shop_id, &page)
             .await?;
 
         let ids: Vec<i32> = list.iter().map(|c| c.coupon_id).collect();
-        let counts = self.repos.marketing_coupon.count_issued_batch(&ids).await?;
+        let counts = self.repos.marketing.coupon.count_issued_batch(&ids).await?;
 
         let vos: Vec<CouponClientVO> = list
             .iter()
@@ -141,20 +141,20 @@ impl CouponService {
         };
         let now = now_seconds();
         let (total, list) = self
-            .repos.marketing_coupon
+            .repos.marketing.coupon
             .paginate_claimable(now, q.shop_id, &page)
             .await?;
 
         let ids: Vec<i32> = list.iter().map(|c| c.coupon_id).collect();
-        let counts = self.repos.marketing_coupon.count_issued_batch(&ids).await?;
+        let counts = self.repos.marketing.coupon.count_issued_batch(&ids).await?;
         let claimed = self
-            .repos.marketing_coupon
+            .repos.marketing.coupon
             .find_user_claimed_ids(user_id, &ids)
             .await?;
 
         // 会员等级：用于过滤限定等级的券（rank_id 为 NOT NULL 裸类型）
         let user_rank = self
-            .repos.member_user
+            .repos.member.user
             .find_by_id(user_id)
             .await?
             .map(|u| u.rank_id);
@@ -173,9 +173,9 @@ impl CouponService {
 
     /// 按 ID 批量查询（前台 `listByIds`）。
     pub async fn list_by_ids(&self, ids: &[i32]) -> Result<Vec<CouponClientVO>> {
-        let list = self.repos.marketing_coupon.find_by_ids(ids).await?;
+        let list = self.repos.marketing.coupon.find_by_ids(ids).await?;
         let coupon_ids: Vec<i32> = list.iter().map(|c| c.coupon_id).collect();
-        let counts = self.repos.marketing_coupon.count_issued_batch(&coupon_ids).await?;
+        let counts = self.repos.marketing.coupon.count_issued_batch(&coupon_ids).await?;
         Ok(list
             .iter()
             .map(|c| to_client_vo(c, *counts.get(&c.coupon_id).unwrap_or(&0)))
@@ -191,7 +191,7 @@ impl CouponService {
             return Err(Error::Unauthorized("用户未登录".into()));
         }
         let coupon = self
-            .repos.marketing_coupon
+            .repos.marketing.coupon
             .find_by_id(coupon_id)
             .await?
             .ok_or_else(|| Error::biz(400, "优惠券不存在"))?;
@@ -208,7 +208,7 @@ impl CouponService {
 
         // 1) 每人限领
         let user_count = self
-            .repos.marketing_coupon
+            .repos.marketing.coupon
             .count_user_claimed(user_id, coupon_id)
             .await?;
         let limit_per_user = i64::from(coupon.claim_limit_per_user());
@@ -217,7 +217,7 @@ impl CouponService {
         }
 
         // 2) 发放总量
-        let issued = self.repos.marketing_coupon.count_issued(coupon_id).await?;
+        let issued = self.repos.marketing.coupon.count_issued(coupon_id).await?;
         let total_supply = i64::from(coupon.total_supply());
         if total_supply > 0 && issued >= total_supply {
             return Err(Error::biz(400, "已超出领取数量限制"));
@@ -228,7 +228,7 @@ impl CouponService {
             if user_count > 0 {
                 return Err(Error::biz(400, "该优惠券仅能领取一次"));
             }
-            let paid_orders = self.repos.trade_order.count_paid_by_user(user_id).await?;
+            let paid_orders = self.repos.trade.order.count_paid_by_user(user_id).await?;
             if paid_orders > 0 {
                 return Err(Error::biz(400, "该优惠券仅限新人领取"));
             }
@@ -239,7 +239,7 @@ impl CouponService {
             let rank_ids = coupon.limited_rank_ids();
             if !rank_ids.is_empty() {
                 let user_rank = self
-                    .repos.member_user
+                    .repos.member.user
                     .find_by_id(user_id)
                     .await?
                     .map(|u| u.rank_id);
@@ -267,7 +267,7 @@ impl CouponService {
             end_date: end_date as i32,
             source_type: Some(SOURCE_CLAIM),
         };
-        self.repos.marketing_coupon.insert_user_coupon(&uc).await
+        self.repos.marketing.coupon.insert_user_coupon(&uc).await
     }
 
     /// 我的优惠券列表（含派生状态）。
@@ -285,7 +285,7 @@ impl CouponService {
         };
         let now = now_seconds();
         let (total, list) = self
-            .repos.marketing_coupon
+            .repos.marketing.coupon
             .find_user_coupons(user_id, q.used_time, now, &page)
             .await?;
 
@@ -297,7 +297,7 @@ impl CouponService {
     pub async fn my_usable_coupons(&self, user_id: i32) -> Result<Vec<UserCouponVO>> {
         let now = now_seconds();
         let list = self
-            .repos.marketing_coupon
+            .repos.marketing.coupon
             .find_usable_user_coupons(user_id, now)
             .await?;
         self.enrich_user_coupons(list, now).await
@@ -305,7 +305,7 @@ impl CouponService {
 
     /// 我的可用券数量（个人中心角标）。
     pub async fn usable_count(&self, user_id: i32) -> Result<i64> {
-        self.repos.marketing_coupon
+        self.repos.marketing.coupon
             .count_user_usable(user_id, now_seconds())
             .await
     }
@@ -315,7 +315,7 @@ impl CouponService {
         if user_id <= 0 {
             return Err(Error::Unauthorized("用户未登录".into()));
         }
-        let removed = self.repos.marketing_coupon.delete_user_coupon(id, user_id).await?;
+        let removed = self.repos.marketing.coupon.delete_user_coupon(id, user_id).await?;
         if !removed {
             return Err(Error::biz(400, "优惠券不存在"));
         }
@@ -340,7 +340,7 @@ impl CouponService {
         let now = now_seconds();
         for id in user_coupon_ids {
             let ok = self
-                .repos.marketing_coupon
+                .repos.marketing.coupon
                 .try_mark_used(*id, user_id, order_id, now)
                 .await?;
             if !ok {
@@ -352,7 +352,7 @@ impl CouponService {
 
     /// 订单取消/关闭时回退券占用。
     pub async fn release_by_order(&self, order_id: i32) -> Result<u64> {
-        self.repos.marketing_coupon.release_by_order(order_id).await
+        self.repos.marketing.coupon.release_by_order(order_id).await
     }
 
     /// 计算选中券的抵扣总额（受 `max_order_amount` 上限约束）。
@@ -368,12 +368,12 @@ impl CouponService {
             return Ok(Decimal::ZERO);
         }
         let ucs = self
-            .repos.marketing_coupon
+            .repos.marketing.coupon
             .find_user_coupons_by_ids(user_id, user_coupon_ids)
             .await?;
         let mut total = Decimal::ZERO;
         for uc in &ucs {
-            let coupon = match self.repos.marketing_coupon.find_by_id(uc.coupon_id).await? {
+            let coupon = match self.repos.marketing.coupon.find_by_id(uc.coupon_id).await? {
                 Some(c) => c,
                 None => continue,
             };
@@ -398,7 +398,7 @@ impl CouponService {
             return Ok(Vec::new());
         }
         let ids: Vec<i32> = list.iter().map(|uc| uc.coupon_id).collect();
-        let coupons = self.repos.marketing_coupon.find_by_ids(&ids).await?;
+        let coupons = self.repos.marketing.coupon.find_by_ids(&ids).await?;
         let map: std::collections::HashMap<i32, &Coupon> =
             coupons.iter().map(|c| (c.coupon_id, c)).collect();
 
@@ -554,7 +554,7 @@ impl CouponService {
             return Err(Error::Validation("用户ID无效".into()));
         }
         let coupon = self
-            .repos.marketing_coupon
+            .repos.marketing.coupon
             .find_by_id(coupon_id)
             .await?
             .ok_or_else(|| Error::biz(400, "优惠券不存在"))?;
@@ -571,7 +571,7 @@ impl CouponService {
         // 发放总量校验
         let total_supply = i64::from(coupon.total_supply());
         if total_supply > 0 {
-            let issued = self.repos.marketing_coupon.count_issued(coupon_id).await?;
+            let issued = self.repos.marketing.coupon.count_issued(coupon_id).await?;
             if issued >= total_supply {
                 return Err(Error::biz(400, "优惠券剩余数量不足"));
             }
@@ -588,7 +588,7 @@ impl CouponService {
             end_date: end_date as i32,
             source_type: Some(SOURCE_MANUAL),
         };
-        self.repos.marketing_coupon.insert_user_coupon(&uc).await
+        self.repos.marketing.coupon.insert_user_coupon(&uc).await
     }
 }
 

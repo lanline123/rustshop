@@ -69,7 +69,7 @@ impl ShareService {
     /// 本片仓储。
     #[must_use]
     pub fn repo(&self) -> &tigshop_infrastructure::db::repo::content::share::ShareRepository {
-        &self.repos.content_share
+        &self.repos.content.share
     }
 
     /// 装修分享导入：按 `sn` + `token` 取出被分享的装修页详情。
@@ -100,7 +100,7 @@ impl ShareService {
         // ② 回源 decorate_share
         let now = now_seconds() as i32;
         let share = match self
-            .repos.content_share
+            .repos.content.share
             .find_valid_share_by_sn_token(sn, token, now)
             .await?
         {
@@ -108,7 +108,7 @@ impl ShareService {
             // 有效期内没查到：可能是已过期，也可能是 valid_time 口径不同
             // （相对秒数 vs 绝对时间戳），退化为不限有效期查询。
             None => self
-                .repos.content_share
+                .repos.content.share
                 .find_share_by_sn_token(sn, token)
                 .await?
                 .ok_or_else(|| Error::biz_msg(ERR_SHARE_NOT_FOUND))?,
@@ -121,7 +121,7 @@ impl ShareService {
 
     /// 按主键读取分享记录（辅助/测试用）。
     pub async fn find_share(&self, share_id: i32) -> Result<Option<DecorateShare>> {
-        self.repos.content_share.find_share_by_id(share_id).await
+        self.repos.content.share.find_share_by_id(share_id).await
     }
 
     /// 读取装修页详情，对应 `DecorateServiceImpl#detail(decorateId, 0, 0, 0)`。
@@ -134,7 +134,7 @@ impl ShareService {
     /// 由调用方给出与 Java 一致的「未查询到分享装修信息!」。
     async fn decorate_detail(&self, decorate_id: i32) -> Result<DecorateVO> {
         let d = self
-            .repos.content_decorate
+            .repos.content.decorate
             .find_by_id(decorate_id)
             .await
             .map_err(|e| match e {

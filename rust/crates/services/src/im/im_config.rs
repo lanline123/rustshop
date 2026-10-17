@@ -53,7 +53,7 @@ impl ImConfigService {
 
     /// 本片仓储。
     fn repo(&self) -> &ImConfigRepository {
-        &self.repos.im_im_config
+        &self.repos.im.im_config
     }
 
     /// `GET /adminapi/im/config/config/detail?code=`：获取 IM 配置详情。

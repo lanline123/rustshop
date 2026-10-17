@@ -67,7 +67,7 @@ impl WechatLiveSyncCallbackService {
     /// 本片仓储。
     #[must_use]
     pub fn repo(&self) -> &tigshop_infrastructure::db::repo::content::wechat_live_sync_callback::WechatLiveSyncCallbackRepository {
-        &self.repos.content_wechat_live_sync_callback
+        &self.repos.content.wechat_live_sync_callback
     }
 
     /// 处理入站回调（对应 Java `handleInboundCallback`）。

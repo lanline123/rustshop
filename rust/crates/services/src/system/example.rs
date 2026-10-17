@@ -92,7 +92,7 @@ impl ExampleService {
     /// `is_show` 的过滤条件在仓储层按 Java 的 `IsShowType.fromTypeCode`
     /// 口径判定（只有 0/1 生效）。
     pub async fn list(&self, q: &ExampleListQuery) -> Result<PageResult<ExampleVO>> {
-        let (total, rows) = self.repos.system_example.paginate(q).await?;
+        let (total, rows) = self.repos.system.example.paginate(q).await?;
         let list: Vec<ExampleVO> = rows.iter().map(ExampleVO::from).collect();
         Ok(PageResult::new(total, list, &q.page_query()))
     }
@@ -105,7 +105,7 @@ impl ExampleService {
     /// 见 `uncertain_points`。
     pub async fn detail(&self, id: i32) -> Result<ExampleVO> {
         let row = self
-            .repos.system_example
+            .repos.system.example
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::NotFound(MSG_EXAMPLE_NOT_FOUND.to_string()))?;
@@ -134,7 +134,7 @@ impl ExampleService {
             is_show: dto.is_show,
             status: dto.status,
         };
-        self.repos.system_example.insert(&insert).await
+        self.repos.system.example.insert(&insert).await
     }
 
     /// 更新示例（对应 Java `ExampleServiceImpl#update`）。
@@ -164,12 +164,12 @@ impl ExampleService {
             is_show: Some(dto.is_show),
             status: Some(dto.status),
         };
-        self.repos.system_example.update(id, &patch).await
+        self.repos.system.example.update(id, &patch).await
     }
 
     /// 删除示例（对应 Java `removeById`）。
     pub async fn del(&self, id: i32) -> Result<bool> {
-        self.repos.system_example.delete(id).await
+        self.repos.system.example.delete(id).await
     }
 
     /// 单字段更新（对应 Java `BaseServiceImpl#updateField`）。
@@ -209,7 +209,7 @@ impl ExampleService {
         }
 
         // ③ 执行
-        self.repos.system_example.update_field(id, column, val).await
+        self.repos.system.example.update_field(id, column, val).await
     }
 
     /// 批量操作（对应 Java `BaseServiceImpl#batch`）。
@@ -222,7 +222,7 @@ impl ExampleService {
             // Java `return false;` —— 非 del 类型静默不做事
             return Ok(0);
         }
-        self.repos.system_example.delete_many(&ids).await
+        self.repos.system.example.delete_many(&ids).await
     }
 }
 

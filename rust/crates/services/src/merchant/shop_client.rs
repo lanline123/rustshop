@@ -142,7 +142,7 @@ impl ShopClientService {
     }
 
     fn repo(&self) -> &tigshop_infrastructure::db::repo::merchant::shop_client::ShopClientRepository {
-        &self.repos.merchant_shop_client
+        &self.repos.merchant.shop_client
     }
 
     // ————————————————————— 1. 店铺列表 —————————————————————

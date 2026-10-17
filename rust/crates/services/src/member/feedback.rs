@@ -133,7 +133,7 @@ impl FeedbackService {
     /// 本片仓储（便于测试与后续切片复用）。
     #[must_use]
     pub fn repo(&self) -> &FeedbackRepository {
-        &self.repos.member_feedback
+        &self.repos.member.feedback
     }
 
     // ————————————————————————————————— 列表 —————————————————————————————————

@@ -98,7 +98,7 @@ impl PcCatFloorService {
     /// `brandIds` 全为 `null`。见 [`PcCatFloorVO::for_list`]。
     pub async fn list(&self, q: &PcCatFloorListQuery) -> Result<PageResult<PcCatFloorVO>> {
         let page = q.page_query();
-        let (total, rows) = self.repos.content_pc_cat_floor.paginate_floors(q).await?;
+        let (total, rows) = self.repos.content.pc_cat_floor.paginate_floors(q).await?;
         let list: Vec<PcCatFloorVO> = rows.iter().map(PcCatFloorVO::for_list).collect();
         Ok(PageResult::new(total, list, &page))
     }
@@ -109,7 +109,7 @@ impl PcCatFloorService {
     /// （与 Java `@RequestParam Integer id` 的「缺失即 400」一致）。
     pub async fn detail(&self, id: i32) -> Result<PcCatFloorVO> {
         let floor = self
-            .repos.content_pc_cat_floor
+            .repos.content.pc_cat_floor
             .find_floor(id)
             .await?
             .ok_or_else(|| Error::NotFound("分类抽屉不存在".into()))?;
@@ -155,7 +155,7 @@ impl PcCatFloorService {
             floor_ico_font: dto.floor_ico_font.clone(),
             brand_ids: Some(to_json_text(&dto.brand_ids)),
         };
-        self.repos.content_pc_cat_floor.insert_floor(&insert).await
+        self.repos.content.pc_cat_floor.insert_floor(&insert).await
     }
 
     /// 更新分类抽屉（对应 Java `PcCatFloorServiceImpl#update`）。
@@ -173,7 +173,7 @@ impl PcCatFloorService {
 
         // 先确认记录存在：MyBatis-Plus `updateById` 命中 0 行无法区分
         // 「不存在」与「值未变化」，这里显式区分以给出可诊断的错误。
-        if self.repos.content_pc_cat_floor.find_floor(id).await?.is_none() {
+        if self.repos.content.pc_cat_floor.find_floor(id).await?.is_none() {
             return Err(Error::NotFound("分类抽屉不存在".into()));
         }
 
@@ -230,7 +230,7 @@ impl PcCatFloorService {
             // 这是本域唯一的容错性偏离（见 `uncertain_points`）。
             return Ok(false);
         }
-        let affected = self.repos.content_pc_cat_floor.update_floor(id, &patch).await?;
+        let affected = self.repos.content.pc_cat_floor.update_floor(id, &patch).await?;
         Ok(affected > 0)
     }
 
@@ -242,7 +242,7 @@ impl PcCatFloorService {
         let id = dto
             .id
             .ok_or_else(|| Error::Validation("ID不能为空".into()))?;
-        self.repos.content_pc_cat_floor.delete_floor(id).await
+        self.repos.content.pc_cat_floor.delete_floor(id).await
     }
 
     // ————————————————————— 单字段更新 —————————————————————
@@ -282,7 +282,7 @@ impl PcCatFloorService {
             )));
         }
         let affected = self
-            .repos.content_pc_cat_floor
+            .repos.content.pc_cat_floor
             .update_floor_field(id, column, dto.val.as_deref().unwrap_or_default())
             .await?;
         Ok(affected > 0)
@@ -302,7 +302,7 @@ impl PcCatFloorService {
             // Java `removeByIds(空集合)` 直接返回 false，不产生 SQL
             return Ok(false);
         }
-        let affected = self.repos.content_pc_cat_floor.delete_floors(&dto.ids).await?;
+        let affected = self.repos.content.pc_cat_floor.delete_floors(&dto.ids).await?;
         Ok(affected > 0)
     }
 
@@ -345,7 +345,7 @@ impl PcCatFloorService {
         category_names: Option<&[String]>,
     ) -> Result<String> {
         let categories = self
-            .repos.content_pc_cat_floor
+            .repos.content.pc_cat_floor
             .find_categories_by_ids(category_ids)
             .await?;
 

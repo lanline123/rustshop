@@ -103,7 +103,7 @@ impl AreaCodeService {
     /// 与 product_manage/002/008/011/017 同一约定）。
     pub async fn list(&self, q: &AreaCodeListQuery) -> Result<PageResult<AreaCodeVO>> {
         let page = q.page_query();
-        let (total, rows) = self.repos.system_area_code.paginate(q).await?;
+        let (total, rows) = self.repos.system.area_code.paginate(q).await?;
         let list: Vec<AreaCodeVO> = rows.iter().map(AreaCodeVO::from).collect();
         Ok(PageResult::new(total, list, &page))
     }
@@ -117,7 +117,7 @@ impl AreaCodeService {
     /// （项目内 order_admin/005/017 的既有约定）。
     pub async fn detail(&self, id: i32) -> Result<AreaCodeVO> {
         let a = self
-            .repos.system_area_code
+            .repos.system.area_code
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::NotFound(MSG_AREA_CODE_NOT_FOUND.into()))?;
@@ -143,12 +143,12 @@ impl AreaCodeService {
 
         // 3. 若本次设为默认，先把其它默认清 0（Java 在 save 之前执行）
         if dto.is_default == Some(YES) {
-            self.repos.system_area_code.clear_default_flag(None).await?;
+            self.repos.system.area_code.clear_default_flag(None).await?;
         }
 
         // 4. 入库：`isAvailable` / `isDefault` 为 null 时不写列（走库默认值）
         let id = self
-            .repos.system_area_code
+            .repos.system.area_code
             .insert(&AreaCodeInsert {
                 code,
                 name,
@@ -184,12 +184,12 @@ impl AreaCodeService {
 
         // 记录必须存在：Java `updateById` 命中 0 行静默返回 false，
         // 这里先查一次以便区分「不存在」与「值未变化」
-        if self.repos.system_area_code.find_by_id(id).await?.is_none() {
+        if self.repos.system.area_code.find_by_id(id).await?.is_none() {
             return Err(Error::NotFound(MSG_AREA_CODE_NOT_FOUND.into()));
         }
 
         if base.is_default == Some(YES) {
-            self.repos.system_area_code.clear_default_flag(Some(id)).await?;
+            self.repos.system.area_code.clear_default_flag(Some(id)).await?;
         }
 
         // `code` / `name` 已通过校验 ⇒ 必然写列；两个标记列仅在非 null 时写列
@@ -199,7 +199,7 @@ impl AreaCodeService {
             is_available: base.is_available.map(Some),
             is_default: base.is_default.map(Some),
         };
-        let affected = self.repos.system_area_code.update(id, &patch).await?;
+        let affected = self.repos.system.area_code.update(id, &patch).await?;
         tracing::info!("更新区号: id={id}, 影响 {affected} 行");
         Ok(affected > 0)
     }
@@ -217,7 +217,7 @@ impl AreaCodeService {
             .id
             .filter(|v| *v > 0)
             .ok_or_else(|| Error::Validation(MSG_ID_REQUIRED.into()))?;
-        self.repos.system_area_code.delete(id).await
+        self.repos.system.area_code.delete(id).await
     }
 
     // ————————————————————— 单字段更新 —————————————————————
@@ -264,10 +264,10 @@ impl AreaCodeService {
 
         // 4. 置默认时先清其它默认（Java 用字符串 "1" 比较，不是数值比较）
         if column == "is_default" && val == "1" {
-            self.repos.system_area_code.clear_default_flag(Some(id)).await?;
+            self.repos.system.area_code.clear_default_flag(Some(id)).await?;
         }
 
-        let affected = self.repos.system_area_code.update_field(id, column, val).await?;
+        let affected = self.repos.system.area_code.update_field(id, column, val).await?;
         Ok(affected > 0)
     }
 
@@ -290,7 +290,7 @@ impl AreaCodeService {
             // Java `removeByIds(空集合)` 直接返回 false，不产生 SQL
             return Ok(false);
         }
-        let affected = self.repos.system_area_code.delete_many(&dto.ids).await?;
+        let affected = self.repos.system.area_code.delete_many(&dto.ids).await?;
         Ok(affected > 0)
     }
 
@@ -310,7 +310,7 @@ impl AreaCodeService {
     /// - `code` 已被其它记录占用 ⇒ `区号已存在`
     pub async fn check_area_code(&self, code: &str, area_code_id: Option<i32>) -> Result<()> {
         let code_count = self
-            .repos.system_area_code
+            .repos.system.area_code
             .count_by_code(code, area_code_id)
             .await?;
         if code_count > 0 {
@@ -339,7 +339,7 @@ impl AreaCodeService {
     ) -> Result<()> {
         self.check_area_code(code, area_code_id).await?;
         let name_count = self
-            .repos.system_area_code
+            .repos.system.area_code
             .count_by_name(name, area_code_id)
             .await?;
         if name_count > 0 {
@@ -362,7 +362,7 @@ impl AreaCodeService {
     /// - `ORDER BY is_default DESC`（默认项排最前）
     /// - `label = "+{code}"`
     pub async fn mobile_area_code(&self) -> Result<Vec<AreaCodeVO>> {
-        let rows = self.repos.system_area_code.find_available().await?;
+        let rows = self.repos.system.area_code.find_available().await?;
         Ok(rows.iter().map(AreaCodeVO::from).collect())
     }
 

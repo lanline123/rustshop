@@ -171,7 +171,7 @@ impl RegionService {
     /// **排除**（SQL 三值逻辑），与 Java 一致。
     pub async fn region_tree(&self) -> Result<Vec<RegionTreeNode>> {
         let min_level = if default_is_overseas() { 0 } else { 1 };
-        let rows = self.repos.system_region.find_all_for_tree(min_level).await?;
+        let rows = self.repos.system.region.find_all_for_tree(min_level).await?;
         let nodes: Vec<RegionTreeNode> = rows.iter().map(node_from_region).collect();
         Ok(build_region_tree(nodes, TREE_ROOT_PARENT_ID))
     }
@@ -183,7 +183,7 @@ impl RegionService {
     /// 路由层调用的是 `region_tree()`（走 `application.yaml` 的默认值）。
     pub async fn region_tree_with_edition(&self, is_overseas: bool) -> Result<Vec<RegionTreeNode>> {
         let min_level = if is_overseas { 0 } else { 1 };
-        let rows = self.repos.system_region.find_all_for_tree(min_level).await?;
+        let rows = self.repos.system.region.find_all_for_tree(min_level).await?;
         let nodes: Vec<RegionTreeNode> = rows.iter().map(node_from_region).collect();
         Ok(build_region_tree(nodes, TREE_ROOT_PARENT_ID))
     }
@@ -197,7 +197,7 @@ impl RegionService {
     /// 与 product_manage/002/075 同一约定）。
     pub async fn list(&self, q: &RegionListQuery) -> Result<PageResult<RegionListVO>> {
         let page = q.page_query();
-        let (total, rows) = self.repos.system_region.paginate(q).await?;
+        let (total, rows) = self.repos.system.region.paginate(q).await?;
         let list: Vec<RegionListVO> = rows.iter().map(RegionListVO::from).collect();
         Ok(PageResult::new(total, list, &page))
     }
@@ -212,7 +212,7 @@ impl RegionService {
     /// （文案与 Java `GlobalException` 逐字符一致）。
     pub async fn detail(&self, id: i32) -> Result<RegionListVO> {
         let region = self
-            .repos.system_region
+            .repos.system.region
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::NotFound(MSG_REGION_NOT_FOUND.into()))?;
@@ -246,7 +246,7 @@ impl RegionService {
         // 2. 入库：`null` 的列**不写**（MyBatis-Plus `FieldStrategy.NOT_NULL`），
         //    交给 MySQL 列默认值
         let id = self
-            .repos.system_region
+            .repos.system.region
             .insert(&RegionInsert {
                 region_id: dto.region_id,
                 region_name,
@@ -292,7 +292,7 @@ impl RegionService {
         // ⚠️ Java 取出实体后只用于存在性判断，随后逐字段 `set` 覆盖；
         // 唯一「读过但不重写」的是 `standard_code`（不在 `set` 清单里），
         // 由仓储层 `RegionPatch.standard_code = None` 保证其原值不动。
-        self.repos.system_region
+        self.repos.system.region
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::NotFound(MSG_REGION_NOT_FOUND.into()))?;
@@ -320,7 +320,7 @@ impl RegionService {
             // Java 的 `parentId != 0` 守卫：为 0 时**根本不查**父节点
             None
         } else {
-            self.repos.system_region.find_level_by_id(parent_id).await?
+            self.repos.system.region.find_level_by_id(parent_id).await?
         };
         let level = resolve_level(parent_id, parent_level).map_err(Error::Validation)?;
 
@@ -344,7 +344,7 @@ impl RegionService {
             standard_code: None,
         };
 
-        let affected = self.repos.system_region.update(id, &patch).await?;
+        let affected = self.repos.system.region.update(id, &patch).await?;
         tracing::info!("更新地区: region_id={id}, parent_id={parent_id}, level={level}, 影响 {affected} 行");
         Ok(affected > 0)
     }
@@ -366,7 +366,7 @@ impl RegionService {
             .id
             .filter(|v| *v > 0)
             .ok_or_else(|| Error::Validation(MSG_ID_REQUIRED.into()))?;
-        self.repos.system_region.delete(id).await
+        self.repos.system.region.delete(id).await
     }
 
     /// 批量操作（对应 Java `BaseServiceImpl#batch`）。
@@ -386,7 +386,7 @@ impl RegionService {
             // Java `removeByIds(空集合)` 直接返回 false，不产生 SQL
             return Ok(false);
         }
-        let affected = self.repos.system_region.delete_many(&dto.ids).await?;
+        let affected = self.repos.system.region.delete_many(&dto.ids).await?;
         Ok(affected > 0)
     }
 
@@ -403,7 +403,7 @@ impl RegionService {
             .id
             .filter(|v| *v > 0)
             .ok_or_else(|| Error::Validation(MSG_ID_REQUIRED.into()))?;
-        self.repos.system_region.count_children(id).await
+        self.repos.system.region.count_children(id).await
     }
 
     // ————————————————————— 单字段更新 —————————————————————
@@ -454,7 +454,7 @@ impl RegionService {
         }
 
         let val = dto.val.as_deref().unwrap_or_default();
-        let affected = self.repos.system_region.update_field(id, column, val).await?;
+        let affected = self.repos.system.region.update_field(id, column, val).await?;
         Ok(affected > 0)
     }
 

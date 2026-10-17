@@ -28,7 +28,7 @@ impl AuthService {
             .map_err(|e| Error::Validation(e.to_string()))?;
 
         let user = self
-            .repos.identity_auth
+            .repos.identity.auth
             .find_by_username(&dto.username)
             .await?
             .ok_or_else(|| Error::biz(400, "用户名或密码错误"))?;
@@ -103,7 +103,7 @@ impl AuthService {
             return Err(Error::Validation("新密码长度不能少于6位".into()));
         }
         let user = self
-            .repos.identity_auth
+            .repos.identity.auth
             .find_by_id(admin_id)
             .await?
             .ok_or_else(|| Error::NotFound("管理员不存在".into()))?;
@@ -112,7 +112,7 @@ impl AuthService {
             return Err(Error::biz(400, "原密码错误"));
         }
         let new_hash = hash_password(new_password)?;
-        self.repos.identity_auth.update_password(admin_id, &new_hash).await?;
+        self.repos.identity.auth.update_password(admin_id, &new_hash).await?;
         tracing::info!("管理员修改密码成功: {admin_id}");
         Ok(())
     }
@@ -140,7 +140,7 @@ impl AuthService {
         page: &tigshop_core::types::PageQuery,
     ) -> Result<(u64, Vec<AdminUser>)> {
         let (size, _) = page.limit_offset();
-        self.repos.identity_auth
+        self.repos.identity.auth
             .paginate(keyword, admin_type, page.page, size)
             .await
     }

@@ -521,7 +521,7 @@ impl ProxyShoppingOrderCheckService {
     }
 
     fn repo(&self) -> &ProxyShoppingOrderCheckRepository {
-        &self.repos.trade_proxy_shopping_order_check
+        &self.repos.trade.proxy_shopping_order_check
     }
 
     /// `getConfigVal` 语义：缺失 → `""`。

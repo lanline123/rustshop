@@ -27,7 +27,7 @@ impl SalesmanService {
             page_size: q.page_size.unwrap_or(20),
         };
         let (total, rows) = self
-            .repos.marketing_salesman
+            .repos.marketing.salesman
             .paginate(q.keyword.as_deref(), &page)
             .await?;
         let list = rows.iter().map(SalesmanVO::from).collect();

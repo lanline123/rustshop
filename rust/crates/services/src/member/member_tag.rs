@@ -140,7 +140,7 @@ impl MemberTagService {
     /// 仓储引用（便于测试与后续切片复用）。
     #[must_use]
     pub fn repo(&self) -> &MemberTagRepository {
-        &self.repos.member_member_tag
+        &self.repos.member.member_tag
     }
 
     // ————————————————————— 列表 —————————————————————
@@ -162,7 +162,7 @@ impl MemberTagService {
     /// 数据库执行失败时返回 `Error::Database`。
     pub async fn list_by_group(&self, group_id: i64, shop_id: i32) -> Result<Vec<MemberTagVO>> {
         let rows = self
-            .repos.member_member_tag
+            .repos.member.member_tag
             .list_tags_by_group(shop_id, group_id)
             .await?;
         Ok(rows.iter().map(MemberTagVO::from).collect())
@@ -202,7 +202,7 @@ impl MemberTagService {
         // - 组已逻辑删除（`is_del = 1`）⇒ 已由 SQL 的 `is_del = 0` 过滤掉，
         //   等价于 Java `@TableLogic` 的自动条件
         // 四者统一抛同一条 `标签组不存在`，不泄露「存在但不属于你」。
-        let group = self.repos.member_member_tag.find_group_by_id(group_id).await?;
+        let group = self.repos.member.member_tag.find_group_by_id(group_id).await?;
         let owned = matches!(group, Some(g) if g.shop_id == shop_id);
         if !owned {
             return Err(Error::Validation(MSG_GROUP_NOT_FOUND.into()));
@@ -211,7 +211,7 @@ impl MemberTagService {
         // 3. 入库（`createTime` / `updateTime` / `isDel` 自动填充）
         let now = now_secs();
         let id = self
-            .repos.member_member_tag
+            .repos.member.member_tag
             .insert_tag(shop_id, group_id, &tag_name, now, None, None)
             .await?;
         tracing::info!("新增会员标签成功: id={id}, shopId={shop_id}, groupId={group_id}");
@@ -244,7 +244,7 @@ impl MemberTagService {
 
         // 2 + 3. 先查再判归属（Java 先 `selectById` 再比 shopId）
         let tag = self
-            .repos.member_member_tag
+            .repos.member.member_tag
             .find_tag_by_id(id)
             .await?
             .ok_or_else(|| Error::Validation(MSG_TAG_NOT_FOUND.into()))?;
@@ -254,7 +254,7 @@ impl MemberTagService {
 
         // 4. 只更新名称（+ 自动填充的 update_time / update_by*）
         let affected = self
-            .repos.member_member_tag
+            .repos.member.member_tag
             .update_tag_name(id, &tag_name, now_secs(), None, None)
             .await?;
         tracing::info!("更新会员标签: id={id}, 影响 {affected} 行");
@@ -286,7 +286,7 @@ impl MemberTagService {
         let id = validate_del(dto).map_err(Error::Validation)?;
 
         let tag = self
-            .repos.member_member_tag
+            .repos.member.member_tag
             .find_tag_by_id(id)
             .await?
             .ok_or_else(|| Error::Validation(MSG_TAG_NOT_FOUND.into()))?;
@@ -296,11 +296,11 @@ impl MemberTagService {
 
         // 4. 清理用户关联（物理删除）
         let links = self
-            .repos.member_member_tag
+            .repos.member.member_tag
             .delete_user_tag_links(shop_id, id)
             .await?;
         // 5. 逻辑删除标签
-        let deleted = self.repos.member_member_tag.logical_delete_tag(id).await?;
+        let deleted = self.repos.member.member_tag.logical_delete_tag(id).await?;
         tracing::info!("删除会员标签: id={id}, 清理关联 {links} 行, 逻辑删除 {deleted} 行");
         Ok(DelOutcome {
             removed_links: links,

@@ -262,7 +262,7 @@ impl ProxyShoppingPickupContactService {
         q: &PickupContactListQuery,
     ) -> Result<PageResult<PickupContactVO>> {
         let page = q.page_query();
-        let (total, rows) = self.repos.trade_proxy_shopping_pickup_contact.paginate(q).await?;
+        let (total, rows) = self.repos.trade.proxy_shopping_pickup_contact.paginate(q).await?;
         if rows.is_empty() {
             return Ok(PageResult::empty(&page));
         }
@@ -275,7 +275,7 @@ impl ProxyShoppingPickupContactService {
     /// Java `eq(userId).orderByDesc(id)`；不校验 `userId` 是否真实存在
     /// （不存在的客户返回空数组）。
     pub async fn list_by_user_id(&self, user_id: i32) -> Result<Vec<PickupContactVO>> {
-        let rows = self.repos.trade_proxy_shopping_pickup_contact.list_by_user_id(user_id).await?;
+        let rows = self.repos.trade.proxy_shopping_pickup_contact.list_by_user_id(user_id).await?;
         Ok(rows.iter().map(to_vo).collect())
     }
 
@@ -284,7 +284,7 @@ impl ProxyShoppingPickupContactService {
     /// 不存在（含已逻辑删除）→ `Err(1001, "自提联系人不存在")`。
     pub async fn detail(&self, id: i64) -> Result<PickupContactVO> {
         let entity = self
-            .repos.trade_proxy_shopping_pickup_contact
+            .repos.trade.proxy_shopping_pickup_contact
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, ERR_CONTACT_NOT_FOUND))?;
@@ -298,7 +298,7 @@ impl ProxyShoppingPickupContactService {
     /// 传 `None` 会由数据库报错（与 Java 一致）。
     pub async fn create(&self, dto: &PickupContactCreateDTO) -> Result<i64> {
         let now = now_seconds();
-        self.repos.trade_proxy_shopping_pickup_contact
+        self.repos.trade.proxy_shopping_pickup_contact
             .insert(
                 dto.user_id,
                 dto.contact_name.as_deref(),
@@ -318,12 +318,12 @@ impl ProxyShoppingPickupContactService {
             return Err(Error::biz(SERVICE_DATA_ERROR, ERR_CONTACT_NOT_FOUND));
         };
         let current = self
-            .repos.trade_proxy_shopping_pickup_contact
+            .repos.trade.proxy_shopping_pickup_contact
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, ERR_CONTACT_NOT_FOUND))?;
         let (user_id, contact_name, contact_phone) = merge_update_fields(&current, dto);
-        self.repos.trade_proxy_shopping_pickup_contact
+        self.repos.trade.proxy_shopping_pickup_contact
             .update(id, user_id, &contact_name, &contact_phone, now_seconds())
             .await
     }
@@ -336,7 +336,7 @@ impl ProxyShoppingPickupContactService {
         let Some(id) = resolve_delete_id(id) else {
             return Ok(false);
         };
-        self.repos.trade_proxy_shopping_pickup_contact.soft_delete(id).await
+        self.repos.trade.proxy_shopping_pickup_contact.soft_delete(id).await
     }
 }
 

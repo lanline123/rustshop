@@ -77,7 +77,7 @@ impl RegionClientService {
 
     /// 仓储句柄（本片自有仓储）。
     fn regions(&self) -> &RegionClientRepository {
-        &self.repos.system_region_client
+        &self.repos.system.region_client
     }
 
     // ————————————————————— 1. getRegion —————————————————————

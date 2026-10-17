@@ -92,7 +92,7 @@ impl PrintConfigService {
     /// 本片仓储。
     #[must_use]
     pub fn repo(&self) -> &tigshop_infrastructure::db::repo::logistics::print_config::PrintConfigRepository {
-        &self.repos.logistics_print_config
+        &self.repos.logistics.print_config
     }
 
     /// 路由层默认使用的店铺 ID（平台 0）。
@@ -119,7 +119,7 @@ impl PrintConfigService {
     /// 数据库执行失败时返回 `Error::Database`。
     pub async fn get_configs_by_print_id(&self, print_id: i32) -> Result<Option<PrintConfigVO>> {
         let rows = self
-            .repos.logistics_print_config
+            .repos.logistics.print_config
             .find_configs_by_print_id(print_id)
             .await?;
         Ok(rows.first().map(to_vo))
@@ -150,7 +150,7 @@ impl PrintConfigService {
         // 2. `getById`：不存在 → 「打印配置不存在」
         //    （Java 该异常在 try 之外抛出，不套「更新打印配置失败：」前缀）
         let row = self
-            .repos.logistics_print_config
+            .repos.logistics.print_config
             .find_config_by_id(id)
             .await?
             .ok_or_else(|| Error::Validation(MSG_CONFIG_NOT_FOUND.into()))?;
@@ -168,7 +168,7 @@ impl PrintConfigService {
 
         // 5. 刷新 update_time 并更新
         let affected = self
-            .repos.logistics_print_config
+            .repos.logistics.print_config
             .touch_config(id, &template_json, paper_size, now_secs_i32())
             .await?;
         tracing::info!(
@@ -204,7 +204,7 @@ impl PrintConfigService {
         let device_code = normalize_device_code(dto.device_code.as_deref());
 
         // 3. 解析启用打印机 + 设备绑定 + 默认打印机
-        let enabled = self.repos.logistics_print_config.find_enabled_prints(shop_id).await?;
+        let enabled = self.repos.logistics.print_config.find_enabled_prints(shop_id).await?;
         let print_ids: Vec<i32> = enabled.iter().map(|p| p.print_id).collect();
         let bindings = self.bindings_map(shop_id, &print_ids).await?;
         let default_id = enabled
@@ -225,7 +225,7 @@ impl PrintConfigService {
         let mut written = 0usize;
         for order_id in &ids {
             for p in &printers {
-                self.repos.logistics_print_config
+                self.repos.logistics.print_config
                     .insert_pending_print_log(
                         shop_id,
                         p.print_id,
@@ -256,7 +256,7 @@ impl PrintConfigService {
         shop_id: i32,
         print_ids: &[i32],
     ) -> Result<HashMap<i32, String>> {
-        let rows = self.repos.logistics_print_config.find_bindings(shop_id, print_ids).await?;
+        let rows = self.repos.logistics.print_config.find_bindings(shop_id, print_ids).await?;
         let mut bindings: HashMap<i32, String> = HashMap::with_capacity(rows.len());
         for row in rows {
             bindings.entry(row.print_id).or_insert(row.device_code);

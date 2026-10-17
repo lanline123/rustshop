@@ -520,7 +520,7 @@ impl WholesaleClientService {
     /// 未登录（`user_id <= 0`）、总开关关闭、非批发商三种情形一律返回
     /// `is_wholesaler = false`（不报错），并回填 `global_enabled`。
     pub async fn me(&self, user_id: i32) -> Result<WholesaleMeVO> {
-        let global_enabled = self.repos.wholesale_wholesale_client.wholesale_enabled().await?;
+        let global_enabled = self.repos.wholesale.wholesale_client.wholesale_enabled().await?;
         let mut vo = WholesaleMeVO {
             is_wholesaler: false,
             grade_id: None,
@@ -530,13 +530,13 @@ impl WholesaleClientService {
         if user_id <= 0 || !global_enabled {
             return Ok(vo);
         }
-        let Some(wholesaler) = self.repos.wholesale_wholesale_client.find_active_wholesaler(user_id).await? else {
+        let Some(wholesaler) = self.repos.wholesale.wholesale_client.find_active_wholesaler(user_id).await? else {
             return Ok(vo);
         };
         let grade_id = wholesaler.grade_id;
         let mut grade_name = None;
         if grade_id > 0 {
-            grade_name = self.repos.wholesale_wholesale_client.find_grade_name(grade_id).await?;
+            grade_name = self.repos.wholesale.wholesale_client.find_grade_name(grade_id).await?;
         }
         vo.is_wholesaler = true;
         vo.grade_id = Some(grade_id);
@@ -549,11 +549,11 @@ impl WholesaleClientService {
     ///
     /// 短路顺序与 Java 一致：总开关未启用 → `false`（不查库）。
     pub async fn is_wholesale_buyer(&self, user_id: i32) -> Result<bool> {
-        if user_id <= 0 || !self.repos.wholesale_wholesale_client.wholesale_enabled().await? {
+        if user_id <= 0 || !self.repos.wholesale.wholesale_client.wholesale_enabled().await? {
             return Ok(false);
         }
         Ok(self
-            .repos.wholesale_wholesale_client
+            .repos.wholesale.wholesale_client
             .find_active_wholesaler(user_id)
             .await?
             .is_some())
@@ -567,7 +567,7 @@ impl WholesaleClientService {
     /// 不做身份判定（非批发商也可查）；未配置批发能力时
     /// `configured = false`（不抛错）。
     pub async fn buy_rule(&self, product_id: i32) -> Result<WholesaleProductBuyRuleVO> {
-        let Some(config) = self.repos.wholesale_wholesale_client.find_active_config(product_id).await? else {
+        let Some(config) = self.repos.wholesale.wholesale_client.find_active_config(product_id).await? else {
             return Ok(WholesaleProductBuyRuleVO {
                 product_id,
                 configured: false,
@@ -578,7 +578,7 @@ impl WholesaleClientService {
             });
         };
 
-        let sku_configs = self.repos.wholesale_wholesale_client.list_sku_configs(product_id).await?;
+        let sku_configs = self.repos.wholesale.wholesale_client.list_sku_configs(product_id).await?;
         let sku_rules: Vec<WholesaleSkuRuleVO> = sku_configs
             .iter()
             .map(|sc| WholesaleSkuRuleVO {
@@ -616,7 +616,7 @@ impl WholesaleClientService {
         if user_id <= 0 {
             return Err(Error::biz(401, "用户未登录"));
         }
-        if !self.repos.wholesale_wholesale_client.wholesale_enabled().await? {
+        if !self.repos.wholesale.wholesale_client.wholesale_enabled().await? {
             return Err(Error::biz(WHOLESALE_DISABLED, "批发功能未启用"));
         }
         if !self.is_wholesale_buyer(user_id).await? {
@@ -626,7 +626,7 @@ impl WholesaleClientService {
         let items = validate_batch_items(&dto.items)?;
 
         let grade_id = self
-            .repos.wholesale_wholesale_client
+            .repos.wholesale.wholesale_client
             .find_active_wholesaler(user_id)
             .await?
             .map_or(0, |w| w.grade_id);
@@ -672,7 +672,7 @@ impl WholesaleClientService {
     ) -> Result<()> {
         // 1. 商品存在性 / 上架状态
         let product = self
-            .repos.catalog_product
+            .repos.catalog.product
             .find_by_id(item.product_id)
             .await?
             .filter(|p| p.is_delete == 0)
@@ -682,7 +682,7 @@ impl WholesaleClientService {
         }
 
         // 2. SKU 解析（Java：单规格且未传 skuId 时解析唯一 SKU；无 SKU 行归一为 0）
-        let skus = self.repos.catalog_product.find_skus(item.product_id).await?;
+        let skus = self.repos.catalog.product.find_skus(item.product_id).await?;
         let mut sku_id = item.sku_id;
         if sku_id <= 0 && skus.len() == 1 {
             sku_id = skus[0].sku_id;
@@ -702,7 +702,7 @@ impl WholesaleClientService {
         // 3. 合并同款已存在行（Java：addCarts 的 quantity = 本项 + 已存在）
         let shop_filter = if self.is_o2o { Some(shop_id) } else { None };
         let existing = self
-            .repos.wholesale_wholesale_client
+            .repos.wholesale.wholesale_client
             .find_cart_lines(user_id, item.product_id, CART_TYPE_NORMAL, sku_id, shop_filter)
             .await?;
         let existing_qty: i32 = existing.iter().map(|(_, qty)| *qty).sum();
@@ -733,17 +733,17 @@ impl WholesaleClientService {
         // 6. 批发命中标记 + 起批量 / 倍数硬校验
         let mut is_wholesale_line = 0;
         let mut wholesale_grade_id = 0;
-        if let Some(config) = self.repos.wholesale_wholesale_client.find_active_config(item.product_id).await? {
+        if let Some(config) = self.repos.wholesale.wholesale_client.find_active_config(item.product_id).await? {
             if is_client_eligible(&config, self.is_o2o, Some(shop_id)) {
-                let candidates = self.repos.wholesale_wholesale_client.list_prices(item.product_id).await?;
-                let sku_configs = self.repos.wholesale_wholesale_client.list_sku_configs(item.product_id).await?;
+                let candidates = self.repos.wholesale.wholesale_client.list_prices(item.product_id).await?;
+                let sku_configs = self.repos.wholesale.wholesale_client.list_sku_configs(item.product_id).await?;
 
                 // CR-20260604-1430 混批：mode=1 且 SPU 维度时用 Q_total 查档
                 let tier_match_qty = if config.multi_spec_price_mode == MULTI_SPEC_PRICE_MODE_MIX
                     && config.moq_dimension == MOQ_DIMENSION_SPU
                 {
                     let others = self
-                        .repos.wholesale_wholesale_client
+                        .repos.wholesale.wholesale_client
                         .sum_other_sku_quantity(
                             user_id,
                             item.product_id,
@@ -815,7 +815,7 @@ impl WholesaleClientService {
             is_wholesale_line,
             wholesale_grade_id,
         };
-        self.repos.wholesale_wholesale_client
+        self.repos.wholesale.wholesale_client
             .replace_cart_line(user_id, &old_cart_ids, &line)
             .await?;
         Ok(())

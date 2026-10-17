@@ -114,7 +114,7 @@ impl SeoService {
 
     /// 本片仓储。
     fn repo(&self) -> &SeoRepository {
-        &self.repos.content_seo
+        &self.repos.content.seo
     }
 
     // ——————————————————————————————————————————————

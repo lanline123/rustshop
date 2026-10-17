@@ -279,7 +279,7 @@ impl PcNavigationService {
             .filter(|k| !k.is_empty());
 
         let (total, rows) = self
-            .repos.content_pc_navigation
+            .repos.content.pc_navigation
             .paginate(
                 type_filter,
                 parent_filter,
@@ -292,7 +292,7 @@ impl PcNavigationService {
 
         let counts = if type_filter == Some(TYPE_TOP_BAR) {
             let ids: Vec<i32> = rows.iter().map(|r| r.id).collect();
-            self.repos.content_pc_navigation.count_children(&ids).await?
+            self.repos.content.pc_navigation.count_children(&ids).await?
         } else {
             Vec::new()
         };
@@ -324,7 +324,7 @@ impl PcNavigationService {
     /// 本实现返回 404（见模块头差异第 8 条）。
     /// Java 的 `detail` **不设置** `hasChildren`（JSON `null`）。
     pub async fn detail(&self, id: i32) -> Result<PcNavigationVO> {
-        self.repos.content_pc_navigation
+        self.repos.content.pc_navigation
             .find_by_id(id)
             .await?
             .map(|row| PcNavigationVO::from(&row))
@@ -352,7 +352,7 @@ impl PcNavigationService {
             parent_id: dto.parent_id.unwrap_or(0),
             icon: dto.icon.clone().unwrap_or_default(),
         };
-        let id = self.repos.content_pc_navigation.insert(&nav).await?;
+        let id = self.repos.content.pc_navigation.insert(&nav).await?;
         tracing::info!(
             "创建 PC 导航成功: id={id}, title={title}, type={}",
             nav.r#type
@@ -382,7 +382,7 @@ impl PcNavigationService {
             parent_id: dto.parent_id,
             icon: dto.icon.clone(),
         };
-        self.repos.content_pc_navigation.update(&patch).await
+        self.repos.content.pc_navigation.update(&patch).await
     }
 
     /// 删除 PC 导航，对应 Java `BaseServiceImpl#del`。
@@ -391,7 +391,7 @@ impl PcNavigationService {
     pub async fn delete(&self, dto: &OperateDTO) -> Result<bool> {
         match dto.id {
             None => Ok(false),
-            Some(id) => self.repos.content_pc_navigation.delete(id).await,
+            Some(id) => self.repos.content.pc_navigation.delete(id).await,
         }
     }
 
@@ -405,7 +405,7 @@ impl PcNavigationService {
             .val
             .as_deref()
             .ok_or_else(|| Error::Validation(FIELD_VALUE_CANNOT_BE_NULL.to_string()))?;
-        self.repos.content_pc_navigation.update_field(id, column, val).await
+        self.repos.content.pc_navigation.update_field(id, column, val).await
     }
 
     /// 批量操作，对应 Java `BaseServiceImpl#batch`。
@@ -420,7 +420,7 @@ impl PcNavigationService {
             // Java `removeByIds(空集合)` 无法生成合法 `IN ()`，语义上等同「未删除」
             return Ok(false);
         }
-        self.repos.content_pc_navigation.delete_many(&ids).await
+        self.repos.content.pc_navigation.delete_many(&ids).await
     }
 
     /// 可选链接地址，对应 Java `PcNavigationServiceImpl#selectLink`。
@@ -438,7 +438,7 @@ impl PcNavigationService {
             None
         };
         let rows = self
-            .repos.content_pc_navigation
+            .repos.content.pc_navigation
             .find_for_parent_tree(type_filter, exclude_id)
             .await?;
         Ok(build_parent_tree(&rows))

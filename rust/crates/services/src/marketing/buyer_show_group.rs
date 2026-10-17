@@ -96,7 +96,7 @@ impl BuyerShowGroupService {
 
     /// 本片仓储。
     fn repo(&self) -> &BuyerShowGroupRepository {
-        &self.repos.marketing_buyer_show_group
+        &self.repos.marketing.buyer_show_group
     }
 
     // ————————————————————— 新建 —————————————————————

@@ -422,7 +422,7 @@ impl AftersalesService {
 
     /// 取本域仓储（`Repositories` 的 `aftersales` 字段由主会话注册后可用）。
     fn repo(&self) -> &AftersalesRepository {
-        &self.repos.trade_aftersales
+        &self.repos.trade.aftersales
     }
 
     /// 申请类型（对应 Java `AftersalesController.applyType`）。

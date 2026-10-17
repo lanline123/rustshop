@@ -62,7 +62,7 @@ impl DecorateService {
             f.page_types = vec![1];
         }
         let page = q.page_query();
-        let (total, rows) = self.repos.content_decorate.paginate(&f, &page).await?;
+        let (total, rows) = self.repos.content.decorate.paginate(&f, &page).await?;
         let list = self.to_vos(rows).await?;
         Ok(PageResult::new(total, list, &page))
     }
@@ -77,7 +77,7 @@ impl DecorateService {
             page: 1,
             page_size: 200,
         };
-        let (_, rows) = self.repos.content_decorate.paginate(&f, &page).await?;
+        let (_, rows) = self.repos.content.decorate.paginate(&f, &page).await?;
         self.to_vos(rows).await
     }
 
@@ -94,9 +94,9 @@ impl DecorateService {
         decorate_type: Option<i32>,
     ) -> Result<DecorateVO> {
         let decorate = match id.filter(|v| *v > 0) {
-            Some(id) => self.repos.content_decorate.find_by_id(id).await?,
+            Some(id) => self.repos.content.decorate.find_by_id(id).await?,
             None => {
-                self.repos.content_decorate
+                self.repos.content.decorate
                     .find_by_parent_locale(parent_id.unwrap_or(0), locale_id, decorate_type)
                     .await?
             }
@@ -113,12 +113,12 @@ impl DecorateService {
         }
         // 绑定的 H5 页面名称
         if let Some(h5_id) = decorate.binded_h5_id.filter(|v| *v > 0) {
-            if let Some(h5) = self.repos.content_decorate.find_by_id(h5_id).await? {
+            if let Some(h5) = self.repos.content.decorate.find_by_id(h5_id).await? {
                 vo.bingding_h5_name = h5.decorate_title.clone();
             }
         }
         // 多语言子页
-        let children = self.repos.content_decorate.find_children(decorate.decorate_id).await?;
+        let children = self.repos.content.decorate.find_children(decorate.decorate_id).await?;
         if !children.is_empty() {
             let mut items = Vec::with_capacity(children.len());
             for child in &children {
@@ -126,7 +126,7 @@ impl DecorateService {
                     decorate_id: child.decorate_id,
                     locale_id: child.locale_id,
                     language: self
-                        .repos.content_decorate
+                        .repos.content.decorate
                         .find_locale_language(child.locale_id)
                         .await?,
                 });
@@ -168,7 +168,7 @@ impl DecorateService {
             ..Decorate::default()
         };
         Self::mark_mobile_login_as_home(&mut d);
-        self.repos.content_decorate.insert(&d).await
+        self.repos.content.decorate.insert(&d).await
     }
 
     /// 更新装修页，对应 `DecorateServiceImpl#update`。
@@ -177,7 +177,7 @@ impl DecorateService {
     /// `id` 为空：以 `parentId` 为父新建多语言子页。
     pub async fn update(&self, dto: &DecorateUpdateDTO) -> Result<bool> {
         if let Some(id) = dto.decorate_id.filter(|v| *v > 0) {
-            let Some(existing) = self.repos.content_decorate.find_by_id(id).await? else {
+            let Some(existing) = self.repos.content.decorate.find_by_id(id).await? else {
                 return Err(Error::NotFound("装修页面不存在".into()));
             };
             let mut d = existing;
@@ -219,13 +219,13 @@ impl DecorateService {
             }
             d.update_time = Some(now_seconds() as i32);
             Self::mark_mobile_login_as_home(&mut d);
-            return self.repos.content_decorate.update(&d).await.map(|_| true);
+            return self.repos.content.decorate.update(&d).await.map(|_| true);
         }
 
         // 新建多语言子页：标题/类型/店铺继承父页
         let parent_id = dto.parent_id.unwrap_or(0);
         let parent = self
-            .repos.content_decorate
+            .repos.content.decorate
             .find_by_id(parent_id)
             .await?
             .ok_or_else(|| Error::NotFound("父级装修页面不存在".into()))?;
@@ -241,7 +241,7 @@ impl DecorateService {
             page_type: parent.page_type,
             ..Decorate::default()
         };
-        self.repos.content_decorate.insert(&d).await.map(|_| true)
+        self.repos.content.decorate.insert(&d).await.map(|_| true)
     }
 
     /// 自定义页快速编辑（仅标题与排序），对应 `DecorateController#updateCustomDecorate`。
@@ -250,13 +250,13 @@ impl DecorateService {
             .decorate_id
             .filter(|v| *v > 0)
             .ok_or_else(|| Error::Validation("装修页面ID不能为空".into()))?;
-        let Some(mut d) = self.repos.content_decorate.find_by_id(id).await? else {
+        let Some(mut d) = self.repos.content.decorate.find_by_id(id).await? else {
             return Err(Error::NotFound("装修页面不存在".into()));
         };
         d.decorate_title = dto.decorate_title.clone();
         d.sort_order = dto.sort_order;
         d.update_time = Some(now_seconds() as i32);
-        self.repos.content_decorate.update(&d).await.map(|_| true)
+        self.repos.content.decorate.update(&d).await.map(|_| true)
     }
 
     /// 删除装修页，对应 `DecorateServiceImpl#del`（多语言子页保留）。
@@ -264,14 +264,14 @@ impl DecorateService {
         let id = dto
             .id
             .ok_or_else(|| Error::Validation("装修页面ID不能为空".into()))?;
-        self.repos.content_decorate.delete(id).await
+        self.repos.content.decorate.delete(id).await
     }
 
     /// 批量操作，对应 `BaseServiceImpl#batch`（当前支持 `type = "del"` 批量删除）。
     pub async fn batch(&self, dto: &BatchDTO) -> Result<bool> {
         let ids = dto.ids.clone().unwrap_or_default();
         match dto.r#type.as_deref() {
-            Some("del") => Ok(self.repos.content_decorate.delete_batch(&ids).await? > 0),
+            Some("del") => Ok(self.repos.content.decorate.delete_batch(&ids).await? > 0),
             _ => Err(Error::Validation("不支持的批量操作类型".into())),
         }
     }
@@ -283,7 +283,7 @@ impl DecorateService {
             .ok_or_else(|| Error::Validation("装修页面ID不能为空".into()))?;
         let field = dto.field.clone().unwrap_or_default();
         let val = dto.val.clone().unwrap_or_default();
-        self.repos.content_decorate.update_field(id, &field, &val).await
+        self.repos.content.decorate.update_field(id, &field, &val).await
     }
 
     /// 复制装修页，对应 `DecorateServiceImpl#copy`。
@@ -293,7 +293,7 @@ impl DecorateService {
         let Some(id) = dto.id else {
             return Ok(false);
         };
-        let Some(source) = self.repos.content_decorate.find_by_id(id).await? else {
+        let Some(source) = self.repos.content.decorate.find_by_id(id).await? else {
             return Ok(false);
         };
         let title = self.generate_copy_title(&source).await?;
@@ -304,7 +304,7 @@ impl DecorateService {
             update_time: Some(now_seconds() as i32),
             ..source.clone()
         };
-        self.repos.content_decorate.insert(&d).await.map(|_| true)
+        self.repos.content.decorate.insert(&d).await.map(|_| true)
     }
 
     /// 设为首页，对应 `DecorateServiceImpl#setHome`：先取消同类型同页面用途的首页标记。
@@ -312,17 +312,17 @@ impl DecorateService {
         let Some(id) = dto.id else {
             return Ok(false);
         };
-        let Some(mut d) = self.repos.content_decorate.find_by_id(id).await? else {
+        let Some(mut d) = self.repos.content.decorate.find_by_id(id).await? else {
             return Ok(false);
         };
-        self.repos.content_decorate
+        self.repos.content.decorate
             .clear_home_flags(d.decorate_type, page_type, Some(d.shop_id), id)
             .await?;
         d.is_home = Some(1);
         if page_type.is_some() {
             d.page_type = page_type.unwrap_or(d.page_type);
         }
-        self.repos.content_decorate.update(&d).await.map(|_| true)
+        self.repos.content.decorate.update(&d).await.map(|_| true)
     }
 
     /// 保存草稿，对应 `DecorateServiceImpl#saveDecorateToDraft`。
@@ -332,11 +332,11 @@ impl DecorateService {
     ) -> Result<bool> {
         let data = serde_json::to_string(&dto.data).map_err(|e| Error::Validation(e.to_string()))?;
         if let Some(id) = dto.id.filter(|v| *v > 0) {
-            let Some(mut d) = self.repos.content_decorate.find_by_id(id).await? else {
+            let Some(mut d) = self.repos.content.decorate.find_by_id(id).await? else {
                 return Err(Error::NotFound("装修页面不存在".into()));
             };
             d.draft_data = Some(data);
-            return self.repos.content_decorate.update(&d).await.map(|_| true);
+            return self.repos.content.decorate.update(&d).await.map(|_| true);
         }
         self.upsert_child(dto.parent_id, dto.locale_id, |d| {
             d.draft_data = Some(data.clone());
@@ -349,14 +349,14 @@ impl DecorateService {
     pub async fn publish(&self, dto: &DecorateSaveDTO) -> Result<bool> {
         let data = serde_json::to_string(&dto.data).map_err(|e| Error::Validation(e.to_string()))?;
         if let Some(id) = dto.id.filter(|v| *v > 0) {
-            let Some(mut d) = self.repos.content_decorate.find_by_id(id).await? else {
+            let Some(mut d) = self.repos.content.decorate.find_by_id(id).await? else {
                 return Err(Error::NotFound("装修页面不存在".into()));
             };
             d.data = Some(data);
             d.status = Some(1);
             d.update_time = Some(now_seconds() as i32);
             d.draft_data = Some(String::new());
-            return self.repos.content_decorate.update(&d).await.map(|_| true);
+            return self.repos.content.decorate.update(&d).await.map(|_| true);
         }
         self.upsert_child(dto.parent_id, dto.locale_id, |d| {
             d.data = Some(data.clone());
@@ -382,11 +382,11 @@ impl DecorateService {
         let binded_h5_id = dto
             .binded_h5_id
             .ok_or_else(|| Error::Validation("请选择需要绑定的页面".into()))?;
-        let Some(mut d) = self.repos.content_decorate.find_by_id(id).await? else {
+        let Some(mut d) = self.repos.content.decorate.find_by_id(id).await? else {
             return Err(Error::NotFound("装修页面不存在".into()));
         };
         d.binded_h5_id = Some(binded_h5_id);
-        self.repos.content_decorate.update(&d).await.map(|_| true)
+        self.repos.content.decorate.update(&d).await.map(|_| true)
     }
 
     /// 解除绑定，对应 `cancelBinding`。
@@ -395,18 +395,18 @@ impl DecorateService {
             .decorate_id
             .filter(|v| *v > 0)
             .ok_or_else(|| Error::Validation("装修页面ID不能为空".into()))?;
-        let Some(mut d) = self.repos.content_decorate.find_by_id(id).await? else {
+        let Some(mut d) = self.repos.content.decorate.find_by_id(id).await? else {
             return Err(Error::NotFound("装修页面不存在".into()));
         };
         d.binded_h5_id = Some(0);
-        self.repos.content_decorate.update(&d).await.map(|_| true)
+        self.repos.content.decorate.update(&d).await.map(|_| true)
     }
 
     // ————————————————————— 装修推广分享信息 —————————————————————
 
     /// 保存装修页分享信息，对应 `DecorateServiceImpl#saveShareInfo`。
     pub async fn save_share_info(&self, dto: &DecorateShareInfoDTO) -> Result<bool> {
-        let Some(mut d) = self.repos.content_decorate.find_by_id(dto.decorate_id).await? else {
+        let Some(mut d) = self.repos.content.decorate.find_by_id(dto.decorate_id).await? else {
             return Err(Error::biz_msg("装修页面不存在"));
         };
         let json = serde_json::json!({
@@ -415,12 +415,12 @@ impl DecorateService {
             "shareImage": dto.share_image,
         });
         d.share_info = Some(json.to_string());
-        self.repos.content_decorate.update(&d).await.map(|_| true)
+        self.repos.content.decorate.update(&d).await.map(|_| true)
     }
 
     /// 读取装修页分享信息，对应 `DecorateServiceImpl#getShareInfo`。
     pub async fn share_info(&self, decorate_id: i32) -> Result<DecorateShareInfoVO> {
-        let Some(d) = self.repos.content_decorate.find_by_id(decorate_id).await? else {
+        let Some(d) = self.repos.content.decorate.find_by_id(decorate_id).await? else {
             return Err(Error::biz_msg("装修页面不存在"));
         };
         let mut vo = DecorateShareInfoVO {
@@ -453,7 +453,7 @@ impl DecorateService {
     ) -> Result<PageResult<PcNavigationVO>> {
         let page = q.page_query();
         let (total, rows) = self
-            .repos.content_decorate
+            .repos.content.decorate
             .paginate_navigations(
                 q.r#type,
                 q.parent_id,
@@ -465,7 +465,7 @@ impl DecorateService {
         // 批量回填子级数量
         let parent_ids: Vec<i32> = vos.iter().map(|v| v.id).collect();
         let counts = self
-            .repos.content_decorate
+            .repos.content.decorate
             .count_navigation_children(&parent_ids)
             .await?;
         for v in &mut vos {
@@ -481,13 +481,13 @@ impl DecorateService {
     /// PC 导航详情。
     pub async fn pc_navigation_detail(&self, id: i32) -> Result<PcNavigationVO> {
         let n = self
-            .repos.content_decorate
+            .repos.content.decorate
             .find_navigation(id)
             .await?
             .ok_or_else(|| Error::NotFound("导航数据不存在".into()))?;
         let mut vo = PcNavigationVO::from(&n);
         let counts = self
-            .repos.content_decorate
+            .repos.content.decorate
             .count_navigation_children(&[n.id])
             .await?;
         vo.has_children = counts.first().map(|(_, c)| *c).unwrap_or(0);
@@ -519,7 +519,7 @@ impl DecorateService {
             parent_id: dto.parent_id.unwrap_or(0),
             icon: dto.icon.clone().unwrap_or_default(),
         };
-        self.repos.content_decorate.insert_navigation(&n).await
+        self.repos.content.decorate.insert_navigation(&n).await
     }
 
     /// 更新 PC 导航（只覆盖非空字段）。
@@ -527,7 +527,7 @@ impl DecorateService {
         let id = dto
             .id
             .ok_or_else(|| Error::Validation("导航ID不能为空".into()))?;
-        let Some(mut n) = self.repos.content_decorate.find_navigation(id).await? else {
+        let Some(mut n) = self.repos.content.decorate.find_navigation(id).await? else {
             return Err(Error::NotFound("导航数据不存在".into()));
         };
         if dto.title.is_some() {
@@ -560,7 +560,7 @@ impl DecorateService {
         if dto.icon.is_some() {
             n.icon = dto.icon.clone().unwrap_or(n.icon);
         }
-        self.repos.content_decorate.update_navigation(&n).await.map(|_| true)
+        self.repos.content.decorate.update_navigation(&n).await.map(|_| true)
     }
 
     /// 删除 PC 导航。
@@ -568,7 +568,7 @@ impl DecorateService {
         let id = dto
             .id
             .ok_or_else(|| Error::Validation("导航ID不能为空".into()))?;
-        self.repos.content_decorate.delete_navigation(id).await
+        self.repos.content.decorate.delete_navigation(id).await
     }
 
     /// PC 导航通用字段更新（白名单：title/is_show/is_blank/sort_order）。
@@ -578,7 +578,7 @@ impl DecorateService {
             .ok_or_else(|| Error::Validation("导航ID不能为空".into()))?;
         let field = dto.field.clone().unwrap_or_default();
         let val = dto.val.clone().unwrap_or_default();
-        self.repos.content_decorate
+        self.repos.content.decorate
             .update_navigation_field(id, &field, &val)
             .await
     }
@@ -590,7 +590,7 @@ impl DecorateService {
             Some("del") => {
                 let mut removed = false;
                 for id in ids {
-                    removed |= self.repos.content_decorate.delete_navigation(id).await?;
+                    removed |= self.repos.content.decorate.delete_navigation(id).await?;
                 }
                 Ok(removed)
             }
@@ -622,7 +622,7 @@ impl DecorateService {
             page_size: 500,
         };
         let (_, rows) = self
-            .repos.content_decorate
+            .repos.content.decorate
             .paginate_navigations(Some(nav_type), None, None, &page)
             .await?;
         // 只保留指定类型的导航，按 parent_id 组两层树
@@ -661,7 +661,7 @@ impl DecorateService {
     ) -> Result<PageResult<PcCatFloorVO>> {
         let page = q.page_query();
         let (total, rows) = self
-            .repos.content_decorate
+            .repos.content.decorate
             .paginate_cat_floors(q.is_show, q.keyword.as_deref(), &page)
             .await?;
         let list: Vec<PcCatFloorVO> = rows.iter().map(PcCatFloorVO::from).collect();
@@ -671,7 +671,7 @@ impl DecorateService {
     /// PC 分类楼层详情。
     pub async fn pc_cat_floor_detail(&self, id: i32) -> Result<PcCatFloorVO> {
         let f = self
-            .repos.content_decorate
+            .repos.content.decorate
             .find_cat_floor(id)
             .await?
             .ok_or_else(|| Error::NotFound("分类楼层不存在".into()))?;
@@ -702,7 +702,7 @@ impl DecorateService {
             brand_ids: serde_json::to_string(&dto.brand_ids.clone().unwrap_or_default())
                 .map_err(|e| Error::Validation(e.to_string()))?,
         };
-        self.repos.content_decorate.insert_cat_floor(&f).await
+        self.repos.content.decorate.insert_cat_floor(&f).await
     }
 
     /// 更新 PC 分类楼层（展示名同样重算）。
@@ -710,7 +710,7 @@ impl DecorateService {
         let id = dto
             .cat_floor_id
             .ok_or_else(|| Error::Validation("楼层ID不能为空".into()))?;
-        let Some(mut f) = self.repos.content_decorate.find_cat_floor(id).await? else {
+        let Some(mut f) = self.repos.content.decorate.find_cat_floor(id).await? else {
             return Err(Error::NotFound("分类楼层不存在".into()));
         };
         if dto.category_ids.is_some() || dto.category_names.is_some() {
@@ -751,7 +751,7 @@ impl DecorateService {
             f.brand_ids = serde_json::to_string(&dto.brand_ids.clone().unwrap_or_default())
                 .map_err(|e| Error::Validation(e.to_string()))?;
         }
-        self.repos.content_decorate.update_cat_floor(&f).await.map(|_| true)
+        self.repos.content.decorate.update_cat_floor(&f).await.map(|_| true)
     }
 
     /// 删除 PC 分类楼层。
@@ -759,7 +759,7 @@ impl DecorateService {
         let id = dto
             .id
             .ok_or_else(|| Error::Validation("楼层ID不能为空".into()))?;
-        self.repos.content_decorate.delete_cat_floor(id).await
+        self.repos.content.decorate.delete_cat_floor(id).await
     }
 
     /// PC 分类楼层通用字段更新。
@@ -780,7 +780,7 @@ impl DecorateService {
             "sort_order"
         };
         let sql = format!("UPDATE pc_cat_floor SET `{column}` = ? WHERE cat_floor_id = ?");
-        self.repos.content_decorate.update_field_raw(&sql, &val, id).await
+        self.repos.content.decorate.update_field_raw(&sql, &val, id).await
     }
 
     /// PC 分类楼层批量删除。
@@ -790,7 +790,7 @@ impl DecorateService {
             Some("del") => {
                 let mut removed = false;
                 for id in ids {
-                    removed |= self.repos.content_decorate.delete_cat_floor(id).await?;
+                    removed |= self.repos.content.decorate.delete_cat_floor(id).await?;
                 }
                 Ok(removed)
             }
@@ -810,7 +810,7 @@ impl DecorateService {
     ) -> Result<PageResult<MobileCatNavVO>> {
         let page = q.page_query();
         let (total, rows) = self
-            .repos.content_decorate
+            .repos.content.decorate
             .paginate_mobile_navs(q.is_show, q.keyword.as_deref(), &page)
             .await?;
         let list: Vec<MobileCatNavVO> = rows.iter().map(MobileCatNavVO::from).collect();
@@ -820,7 +820,7 @@ impl DecorateService {
     /// 手机分类导航详情。
     pub async fn mobile_cat_nav_detail(&self, id: i32) -> Result<MobileCatNavVO> {
         let n = self
-            .repos.content_decorate
+            .repos.content.decorate
             .find_mobile_nav(id)
             .await?
             .ok_or_else(|| Error::NotFound("分类导航不存在".into()))?;
@@ -846,7 +846,7 @@ impl DecorateService {
             cat_name_alias: dto.cat_name_alias.clone(),
             ..MobileCatNav::default()
         };
-        self.repos.content_decorate.insert_mobile_nav(&n).await
+        self.repos.content.decorate.insert_mobile_nav(&n).await
     }
 
     /// 更新手机分类导航（只覆盖非空字段）。
@@ -854,7 +854,7 @@ impl DecorateService {
         let id = dto
             .mobile_cat_nav_id
             .ok_or_else(|| Error::Validation("导航ID不能为空".into()))?;
-        let Some(mut n) = self.repos.content_decorate.find_mobile_nav(id).await? else {
+        let Some(mut n) = self.repos.content.decorate.find_mobile_nav(id).await? else {
             return Err(Error::NotFound("分类导航不存在".into()));
         };
         if dto.category_id.is_some() {
@@ -885,7 +885,7 @@ impl DecorateService {
         if dto.cat_name_alias.is_some() {
             n.cat_name_alias = dto.cat_name_alias.clone();
         }
-        self.repos.content_decorate.update_mobile_nav(&n).await.map(|_| true)
+        self.repos.content.decorate.update_mobile_nav(&n).await.map(|_| true)
     }
 
     /// 删除手机分类导航。
@@ -893,7 +893,7 @@ impl DecorateService {
         let id = dto
             .id
             .ok_or_else(|| Error::Validation("导航ID不能为空".into()))?;
-        self.repos.content_decorate.delete_mobile_nav(id).await
+        self.repos.content.decorate.delete_mobile_nav(id).await
     }
 
     /// 手机分类导航通用字段更新。
@@ -912,7 +912,7 @@ impl DecorateService {
         let sql = format!(
             "UPDATE mobile_cat_nav SET `{column}` = ? WHERE mobile_cat_nav_id = ?"
         );
-        self.repos.content_decorate.update_field_raw(&sql, &val, id).await
+        self.repos.content.decorate.update_field_raw(&sql, &val, id).await
     }
 
     /// 手机分类导航批量删除。
@@ -922,7 +922,7 @@ impl DecorateService {
             Some("del") => {
                 let mut removed = false;
                 for id in ids {
-                    removed |= self.repos.content_decorate.delete_mobile_nav(id).await?;
+                    removed |= self.repos.content.decorate.delete_mobile_nav(id).await?;
                 }
                 Ok(removed)
             }
@@ -938,7 +938,7 @@ impl DecorateService {
         q: &DecorateShareListQuery,
     ) -> Result<PageResult<DecorateShareVO>> {
         let page = q.page_query();
-        let (total, rows) = self.repos.content_decorate.paginate_shares(&page).await?;
+        let (total, rows) = self.repos.content.decorate.paginate_shares(&page).await?;
         let list: Vec<DecorateShareVO> = rows.iter().map(DecorateShareVO::from).collect();
         Ok(PageResult::new(total, list, &page))
     }
@@ -946,7 +946,7 @@ impl DecorateService {
     /// 装修分享详情。
     pub async fn decorate_share_detail(&self, id: i32) -> Result<DecorateShareVO> {
         let s = self
-            .repos.content_decorate
+            .repos.content.decorate
             .find_share(id)
             .await?
             .ok_or_else(|| Error::NotFound("分享记录不存在".into()))?;
@@ -960,7 +960,7 @@ impl DecorateService {
 
     /// 更新分享记录：重新签发 sn/token 与有效期。
     pub async fn decorate_share_update(&self, id: i32, decorate_id: i32) -> Result<bool> {
-        let Some(mut s) = self.repos.content_decorate.find_share(id).await? else {
+        let Some(mut s) = self.repos.content.decorate.find_share(id).await? else {
             return Err(Error::NotFound("分享记录不存在".into()));
         };
         s.share_sn = random_hex(SHARE_CODE_LENGTH);
@@ -968,7 +968,7 @@ impl DecorateService {
         s.decorate_id = decorate_id;
         s.valid_time = now_seconds() as i32 + SHARE_EXPIRE_SECONDS;
         s.update_time = now_seconds() as i32;
-        self.repos.content_decorate.update_share(&s).await.map(|_| true)
+        self.repos.content.decorate.update_share(&s).await.map(|_| true)
     }
 
     /// 删除分享记录。
@@ -976,7 +976,7 @@ impl DecorateService {
         let id = dto
             .id
             .ok_or_else(|| Error::Validation("分享记录ID不能为空".into()))?;
-        self.repos.content_decorate.delete_share(id).await
+        self.repos.content.decorate.delete_share(id).await
     }
 
     /// 分享记录通用字段更新（仅允许 token 有效期）。
@@ -989,12 +989,12 @@ impl DecorateService {
         if !matches!(field.as_str(), "valid_time" | "validTime") {
             return Err(Error::Validation(format!("不允许更新的字段: {field}")));
         }
-        let Some(mut s) = self.repos.content_decorate.find_share(id).await? else {
+        let Some(mut s) = self.repos.content.decorate.find_share(id).await? else {
             return Err(Error::NotFound("分享记录不存在".into()));
         };
         s.valid_time = val.parse().map_err(|_| Error::Validation("有效期格式错误".into()))?;
         s.update_time = now_seconds() as i32;
-        self.repos.content_decorate.update_share(&s).await.map(|_| true)
+        self.repos.content.decorate.update_share(&s).await.map(|_| true)
     }
 
     /// 分享记录批量删除。
@@ -1004,7 +1004,7 @@ impl DecorateService {
             Some("del") => {
                 let mut removed = false;
                 for id in ids {
-                    removed |= self.repos.content_decorate.delete_share(id).await?;
+                    removed |= self.repos.content.decorate.delete_share(id).await?;
                 }
                 Ok(removed)
             }
@@ -1015,7 +1015,7 @@ impl DecorateService {
     /// 生成装修页分享，对应 `DecorateShareServiceImpl#share`：
     /// sn(6位) + token(5位)，有效期 7 天，返回含导入链接的 VO。
     pub async fn share(&self, decorate_id: i32) -> Result<DecorateShareVO> {
-        self.repos.content_decorate
+        self.repos.content.decorate
             .find_by_id(decorate_id)
             .await?
             .ok_or_else(|| Error::biz_msg("装修页面不存在"))?;
@@ -1029,7 +1029,7 @@ impl DecorateService {
     pub async fn decorate_share_import(&self, url: &str) -> Result<bool> {
         let (sn, token) = Self::parse_share_url(url)
             .ok_or_else(|| Error::biz_msg("分享链接缺少 sn 或 token"))?;
-        self.repos.content_decorate
+        self.repos.content.decorate
             .find_valid_share(&sn, &token, now_seconds() as i32)
             .await?
             .ok_or_else(|| Error::biz_msg("分享链接不存在或已失效!"))?;
@@ -1045,7 +1045,7 @@ impl DecorateService {
     /// 本域不引入翻译链路，原样返回 `data`。
     pub async fn discrete_detail(&self, decorate_sn: &str) -> Result<Option<DecorateDiscreteVO>> {
         let d = self
-            .repos.content_decorate
+            .repos.content.decorate
             .find_discrete(DEFAULT_SHOP_ID, decorate_sn)
             .await?;
         match d {
@@ -1061,14 +1061,14 @@ impl DecorateService {
         let data = serde_json::to_string(&param.data)
             .map_err(|e| Error::Validation(e.to_string()))?;
         match self
-            .repos.content_decorate
+            .repos.content.decorate
             .find_discrete(shop_id, &param.decorate_sn)
             .await?
         {
             Some(mut d) => {
                 d.decorate_name = param.decorate_name.clone();
                 d.data = data;
-                self.repos.content_decorate.update_discrete(&d).await.map(|_| true)
+                self.repos.content.decorate.update_discrete(&d).await.map(|_| true)
             }
             None => {
                 let d = DecorateDiscrete {
@@ -1078,7 +1078,7 @@ impl DecorateService {
                     data,
                     shop_id,
                 };
-                self.repos.content_decorate.insert_discrete(&d).await.map(|_| true)
+                self.repos.content.decorate.insert_discrete(&d).await.map(|_| true)
             }
         }
     }
@@ -1157,7 +1157,7 @@ impl DecorateService {
             return Err(Error::biz_msg("参数缺失"));
         }
         let share = self
-            .repos.content_decorate
+            .repos.content.decorate
             .find_valid_share(sn, token, now_seconds() as i32)
             .await?
             .ok_or_else(|| Error::biz_msg("分享链接不存在或已失效!"))?;
@@ -1173,7 +1173,7 @@ impl DecorateService {
     /// 开屏广告装修组件，对应 `DecorateDiscreteController#getOpenAdvertising`。
     pub async fn open_advertising(&self) -> Result<serde_json::Value> {
         let d = self
-            .repos.content_decorate
+            .repos.content.decorate
             .find_discrete(DEFAULT_SHOP_ID, "openAdvertising")
             .await?;
         Ok(d.and_then(|d| parse_json_opt(&Some(d.data)))
@@ -1209,7 +1209,7 @@ impl DecorateService {
         h5_ids.dedup();
         if !h5_ids.is_empty() {
             for id in h5_ids {
-                if let Some(h5) = self.repos.content_decorate.find_by_id(id).await? {
+                if let Some(h5) = self.repos.content.decorate.find_by_id(id).await? {
                     for v in &mut vos {
                         if v.binded_h5_id == Some(id) {
                             v.bingding_h5_name = h5.decorate_title.clone();
@@ -1228,19 +1228,19 @@ impl DecorateService {
     {
         let parent_id = parent_id.unwrap_or(0);
         let parent = self
-            .repos.content_decorate
+            .repos.content.decorate
             .find_by_id(parent_id)
             .await?
             .ok_or_else(|| Error::NotFound("父级装修页面不存在".into()))?;
         let locale_id = locale_id.unwrap_or(0);
         let decorate_type = parent.decorate_type;
         if let Some(mut child) = self
-            .repos.content_decorate
+            .repos.content.decorate
             .find_by_parent_locale(parent_id, Some(locale_id), decorate_type)
             .await?
         {
             f(&mut child);
-            return self.repos.content_decorate.update(&child).await.map(|_| true);
+            return self.repos.content.decorate.update(&child).await.map(|_| true);
         }
         let mut child = Decorate {
             parent_id: Some(parent_id),
@@ -1253,7 +1253,7 @@ impl DecorateService {
             ..Decorate::default()
         };
         f(&mut child);
-        self.repos.content_decorate.insert(&child).await.map(|_| true)
+        self.repos.content.decorate.insert(&child).await.map(|_| true)
     }
 
     /// 移动端登录页强制置首页（对应 `markMobileLoginAsHome`）：
@@ -1303,7 +1303,7 @@ impl DecorateService {
             sort_field: None,
             sort_order: None,
         };
-        let (_, rows) = self.repos.content_decorate.paginate(&filter, &page).await?;
+        let (_, rows) = self.repos.content.decorate.paginate(&filter, &page).await?;
         let mut max_seq = 0i64;
         for row in rows {
             let title = row.decorate_title.unwrap_or_default();
@@ -1332,7 +1332,7 @@ impl DecorateService {
         ids: &[i32],
         alias: Option<Vec<String>>,
     ) -> Result<String> {
-        let categories = self.repos.catalog_category_all.find_categories_by_ids(ids).await?;
+        let categories = self.repos.catalog.category_all.find_categories_by_ids(ids).await?;
         let mut parts: Vec<String> = Vec::new();
         for (idx, id) in ids.iter().enumerate() {
             let cat_name = categories
@@ -1392,7 +1392,7 @@ impl DecorateService {
             create_time: now,
             update_time: now,
         };
-        s.share_id = self.repos.content_decorate.insert_share(&s).await?;
+        s.share_id = self.repos.content.decorate.insert_share(&s).await?;
         let mut vo = DecorateShareVO::from(&s);
         vo.api_url = Some(share_api_url(&s.share_sn, &s.share_token));
         Ok(vo)
@@ -1407,7 +1407,7 @@ impl DecorateService {
         status: Option<i32>,
     ) -> Result<DecorateModuleListVO> {
         let decorate = self
-            .repos.content_decorate
+            .repos.content.decorate
             .find_home_page(
                 decorate_type,
                 page_type,
@@ -1438,7 +1438,7 @@ impl DecorateService {
         _page_type: i32,
     ) -> Result<DecorateModuleListVO> {
         let decorate = self
-            .repos.content_decorate
+            .repos.content.decorate
             .find_by_id(decorate_id)
             .await?
             .filter(|d| decorate_type.is_none() || d.decorate_type == decorate_type)
@@ -1464,7 +1464,7 @@ impl DecorateService {
     /// （不按页面用途过滤，取该店铺最新一条自定义页）。
     async fn custom_decorate(&self) -> Result<DecorateModuleListVO> {
         let decorate = self
-            .repos.content_decorate
+            .repos.content.decorate
             .find_home_page(Some(3), None, Some(DEFAULT_SHOP_ID), None, Some(0))
             .await?
             .ok_or_else(|| Error::biz_msg("装修模板不存在!"))?;

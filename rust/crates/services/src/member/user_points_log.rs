@@ -47,7 +47,7 @@ impl UserPointsLogService {
     /// 本片仓储。
     #[must_use]
     pub fn repo(&self) -> &UserPointsLogRepository {
-        &self.repos.member_user_points_log
+        &self.repos.member.user_points_log
     }
 
     /// 当前登录管理员所绑定会员的积分（`getPoints`）。

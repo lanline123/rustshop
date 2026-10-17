@@ -49,7 +49,7 @@ impl SeckillService {
         };
         let now = utils::now_seconds() as i32;
         let (total, rows) = self
-            .repos.marketing_seckill
+            .repos.marketing.seckill
             .paginate(q.keyword.as_deref(), q.shop_id, &page)
             .await?;
 
@@ -63,7 +63,7 @@ impl SeckillService {
     /// 秒杀活动详情。
     pub async fn detail(&self, seckill_id: i32) -> Result<SeckillVO> {
         let s = self
-            .repos.marketing_seckill
+            .repos.marketing.seckill
             .find_by_id(seckill_id)
             .await?
             .ok_or_else(|| Error::NotFound("秒杀活动不存在".into()))?;
@@ -92,12 +92,12 @@ impl SeckillService {
             shop_id: dto.shop_id.unwrap_or(0),
             ..Default::default()
         };
-        let seckill_id = self.repos.marketing_seckill.insert(&seckill).await?;
+        let seckill_id = self.repos.marketing.seckill.insert(&seckill).await?;
 
         for item in &dto.seckill_item {
             self.check_item_conflict(item, Some(seckill_id)).await?;
             let row = self.build_item(seckill_id, item, start, end)?;
-            self.repos.marketing_seckill.insert_item(&row).await?;
+            self.repos.marketing.seckill.insert_item(&row).await?;
         }
 
         tracing::info!("创建秒杀活动成功: id={seckill_id}, 明细 {} 条", dto.seckill_item.len());
@@ -113,7 +113,7 @@ impl SeckillService {
         self.validate_create(base)?;
 
         // 活动必须存在
-        self.repos.marketing_seckill
+        self.repos.marketing.seckill
             .find_by_id(dto.seckill_id)
             .await?
             .ok_or_else(|| Error::NotFound("秒杀活动不存在".into()))?;
@@ -130,14 +130,14 @@ impl SeckillService {
             product_id: base.product_id,
             shop_id: base.shop_id.unwrap_or(0),
         };
-        self.repos.marketing_seckill.update(&seckill).await?;
+        self.repos.marketing.seckill.update(&seckill).await?;
 
         // 明细重建
-        self.repos.marketing_seckill.delete_items(dto.seckill_id).await?;
+        self.repos.marketing.seckill.delete_items(dto.seckill_id).await?;
         for item in &base.seckill_item {
             self.check_item_conflict(item, Some(dto.seckill_id)).await?;
             let row = self.build_item(dto.seckill_id, item, start, end)?;
-            self.repos.marketing_seckill.insert_item(&row).await?;
+            self.repos.marketing.seckill.insert_item(&row).await?;
         }
 
         tracing::info!("更新秒杀活动成功: id={}", dto.seckill_id);
@@ -146,11 +146,11 @@ impl SeckillService {
 
     /// 删除秒杀活动（连同明细）。
     pub async fn delete(&self, seckill_id: i32) -> Result<()> {
-        self.repos.marketing_seckill
+        self.repos.marketing.seckill
             .find_by_id(seckill_id)
             .await?
             .ok_or_else(|| Error::NotFound("秒杀活动不存在".into()))?;
-        self.repos.marketing_seckill.delete(seckill_id).await?;
+        self.repos.marketing.seckill.delete(seckill_id).await?;
         tracing::info!("删除秒杀活动: id={seckill_id}");
         Ok(())
     }
@@ -172,13 +172,13 @@ impl SeckillService {
         }
         let now = utils::now_seconds() as i32;
         let ok = self
-            .repos.marketing_seckill
+            .repos.marketing.seckill
             .dec_stock(product_id, sku_id, quantity, now)
             .await?;
         if !ok {
             // 区分「无进行中活动」与「库存不足」：前者静默通过（与原 Java 一致）
             let has_activity = self
-                .repos.marketing_seckill
+                .repos.marketing.seckill
                 .find_active_item(product_id, sku_id, now)
                 .await?
                 .is_some();
@@ -200,7 +200,7 @@ impl SeckillService {
         if quantity <= 0 {
             return Ok(());
         }
-        self.repos.marketing_seckill
+        self.repos.marketing.seckill
             .inc_stock(product_id, sku_id, quantity)
             .await
     }
@@ -215,7 +215,7 @@ impl SeckillService {
         if quantity <= 0 {
             return Ok(());
         }
-        self.repos.marketing_seckill
+        self.repos.marketing.seckill
             .inc_sales(product_id, sku_id, quantity)
             .await
     }
@@ -230,7 +230,7 @@ impl SeckillService {
         if quantity <= 0 {
             return Ok(());
         }
-        self.repos.marketing_seckill
+        self.repos.marketing.seckill
             .dec_sales(product_id, sku_id, quantity)
             .await
     }
@@ -247,7 +247,7 @@ impl SeckillService {
         sku_ids: &[i32],
     ) -> Result<HashMap<i32, Decimal>> {
         let items = self
-            .repos.marketing_seckill
+            .repos.marketing.seckill
             .find_items_by_skus(seckill_id, sku_ids)
             .await?;
         Ok(items
@@ -264,7 +264,7 @@ impl SeckillService {
     ) -> Result<Option<Decimal>> {
         let now = utils::now_seconds() as i32;
         let item = self
-            .repos.marketing_seckill
+            .repos.marketing.seckill
             .find_active_item(product_id, sku_id, now)
             .await?;
         Ok(item.and_then(|it| it.seckill_price))
@@ -283,7 +283,7 @@ impl SeckillService {
             page_size: page_size.unwrap_or(20),
         };
         let now = utils::now_seconds() as i32;
-        let (total, items) = self.repos.marketing_seckill.find_active_items(now, &page).await?;
+        let (total, items) = self.repos.marketing.seckill.find_active_items(now, &page).await?;
         let list = items.iter().map(|it| to_promotion_vo(it, now)).collect();
         Ok(PageResult::new(total, list, &page))
     }
@@ -308,7 +308,7 @@ impl SeckillService {
         }
         let now = utils::now_seconds() as i32;
         let item = self
-            .repos.marketing_seckill
+            .repos.marketing.seckill
             .find_active_item(product_id, sku_id, now)
             .await?;
         match item {
@@ -337,7 +337,7 @@ impl SeckillService {
         quantity: i32,
     ) -> Result<()> {
         let s = self
-            .repos.marketing_seckill
+            .repos.marketing.seckill
             .find_by_id(seckill_id)
             .await?
             .ok_or_else(|| Error::NotFound("秒杀活动不存在".into()))?;
@@ -443,7 +443,7 @@ impl SeckillService {
         let pid = item.product_id.unwrap_or(0);
         let sid = item.sku_id.unwrap_or(0);
         if self
-            .repos.marketing_seckill
+            .repos.marketing.seckill
             .exists_conflicting_item(pid, sid, exclude_seckill_id)
             .await?
         {
@@ -457,7 +457,7 @@ impl SeckillService {
 
     /// 实体 → 管理端 VO（含明细与派生状态）。
     async fn to_vo(&self, s: &Seckill, now: i32) -> Result<SeckillVO> {
-        let items = self.repos.marketing_seckill.find_items(s.seckill_id).await?;
+        let items = self.repos.marketing.seckill.find_items(s.seckill_id).await?;
         let start = s.seckill_start_time.unwrap_or(0);
         let end = s.seckill_end_time.unwrap_or(0);
         let status = SeckillStatus::of(now, start, end);

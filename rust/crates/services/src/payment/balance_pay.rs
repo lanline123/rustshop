@@ -68,7 +68,7 @@ impl BalancePayService {
     /// 查询用户可用余额。
     pub async fn balance_of(&self, user_id: i32) -> Result<Decimal> {
         let user = self
-            .repos.member_user
+            .repos.member.user
             .find_by_id(user_id)
             .await?
             .ok_or_else(|| Error::NotFound("用户不存在".into()))?;
@@ -93,7 +93,7 @@ impl BalancePayService {
         user_id: i32,
     ) -> Result<OrderPaymentContext> {
         let order = self
-            .repos.trade_order
+            .repos.trade.order
             .find_by_id(order_id)
             .await?
             .ok_or_else(|| Error::NotFound("订单不存在".into()))?;
@@ -136,7 +136,7 @@ impl BalancePayService {
     ) -> Result<BalancePayResult> {
         // 1. 订单校验
         let order = self
-            .repos.trade_order
+            .repos.trade.order
             .find_by_id(order_id)
             .await?
             .ok_or_else(|| Error::NotFound("订单不存在".into()))?;
@@ -153,7 +153,7 @@ impl BalancePayService {
 
         // 2. 余额校验与抵扣额计算
         let user = self
-            .repos.member_user
+            .repos.member.user
             .find_by_id(user_id)
             .await?
             .ok_or_else(|| Error::NotFound("用户不存在".into()))?;
@@ -166,7 +166,7 @@ impl BalancePayService {
 
         // 3. 原子扣减余额（防并发透支）
         let debited = self
-            .repos.member_user
+            .repos.member.user
             .try_debit_balance(user_id, deduct)
             .await?;
         if !debited {
@@ -195,20 +195,20 @@ impl BalancePayService {
             token_code: String::new(),
             appid: None,
         };
-        let paylog_id = self.repos.payment_paylog.insert(&paylog).await?;
+        let paylog_id = self.repos.payment.paylog.insert(&paylog).await?;
 
         // 5. 结算订单：余额抵扣计入已付
         let new_paid = order.paid_amount + deduct;
         let order_fully_paid = new_paid >= order.total_amount;
         if order_fully_paid {
             let ok = self
-                .repos.trade_order
+                .repos.trade.order
                 .mark_paid(order_id, utils::now_seconds() as i32, new_paid)
                 .await?;
             if !ok {
                 // 订单已被并发标记为已支付（如重复请求）——回滚余额扣减
-                self.repos.member_user.adjust_balance(user_id, deduct).await?;
-                self.repos.payment_paylog.delete_paylog(paylog_id).await?;
+                self.repos.member.user.adjust_balance(user_id, deduct).await?;
+                self.repos.payment.paylog.delete_paylog(paylog_id).await?;
                 return Err(Error::Conflict("订单已支付，请刷新后重试".into()));
             }
             tracing::info!(
@@ -216,12 +216,12 @@ impl BalancePayService {
             );
         } else {
             let ok = self
-                .repos.trade_order
+                .repos.trade.order
                 .apply_partial_payment(order_id, deduct)
                 .await?;
             if !ok {
-                self.repos.member_user.adjust_balance(user_id, deduct).await?;
-                self.repos.payment_paylog.delete_paylog(paylog_id).await?;
+                self.repos.member.user.adjust_balance(user_id, deduct).await?;
+                self.repos.payment.paylog.delete_paylog(paylog_id).await?;
                 return Err(Error::Conflict("订单支付状态已变更，请刷新后重试".into()));
             }
             tracing::info!(
@@ -251,7 +251,7 @@ impl BalancePayService {
             return Err(Error::Validation("退款金额必须大于0".into()));
         }
         let order = self
-            .repos.trade_order
+            .repos.trade.order
             .find_by_id(order_id)
             .await?
             .ok_or_else(|| Error::NotFound("订单不存在".into()))?;
@@ -262,22 +262,22 @@ impl BalancePayService {
 
         // 找到该订单的余额支付流水（可能有部分抵扣多笔）
         let paylog = self
-            .repos.payment_paylog
+            .repos.payment.paylog
             .find_last_balance_paid(order_id, BALANCE_PAY_CODE)
             .await?
             .ok_or_else(|| Error::biz(400, "该订单无余额支付记录"))?;
 
         // 校验不可超额退款（以该笔余额流水实付额为限）
-        let refunded = self.repos.payment_paylog.sum_refunded(order_id).await?;
+        let refunded = self.repos.payment.paylog.sum_refunded(order_id).await?;
         if refunded + amount > paylog.pay_amount {
             return Err(Error::biz(400, "退款金额超出余额支付金额"));
         }
 
         // 回补余额
-        self.repos.member_user.adjust_balance(user_id, amount).await?;
+        self.repos.member.user.adjust_balance(user_id, amount).await?;
 
         // 记录退款日志并累加 paylog 退款额
-        self.repos.payment_paylog
+        self.repos.payment.paylog
             .add_refund_amount(paylog.paylog_id, amount)
             .await?;
 

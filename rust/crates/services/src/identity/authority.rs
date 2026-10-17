@@ -525,7 +525,7 @@ pub struct AuthorityService {
 
 impl AuthorityService {
     pub fn new(repos: Arc<Repositories>) -> Self {
-        let repo = repos.identity_authority.clone();
+        let repo = repos.identity.authority.clone();
         Self {
             repos,
             flags: EditionFlags::default(),

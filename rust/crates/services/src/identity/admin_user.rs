@@ -387,7 +387,7 @@ impl AdminUserService {
             offset: (pq.page - 1) * pq.page_size,
         };
 
-        let (total, users) = self.repos.identity_admin_user.paginate_users(&filter).await?;
+        let (total, users) = self.repos.identity.admin_user.paginate_users(&filter).await?;
         if users.is_empty() {
             return Ok(PageResult::new(total, Vec::new(), &pq));
         }
@@ -401,7 +401,7 @@ impl AdminUserService {
                 .filter(|id| seen.insert(*id))
                 .collect()
         };
-        let roles = self.repos.identity_admin_user.find_roles(&role_ids).await?;
+        let roles = self.repos.identity.admin_user.find_roles(&role_ids).await?;
         let role_map: HashMap<i32, AdminRole> = roles.into_iter().map(|r| (r.role_id, r)).collect();
 
         let list: Vec<AdminUserDTO> = users
@@ -424,14 +424,14 @@ impl AdminUserService {
     /// - 否则：`authList == "[]"` → 空表，否则 `str2Array(authList)`
     pub async fn detail(&self, admin_id: i32) -> Result<AdminUserDTO> {
         let user = self
-            .repos.identity_admin_user
+            .repos.identity.admin_user
             .find_user(admin_id)
             .await?
             .ok_or_else(|| Error::biz_msg("管理员名称不存在"))?;
 
         let mut dto = base_dto(&user);
         if user.role_id > 0 {
-            match self.repos.identity_admin_user.find_role(user.role_id).await? {
+            match self.repos.identity.admin_user.find_role(user.role_id).await? {
                 Some(role) => {
                     dto.role_name = Some(role.role_name.clone());
                     dto.auth_list = Some(parse_role_authority(&role.authority_list));
@@ -443,10 +443,10 @@ impl AdminUserService {
         }
 
         // userShop：Java 逐个 shopId 查 shop，这里批量取回（结果等价）
-        let bindings = self.repos.identity_admin_user.find_user_shops(admin_id).await?;
+        let bindings = self.repos.identity.admin_user.find_user_shops(admin_id).await?;
         if !bindings.is_empty() {
             let shop_ids: Vec<i32> = bindings.iter().map(|b| b.shop_id).collect();
-            let shops = self.repos.identity_admin_user.find_shops(&shop_ids).await?;
+            let shops = self.repos.identity.admin_user.find_shops(&shop_ids).await?;
             let shop_map: HashMap<i32, Shop> = shops.into_iter().map(|s| (s.shop_id, s)).collect();
             let mut user_shops = Vec::with_capacity(bindings.len());
             for b in &bindings {
@@ -493,7 +493,7 @@ impl AdminUserService {
 
         // ① 用户名占用（排除已软删除）
         if self
-            .repos.identity_admin_user
+            .repos.identity.admin_user
             .find_by_username(&username, Some(false))
             .await?
             .is_some()
@@ -506,7 +506,7 @@ impl AdminUserService {
             .resolve_password_hash(dto.password.as_deref(), dto.initial_password.as_deref())?;
 
         // ② 已软删除的同手机号账号 → 复用
-        if let Some(mut deleted) = self.repos.identity_admin_user.find_deleted_by_mobile(&mobile).await? {
+        if let Some(mut deleted) = self.repos.identity.admin_user.find_deleted_by_mobile(&mobile).await? {
             deleted.is_deleted = 0;
             deleted.username = username.clone();
             deleted.admin_type = admin_type::ADMIN.to_string();
@@ -523,14 +523,14 @@ impl AdminUserService {
             }
             deleted.auth_list = "[]".to_string();
             deleted.add_time = add_time;
-            self.repos.identity_admin_user.update_user(&deleted).await?;
+            self.repos.identity.admin_user.update_user(&deleted).await?;
             self.sync_platform_binding(&deleted).await?;
             return Ok(deleted.admin_id);
         }
 
         // ③ 未删除的同手机号账号 → admin 报错，其他类型提升为 admin
         if let Some(mut existing) = self
-            .repos.identity_admin_user
+            .repos.identity.admin_user
             .find_by_mobile(&mobile, Some(false), None)
             .await?
         {
@@ -540,7 +540,7 @@ impl AdminUserService {
             existing.admin_type = admin_type::ADMIN.to_string();
             existing.role_id = role_id;
             existing.auth_list = "[]".to_string();
-            self.repos.identity_admin_user.update_user(&existing).await?;
+            self.repos.identity.admin_user.update_user(&existing).await?;
             self.sync_platform_binding(&existing).await?;
             return Ok(existing.admin_id);
         }
@@ -554,7 +554,7 @@ impl AdminUserService {
             .unwrap_or_else(default_avatar);
         let suppliers_id = dto.suppliers_id.unwrap_or(0);
         let new_id = self
-            .repos.identity_admin_user
+            .repos.identity.admin_user
             .insert_user(
                 &username,
                 admin_type::ADMIN,
@@ -568,7 +568,7 @@ impl AdminUserService {
             )
             .await?;
 
-        if let Some(user) = self.repos.identity_admin_user.find_user(new_id).await? {
+        if let Some(user) = self.repos.identity.admin_user.find_user(new_id).await? {
             self.sync_platform_binding(&user).await?;
         }
         Ok(new_id)
@@ -591,7 +591,7 @@ impl AdminUserService {
         let mobile = dto.mobile.clone().unwrap_or_default();
 
         if self
-            .repos.identity_admin_user
+            .repos.identity.admin_user
             .find_by_username(&username, None)
             .await?
             .is_some_and(|u| u.admin_id != admin_id)
@@ -599,7 +599,7 @@ impl AdminUserService {
             return Err(Error::biz_msg("管理员名称已存在或被商户账号占用"));
         }
         if self
-            .repos.identity_admin_user
+            .repos.identity.admin_user
             .find_by_mobile(&mobile, None, Some(admin_id))
             .await?
             .is_some()
@@ -608,7 +608,7 @@ impl AdminUserService {
         }
         if let Some(email) = dto.email.as_deref().filter(|s| !s.trim().is_empty()) {
             if self
-                .repos.identity_admin_user
+                .repos.identity.admin_user
                 .find_by_email(email, Some(admin_id))
                 .await?
                 .is_some()
@@ -620,7 +620,7 @@ impl AdminUserService {
         // 原密码校验（Java `buildAdminUser` 里 `passwordEncoder.matches`）
         if let Some(old) = dto.old_password.as_deref().filter(|s| !s.is_empty()) {
             let current = self
-                .repos.identity_admin_user
+                .repos.identity.admin_user
                 .find_user(admin_id)
                 .await?
                 .ok_or_else(|| Error::biz_msg("管理员名称不存在"))?;
@@ -630,7 +630,7 @@ impl AdminUserService {
         }
 
         let persisted = self
-            .repos.identity_admin_user
+            .repos.identity.admin_user
             .find_user(admin_id)
             .await?
             .ok_or_else(|| Error::biz_msg("管理员名称不存在"))?;
@@ -672,9 +672,9 @@ impl AdminUserService {
             next.admin_type = admin_type::SUPPLIERS.to_string();
         }
 
-        self.repos.identity_admin_user.update_user(&next).await?;
+        self.repos.identity.admin_user.update_user(&next).await?;
         let refreshed = self
-            .repos.identity_admin_user
+            .repos.identity.admin_user
             .find_user(admin_id)
             .await?
             .unwrap_or(next);
@@ -711,14 +711,14 @@ impl AdminUserService {
         }
 
         let user = self
-            .repos.identity_admin_user
+            .repos.identity.admin_user
             .find_user(id)
             .await?
             .ok_or_else(|| Error::biz_msg("管理员名称不存在"))?;
 
         // 店铺/供应商主账号不允许删除
         if self
-            .repos.identity_admin_user
+            .repos.identity.admin_user
             .find_shop_main_account(id)
             .await?
             .is_some()
@@ -726,7 +726,7 @@ impl AdminUserService {
             return Err(Error::biz_msg("主账号不允许删除"));
         }
 
-        let deleted = self.repos.identity_admin_user.soft_delete_user(id).await?;
+        let deleted = self.repos.identity.admin_user.soft_delete_user(id).await?;
         if !deleted {
             return Err(Error::biz_msg("管理员名称不存在"));
         }
@@ -770,7 +770,7 @@ impl AdminUserService {
             1 => {
                 // 修改个人信息：只更新 avatar / email（Java 未做空值保护）
                 let affected = self
-                    .repos.identity_admin_user
+                    .repos.identity.admin_user
                     .update_profile(
                         current_admin_id,
                         dto.avatar.as_deref(),
@@ -785,7 +785,7 @@ impl AdminUserService {
             2 => {
                 // 修改密码：仅此分支需要读取当前账号的密码哈希
                 let current = self
-                    .repos.identity_admin_user
+                    .repos.identity.admin_user
                     .find_user(current_admin_id)
                     .await?
                     .ok_or_else(|| Error::biz_msg("未登录"))?;
@@ -805,7 +805,7 @@ impl AdminUserService {
                 }
                 let hash = hash_password(password)?;
                 let affected = self
-                    .repos.identity_admin_user
+                    .repos.identity.admin_user
                     .update_password(current_admin_id, &hash)
                     .await?;
                 if !affected {
@@ -822,7 +822,7 @@ impl AdminUserService {
                 // 修改手机号：Java 先要求「当前手机号已验证」（Redis 标记），
                 // 再校验新手机号短信验证码（Redis）。
                 let current = self
-                    .repos.identity_admin_user
+                    .repos.identity.admin_user
                     .find_user(current_admin_id)
                     .await?
                     .ok_or_else(|| Error::biz_msg("未登录"))?;
@@ -837,7 +837,7 @@ impl AdminUserService {
             4 => {
                 // 验证当前绑定手机号：需要短信验证码校验 + 写入已验证标记
                 let current = self
-                    .repos.identity_admin_user
+                    .repos.identity.admin_user
                     .find_user(current_admin_id)
                     .await?
                     .ok_or_else(|| Error::biz_msg("未登录"))?;
@@ -872,7 +872,7 @@ impl AdminUserService {
 
         let roles = match raw_type {
             admin_type::ADMIN => {
-                self.repos.identity_admin_user
+                self.repos.identity.admin_user
                     .find_ordinary_roles(&RoleScopeFilter {
                         shop_id: Some(shop_id),
                         merchant_id: Some(0),
@@ -883,22 +883,22 @@ impl AdminUserService {
             }
             admin_type::SHOP | admin_type::STORE | admin_type::PICKUP => {
                 let shop = self
-                    .repos.identity_admin_user
+                    .repos.identity.admin_user
                     .find_shop(shop_id)
                     .await?
                     .ok_or_else(|| Error::biz_msg("店铺不存在"))?;
                 match shop.merchant_id.filter(|mid| *mid > 0) {
                     Some(merchant_id) => {
-                        let merchant = self.repos.identity_admin_user.find_merchant(merchant_id).await?;
+                        let merchant = self.repos.identity.admin_user.find_merchant(merchant_id).await?;
                         if merchant.is_some() {
-                            self.repos.identity_admin_user
+                            self.repos.identity.admin_user
                                 .find_ordinary_roles(&RoleScopeFilter {
                                     merchant_shop_branch: Some((merchant_id, shop_id)),
                                     ..Default::default()
                                 })
                                 .await?
                         } else {
-                            self.repos.identity_admin_user
+                            self.repos.identity.admin_user
                                 .find_ordinary_roles(&RoleScopeFilter {
                                     shop_id: Some(shop_id),
                                     ..Default::default()
@@ -907,7 +907,7 @@ impl AdminUserService {
                         }
                     }
                     None => {
-                        self.repos.identity_admin_user
+                        self.repos.identity.admin_user
                             .find_ordinary_roles(&RoleScopeFilter {
                                 shop_id: Some(shop_id),
                                 ..Default::default()
@@ -917,7 +917,7 @@ impl AdminUserService {
                 }
             }
             admin_type::VENDOR => {
-                self.repos.identity_admin_user
+                self.repos.identity.admin_user
                     .find_ordinary_roles(&RoleScopeFilter {
                         vendor_id: Some(vendor_id),
                         ..Default::default()
@@ -940,7 +940,7 @@ impl AdminUserService {
     /// 之后调用 `configService.sendSms`（短信通道 + 模板配置）——**未迁移**，
     /// 故返回明确业务错误，绝不伪造「已发送」。
     pub async fn get_code(&self, q: &GetCodeQuery, current_admin_id: i32) -> Result<()> {
-        let current = self.repos.identity_admin_user.find_user(current_admin_id).await?;
+        let current = self.repos.identity.admin_user.find_user(current_admin_id).await?;
         let current_mobile = current
             .as_ref()
             .and_then(|u| u.mobile.clone())
@@ -979,7 +979,7 @@ impl AdminUserService {
         admin_id: i32,
         dto: &AdminApiTokenGenerateDTO,
     ) -> Result<AdminApiTokenGenerateVO> {
-        let active = self.repos.identity_admin_user.count_active_tokens(admin_id).await?;
+        let active = self.repos.identity.admin_user.count_active_tokens(admin_id).await?;
         if active >= MAX_TOKENS_PER_USER {
             return Err(Error::biz_msg(format!(
                 "每个管理员最多拥有 {MAX_TOKENS_PER_USER} 个有效Token"
@@ -988,7 +988,7 @@ impl AdminUserService {
 
         // Java 先生成 token 再校验管理员存在
         let user = self
-            .repos.identity_admin_user
+            .repos.identity.admin_user
             .find_user(admin_id)
             .await?
             .ok_or_else(|| Error::biz_msg("管理员不存在"))?;
@@ -1001,7 +1001,7 @@ impl AdminUserService {
         let expires_at = token_expires_at(dto.expires_in_days, now);
 
         let id = self
-            .repos.identity_admin_user
+            .repos.identity.admin_user
             .insert_api_token(admin_id, &token_hash, &prefix, &name, now, expires_at)
             .await?;
 
@@ -1019,7 +1019,7 @@ impl AdminUserService {
 
     /// 查询当前管理员的 API Token 列表（对应 Java `listTokens`）。
     pub async fn list_api_tokens(&self, admin_id: i32) -> Result<Vec<AdminApiTokenVO>> {
-        let tokens = self.repos.identity_admin_user.find_api_tokens(admin_id).await?;
+        let tokens = self.repos.identity.admin_user.find_api_tokens(admin_id).await?;
         Ok(tokens
             .into_iter()
             .map(|t| AdminApiTokenVO {
@@ -1040,13 +1040,13 @@ impl AdminUserService {
     /// `Token不存在或无权操作`。
     pub async fn revoke_api_token(&self, token_id: i32, admin_id: i32) -> Result<()> {
         let token = self
-            .repos.identity_admin_user
+            .repos.identity.admin_user
             .find_api_token(token_id)
             .await?
             .filter(|t| t.admin_id == admin_id)
             .ok_or_else(|| Error::biz_msg("Token不存在或无权操作"))?;
 
-        self.repos.identity_admin_user.revoke_api_token(token.id).await?;
+        self.repos.identity.admin_user.revoke_api_token(token.id).await?;
         let id = token.id;
         tracing::info!("API Token 已吊销: id={id}, admin_id={admin_id}");
         Ok(())
@@ -1074,11 +1074,11 @@ impl AdminUserService {
     /// - 不做 `ensureKefu` / `removeKefu`。
     async fn sync_platform_binding(&self, user: &AdminUser) -> Result<()> {
         let role = if user.role_id > 0 {
-            self.repos.identity_admin_user.find_role(user.role_id).await?
+            self.repos.identity.admin_user.find_role(user.role_id).await?
         } else {
             None
         };
-        let binding = self.repos.identity_admin_user.find_platform_binding(user.admin_id).await?;
+        let binding = self.repos.identity.admin_user.find_platform_binding(user.admin_id).await?;
 
         let platform_role = role
             .as_ref()
@@ -1114,7 +1114,7 @@ impl AdminUserService {
                 i32::try_from(utils::now_seconds()).unwrap_or(i32::MAX)
             });
         }
-        self.repos.identity_admin_user.update_user_shop(&candidate).await?;
+        self.repos.identity.admin_user.update_user_shop(&candidate).await?;
         Ok(())
     }
 
@@ -1122,7 +1122,7 @@ impl AdminUserService {
     ///
     /// Java 末尾还会调 `roleLifecycle.removeKefu(adminId, 0)`——该服务未迁移。
     async fn remove_platform_binding(&self, admin_id: i32) -> Result<()> {
-        let removed = self.repos.identity_admin_user.delete_platform_binding(admin_id).await?;
+        let removed = self.repos.identity.admin_user.delete_platform_binding(admin_id).await?;
         tracing::debug!("清理平台工作台绑定: admin_id={admin_id}, rows={removed}");
         Ok(())
     }

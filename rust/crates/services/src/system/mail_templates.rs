@@ -47,7 +47,7 @@ impl MailTemplatesService {
     /// 本片仓储。
     #[must_use]
     pub fn repo(&self) -> &MailTemplatesRepository {
-        &self.repos.system_mail_templates
+        &self.repos.system.mail_templates
     }
 
     /// 邮箱模板列表。

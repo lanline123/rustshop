@@ -60,7 +60,7 @@ impl WebSocketService {
     /// 本片仓储（当前实现不落库，保留以固定构造签名）。
     #[must_use]
     pub fn repo(&self) -> &tigshop_infrastructure::db::repo::im::web_socket::WebSocketRepository {
-        &self.repos.im_web_socket
+        &self.repos.im.web_socket
     }
 
     /// 服务器端主动发消息给指定用户（对应 Java `WebSocketController.sendMessage`）。

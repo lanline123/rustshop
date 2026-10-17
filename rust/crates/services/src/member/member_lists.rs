@@ -26,7 +26,7 @@ impl MemberService {
     /// - `min_growth_points`（升级门槛，Decimal）→ VO `upgrade_amount`
     /// - `discount`（Decimal 折扣，如 0.0/9.5）→ VO `discount`（整数百分比）
     pub async fn ranks(&self) -> Result<Vec<UserRankVO>> {
-        let rows = self.repos.member_member_lists.find_all_ranks().await?;
+        let rows = self.repos.member.member_lists.find_all_ranks().await?;
         Ok(rows
             .iter()
             .map(|r| UserRankVO {
@@ -41,7 +41,7 @@ impl MemberService {
 
     /// 标签组（含组下标签）。
     pub async fn tag_groups(&self) -> Result<Vec<MemberTagGroup>> {
-        self.repos.member_member_lists.find_all_tag_groups().await
+        self.repos.member.member_lists.find_all_tag_groups().await
     }
 
     /// 积分流水分页。
@@ -51,7 +51,7 @@ impl MemberService {
             page_size: q.page_size.unwrap_or(20),
         };
         let (total, list) = self
-            .repos.member_member_lists
+            .repos.member.member_lists
             .paginate_points_logs(q.user_id, &page)
             .await?;
         Ok(PageResult::new(total, list, &page))
@@ -62,7 +62,7 @@ impl MemberService {
         if delta == 0 {
             return Err(Error::Validation("积分变动不能为 0".into()));
         }
-        let ok = self.repos.member_member_lists.try_adjust_points(user_id, delta).await?;
+        let ok = self.repos.member.member_lists.try_adjust_points(user_id, delta).await?;
         if !ok {
             return Err(Error::biz(400, "积分不足"));
         }
@@ -81,7 +81,7 @@ impl MemberService {
             page: page.max(1),
             page_size: page_size.clamp(1, 200),
         };
-        let (total, list) = self.repos.member_user.paginate_members(keyword, &page).await?;
+        let (total, list) = self.repos.member.user.paginate_members(keyword, &page).await?;
         Ok(PageResult::new(total, list, &page))
     }
 }

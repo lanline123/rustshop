@@ -56,7 +56,7 @@ impl CacheManageService {
     /// 本片仓储。
     #[must_use]
     pub fn repo(&self) -> &tigshop_infrastructure::db::repo::system::cache_manage::CacheManageRepository {
-        &self.repos.system_cache_manage
+        &self.repos.system.cache_manage
     }
 
     /// 清除缓存。
@@ -76,10 +76,10 @@ impl CacheManageService {
             tracing::debug!("缓存清理请求：tag={tag}（原 Java 忽略该参数，本实现同样忽略）");
         }
 
-        let all_keys = self.repos.system_cache_manage.scan_all_keys().await?;
+        let all_keys = self.repos.system.cache_manage.scan_all_keys().await?;
         let scanned = all_keys.len() as u64;
         let (keys_to_delete, kept) = partition_keys(all_keys, &NO_CLEANUP_PREFIXES);
-        let deleted = self.repos.system_cache_manage.delete_keys(&keys_to_delete).await?;
+        let deleted = self.repos.system.cache_manage.delete_keys(&keys_to_delete).await?;
 
         tracing::info!("缓存清理完成：扫描 {scanned} 个 key，删除 {deleted} 个，保留 {kept} 个");
         Ok(CacheCleanupVO {

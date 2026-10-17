@@ -566,7 +566,7 @@ impl MessageTypeService {
 
     /// 便捷访问本切片独占仓储。
     fn repo(&self) -> &tigshop_infrastructure::db::repo::system::message_type::MessageTypeRepository {
-        &self.repos.system_message_type
+        &self.repos.system.message_type
     }
 
     // ————————————————————— 列表 —————————————————————

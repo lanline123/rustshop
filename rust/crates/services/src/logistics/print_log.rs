@@ -77,7 +77,7 @@ impl PrintLogService {
     /// 本片仓储。
     #[must_use]
     pub fn repo(&self) -> &PrintLogRepository {
-        &self.repos.logistics_print_log
+        &self.repos.logistics.print_log
     }
 
     /// 路由层默认使用的店铺 ID（平台 `0`，见模块头 `uncertain_points`）。

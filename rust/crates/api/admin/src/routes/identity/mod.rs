@@ -1,5 +1,6 @@
 //! 管理端 identity 路由。
 
+pub mod admin_account;
 pub mod admin_log;
 pub mod admin_role;
 pub mod admin_user;
@@ -13,6 +14,7 @@ use super::super::AdminState;
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new()
+        .merge(admin_account::routes(state))
         .merge(admin_log::routes(state))
         .merge(admin_role::routes(state))
         .merge(admin_user::routes(state))
@@ -29,6 +31,7 @@ pub fn public_routes(state: &AdminState) -> Router<AdminState> {
 #[must_use]
 pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     let mut out = Vec::new();
+    out.extend(admin_account::implemented_routes());
     out.extend(admin_log::implemented_routes());
     out.extend(admin_role::implemented_routes());
     out.extend(admin_user::implemented_routes());

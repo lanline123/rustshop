@@ -103,7 +103,7 @@ impl ShippingTypeService {
         q: &ShippingTypeListQuery,
         shop_id: i32,
     ) -> Result<PageResult<tigshop_core::models::logistics::shipping_type::ShippingTypeVO>> {
-        let (total, rows) = self.repos.logistics_shipping_type.paginate(q, shop_id).await?;
+        let (total, rows) = self.repos.logistics.shipping_type.paginate(q, shop_id).await?;
 
         // 批量补物流公司名（Java 为逐行 N+1；本实现一次 IN 查询，结果集相同）。
         // `shipping_default_id == 0` 表示未设置 ⇒ 不查（Java 里 0 也能查到
@@ -113,7 +113,7 @@ impl ShippingTypeService {
             .map(|r| r.shipping_default_id)
             .filter(|id| *id > 0)
             .collect();
-        let names = self.repos.logistics_shipping_type.find_logistics_names(&ids).await?;
+        let names = self.repos.logistics.shipping_type.find_logistics_names(&ids).await?;
 
         let list = rows
             .iter()
@@ -139,7 +139,7 @@ impl ShippingTypeService {
         id: i32,
     ) -> Result<tigshop_core::models::logistics::shipping_type::ShippingTypeVO> {
         let row = self
-            .repos.logistics_shipping_type
+            .repos.logistics.shipping_type
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::NotFound(MSG_SHIPPING_TYPE_NOT_FOUND.to_string()))?;
@@ -169,7 +169,7 @@ impl ShippingTypeService {
             is_support_cod: dto.is_support_cod,
             sort_order: dto.sort_order,
         };
-        self.repos.logistics_shipping_type.insert(&insert).await
+        self.repos.logistics.shipping_type.insert(&insert).await
     }
 
     /// 更新配送类型（对应 Java `ShippingTypeServiceImpl#update`）。
@@ -195,12 +195,12 @@ impl ShippingTypeService {
             // update DTO 无 shopId ⇒ 不写该列
             shop_id: None,
         };
-        self.repos.logistics_shipping_type.update(id, &patch).await
+        self.repos.logistics.shipping_type.update(id, &patch).await
     }
 
     /// 删除配送类型（对应 Java `removeById`）。
     pub async fn del(&self, id: i32) -> Result<bool> {
-        self.repos.logistics_shipping_type.delete(id).await
+        self.repos.logistics.shipping_type.delete(id).await
     }
 
     /// 单字段更新（对应 Java `BaseServiceImpl#updateField`）。
@@ -240,7 +240,7 @@ impl ShippingTypeService {
         }
 
         // ③ 执行
-        self.repos.logistics_shipping_type.update_field(id, column, val).await
+        self.repos.logistics.shipping_type.update_field(id, column, val).await
     }
 
     /// 批量操作（对应 Java `BaseServiceImpl#batch`）。
@@ -256,7 +256,7 @@ impl ShippingTypeService {
             // Java `return false;` —— 非 del 类型静默不做事
             return Ok(0);
         }
-        self.repos.logistics_shipping_type.delete_many(&ids).await
+        self.repos.logistics.shipping_type.delete_many(&ids).await
     }
 }
 

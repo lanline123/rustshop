@@ -105,7 +105,7 @@ impl BrandService {
         };
 
         let (total, rows) = self
-            .repos.catalog_brand
+            .repos.catalog.brand
             .paginate(
                 q.keyword.as_deref(),
                 q.is_show,
@@ -128,7 +128,7 @@ impl BrandService {
             .collect();
         let mut shops = std::collections::HashMap::new();
         if !shop_ids.is_empty() {
-            for s in self.repos.catalog_brand.find_shops(&shop_ids).await? {
+            for s in self.repos.catalog.brand.find_shops(&shop_ids).await? {
                 shops.insert(s.shop_id, s.shop_title.clone().unwrap_or_default());
             }
         }
@@ -149,7 +149,7 @@ impl BrandService {
     /// （“品牌不存在”）。
     pub async fn detail(&self, brand_id: i32) -> Result<BrandDTO> {
         let b = self
-            .repos.catalog_brand
+            .repos.catalog.brand
             .find_by_id(brand_id)
             .await?
             .ok_or_else(|| Error::biz(500, "品牌不存在"))?;
@@ -166,8 +166,8 @@ impl BrandService {
     /// 全部同名字段，实际存在额外字段；这里只保留 `brandId`/`brandName`/
     /// `firstWord`（前端选择器实际使用的三项），见 `uncertain_points`。
     pub async fn search(&self) -> Result<BrandSearchVO> {
-        let brands = self.repos.catalog_brand.find_searchable().await?;
-        let first_words = self.repos.catalog_brand.distinct_first_words().await?;
+        let brands = self.repos.catalog.brand.find_searchable().await?;
+        let first_words = self.repos.catalog.brand.distinct_first_words().await?;
         Ok(BrandSearchVO {
             brand_list: brands
                 .iter()
@@ -186,7 +186,7 @@ impl BrandService {
     /// 对应 Java `BrandServiceImpl#auditWaitNum`：`count(status = PENDING)`，
     /// 不叠加店铺过滤（Java 该查询也未用 `HeaderUtils.getShopId()`）。
     pub async fn audit_wait_num(&self) -> Result<i64> {
-        self.repos.catalog_brand.count_by_status(CHECK_STATUS_PENDING).await
+        self.repos.catalog.brand.count_by_status(CHECK_STATUS_PENDING).await
     }
 
     // ————————————————————— 写操作 —————————————————————
@@ -226,7 +226,7 @@ impl BrandService {
             status: d.status,
             reject_remark: dto.reject_remark.clone(),
         };
-        let id = self.repos.catalog_brand.insert(&brand).await?;
+        let id = self.repos.catalog.brand.insert(&brand).await?;
         tracing::info!("创建品牌成功: id={id}, name={name}, shop_id={shop_id}");
         Ok(id)
     }
@@ -248,7 +248,7 @@ impl BrandService {
 
         // 必须已存在（Java `updateById` 影响 0 行会静默失败，这里显式报错）
         let existing = self
-            .repos.catalog_brand
+            .repos.catalog.brand
             .find_by_id(brand_id)
             .await?
             .ok_or_else(|| Error::biz(500, "品牌不存在"))?;
@@ -280,7 +280,7 @@ impl BrandService {
             // Java：DTO 未传 rejectRemark 时不更新该列 → 保留原值
             reject_remark: dto_or_keep_nullable(dto.reject_remark.clone(), &existing.reject_remark),
         };
-        self.repos.catalog_brand.update(&brand).await?;
+        self.repos.catalog.brand.update(&brand).await?;
         tracing::info!("更新品牌成功: id={brand_id}, shop_id={shop_id}");
         Ok(())
     }
@@ -290,7 +290,7 @@ impl BrandService {
     /// 对应 Java `BrandServiceImpl#del`（`BaseServiceImpl#del` →
     /// `removeById`）：物理 DELETE（`brand` 表无删除标记列）。
     pub async fn delete(&self, brand_id: i32) -> Result<()> {
-        let deleted = self.repos.catalog_brand.delete(brand_id).await?;
+        let deleted = self.repos.catalog.brand.delete(brand_id).await?;
         if !deleted {
             return Err(Error::biz(500, "品牌不存在"));
         }
@@ -312,7 +312,7 @@ impl BrandService {
         if ids.is_empty() {
             return Err(Error::Validation("未选中任何条目".into()));
         }
-        let n = self.repos.catalog_brand.delete_batch(ids).await?;
+        let n = self.repos.catalog.brand.delete_batch(ids).await?;
         tracing::info!("批量删除品牌: {n} 条");
         Ok(n)
     }
@@ -329,7 +329,7 @@ impl BrandService {
     pub async fn update_field(&self, brand_id: i32, field: &str, val: &str) -> Result<bool> {
         let field = normalize_field(field)?;
         let brand = self
-            .repos.catalog_brand
+            .repos.catalog.brand
             .find_by_id(brand_id)
             .await?
             .ok_or_else(|| Error::biz(500, "品牌不存在"))?;
@@ -341,11 +341,11 @@ impl BrandService {
         }
 
         let updated = self
-            .repos.catalog_brand
+            .repos.catalog.brand
             .update_field(brand_id, field, val)
             .await?;
         if updated && brand.shop_id > 0 {
-            self.repos.catalog_brand
+            self.repos.catalog.brand
                 .set_status(brand_id, CHECK_STATUS_PENDING)
                 .await?;
         }
@@ -360,12 +360,12 @@ impl BrandService {
     /// **未迁移**：Java 末尾还会写一条管理操作日志
     /// （`adminLogService.createByLogInfo("品牌名称批量更新")`），日志域未迁移。
     pub async fn update_first_word(&self) -> Result<u64> {
-        let brands = self.repos.catalog_brand.find_all().await?;
+        let brands = self.repos.catalog.brand.find_all().await?;
         let mut n = 0u64;
         for b in &brands {
             let fw = first_pinyin_or_hash(&b.brand_name);
             n += self
-                .repos.catalog_brand
+                .repos.catalog.brand
                 .update_first_word(b.brand_id, &fw)
                 .await?;
         }
@@ -390,12 +390,12 @@ impl BrandService {
         }
 
         let brand = self
-            .repos.catalog_brand
+            .repos.catalog.brand
             .find_by_id(dto.brand_id)
             .await?
             .ok_or_else(|| Error::biz(500, "品牌不存在"))?;
 
-        self.repos.catalog_brand
+        self.repos.catalog.brand
             .audit(
                 dto.brand_id,
                 status,
@@ -424,7 +424,7 @@ impl BrandService {
         exclude_id: Option<i32>,
     ) -> Result<()> {
         if self
-            .repos.catalog_brand
+            .repos.catalog.brand
             .exists_same_name(name, shop_id, exclude_id)
             .await?
         {

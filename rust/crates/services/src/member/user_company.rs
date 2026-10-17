@@ -115,20 +115,20 @@ impl UserCompanyService {
         // 1. 关键字反查会员 id（Java `userService.list(...)`），
         //    仅在 keyword 非空时执行（Java `StrUtil.isNotEmpty(keyword)` 门）。
         let user_ids: Vec<i32> = match q.effective_keyword() {
-            Some(kw) => self.repos.member_user_company.find_user_ids_by_keyword(kw).await?,
+            Some(kw) => self.repos.member.user_company.find_user_ids_by_keyword(kw).await?,
             None => Vec::new(),
         };
 
         // 2. 分页取记录
         let page = q.page_query();
         let (total, rows) = self
-            .repos.member_user_company
+            .repos.member.user_company
             .paginate(q, if q.effective_keyword().is_some() { Some(&user_ids) } else { None })
             .await?;
 
         // 3. 批量预取关联会员（替代 Java 的逐条 one()）
         let ids: Vec<i32> = rows.iter().map(|r| r.user_id).collect();
-        let users: Vec<User> = self.repos.member_user_company.find_users_by_ids(&ids).await?;
+        let users: Vec<User> = self.repos.member.user_company.find_users_by_ids(&ids).await?;
         let mut user_map: HashMap<i32, User> = HashMap::with_capacity(users.len());
         for u in users {
             user_map.insert(u.user_id, u);
@@ -151,7 +151,7 @@ impl UserCompanyService {
     /// 记录不存在 ⇒ `企业认证信息不存在`。
     pub async fn detail(&self, id: i32) -> Result<UserCompanyDetailVO> {
         let entity = self
-            .repos.member_user_company
+            .repos.member.user_company
             .find_by_id(id)
             .await?
             // Java 抛 `GlobalException("企业认证信息不存在")`；
@@ -160,14 +160,14 @@ impl UserCompanyService {
 
         // 关联会员：Java `Optional.ofNullable(user).ifPresent(...)`
         // ⇒ 查不到时 user 保持 null（与列表的「全空对象」不同）
-        let user = self.repos.member_user_company.find_user_by_id(entity.user_id).await?;
+        let user = self.repos.member.user_company.find_user_by_id(entity.user_id).await?;
 
         let mut company_data = parse_company_data_detail(entity.company_data.as_deref());
 
         // 地区名拼接（Java 第 192–207 行）
         if let Some(province_ids) = company_data.license_addr_province.as_ref() {
             if !province_ids.is_empty() {
-                let regions = self.repos.member_user_company.find_regions_by_ids(province_ids).await?;
+                let regions = self.repos.member.user_company.find_regions_by_ids(province_ids).await?;
                 company_data.license_addr_province_name =
                     Some(join_region_names(province_ids, &regions));
             }
@@ -212,7 +212,7 @@ impl UserCompanyService {
             .ok_or_else(|| Error::biz_msg(MSG_UNKNOWN_USER_COMPANY))?;
 
         let current = self
-            .repos.member_user_company
+            .repos.member.user_company
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::biz_msg(MSG_UNKNOWN_USER_COMPANY))?;
@@ -234,7 +234,7 @@ impl UserCompanyService {
             .status
             .ok_or_else(|| Error::biz_msg("审核状态不能为空"))?;
 
-        let mut tx = self.repos.member_user_company.begin().await?;
+        let mut tx = self.repos.member.user_company.begin().await?;
 
         // 仅「通过」时写 audit_time（Java `if (PASS.equals(status)) setAuditTime(now)`）
         let audit_time = if should_stamp_audit_time(Some(new_status)) {
@@ -251,15 +251,15 @@ impl UserCompanyService {
         };
 
         let affected = self
-            .repos.member_user_company
+            .repos.member.user_company
             .update_audit(&mut tx, id, current.status, &patch)
             .await?;
 
         // 仅「通过」时标记会员（Java `if (PASS.equals(status)) { ... }`）
         if should_mark_user_company_auth(Some(new_status)) {
-            let user = self.repos.member_user_company.find_user_by_id(current.user_id).await?;
+            let user = self.repos.member.user_company.find_user_by_id(current.user_id).await?;
             let user = user.ok_or_else(|| Error::biz_msg(MSG_USER_NOT_EXIST))?;
-            self.repos.member_user_company
+            self.repos.member.user_company
                 .mark_user_company_auth(&mut tx, user.user_id, IS_COMPANY_AUTH_YES)
                 .await?;
         }
@@ -288,7 +288,7 @@ impl UserCompanyService {
         let id = id
             .filter(|v| *v > 0)
             .ok_or_else(|| Error::biz_msg(MSG_USER_COMPANY_ID_NOT_NULL))?;
-        self.repos.member_user_company.delete(id).await
+        self.repos.member.user_company.delete(id).await
     }
 }
 

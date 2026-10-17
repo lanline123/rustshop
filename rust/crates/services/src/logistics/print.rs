@@ -119,7 +119,7 @@ impl PrintService {
     /// 本片仓储。
     #[must_use]
     pub fn repo(&self) -> &PrintRepository {
-        &self.repos.logistics_print
+        &self.repos.logistics.print
     }
 
     /// 路由层默认使用的店铺 ID（平台 `0`，见模块头 `uncertain_points` 第 4 条）。

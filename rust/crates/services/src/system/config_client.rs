@@ -153,7 +153,7 @@ impl ConfigClientService {
     /// 只读访问本域仓储（供路由层/其它服务复用）。
     #[must_use]
     pub fn repo(&self) -> &ConfigClientRepository {
-        &self.repos.system_config_client
+        &self.repos.system.config_client
     }
 
     // ————————————————————— 内部：装载快照 —————————————————————
@@ -170,7 +170,7 @@ impl ConfigClientService {
     /// （见 `_or` / `int_or` / `effective_str` 系列），
     /// 保证与 `SettingsHelper#get` 的可观测结果一致。
     async fn load_snapshot(&self) -> Result<ConfigIndex> {
-        let rows = self.repos.system_config_client.find_all_configs().await?;
+        let rows = self.repos.system.config_client.find_all_configs().await?;
         Ok(index_from_configs(&rows))
     }
 
@@ -203,18 +203,18 @@ impl ConfigClientService {
 
         // 3. 成长值配置（⚠️ Java 此处不判空，缺失即 NPE ⇒ 500；
         //    本实现返回 None，`growUpSetting` 输出 null，见 uncertain_points）
-        let grow_row = self.repos.system_config_client.find_grow_config().await?;
+        let grow_row = self.repos.system.config_client.find_grow_config().await?;
         let grow_data = tigshop_core::models::system::config_client::grow_data_of(grow_row.as_ref());
 
         // 4. 装修数据 + headerStyle
         let (decorate_page_module, header_style) = if let Some(preview_id) = q.preview_id {
-            let row = self.repos.system_config_client.find_decorate_by_id(preview_id).await?;
+            let row = self.repos.system.config_client.find_decorate_by_id(preview_id).await?;
             // previewId 分支 **不计算** headerStyle（Java 只在 else 分支里算），
             // 保持初值 1。
             (page_module_of(row.as_ref()), DEFAULT_HEADER_STYLE)
         } else {
             let row = self
-                .repos.system_config_client
+                .repos.system.config_client
                 .find_pc_home_decorate(DECORATE_TYPE_PC)
                 .await?;
             let data = row.as_ref().and_then(|d| d.data.as_deref());
@@ -245,7 +245,7 @@ impl ConfigClientService {
 
         // 7. 是否存在个人中心页
         let has_member_center = self
-            .repos.system_config_client
+            .repos.system.config_client
             .exists_member_center_decorate(DECORATE_TYPE_H5, DECORATE_PAGE_TYPE_MEMBER_CENTER)
             .await?;
         vo.is_new_member_center_decorate = has_member_center;
@@ -332,10 +332,10 @@ impl ConfigClientService {
     /// - 仓储层失败 ⇒ `Error::Database`
     pub async fn base(&self, q: &PreviewIdQuery) -> Result<serde_json::Map<String, serde_json::Value>> {
         let configs = self.load_snapshot().await?;
-        let grow_row = self.repos.system_config_client.find_grow_config().await?;
+        let grow_row = self.repos.system.config_client.find_grow_config().await?;
         let grow_data = tigshop_core::models::system::config_client::grow_data_of(grow_row.as_ref());
 
-        let decorates = &self.repos.system_config_client;
+        let decorates = &self.repos.system.config_client;
         let decorate_page_config = if let Some(preview_id) = q.preview_id {
             // Java `getPcIndexDecoratePageConfig(id)`：
             // `getOne(eq(decorate_id, id))` 再取 `pageModule`。
@@ -397,7 +397,7 @@ impl ConfigClientService {
     /// # Errors
     /// - 仓储层失败 ⇒ `Error::Database`
     pub async fn mobile_area_code(&self) -> Result<Vec<tigshop_core::models::system::config_client::AreaCodeVO>> {
-        let rows = self.repos.system_config_client.find_available_area_codes().await?;
+        let rows = self.repos.system.config_client.find_available_area_codes().await?;
         Ok(rows
             .iter()
             .map(tigshop_core::models::system::config_client::AreaCodeVO::from)

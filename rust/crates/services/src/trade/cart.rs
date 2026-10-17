@@ -69,14 +69,14 @@ impl CartService {
 
         // 已存在同款则累加
         if let Some(existing) = self
-            .repos.trade_cart
+            .repos.trade.cart
             .find_line(user_id, product_id, sku_id)
             .await?
         {
             let new_qty = existing.quantity + quantity;
             self.product.check_purchasable(product_id, sku_id, new_qty).await?;
             let cart_id = existing.cart_id;
-            self.repos.trade_cart.update_quantity(cart_id, user_id, new_qty).await?;
+            self.repos.trade.cart.update_quantity(cart_id, user_id, new_qty).await?;
             return Ok(cart_id);
         }
 
@@ -98,7 +98,7 @@ impl CartService {
             r#type: 0,
             ..Default::default()
         };
-        self.repos.trade_cart.insert(&cart).await
+        self.repos.trade.cart.insert(&cart).await
     }
 
     /// 修改数量。
@@ -112,36 +112,36 @@ impl CartService {
             return Err(Error::Validation("数量必须大于0".into()));
         }
         let cart = self
-            .repos.trade_cart
+            .repos.trade.cart
             .find_owned(cart_id, user_id)
             .await?
             .ok_or_else(|| Error::NotFound("购物车记录不存在".into()))?;
         self.product
             .check_purchasable(cart.product_id, cart.sku_id, quantity)
             .await?;
-        self.repos.trade_cart.update_quantity(cart_id, user_id, quantity).await
+        self.repos.trade.cart.update_quantity(cart_id, user_id, quantity).await
     }
 
     /// 勾选/取消勾选。
     pub async fn set_checked(&self, user_id: i32, cart_id: i32, checked: bool) -> Result<()> {
-        self.repos.trade_cart.update_checked(cart_id, user_id, checked).await
+        self.repos.trade.cart.update_checked(cart_id, user_id, checked).await
     }
 
     /// 删除指定行。
     pub async fn remove(&self, user_id: i32, cart_ids: &[i32]) -> Result<()> {
-        self.repos.trade_cart.delete(cart_ids, user_id).await?;
+        self.repos.trade.cart.delete(cart_ids, user_id).await?;
         Ok(())
     }
 
     /// 清空。
     pub async fn clear(&self, user_id: i32) -> Result<()> {
-        self.repos.trade_cart.clear(user_id).await?;
+        self.repos.trade.cart.clear(user_id).await?;
         Ok(())
     }
 
     /// 购物车汇总（实时校验库存/价格）。
     pub async fn summary(&self, user_id: i32) -> Result<CartSummaryVO> {
-        let carts = self.repos.trade_cart.find_by_user(user_id, None).await?;
+        let carts = self.repos.trade.cart.find_by_user(user_id, None).await?;
         let mut items = Vec::with_capacity(carts.len());
         let (mut checked_qty, mut checked_amount, mut total_qty) = (0, Decimal::ZERO, 0);
 
@@ -194,7 +194,7 @@ impl CartService {
 
     /// 获取已勾选且可结算的购物车行（下单用）。
     pub async fn checked_lines(&self, user_id: i32, cart_ids: &[i32]) -> Result<Vec<Cart>> {
-        let carts = self.repos.trade_cart.find_by_user(user_id, None).await?;
+        let carts = self.repos.trade.cart.find_by_user(user_id, None).await?;
         Ok(carts
             .into_iter()
             .filter(|c| c.is_checked() && (cart_ids.is_empty() || cart_ids.contains(&c.cart_id)))

@@ -73,7 +73,7 @@ impl UserRankService {
     /// 本片仓储。
     #[must_use]
     pub fn repo(&self) -> &UserRankRepository {
-        &self.repos.member_user_rank
+        &self.repos.member.user_rank
     }
 
     // ————————————————————— 列表（listByPro） —————————————————————

@@ -97,7 +97,7 @@ impl MobileCatNavService {
     /// （不做 `getCategoryByIds` 调用）；本实现同样短路，避免一次空 `IN` 查询。
     pub async fn list(&self, q: &MobileCatNavListQuery) -> Result<PageResult<MobileCatNavVO>> {
         let page = q.page_query();
-        let (total, rows) = self.repos.content_mobile_cat_nav.paginate(q).await?;
+        let (total, rows) = self.repos.content.mobile_cat_nav.paginate(q).await?;
         if rows.is_empty() {
             // Java `if (CollUtil.isEmpty(records)) return convertPage(page, List.of())`
             return Ok(PageResult::new(total, Vec::new(), &page));
@@ -110,7 +110,7 @@ impl MobileCatNavService {
 
         // `categoryService.getCategoryByIds(categoryIds)` → `Map<categoryId, Category>`
         let categories = self
-            .repos.content_mobile_cat_nav
+            .repos.content.mobile_cat_nav
             .find_categories_by_ids(&category_ids)
             .await?;
         let name_map: HashMap<i32, String> = categories
@@ -139,7 +139,7 @@ impl MobileCatNavService {
     /// 本实现返回可诊断的 404（项目内 order_admin/005/017/075 的既有约定）。
     pub async fn detail(&self, id: i32) -> Result<MobileCatNavVO> {
         let m = self
-            .repos.content_mobile_cat_nav
+            .repos.content.mobile_cat_nav
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::NotFound(MSG_MOBILE_CAT_NAV_NOT_FOUND.into()))?;
@@ -181,7 +181,7 @@ impl MobileCatNavService {
         );
 
         let id = self
-            .repos.content_mobile_cat_nav
+            .repos.content.mobile_cat_nav
             .insert(&MobileCatNavInsert {
                 category_id: dto.category_id,
                 cat_color: dto.cat_color.clone(),
@@ -234,7 +234,7 @@ impl MobileCatNavService {
 
         // 记录必须存在：Java `updateById` 命中 0 行静默返回 false，
         // 这里先查一次以便区分「不存在」与「值未变化」（与 area_code 同一处理）。
-        if self.repos.content_mobile_cat_nav.find_by_id(id).await?.is_none() {
+        if self.repos.content.mobile_cat_nav.find_by_id(id).await?.is_none() {
             return Err(Error::NotFound(MSG_MOBILE_CAT_NAV_NOT_FOUND.into()));
         }
 
@@ -256,7 +256,7 @@ impl MobileCatNavService {
             return Ok(false);
         }
 
-        let affected = self.repos.content_mobile_cat_nav.update(id, &patch).await?;
+        let affected = self.repos.content.mobile_cat_nav.update(id, &patch).await?;
         // ⚠️ Java 在此处 `invalidateHomeDecorateAfterCommit()`；Rust 侧无缓存可失效。
         tracing::info!("更新首页分类栏: id={id}, 影响 {affected} 行");
         Ok(affected > 0)
@@ -275,7 +275,7 @@ impl MobileCatNavService {
             .id
             .filter(|v| *v > 0)
             .ok_or_else(|| Error::Validation(MSG_ID_REQUIRED.into()))?;
-        let removed = self.repos.content_mobile_cat_nav.delete(id).await?;
+        let removed = self.repos.content.mobile_cat_nav.delete(id).await?;
         // ⚠️ Java 仅在 `removed == true` 时 `invalidateHomeDecorateAfterCommit()`。
         Ok(removed)
     }
@@ -322,7 +322,7 @@ impl MobileCatNavService {
         }
 
         let val = dto.val.as_deref().unwrap_or_default();
-        let affected = self.repos.content_mobile_cat_nav.update_field(id, column, val).await?;
+        let affected = self.repos.content.mobile_cat_nav.update_field(id, column, val).await?;
         // ⚠️ Java 仅在 `updated == true` 时 `invalidateHomeDecorateAfterCommit()`。
         Ok(affected > 0)
     }
@@ -346,7 +346,7 @@ impl MobileCatNavService {
         if dto.ids.is_empty() {
             return Ok(false);
         }
-        let affected = self.repos.content_mobile_cat_nav.delete_many(&dto.ids).await?;
+        let affected = self.repos.content.mobile_cat_nav.delete_many(&dto.ids).await?;
         // ⚠️ Java 仅在 `result == true` 时 `invalidateHomeDecorateAfterCommit()`。
         Ok(affected > 0)
     }

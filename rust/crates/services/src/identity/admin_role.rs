@@ -75,7 +75,7 @@ impl AdminRoleService {
     /// `self.repos.<ctx>.<feature>`）。
     #[must_use]
     pub fn repo(&self) -> &AdminRoleRepository {
-        &self.repos.identity_admin_role
+        &self.repos.identity.admin_role
     }
 
     // ————————————————————— 查询 —————————————————————

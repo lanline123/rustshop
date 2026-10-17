@@ -298,7 +298,7 @@ impl MerchantClientService {
 
     /// 本片仓储。
     fn repo(&self) -> &MerchantClientRepository {
-        &self.repos.merchant_merchant_client
+        &self.repos.merchant.merchant_client
     }
 
     /// 读取系统配置项；缺失（Java `CONFIG_NOT_EXIST`「配置不存在」）→ 业务码 1001。

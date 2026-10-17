@@ -158,7 +158,7 @@ impl BuyerShowClientService {
 
     /// 本片仓储。
     fn repo(&self) -> &BuyerShowClientRepository {
-        &self.repos.marketing_buyer_show_client
+        &self.repos.marketing.buyer_show_client
     }
 
     /// 当前秒级时间戳（Java `StringUtils.getCurrentTime()`）。

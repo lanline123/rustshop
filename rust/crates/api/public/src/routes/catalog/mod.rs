@@ -3,7 +3,10 @@
 pub mod category;
 pub mod category_all;
 pub mod comment;
+pub mod exchange;
 pub mod product_manage;
+pub mod product_search;
+pub mod search_admin;
 
 use axum::Router;
 
@@ -15,7 +18,10 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
     Router::new()
         .merge(category::routes(state))
         .merge(comment::routes(state))
+        .merge(exchange::routes(state))
         .merge(product_manage::routes(state))
+        .merge(product_search::routes(state))
+        .merge(search_admin::routes(state))
 }
 
 /// 匿名可访问路由（无状态）。
@@ -43,6 +49,9 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(category::implemented_routes());
     out.extend(category_all::implemented_routes());
     out.extend(comment::implemented_routes());
+    out.extend(exchange::implemented_routes());
     out.extend(product_manage::implemented_routes());
+    out.extend(product_search::implemented_routes());
+    out.extend(search_admin::implemented_routes());
     out
 }

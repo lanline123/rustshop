@@ -87,7 +87,7 @@ impl ProductStockService {
     }
 
     fn repo(&self) -> &tigshop_infrastructure::db::repo::catalog::product_stock::ProductStockRepository {
-        &self.repos.catalog_product_stock
+        &self.repos.catalog.product_stock
     }
 
     // ————————————————————— 库存分页 / 出入库明细 —————————————————————

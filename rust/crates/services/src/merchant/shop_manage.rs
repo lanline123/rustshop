@@ -332,13 +332,13 @@ impl ShopManageService {
             q.main_account.as_deref().filter(|s| !s.trim().is_empty())
         {
             Some(
-                self.repos.merchant_shop_manage
+                self.repos.merchant.shop_manage
                     .find_bind_shop_ids_by_account(acc.trim(), true)
                     .await?,
             )
         } else if let Some(acc) = q.account.as_deref().filter(|s| !s.trim().is_empty()) {
             Some(
-                self.repos.merchant_shop_manage
+                self.repos.merchant.shop_manage
                     .find_bind_shop_ids_by_account(acc.trim(), false)
                     .await?,
             )
@@ -348,7 +348,7 @@ impl ShopManageService {
 
         let page = q.page_query();
         let (total, shops) = self
-            .repos.merchant_shop_manage
+            .repos.merchant.shop_manage
             .paginate_shops(q, shop_id_scope, manager_ids.as_deref())
             .await?;
 
@@ -403,7 +403,7 @@ impl ShopManageService {
             });
         }
         let shop = self
-            .repos.merchant_shop_manage
+            .repos.merchant.shop_manage
             .find_shop(shop_id)
             .await?
             .ok_or_else(|| Error::biz_msg("店铺不存在"))?;
@@ -411,7 +411,7 @@ impl ShopManageService {
         let refs = self.load_shop_refs(std::slice::from_ref(&shop)).await?;
         // Java `detail` 取一条 `admin_user_shop`（`is_admin = 1`，仅回填绑定 VO）
         let binding = self
-            .repos.merchant_shop_manage
+            .repos.merchant.shop_manage
             .find_shop_admin_bindings(&[shop_id])
             .await?
             .into_iter()
@@ -425,7 +425,7 @@ impl ShopManageService {
         vo.shop_tips = refs.tips.get(&shop.shop_id).cloned().unwrap_or_default();
         vo.tips = refs.tip_names(&vo.shop_tips);
         vo.product_score = Some(
-            self.repos.merchant_shop_manage
+            self.repos.merchant.shop_manage
                 .avg_shop_comment_rank(shop_id)
                 .await?
                 .unwrap_or(Decimal::ZERO),
@@ -447,12 +447,12 @@ impl ShopManageService {
         }
         // Java `StringUtils.getCurrentTime()`（秒）
         let _ = self
-            .repos.merchant_shop_manage
+            .repos.merchant.shop_manage
             .touch_last_login(shop_id, utils::now_seconds() as i32)
             .await?;
 
         let shop = self
-            .repos.merchant_shop_manage
+            .repos.merchant.shop_manage
             .find_shop(shop_id)
             .await?
             .ok_or_else(|| Error::biz_msg("店铺不存在"))?;
@@ -467,7 +467,7 @@ impl ShopManageService {
         vo.tips = refs.tip_names(&vo.shop_tips);
         // onlyCurrentAdmin = true：只回填当前管理员的绑定
         if let Some(binding) = self
-            .repos.merchant_shop_manage
+            .repos.merchant.shop_manage
             .find_admin_shop_binding(shop_id, admin_id)
             .await?
         {
@@ -509,7 +509,7 @@ impl ShopManageService {
         let scope = shop_id_scope.filter(|v| *v > 0);
         let merchant_id = if let Some(current) = scope {
             let current_shop = self
-                .repos.merchant_shop_manage
+                .repos.merchant.shop_manage
                 .find_shop(current)
                 .await?
                 .ok_or_else(|| Error::biz_msg("店铺不存在"))?;
@@ -521,14 +521,14 @@ impl ShopManageService {
         // 店铺数上限（Java `updateShop(isAdd = true)`）
         if merchant_id > 0 && p.shop_type != Some(shop_type::PICKUP) {
             let max_raw = self
-                .repos.merchant_shop_manage
+                .repos.merchant.shop_manage
                 .find_config_val("maxShopCount")
                 .await
                 .unwrap_or_default();
             if let Ok(max_count) = max_raw.trim().parse::<i64>() {
                 let st = p.shop_type.unwrap_or(shop_type::SHOP);
                 let count = self
-                    .repos.merchant_shop_manage
+                    .repos.merchant.shop_manage
                     .count_shops_by_merchant(merchant_id, st)
                     .await?;
                 if count >= max_count {
@@ -557,11 +557,11 @@ impl ShopManageService {
         };
         apply_payload(&mut shop, p);
 
-        self.repos.merchant_shop_manage.insert_shop(&shop).await?;
+        self.repos.merchant.shop_manage.insert_shop(&shop).await?;
 
         // 门店标签（Java `create` 内 for 循环插入 store_tip）
         if let Some(tips) = p.shop_tips.as_ref().filter(|v| !v.is_empty()) {
-            self.repos.merchant_shop_manage
+            self.repos.merchant.shop_manage
                 .insert_store_tips(shop_id, tips, utils::now_millis())
                 .await?;
         }
@@ -572,12 +572,12 @@ impl ShopManageService {
             operator_admin_id
         } else {
             // 平台端为商户新增店铺：绑定该商户的主账号
-            self.repos.merchant_shop_manage
+            self.repos.merchant.shop_manage
                 .find_merchant_main_admin_user_id(merchant_id)
                 .await?
                 .unwrap_or(operator_admin_id)
         };
-        let (username, email) = match self.repos.merchant_shop_manage.find_admin_user(bind_admin_id).await? {
+        let (username, email) = match self.repos.merchant.shop_manage.find_admin_user(bind_admin_id).await? {
             Some(u) => (u.username, u.email),
             None => (String::new(), String::new()),
         };
@@ -605,7 +605,7 @@ impl ShopManageService {
         email: &str,
         add_time: i32,
     ) -> Result<()> {
-        self.repos.merchant_shop_manage
+        self.repos.merchant.shop_manage
             .insert_admin_user_shop(shop_id, admin_id, username, email, add_time)
             .await
     }
@@ -624,7 +624,7 @@ impl ShopManageService {
                 .wrapping_add((i as i64).wrapping_mul(1_442_695_040_888_963_407));
             let offset = (mix >> 33).rem_euclid(span) as i32;
             let candidate = SHOP_ID_MIN + offset;
-            if self.repos.merchant_shop_manage.find_shop(candidate).await?.is_none() {
+            if self.repos.merchant.shop_manage.find_shop(candidate).await?.is_none() {
                 return Ok(candidate);
             }
         }
@@ -642,7 +642,7 @@ impl ShopManageService {
             .filter(|v| *v > 0)
             .ok_or_else(|| Error::Validation("店铺ID不能为空".into()))?;
         check_store_param(self.is_o2o, p)?;
-        if self.repos.merchant_shop_manage.find_shop(shop_id).await?.is_none() {
+        if self.repos.merchant.shop_manage.find_shop(shop_id).await?.is_none() {
             return Err(Error::biz_msg("店铺不存在"));
         }
 
@@ -660,12 +660,12 @@ impl ShopManageService {
         shop.shop_money = None;
         shop.frozen_money = None;
         shop.shop_star = None;
-        self.repos.merchant_shop_manage.update_shop(&shop).await?;
+        self.repos.merchant.shop_manage.update_shop(&shop).await?;
 
         // 标签：先删后插，`shopTips` 为 None 时也删（Java 无条件 delete）
-        self.repos.merchant_shop_manage.delete_store_tips(shop_id).await?;
+        self.repos.merchant.shop_manage.delete_store_tips(shop_id).await?;
         if let Some(tips) = p.shop_tips.as_ref().filter(|v| !v.is_empty()) {
-            self.repos.merchant_shop_manage
+            self.repos.merchant.shop_manage
                 .insert_store_tips(shop_id, tips, utils::now_millis())
                 .await?;
         }
@@ -677,7 +677,7 @@ impl ShopManageService {
         if id <= 0 {
             return Err(Error::Validation("ID不能为空".into()));
         }
-        let affected = self.repos.merchant_shop_manage.delete_shops(&[id]).await?;
+        let affected = self.repos.merchant.shop_manage.delete_shops(&[id]).await?;
         if affected == 0 {
             return Err(Error::biz_msg("店铺不存在"));
         }
@@ -699,7 +699,7 @@ impl ShopManageService {
                 let status: i32 = val
                     .parse()
                     .map_err(|_| Error::Validation(format!("字段值必须为整数: {val}")))?;
-                if self.repos.merchant_shop_manage.update_shop_status(id, status).await? {
+                if self.repos.merchant.shop_manage.update_shop_status(id, status).await? {
                     Ok(())
                 } else {
                     Err(Error::biz_msg("店铺不存在"))
@@ -723,7 +723,7 @@ impl ShopManageService {
             .ok_or_else(|| Error::Validation("请选择要操作的项".into()))?;
         match dto.r#type.as_deref().map(str::trim) {
             Some("del") => {
-                self.repos.merchant_shop_manage.delete_shops(&ids).await?;
+                self.repos.merchant.shop_manage.delete_shops(&ids).await?;
                 Ok(true)
             }
             Some(other) => Err(Error::Validation(format!("不支持的操作类型: {other}"))),
@@ -744,7 +744,7 @@ impl ShopManageService {
         shop_id_scope: Option<i32>,
     ) -> Result<serde_json::Value> {
         // Java：仅启用中的绑定（is_using = 0）
-        let shop_ids = self.repos.merchant_shop_manage.find_enabled_shop_ids(admin_id).await?;
+        let shop_ids = self.repos.merchant.shop_manage.find_enabled_shop_ids(admin_id).await?;
         let page = PageQuery {
             page: 1,
             page_size: 100,
@@ -767,7 +767,7 @@ impl ShopManageService {
             self.list(&my, shop_id_scope).await?
         };
 
-        let userinfo = match self.repos.merchant_shop_manage.find_admin_user(admin_id).await? {
+        let userinfo = match self.repos.merchant.shop_manage.find_admin_user(admin_id).await? {
             Some(u) => serde_json::json!({
                 "adminId": u.admin_id,
                 "username": u.username,
@@ -783,12 +783,12 @@ impl ShopManageService {
             None => serde_json::Value::Null,
         };
         let default_pos_shop_id = self
-            .repos.merchant_shop_manage
+            .repos.merchant.shop_manage
             .find_default_pos_shop_id(admin_id)
             .await?
             .unwrap_or(0);
         let last_login_system = self
-            .repos.merchant_shop_manage
+            .repos.merchant.shop_manage
             .find_last_login_system(admin_id)
             .await?;
 
@@ -809,12 +809,12 @@ impl ShopManageService {
     ) -> Result<()> {
         let shop_id = require_shop_id(p.shop_id, "门店ID")?;
         let binding = self
-            .repos.merchant_shop_manage
+            .repos.merchant.shop_manage
             .find_admin_shop_binding(shop_id, admin_id)
             .await?
             .ok_or_else(|| Error::biz_msg("当前账号不属于该门店，无法设置默认进收银台"))?;
         let flag = if p.default_pos_login == Some(1) { 1 } else { 0 };
-        self.repos.merchant_shop_manage
+        self.repos.merchant.shop_manage
             .update_default_pos_login(binding.id, flag)
             .await?;
         Ok(())
@@ -830,14 +830,14 @@ impl ShopManageService {
     ) -> Result<()> {
         let shop_id = require_shop_id(p.shop_id, "门店ID")?;
         let Some(binding) = self
-            .repos.merchant_shop_manage
+            .repos.merchant.shop_manage
             .find_admin_shop_binding(shop_id, admin_id)
             .await?
         else {
             return Ok(());
         };
         let sys = p.last_login_system.as_deref().unwrap_or("");
-        self.repos.merchant_shop_manage
+        self.repos.merchant.shop_manage
             .update_last_login_system(binding.id, sys)
             .await?;
         Ok(())
@@ -856,7 +856,7 @@ impl ShopManageService {
         admin_id: i32,
     ) -> Result<(bool, Vec<String>)> {
         let admin = self
-            .repos.merchant_shop_manage
+            .repos.merchant.shop_manage
             .find_admin_user(admin_id)
             .await?
             .ok_or_else(|| Error::biz_msg("管理员不存在"))?;
@@ -871,11 +871,11 @@ impl ShopManageService {
                 .as_deref()
                 .and_then(|s| s.trim().parse::<i32>().ok())
                 .ok_or_else(|| Error::Validation("店铺ID不能为空".into()))?;
-            if self.repos.merchant_shop_manage.find_shop(id).await?.is_none() {
+            if self.repos.merchant.shop_manage.find_shop(id).await?.is_none() {
                 return Err(Error::biz_msg("没有此店铺"));
             }
             let binding = self
-                .repos.merchant_shop_manage
+                .repos.merchant.shop_manage
                 .find_admin_shop_binding(id, admin_id)
                 .await?
                 .ok_or_else(|| Error::biz_msg("没有此店铺权限"))?;
@@ -888,7 +888,7 @@ impl ShopManageService {
 
         // RBAC：有角色走角色权限
         if role_id > 0 {
-            if let Some(role) = self.repos.merchant_shop_manage.find_admin_role(role_id).await? {
+            if let Some(role) = self.repos.merchant.shop_manage.find_admin_role(role_id).await? {
                 auth_raw = role.authority_list;
             }
         }
@@ -905,7 +905,7 @@ impl ShopManageService {
 
     /// 店铺下拉列表（对应 Java `ShopServiceImpl#getShopList`）。
     pub async fn shop_list(&self, q: &ShopListQuery) -> Result<Vec<Shop>> {
-        self.repos.merchant_shop_manage
+        self.repos.merchant.shop_manage
             .find_shops_for_picker(
                 q.shop_type_or_default(),
                 q.shop_title
@@ -927,19 +927,19 @@ impl ShopManageService {
         }
         // 收银员角色排除（Java `posCashierRoleIds`）
         let cashier_ids = self
-            .repos.merchant_shop_manage
+            .repos.merchant.shop_manage
             .find_pos_cashier_role_ids()
             .await
             .unwrap_or_default();
 
         let (using, sub_using, stop_using) = self
-            .repos.merchant_shop_manage
+            .repos.merchant.shop_manage
             .count_staff(shop_id, &cashier_ids)
             .await
             .unwrap_or((0, 0, 0));
 
         let max_sub = self
-            .repos.merchant_shop_manage
+            .repos.merchant.shop_manage
             .find_config_val("maxSubAdministrator")
             .await
             .unwrap_or_default()
@@ -953,16 +953,16 @@ impl ShopManageService {
         };
 
         let bindings = self
-            .repos.merchant_shop_manage
+            .repos.merchant.shop_manage
             .find_shop_bindings(shop_id, &cashier_ids)
             .await?;
         let admin_ids: Vec<i32> = distinct_i32(bindings.iter().map(|b| b.admin_id));
         let logs = self
-            .repos.merchant_shop_manage
+            .repos.merchant.shop_manage
             .find_recent_admin_logs(&admin_ids, 5)
             .await?;
         let log_admin_ids = distinct_i32(logs.iter().map(|l| l.user_id));
-        let users = self.repos.merchant_shop_manage.find_admin_users(&log_admin_ids).await?;
+        let users = self.repos.merchant.shop_manage.find_admin_users(&log_admin_ids).await?;
         let name_map: HashMap<i32, String> =
             users.into_iter().map(|u| (u.admin_id, u.username)).collect();
 
@@ -1008,7 +1008,7 @@ impl ShopManageService {
             ..Default::default()
         };
         apply_payload(&mut shop, p);
-        if !self.repos.merchant_shop_manage.update_shop(&shop).await? {
+        if !self.repos.merchant.shop_manage.update_shop(&shop).await? {
             return Err(Error::biz_msg("没有此店铺"));
         }
         // Java `updateInfo` 直接返回本次 updateById 的实体
@@ -1030,11 +1030,11 @@ impl ShopManageService {
         }
 
         if p.status == Some(shop_status::PAUSE) {
-            let ongoing = self.repos.merchant_shop_manage.count_ongoing_orders(shop_id).await?;
+            let ongoing = self.repos.merchant.shop_manage.count_ongoing_orders(shop_id).await?;
             if ongoing > 0 {
                 return Err(Error::biz_msg("存在进行中订单，无法停业，请先处理完所有订单"));
             }
-            let aftersales = self.repos.merchant_shop_manage.count_ongoing_aftersales(shop_id).await?;
+            let aftersales = self.repos.merchant.shop_manage.count_ongoing_aftersales(shop_id).await?;
             if aftersales > 0 {
                 return Err(Error::biz_msg("存在未完结售后，无法停业，请先处理完所有售后"));
             }
@@ -1067,13 +1067,13 @@ impl ShopManageService {
         if let Some(v) = &p.receive_info {
             shop.receive_info = Some(v.to_string());
         }
-        if !self.repos.merchant_shop_manage.update_shop(&shop).await? {
+        if !self.repos.merchant.shop_manage.update_shop(&shop).await? {
             return Err(Error::biz_msg("没有此店铺"));
         }
 
         // 停业后下架店铺内全部商品
         if p.status == Some(shop_status::PAUSE) {
-            let n = self.repos.merchant_shop_manage.off_shelf_shop_products(shop_id).await?;
+            let n = self.repos.merchant.shop_manage.off_shelf_shop_products(shop_id).await?;
             tracing::info!("店铺停业，已下架商品 {n} 行: shop_id={shop_id}");
         }
         Ok(())
@@ -1084,7 +1084,7 @@ impl ShopManageService {
     /// 获取供应商配置（对应 Java `ShopServiceImpl#getVendorSetting`）。
     pub async fn get_vendor_setting(&self, shop_id: i32) -> Result<VendorSettingVO> {
         let shop = self
-            .repos.merchant_shop_manage
+            .repos.merchant.shop_manage
             .find_shop(shop_id)
             .await?
             .ok_or_else(|| Error::biz_msg("店铺不存在"))?;
@@ -1107,11 +1107,11 @@ impl ShopManageService {
         if shop_id <= 0 {
             return Err(Error::Validation("店铺ID不能为空".into()));
         }
-        if self.repos.merchant_shop_manage.find_shop(shop_id).await?.is_none() {
+        if self.repos.merchant.shop_manage.find_shop(shop_id).await?.is_none() {
             return Err(Error::biz_msg("店铺不存在"));
         }
         let auto = parse_vendor_price_auto_value(p.vendor_set_price_auto_value.as_deref())?;
-        self.repos.merchant_shop_manage
+        self.repos.merchant.shop_manage
             .update_vendor_setting(shop_id, p.vendor_set_price_type, auto)
             .await?;
         Ok(())
@@ -1127,14 +1127,14 @@ impl ShopManageService {
             return Err(Error::Validation("商品ID不能为空".into()));
         }
         let stores = self
-            .repos.merchant_shop_manage
+            .repos.merchant.shop_manage
             .find_shops_for_picker(shop_type::STORE, None, None)
             .await?;
         if stores.is_empty() {
             return Ok(Vec::new());
         }
         let assigned: HashSet<i32> = self
-            .repos.merchant_shop_manage
+            .repos.merchant.shop_manage
             .find_shop_ids_by_product(product_id)
             .await?
             .into_iter()
@@ -1169,7 +1169,7 @@ impl ShopManageService {
             .filter(|v| *v > 0)
             .ok_or_else(|| Error::biz_msg("店铺不存在"))?;
         let shop = self
-            .repos.merchant_shop_manage
+            .repos.merchant.shop_manage
             .find_shop(id)
             .await?
             .ok_or_else(|| Error::biz_msg("店铺不存在"))?;
@@ -1188,7 +1188,7 @@ impl ShopManageService {
             return Err(Error::biz_msg(format!("{type_name}需要先停止营业才能删除")));
         }
 
-        if self.repos.merchant_shop_manage.count_pickups_under(id).await? > 0 {
+        if self.repos.merchant.shop_manage.count_pickups_under(id).await? > 0 {
             return Err(Error::biz_msg("门店下有自提点，请先删除自提点"));
         }
         let shop_money = shop.shop_money.unwrap_or(Decimal::ZERO);
@@ -1201,11 +1201,11 @@ impl ShopManageService {
                 "{type_name}冻结资金不为0，请先处理店铺冻结资金"
             )));
         }
-        if self.repos.merchant_shop_manage.count_products_of_shop(id).await? > 0 {
+        if self.repos.merchant.shop_manage.count_products_of_shop(id).await? > 0 {
             return Err(Error::biz_msg(format!("{type_name}下有商品，请先处理商品")));
         }
 
-        self.repos.merchant_shop_manage.soft_delete_shop(id).await
+        self.repos.merchant.shop_manage.soft_delete_shop(id).await
     }
 
     // ————————————————————— 内部：关联数据批量预取 —————————————————————
@@ -1218,13 +1218,13 @@ impl ShopManageService {
         let shop_ids = distinct_i32(shops.iter().map(|s| s.shop_id));
         let merchant_ids = distinct_i32(shops.iter().filter_map(|s| s.merchant_id));
 
-        let merchants = self.repos.merchant_shop_manage.find_merchants(&merchant_ids).await?;
+        let merchants = self.repos.merchant.shop_manage.find_merchants(&merchant_ids).await?;
         let merchant_map: HashMap<i32, Merchant> =
             merchants.into_iter().map(|m| (m.merchant_id, m)).collect();
 
         // 主管理员绑定（Java：`adminUserShopService.list(isAdmin = 1)` 后取一条）
         let bindings = self
-            .repos.merchant_shop_manage
+            .repos.merchant.shop_manage
             .find_shop_admin_bindings(&shop_ids)
             .await?;
         let mut admin_bind: HashMap<i32, (i32, i32)> = HashMap::new();
@@ -1233,16 +1233,16 @@ impl ShopManageService {
             admin_bind.entry(b.shop_id).or_insert((b.admin_id, b.id));
         }
         let admin_ids = distinct_i32(admin_bind.values().map(|(admin_id, _)| *admin_id));
-        let admins = self.repos.merchant_shop_manage.find_admin_users(&admin_ids).await?;
+        let admins = self.repos.merchant.shop_manage.find_admin_users(&admin_ids).await?;
         let admin_name_map: HashMap<i32, String> =
             admins.into_iter().map(|u| (u.admin_id, u.username)).collect();
 
         // 标签（store_tip ⋈ tip）：Java `ShopServiceImpl` 对一批 shopId 只发一条
         // `in(StoreTip::getShopId, shopShopIds).orderByAsc(StoreTip::getSort)`，
         // 故这里复用 shop_client 仓储的同族批量查询（shop_manage 仓储只有单店版本）
-        let tips = self.repos.merchant_shop_client.find_store_tips(&shop_ids).await?;
+        let tips = self.repos.merchant.shop_client.find_store_tips(&shop_ids).await?;
         let tip_ids = distinct_i32(tips.iter().map(|t| t.tip_id));
-        let tip_rows = self.repos.merchant_shop_manage.find_tips(&tip_ids).await?;
+        let tip_rows = self.repos.merchant.shop_manage.find_tips(&tip_ids).await?;
         let tip_name_map: HashMap<i32, String> =
             tip_rows.into_iter().map(|t| (t.tip_id, t.tip_name)).collect();
         let mut tips_by_shop: HashMap<i32, Vec<i32>> = HashMap::new();

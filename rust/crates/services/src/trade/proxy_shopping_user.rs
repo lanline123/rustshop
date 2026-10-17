@@ -96,10 +96,10 @@ pub struct ProxyShoppingUserService {
 }
 
 impl ProxyShoppingUserService {
-    /// 构造服务（`repos.trade_proxy_shopping_user` 由主会话在 `Repositories` 中注册）。
+    /// 构造服务（`repos.trade.proxy_shopping_user` 由主会话在 `Repositories` 中注册）。
     ///
     /// 内部用**同一个** `Arc<Repositories>` 构造一份 [`UserManageService`]：
-    /// 它是无状态的纯句柄集合（`repos.member_user_manage` 是 `Clone` 的连接池包装），
+    /// 它是无状态的纯句柄集合（`repos.member.user_manage` 是 `Clone` 的连接池包装），
     /// 与 `AdminState.user_manage` 指向同一份仓储与同一个连接池，
     /// 不存在两份状态漂移的问题。
     ///
@@ -108,7 +108,7 @@ impl ProxyShoppingUserService {
     /// 即可全程走自动注册，无需手工改 `bin/src/main.rs`。
     #[must_use]
     pub fn new(repos: Arc<Repositories>) -> Self {
-        let repo = repos.trade_proxy_shopping_user.clone();
+        let repo = repos.trade.proxy_shopping_user.clone();
         let user_manage = Arc::new(UserManageService::new(repos.clone()));
         Self {
             repos,

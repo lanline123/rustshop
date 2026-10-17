@@ -1,5 +1,6 @@
 //! identity 领域服务。
 
+pub mod admin_account;
 pub mod admin_log;
 pub mod admin_role;
 pub mod admin_user;
@@ -16,4 +17,5 @@ pub struct Services {
     pub auth: Arc<auth::AuthService>,
     pub authority: Arc<authority::AuthorityService>,
     pub admin_role: Arc<admin_role::AdminRoleService>,
+    pub admin_account: Arc<admin_account::AdminAccountService>,
 }

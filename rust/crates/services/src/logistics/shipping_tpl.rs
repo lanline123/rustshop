@@ -96,7 +96,7 @@ impl ShippingTplService {
 
     /// 仓储快捷访问。
     fn repo(&self) -> &ShippingTplRepository {
-        &self.repos.logistics_shipping_tpl
+        &self.repos.logistics.shipping_tpl
     }
 
     // ————————————————————— 详情 —————————————————————

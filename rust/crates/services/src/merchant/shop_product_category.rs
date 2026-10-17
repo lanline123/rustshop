@@ -125,11 +125,11 @@ impl ShopProductCategoryService {
         shop_id: Option<i32>,
     ) -> Result<PageResult<ShopProductCategoryVO>> {
         let page = q.page_query();
-        let (total, rows) = self.repos.merchant_shop_product_category.paginate(q, shop_id).await?;
+        let (total, rows) = self.repos.merchant.shop_product_category.paginate(q, shop_id).await?;
 
         let mut list = Vec::with_capacity(rows.len());
         for row in &rows {
-            let children = self.repos.merchant_shop_product_category.count_children(row.category_id).await?;
+            let children = self.repos.merchant.shop_product_category.count_children(row.category_id).await?;
             let mut vo = ShopProductCategoryVO::from(row);
             // Java：`count() > 0 ? 1 : 0`
             vo.has_children = Some(i32::from(children > 0));
@@ -143,7 +143,7 @@ impl ShopProductCategoryService {
     /// Java 在记录不存在时返回**空串**（不是 null、不报错），本实现照抄。
     pub async fn get_category_name(&self, parent_id: i32) -> Result<String> {
         Ok(self
-            .repos.merchant_shop_product_category
+            .repos.merchant.shop_product_category
             .find_by_id(parent_id)
             .await?
             .map_or_else(String::new, |c| c.category_name))
@@ -160,7 +160,7 @@ impl ShopProductCategoryService {
     /// 本实现同样不设置。
     pub async fn detail(&self, id: i32) -> Result<ShopProductCategoryVO> {
         let c = self
-            .repos.merchant_shop_product_category
+            .repos.merchant.shop_product_category
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::NotFound(MSG_CATEGORY_NOT_EXIST.into()))?;
@@ -185,7 +185,7 @@ impl ShopProductCategoryService {
     /// - `shop_id` 为 `None` ⇒ 「请选择店铺」
     pub async fn tree(&self, shop_id: Option<i32>) -> Result<Option<Vec<ShopProductCategoryTreeVO>>> {
         let shop_id = shop_id.ok_or_else(|| Error::Validation(MSG_SHOP_NOT_NULL.into()))?;
-        let rows = self.repos.merchant_shop_product_category.find_visible_by_shop(shop_id).await?;
+        let rows = self.repos.merchant.shop_product_category.find_visible_by_shop(shop_id).await?;
         if rows.is_empty() {
             // Java `convertTreeList` 第 329–331 行：空列表返回 null
             return Ok(None);
@@ -222,7 +222,7 @@ impl ShopProductCategoryService {
 
         // 2. 父级层级校验（Java 第 193–198 行）
         if let Some(parent_id) = dto.parent_id {
-            let parent = self.repos.merchant_shop_product_category.find_by_id(parent_id).await?;
+            let parent = self.repos.merchant.shop_product_category.find_by_id(parent_id).await?;
             if let Some(p) = parent {
                 if !allows_second_level(Some(p.parent_id)) {
                     return Err(Error::Validation(MSG_ONLY_TWO_LEVEL_CREATE.into()));
@@ -232,7 +232,7 @@ impl ShopProductCategoryService {
 
         // 3. 入库：`add_time` 由 Java `StringUtils.getCurrentTime()` 强制覆盖
         let id = self
-            .repos.merchant_shop_product_category
+            .repos.merchant.shop_product_category
             .insert(&CategoryInsert {
                 category_name,
                 shop_id,
@@ -284,7 +284,7 @@ impl ShopProductCategoryService {
 
         // 父级层级校验（Java 第 212–217 行）
         if let Some(parent_id) = dto.parent_id {
-            let parent = self.repos.merchant_shop_product_category.find_by_id(parent_id).await?;
+            let parent = self.repos.merchant.shop_product_category.find_by_id(parent_id).await?;
             if let Some(p) = parent {
                 if !allows_second_level(Some(p.parent_id)) {
                     return Err(Error::Validation(MSG_ONLY_TWO_LEVEL_UPDATE.into()));
@@ -294,7 +294,7 @@ impl ShopProductCategoryService {
 
         // `updateById` 命中 0 行时 Java 静默返回 false；这里先查一次以便
         // 区分「不存在」与「值未变化」
-        if self.repos.merchant_shop_product_category.find_by_id(id).await?.is_none() {
+        if self.repos.merchant.shop_product_category.find_by_id(id).await?.is_none() {
             return Err(Error::NotFound(MSG_CATEGORY_NOT_EXIST.into()));
         }
 
@@ -307,7 +307,7 @@ impl ShopProductCategoryService {
             is_show: dto.is_show.map(Some),
             category_pic: category_pic.map(Some),
         };
-        let affected = self.repos.merchant_shop_product_category.update(id, &patch).await?;
+        let affected = self.repos.merchant.shop_product_category.update(id, &patch).await?;
         tracing::info!("更新店铺商品分类: id={id}, 影响 {affected} 行");
         Ok(affected > 0)
     }
@@ -371,7 +371,7 @@ impl ShopProductCategoryService {
     /// （`Option` 的比较天然复刻 `Objects.equals` 的 null 语义）。
     async fn del_handle(&self, shop_id: Option<i32>, id: i32) -> Result<bool> {
         let entity = self
-            .repos.merchant_shop_product_category
+            .repos.merchant.shop_product_category
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::NotFound(MSG_CATEGORY_NOT_EXIST.into()))?;
@@ -381,9 +381,9 @@ impl ShopProductCategoryService {
             return Err(Error::NotFound(MSG_CATEGORY_NOT_EXIST.into()));
         }
 
-        let removed = self.repos.merchant_shop_product_category.delete(id).await?;
+        let removed = self.repos.merchant.shop_product_category.delete(id).await?;
         if removed {
-            let unbound = self.repos.merchant_shop_product_category.unbind_products(id).await?;
+            let unbound = self.repos.merchant.shop_product_category.unbind_products(id).await?;
             tracing::info!("删除店铺商品分类: id={id}, 解绑商品 {unbound} 件");
         }
         Ok(removed)
@@ -430,7 +430,7 @@ impl ShopProductCategoryService {
 
         // 3. 归属校验（Java 第 258–261 行）
         let entity = self
-            .repos.merchant_shop_product_category
+            .repos.merchant.shop_product_category
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::NotFound(MSG_CATEGORY_NOT_EXIST.into()))?;
@@ -440,7 +440,7 @@ impl ShopProductCategoryService {
 
         // 4. 执行更新
         let val = dto.val.as_deref().unwrap_or_default();
-        let affected = self.repos.merchant_shop_product_category.update_field(id, &column, val).await?;
+        let affected = self.repos.merchant.shop_product_category.update_field(id, &column, val).await?;
         Ok(affected > 0)
     }
 
@@ -455,7 +455,7 @@ impl ShopProductCategoryService {
         parent_id: i32,
         shop_id: i32,
     ) -> Result<Vec<ShopProductCategoryVO>> {
-        let rows = self.repos.merchant_shop_product_category.find_by_shop(shop_id).await?;
+        let rows = self.repos.merchant.shop_product_category.find_by_shop(shop_id).await?;
         Ok(rows
             .iter()
             .filter(|r| r.parent_id == parent_id)
@@ -476,7 +476,7 @@ impl ShopProductCategoryService {
         category_id: i32,
         shop_id: i32,
     ) -> Result<Vec<i32>> {
-        let rows = self.repos.merchant_shop_product_category.find_by_shop(shop_id).await?;
+        let rows = self.repos.merchant.shop_product_category.find_by_shop(shop_id).await?;
         Ok(collect_all_child_ids(&rows, category_id))
     }
 

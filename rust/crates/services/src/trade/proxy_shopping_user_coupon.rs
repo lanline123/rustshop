@@ -257,7 +257,7 @@ impl ProxyShoppingUserCouponService {
 
         // ① 券存在性（Java L310-311，Assert.notNull）
         let coupon = self
-            .repos.trade_proxy_shopping_user_coupon
+            .repos.trade.proxy_shopping_user_coupon
             .find_coupon(coupon_id)
             .await?
             .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, MSG_COUPON_NOT_EXIST))?;
@@ -265,7 +265,7 @@ impl ProxyShoppingUserCouponService {
         // ② 每人限领（Java L314-318）—— 注意 Java 这次 count 先于 limit 判定，
         //    且该值在后面「新人专享 / 一次限定」里被复用，本实现同样只查一次。
         let user_count = self
-            .repos.trade_proxy_shopping_user_coupon
+            .repos.trade.proxy_shopping_user_coupon
             .count_user_claimed(user_id, coupon_id)
             .await?;
         if !within_per_user_limit(user_count, coupon.claim_limit_per_user()) {
@@ -273,7 +273,7 @@ impl ProxyShoppingUserCouponService {
         }
 
         // ③ 发放总量（Java L321-324）
-        let issued = self.repos.trade_proxy_shopping_user_coupon.count_issued(coupon_id).await?;
+        let issued = self.repos.trade.proxy_shopping_user_coupon.count_issued(coupon_id).await?;
         if !within_total_supply(issued, coupon.total_supply()) {
             return Err(Error::biz(SERVICE_DATA_ERROR, MSG_CLAIM_LIMIT_EXCEEDED));
         }
@@ -284,7 +284,7 @@ impl ProxyShoppingUserCouponService {
                 return Err(Error::biz(SERVICE_DATA_ERROR, MSG_CLAIM_ONCE_ONLY));
             }
             let paid_orders = self
-                .repos.trade_proxy_shopping_user_coupon
+                .repos.trade.proxy_shopping_user_coupon
                 .count_user_paid_orders(user_id)
                 .await?;
             if paid_orders != 0 {
@@ -299,7 +299,7 @@ impl ProxyShoppingUserCouponService {
         //    `promotion` 只读一次（Java L352 也只读一次）。
         //    ⚠️ Java 在读 `promotion` 之前就已 `selectById(userId)`，但 `user`
         //    变量直到 L346 / L368 才被解引用；本实现按需读取，可观察行为相同。
-        let promotion = self.repos.trade_proxy_shopping_user_coupon.find_coupon_promotion(coupon_id).await?;
+        let promotion = self.repos.trade.proxy_shopping_user_coupon.find_coupon_promotion(coupon_id).await?;
         let needs_user_row = coupon.is_new_user == NEW_USER_MEMBER
             || promotion
                 .as_ref()
@@ -309,7 +309,7 @@ impl ProxyShoppingUserCouponService {
                 })
                 .unwrap_or(false);
         let user_flags = if needs_user_row {
-            self.repos.trade_proxy_shopping_user_coupon.find_user_flags(user_id).await?
+            self.repos.trade.proxy_shopping_user_coupon.find_user_flags(user_id).await?
         } else {
             None
         };
@@ -369,7 +369,7 @@ impl ProxyShoppingUserCouponService {
 
         // ⑧ 落库（Java L385-391）。i32 截断与 schema 一致（`start_date`/`end_date`
         //    都是 `int`，与 Java `long` → MySQL int 列的隐式收窄等价）。
-        self.repos.trade_proxy_shopping_user_coupon
+        self.repos.trade.proxy_shopping_user_coupon
             .insert_user_coupon(
                 coupon_id,
                 user_id,

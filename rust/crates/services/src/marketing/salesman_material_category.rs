@@ -70,7 +70,7 @@ impl SalesmanMaterialCategoryService {
     /// 本片仓储。
     #[must_use]
     pub fn repo(&self) -> &tigshop_infrastructure::db::repo::marketing::salesman_material_category::SalesmanMaterialCategoryRepository {
-        &self.repos.marketing_salesman_material_category
+        &self.repos.marketing.salesman_material_category
     }
 
     // ————————————————————— 管理端 —————————————————————

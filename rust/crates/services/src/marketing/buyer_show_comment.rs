@@ -256,7 +256,7 @@ impl BuyerShowCommentService {
     /// 因此该分支的 `total` 也归零）。
     pub async fn list(&self, q: &BuyerShowCommentListQuery) -> Result<PageResult<BuyerShowCommentPageVO>> {
         let page = q.page_query();
-        let (total, comments) = self.repos.marketing_buyer_show_comment.paginate_comments(q).await?;
+        let (total, comments) = self.repos.marketing.buyer_show_comment.paginate_comments(q).await?;
         if comments.is_empty() {
             return Ok(PageResult::empty(&page));
         }
@@ -264,7 +264,7 @@ impl BuyerShowCommentService {
         // 会员信息：Java `userService.lambdaQuery().in(User::getUserId, userIds).list()`
         // 后收集为 Map；`user_id <= 0`（系统/虚拟用户）不查库。
         let user_ids = distinct_user_ids(&comments);
-        let user_map = self.repos.marketing_buyer_show_comment.find_user_names(&user_ids).await?;
+        let user_map = self.repos.marketing.buyer_show_comment.find_user_names(&user_ids).await?;
 
         let list: Vec<BuyerShowCommentPageVO> = comments
             .iter()
@@ -285,7 +285,7 @@ impl BuyerShowCommentService {
         validate_audit_param(param)?;
         let id = param.buyer_show_comment_id.unwrap_or_default();
         let status = param.status.unwrap_or_default();
-        let affected = self.repos.marketing_buyer_show_comment.audit(id, status).await?;
+        let affected = self.repos.marketing.buyer_show_comment.audit(id, status).await?;
         if affected == 0 {
             // Java 静默成功；这里保留日志便于运维排查「审核了不存在的评论」
             tracing::warn!("买家秀评论审核未命中任何行: buyer_show_comment_id={id}");
@@ -308,7 +308,7 @@ impl BuyerShowCommentService {
         }
         let value = batch.value_or_zero();
         let ids = batch.ids.as_deref().unwrap_or(&[]);
-        let affected = self.repos.marketing_buyer_show_comment.batch_audit(ids, value).await?;
+        let affected = self.repos.marketing.buyer_show_comment.batch_audit(ids, value).await?;
         tracing::info!("买家秀评论批量审核: ids={}, status={value}, 影响 {affected} 行", ids.len());
         Ok(true)
     }
@@ -321,7 +321,7 @@ impl BuyerShowCommentService {
         validate_show_or_hide_param(param)?;
         let id = param.buyer_show_comment_id.unwrap_or_default();
         let is_show = param.is_show.unwrap_or_default();
-        let affected = self.repos.marketing_buyer_show_comment.set_show(id, is_show).await?;
+        let affected = self.repos.marketing.buyer_show_comment.set_show(id, is_show).await?;
         if affected == 0 {
             tracing::warn!("买家秀评论公开/隐藏未命中任何行: buyer_show_comment_id={id}");
         }
@@ -336,7 +336,7 @@ impl BuyerShowCommentService {
         validate_is_top_param(param)?;
         let id = param.buyer_show_comment_id.unwrap_or_default();
         let is_top = param.is_top.unwrap_or_default();
-        let affected = self.repos.marketing_buyer_show_comment.set_top(id, is_top).await?;
+        let affected = self.repos.marketing.buyer_show_comment.set_top(id, is_top).await?;
         if affected == 0 {
             tracing::warn!("买家秀评论置顶未命中任何行: buyer_show_comment_id={id}");
         }

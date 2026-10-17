@@ -549,14 +549,14 @@ impl OrderAdminService {
         }
 
         let page = q.page_query();
-        let (total, orders) = self.repos.trade_order_admin.paginate_orders(q, platform_view).await?;
+        let (total, orders) = self.repos.trade.order_admin.paginate_orders(q, platform_view).await?;
         if orders.is_empty() {
             return Ok(PageResult::empty(&page));
         }
 
         let order_ids: Vec<i32> = orders.iter().map(|o| o.order_id).collect();
         let items = self
-            .repos.trade_order_admin
+            .repos.trade.order_admin
             .find_items_by_order_ids(&order_ids)
             .await?;
         let mut items_by_order: HashMap<i32, Vec<OrderItem>> = HashMap::new();
@@ -565,15 +565,15 @@ impl OrderAdminService {
         }
 
         let user_ids = distinct_i32(orders.iter().map(|o| o.user_id));
-        let users = self.repos.trade_order_admin.find_users(&user_ids).await?;
+        let users = self.repos.trade.order_admin.find_users(&user_ids).await?;
         let user_map: HashMap<i32, User> = users.into_iter().map(|u| (u.user_id, u)).collect();
 
         let shop_ids = distinct_i32(orders.iter().map(|o| o.shop_id).filter(|v| *v > 0));
-        let shops = self.repos.trade_order_admin.find_shops(&shop_ids).await?;
+        let shops = self.repos.trade.order_admin.find_shops(&shop_ids).await?;
         let shop_map: HashMap<i32, Shop> = shops.into_iter().map(|s| (s.shop_id, s)).collect();
 
         let covered: HashSet<i32> = self
-            .repos.trade_order_admin
+            .repos.trade.order_admin
             .fully_covered_order_ids(&order_ids, &aftersales_status::valid_statuses())
             .await?
             .into_iter()
@@ -586,14 +586,14 @@ impl OrderAdminService {
                 .map(|it| it.product_id),
         );
         let on_sale: HashSet<i32> = self
-            .repos.trade_order_admin
+            .repos.trade.order_admin
             .on_sale_product_ids(&product_ids)
             .await?
             .into_iter()
             .collect();
 
         let groupon: HashMap<i32, (i64, i32)> = self
-            .repos.trade_order_admin
+            .repos.trade.order_admin
             .find_groupon_records(&order_ids)
             .await?
             .into_iter()
@@ -629,37 +629,37 @@ impl OrderAdminService {
     /// 订单详情（对应 Java `OrderController.detail` / `OrderServiceImpl#detail(id)`）。
     pub async fn detail(&self, order_id: i32) -> Result<OrderVO> {
         let order = self
-            .repos.trade_order_admin
+            .repos.trade.order_admin
             .find_order(order_id)
             .await?
             .ok_or_else(|| Error::biz_msg("订单不存在"))?;
 
         // 失效父单（已拆单）且找不到子单 → Java 抛 5004「订单已被拆分为多个订单」
-        if order.is_valid == 0 && self.repos.trade_order_admin.count_children(order_id).await? == 0 {
+        if order.is_valid == 0 && self.repos.trade.order_admin.count_children(order_id).await? == 0 {
             return Err(Error::biz(5004, "订单已被拆分为多个订单"));
         }
 
-        let items = self.repos.trade_order_admin.find_items(order_id).await?;
-        let users = self.repos.trade_order_admin.find_users(&[order.user_id]).await?;
+        let items = self.repos.trade.order_admin.find_items(order_id).await?;
+        let users = self.repos.trade.order_admin.find_users(&[order.user_id]).await?;
         let shops = if order.shop_id > 0 {
-            self.repos.trade_order_admin.find_shops(&[order.shop_id]).await?
+            self.repos.trade.order_admin.find_shops(&[order.shop_id]).await?
         } else {
             Vec::new()
         };
-        let total_qty = self.repos.trade_order_admin.order_items_total_quantity(order_id).await?;
+        let total_qty = self.repos.trade.order_admin.order_items_total_quantity(order_id).await?;
         let covered_qty = self
-            .repos.trade_order_admin
+            .repos.trade.order_admin
             .aftersales_covered_quantity(order_id, &aftersales_status::valid_statuses())
             .await?;
         let product_ids = distinct_i32(items.iter().map(|it| it.product_id));
         let on_sale: HashSet<i32> = self
-            .repos.trade_order_admin
+            .repos.trade.order_admin
             .on_sale_product_ids(&product_ids)
             .await?
             .into_iter()
             .collect();
         let groupon = self
-            .repos.trade_order_admin
+            .repos.trade.order_admin
             .find_groupon_records(&[order_id])
             .await?
             .into_iter()
@@ -702,7 +702,7 @@ impl OrderAdminService {
             .id
             .ok_or_else(|| Error::Validation("订单 ID不能为空".into()))?;
         let order = self
-            .repos.trade_order_admin
+            .repos.trade.order_admin
             .find_order(order_id)
             .await?
             .ok_or_else(|| Error::biz_msg("未知的订单"))?;
@@ -715,7 +715,7 @@ impl OrderAdminService {
         }
         // 拼团待成团不允许发货（Java `detail` 中把 availableActions.deliver 置 false）
         let groupon = if order.order_type == Some(order_type::PIN) {
-            self.repos.trade_order_admin
+            self.repos.trade.order_admin
                 .find_groupon_records(&[order_id])
                 .await?
                 .into_iter()
@@ -728,10 +728,10 @@ impl OrderAdminService {
         }
 
         // 整单售后进行中禁止发货（Java `hasInProgressFullOrderAftersales`）
-        let total_qty = self.repos.trade_order_admin.order_items_total_quantity(order_id).await?;
+        let total_qty = self.repos.trade.order_admin.order_items_total_quantity(order_id).await?;
         if total_qty > 0 {
             let covered_qty = self
-                .repos.trade_order_admin
+                .repos.trade.order_admin
                 .aftersales_covered_quantity(order_id, &aftersales_status::valid_statuses())
                 .await?;
             if covered_qty >= total_qty {
@@ -743,9 +743,9 @@ impl OrderAdminService {
             return Err(Error::Validation("请填写发货数量".into()));
         }
 
-        let items = self.repos.trade_order_admin.find_items(order_id).await?;
+        let items = self.repos.trade.order_admin.find_items(order_id).await?;
         let occupied = self
-            .repos.trade_order_admin
+            .repos.trade.order_admin
             .aftersales_quantity_by_item(order_id, &aftersales_status::valid_statuses())
             .await?;
         let plan = compute_deliver_plan(&items, &param.deliver_quantity_map(), &occupied)?;
@@ -766,7 +766,7 @@ impl OrderAdminService {
                     .filter(|v| *v > 0)
                     .ok_or_else(|| Error::biz_msg("物流公司不能为空"))?;
                 let name = self
-                    .repos.trade_order_admin
+                    .repos.trade.order_admin
                     .find_company_name(lid)
                     .await?
                     .unwrap_or_default();
@@ -801,7 +801,7 @@ impl OrderAdminService {
         };
         let now = utils::now_seconds() as i32;
         let updated = self
-            .repos.trade_order_admin
+            .repos.trade.order_admin
             .update_deliver(
                 order_id,
                 method,
@@ -844,7 +844,7 @@ impl OrderAdminService {
             .order_id
             .ok_or_else(|| Error::Validation("订单ID不能为空".into()))?;
         let order = self
-            .repos.trade_order_admin
+            .repos.trade.order_admin
             .find_order(order_id)
             .await?
             .ok_or_else(|| Error::biz_msg("订单不存在"))?;
@@ -861,7 +861,7 @@ impl OrderAdminService {
             return Err(Error::biz_msg("收银台订单无法售后"));
         }
 
-        let items = self.repos.trade_order_admin.find_items(order_id).await?;
+        let items = self.repos.trade.order_admin.find_items(order_id).await?;
         if items.is_empty() {
             return Err(Error::biz_msg("请填写申请售后数量"));
         }
@@ -871,12 +871,12 @@ impl OrderAdminService {
 
         // 数量校验（Java `validateOrderQuantity`，isAdminCancel=true 文案）
         let occupied = self
-            .repos.trade_order_admin
+            .repos.trade.order_admin
             .aftersales_quantity_by_item(order_id, &aftersales_status::valid_statuses())
             .await?;
         for it in &items {
             if self
-                .repos.trade_order_admin
+                .repos.trade.order_admin
                 .has_applied_aftersales(order_id, it.item_id, &aftersales_status::applied_statuses())
                 .await?
             {
@@ -955,7 +955,7 @@ impl OrderAdminService {
         };
 
         let aftersale_id = self
-            .repos.trade_order_admin
+            .repos.trade.order_admin
             .insert_aftersales_bundle(&aftersales, &af_items, &log)
             .await?;
         tracing::info!(
