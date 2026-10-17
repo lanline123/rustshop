@@ -3,6 +3,7 @@
 pub mod app_version_admin;
 pub mod area_code;
 pub mod cache_manage;
+pub mod csrf;
 pub mod example;
 pub mod mail_templates;
 pub mod message_type;
@@ -12,7 +13,7 @@ use axum::Router;
 
 use super::super::AdminState;
 
-/// 汇总本域路由。
+/// 需登录的域路由（外层统一套 require_auth）。
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new()
@@ -25,6 +26,13 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(region::routes(state))
 }
 
+/// 免登录的域路由（对应 Java `URL_WHITELIST`，外层不套 require_auth）。
+pub fn public_routes(state: &AdminState) -> Router<AdminState> {
+    let _ = state;
+    Router::new()
+        .merge(csrf::public_routes(state))
+}
+
 /// 本域已实现路由（覆盖率统计用）。
 #[must_use]
 pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
@@ -32,6 +40,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(app_version_admin::implemented_routes());
     out.extend(area_code::implemented_routes());
     out.extend(cache_manage::implemented_routes());
+    out.extend(csrf::implemented_routes());
     out.extend(example::implemented_routes());
     out.extend(mail_templates::implemented_routes());
     out.extend(message_type::implemented_routes());

@@ -16,32 +16,43 @@ use axum::Router;
 
 use super::PublicState;
 
-/// 公开路由（域模块自带鉴权，外层不得再套 require_auth）。
+/// 公开路由（域模块自带鉴权或匿名，外层不得再套 require_auth）。
 pub fn merge_public(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
         .merge(merchant::routes(state))
         .merge(merchant::public_routes())
+        .merge(merchant::anonymous_routes(state))
         .merge(wholesale::routes(state))
         .merge(wholesale::public_routes())
+        .merge(wholesale::anonymous_routes(state))
         .merge(catalog::routes(state))
         .merge(catalog::public_routes())
+        .merge(catalog::anonymous_routes(state))
         .merge(trade::routes(state))
         .merge(trade::public_routes())
+        .merge(trade::anonymous_routes(state))
         .merge(payment::routes(state))
         .merge(payment::public_routes())
+        .merge(payment::anonymous_routes(state))
         .merge(marketing::routes(state))
         .merge(marketing::public_routes())
+        .merge(marketing::anonymous_routes(state))
         .merge(member::routes(state))
         .merge(member::public_routes())
+        .merge(member::anonymous_routes(state))
         .merge(logistics::routes(state))
         .merge(logistics::public_routes())
+        .merge(logistics::anonymous_routes(state))
         .merge(content::routes(state))
         .merge(content::public_routes())
+        .merge(content::anonymous_routes(state))
         .merge(system::routes(state))
         .merge(system::public_routes())
+        .merge(system::anonymous_routes(state))
         .merge(im::routes(state))
         .merge(im::public_routes())
+        .merge(im::anonymous_routes(state))
 }
 
 /// 需登录路由（外层已套 require_auth）。

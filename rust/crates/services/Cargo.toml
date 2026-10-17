@@ -21,6 +21,8 @@ chrono.workspace = true
 rust_decimal.workspace = true
 validator.workspace = true
 uuid.workspace = true
+md-5.workspace = true
+hex.workspace = true
 tokio.workspace = true
 
 [lints]

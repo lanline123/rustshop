@@ -179,6 +179,7 @@ pub fn router(state: AdminState) -> Router {
         .route("/login/refresh", post(refresh))
         .route("/health", get(health))
         .nest("/adminapi", protected)
+        .nest("/adminapi", routes::merge_public(&state))
         .merge(root_public)
         .merge(root_protected)
         .with_state(state)

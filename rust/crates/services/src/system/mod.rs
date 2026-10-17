@@ -4,6 +4,7 @@ pub mod app_version_admin;
 pub mod area_code;
 pub mod cache_manage;
 pub mod config_client;
+pub mod csrf;
 pub mod example;
 pub mod files;
 pub mod mail_templates;
@@ -28,4 +29,5 @@ pub struct Services {
     pub pc: Arc<pc::PcService>,
     pub region: Arc<region::RegionService>,
     pub region_client: Arc<region_client::RegionClientService>,
+    pub csrf: Arc<csrf::CsrfService>,
 }

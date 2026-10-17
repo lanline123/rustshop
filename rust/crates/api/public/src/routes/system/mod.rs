@@ -1,6 +1,7 @@
 //! 商城端 system 路由。
 
 pub mod config_client;
+pub mod csrf;
 pub mod pc;
 pub mod region_client;
 
@@ -8,7 +9,7 @@ use axum::Router;
 
 use super::super::PublicState;
 
-/// 自带鉴权中间件的域路由（并入 merge_public）。
+/// 自带鉴权中间件的域路由（并入 merge_public，外层不再套 require_auth）。
 pub fn routes(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
@@ -17,9 +18,16 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .merge(region_client::routes(state))
 }
 
-/// 匿名可访问路由（外层不套 require_auth）。
+/// 匿名可访问路由（无状态）。
 pub fn public_routes() -> Router<PublicState> {
     Router::new()
+}
+
+/// 匿名可访问路由（需要 state，外层不套 require_auth）。
+pub fn anonymous_routes(state: &PublicState) -> Router<PublicState> {
+    let _ = state;
+    Router::new()
+        .merge(csrf::anonymous_routes(state))
 }
 
 /// 需登录路由（外层统一套 require_auth）。
@@ -32,6 +40,7 @@ pub fn authorized_routes() -> Router<PublicState> {
 pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     let mut out = Vec::new();
     out.extend(config_client::implemented_routes());
+    out.extend(csrf::implemented_routes());
     out.extend(pc::implemented_routes());
     out.extend(region_client::implemented_routes());
     out

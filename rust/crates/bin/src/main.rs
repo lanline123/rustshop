@@ -23,6 +23,7 @@ use tigshop_infrastructure::cache::CacheService;
 use tigshop_infrastructure::db::{self, Repositories};
 use tigshop_security::JwtService;
 use tigshop_services::identity::auth::AuthService;
+use tigshop_services::system::csrf::CsrfService;
 use tigshop_services::trade::cart::CartService;
 use tigshop_services::catalog::category_all::CatalogService;
 use tigshop_services::content::article::ContentService;
@@ -360,6 +361,7 @@ async fn main() -> anyhow::Result<()> {
         share: share.clone(),
         wechat_live_sync_callback: wechat_live_sync_callback.clone(),
     });
+    let csrf = Arc::new(CsrfService::new(cache.clone()));
     // ---- system 域 ----
     let system = Arc::new(tigshop_services::system::Services {
         app_version_admin: app_version_admin.clone(),
@@ -373,7 +375,8 @@ async fn main() -> anyhow::Result<()> {
         pc: pc.clone(),
         region: region.clone(),
         region_client: region_client.clone(),
-    });
+            csrf: csrf.clone(),
+});
     // ---- im 域 ----
     let im = Arc::new(tigshop_services::im::Services {
         im_config: im_config.clone(),

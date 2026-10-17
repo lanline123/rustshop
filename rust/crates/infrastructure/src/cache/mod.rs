@@ -52,6 +52,20 @@ impl CacheService {
     }
 
     /// 删除 key。
+    /// SET 原始字符串（不做 JSON 编码），对应 Java `RedisCache.setCacheObject(String)`。
+    pub async fn set_str(&self, key: &str, value: &str, ttl_secs: u64) -> Result<()> {
+        let mut conn = self.conn.clone();
+        if ttl_secs == 0 {
+            conn.set::<_, _, ()>(key, value)
+                .await
+                .map_err(|e| Error::Cache(e.to_string()))
+        } else {
+            conn.set_ex::<_, _, ()>(key, value, ttl_secs)
+                .await
+                .map_err(|e| Error::Cache(e.to_string()))
+        }
+    }
+
     pub async fn del(&self, key: &str) -> Result<()> {
         let mut conn = self.conn.clone();
         conn.del::<_, ()>(key)
