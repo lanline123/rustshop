@@ -36,8 +36,10 @@ use tigshop_services::catalog::services::ServicesService;
 use tigshop_services::identity::admin_account::AdminAccountService;
 use tigshop_services::identity::admin_role::AdminRoleService;
 use tigshop_services::identity::auth::AuthService;
+use tigshop_services::im::im_conversation::ImConversationService;
 use tigshop_services::logistics::print::PrintService;
 use tigshop_services::logistics::print_log::PrintLogService;
+use tigshop_services::member::login::LoginService;
 use tigshop_services::system::config_basic::ConfigBasicService;
 use tigshop_services::system::csrf::CsrfService;
 use tigshop_services::system::log::LogService;
@@ -132,6 +134,10 @@ use tigshop_services::marketing::salesman::SalesmanService;
 use tigshop_services::merchant::shop::ShopService;
 use tigshop_services::content::decorate::DecorateService;
 use tigshop_services::member::user::UserService;
+use tigshop_services::wholesale::wholesale_product::WholesaleProductService;
+use tigshop_services::wholesale::wholesale_setting::WholesaleSettingService;
+use tigshop_services::wholesale::wholesaler::WholesalerService;
+use tigshop_services::wholesale::wholesaler_grade::WholesalerGradeService;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -297,10 +303,18 @@ async fn main() -> anyhow::Result<()> {
         shop_product_category: shop_product_category.clone(),
         vendor_deposit_shop: vendor_deposit_shop.clone(),
     });
+    let wholesale_setting = Arc::new(WholesaleSettingService::new(repos.clone()));
+    let wholesaler_grade = Arc::new(WholesalerGradeService::new(repos.clone()));
+    let wholesaler = Arc::new(WholesalerService::new(repos.clone()));
+    let wholesale_product = Arc::new(WholesaleProductService::new(repos.clone()));
     // ---- wholesale 域 ----
     let wholesale = Arc::new(tigshop_services::wholesale::Services {
         wholesale_client: wholesale_client.clone(),
-    });
+            wholesale_setting: wholesale_setting.clone(),
+        wholesaler_grade: wholesaler_grade.clone(),
+        wholesaler: wholesaler.clone(),
+        wholesale_product: wholesale_product.clone(),
+});
     let comment = Arc::new(CommentService::new(repos.clone()));
     let price_inquiry = Arc::new(PriceInquiryService::new(repos.clone()));
     let product_group = Arc::new(ProductGroupService::new(repos.clone()));
@@ -371,6 +385,7 @@ async fn main() -> anyhow::Result<()> {
         seckill: seckill.clone(),
         time_discount: time_discount.clone(),
     });
+    let login = Arc::new(LoginService::new(repos.clone(), cache.clone(), jwt.clone()));
     // ---- member 域 ----
     let member = Arc::new(tigshop_services::member::Services {
         feedback: feedback.clone(),
@@ -383,7 +398,8 @@ async fn main() -> anyhow::Result<()> {
         user_manage: user_manage.clone(),
         user_points_log: user_points_log.clone(),
         user_rank: user_rank.clone(),
-    });
+            login: login.clone(),
+});
     let print = Arc::new(PrintService::new(repos.clone()));
     let print_log = Arc::new(PrintLogService::new(repos.clone()));
     // ---- logistics 域 ----
@@ -431,13 +447,15 @@ async fn main() -> anyhow::Result<()> {
         tips_manage: tips_manage.clone(),
         log: log.clone(),
 });
+    let im_conversation = Arc::new(ImConversationService::new(repos.clone()));
     // ---- im 域 ----
     let im = Arc::new(tigshop_services::im::Services {
         im_config: im_config.clone(),
         im_message: im_message.clone(),
         im_servant: im_servant.clone(),
         web_socket: web_socket.clone(),
-    });
+            im_conversation: im_conversation.clone(),
+});
     // ---- analytics 域 ----
     let analytics = Arc::new(tigshop_services::analytics::Services {
         statistics: statistics.clone(),
@@ -461,11 +479,11 @@ async fn main() -> anyhow::Result<()> {
         im: im.clone(),
         analytics: analytics.clone(),
         openapi: openapi.clone(),
+        wholesale: wholesale.clone(),
         jwt: (*jwt).clone(),
     };
     let public_state = PublicState {
         merchant: merchant.clone(),
-        wholesale: wholesale.clone(),
         catalog: catalog.clone(),
         trade: trade.clone(),
         payment: payment.clone(),
@@ -475,6 +493,7 @@ async fn main() -> anyhow::Result<()> {
         content: content.clone(),
         system: system.clone(),
         im: im.clone(),
+        wholesale: wholesale.clone(),
         jwt: (*jwt).clone(),
     };
 

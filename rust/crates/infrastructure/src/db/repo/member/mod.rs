@@ -1,6 +1,7 @@
 //! member 领域仓储。
 
 pub mod feedback;
+pub mod login;
 pub mod member_lists;
 pub mod member_tag;
 pub mod member_tag_group;
@@ -16,6 +17,7 @@ use crate::db::DbPool;
 #[derive(Clone)]
 pub struct Repositories {
     pub feedback: feedback::FeedbackRepository,
+    pub login: login::LoginRepository,
     pub member_lists: member_lists::MemberRepository,
     pub member_tag: member_tag::MemberTagRepository,
     pub member_tag_group: member_tag_group::MemberTagGroupRepository,
@@ -32,6 +34,7 @@ impl Repositories {
     pub fn new(pool: DbPool) -> Self {
         Self {
             feedback: feedback::FeedbackRepository::new(pool.clone()),
+            login: login::LoginRepository::new(pool.clone()),
             member_lists: member_lists::MemberRepository::new(pool.clone()),
             member_tag: member_tag::MemberTagRepository::new(pool.clone()),
             member_tag_group: member_tag_group::MemberTagGroupRepository::new(pool.clone()),

@@ -1,5 +1,6 @@
 //! 商城端 member 路由。
 
+pub mod login;
 pub mod member_lists;
 pub mod user_center;
 
@@ -11,6 +12,7 @@ use super::super::PublicState;
 pub fn routes(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
+        .merge(login::routes(state))
         .merge(user_center::routes(state))
 }
 
@@ -24,6 +26,7 @@ pub fn public_routes() -> Router<PublicState> {
 pub fn anonymous_routes(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
+        .merge(login::anonymous_routes(state))
 }
 
 /// 需登录路由（外层统一套 require_auth）。
@@ -36,6 +39,7 @@ pub fn authorized_routes() -> Router<PublicState> {
 #[must_use]
 pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     let mut out = Vec::new();
+    out.extend(login::implemented_routes());
     out.extend(member_lists::implemented_routes());
     out.extend(user_center::implemented_routes());
     out

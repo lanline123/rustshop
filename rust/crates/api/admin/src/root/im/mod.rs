@@ -4,6 +4,8 @@ pub mod im_config;
 pub mod im_message;
 pub mod im_servant;
 
+pub mod im_conversation;
+
 use axum::Router;
 
 use super::super::AdminState;
@@ -12,12 +14,18 @@ use super::super::AdminState;
 pub fn merge_protected(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new()
+        .merge(im_config::routes(state))
+        .merge(im_conversation::routes(state))
+        .merge(im_message::routes(state))
+        .merge(im_servant::routes(state))
+
 }
 
 /// 免登录的根级路由。
 pub fn merge_public(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new()
+
 }
 
 /// 汇总本域根级已实现路由。

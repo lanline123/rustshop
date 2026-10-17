@@ -171,13 +171,12 @@ def main() -> int:
     # 3) repo layer
     if "repo" in layers:
         # 3a) module declaration in repo/<ctx>/mod.rs
-        p = os.path.join(CR, "infrastructure/src/db/repo", ctx, "mod.rs")
-        t = read(p)
+        repo_mod = os.path.join(CR, "infrastructure/src/db/repo", ctx, "mod.rs")
+        t = read(repo_mod)
         t, ch = add_mod(t, feature)
-        write(p, t)
+        write(repo_mod, t)
         if ch:
-            changed.append(p)
-        # 3b) flat field in the central Repositories aggregate (db/mod.rs)
+            changed.append(repo_mod)
         repo_type = args.repo_type
         if not repo_type:
             src = read(os.path.join(CR, "infrastructure/src/db/repo", ctx, feature + ".rs"))
@@ -185,27 +184,43 @@ def main() -> int:
             if not m:
                 raise SystemExit("cannot detect Repository type in %s" % feature)
             repo_type = m.group(1)
-        dbmod = os.path.join(CR, "infrastructure/src/db/mod.rs")
-        t = read(dbmod)
-        flat = "%s_%s" % (ctx, feature)
-        field = "    pub %s: repo::%s::%s::%s," % (flat, ctx, feature, repo_type)
-        i = t.find("pub struct Repositories {")
-        if i < 0:
-            raise SystemExit("Repositories struct not found")
-        end = t.index("\n}", i)
-        if field.strip() not in t[i:end]:
-            t = t[:end] + "\n" + field + t[end:]
-        ctor = "            %s: repo::%s::%s::%s::new(pool.clone())," % (
-            flat, ctx, feature, repo_type)
-        j = t.find("impl Repositories {")
-        if j < 0:
-            raise SystemExit("Repositories impl not found")
-        k = t.index("Self {", j)
-        m2 = t.index("\n        }", k)
-        if ctor.strip() not in t[k:m2]:
-            t = t[:m2] + "\n" + ctor + t[m2:]
-        write(dbmod, t)
-        changed.append(dbmod)
+        if "pub struct Repositories {" in read(repo_mod):
+            # 3b) nested per-context aggregate (post-grouping layout)
+            t = read(repo_mod)
+            field = "    pub %s: %s::%s," % (feature, feature, repo_type)
+            i = t.find("pub struct Repositories {")
+            end = t.index("\n}", i)
+            if field.strip() not in t[i:end]:
+                t = t[:end] + "\n" + field + t[end:]
+            ctor = "            %s: %s::%s::new(pool.clone())," % (feature, feature, repo_type)
+            j = t.find("impl Repositories {")
+            k = t.index("Self {", j)
+            m2 = t.index("\n        }", k)
+            if ctor.strip() not in t[k:m2]:
+                t = t[:m2] + "\n" + ctor + t[m2:]
+            write(repo_mod, t)
+            changed.append(repo_mod)
+        else:
+            # 3c) legacy flat aggregate in db/mod.rs
+            dbmod = os.path.join(CR, "infrastructure/src/db/mod.rs")
+            t = read(dbmod)
+            flat = "%s_%s" % (ctx, feature)
+            field = "    pub %s: repo::%s::%s::%s," % (flat, ctx, feature, repo_type)
+            i = t.find("pub struct Repositories {")
+            if i < 0:
+                raise SystemExit("Repositories struct not found")
+            end = t.index("\n}", i)
+            if field.strip() not in t[i:end]:
+                t = t[:end] + "\n" + field + t[end:]
+            ctor = "            %s: repo::%s::%s::%s::new(pool.clone())," % (
+                flat, ctx, feature, repo_type)
+            j = t.find("impl Repositories {")
+            k = t.index("Self {", j)
+            m2 = t.index("\n        }", k)
+            if ctor.strip() not in t[k:m2]:
+                t = t[:m2] + "\n" + ctor + t[m2:]
+            write(dbmod, t)
+            changed.append(dbmod)
 
     # 4) bin/src/main.rs
     if "service" in layers:

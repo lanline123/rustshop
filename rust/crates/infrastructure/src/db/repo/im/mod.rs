@@ -1,6 +1,7 @@
 //! im 领域仓储。
 
 pub mod im_config;
+pub mod im_conversation;
 pub mod im_message;
 pub mod im_servant;
 pub mod web_socket;
@@ -13,6 +14,7 @@ pub struct Repositories {
     pub im_message: im_message::ImMessageRepository,
     pub im_servant: im_servant::ImServantRepository,
     pub web_socket: web_socket::WebSocketRepository,
+    pub im_conversation: im_conversation::ImConversationRepository,
 }
 
 impl Repositories {
@@ -23,6 +25,7 @@ impl Repositories {
             im_message: im_message::ImMessageRepository::new(pool.clone()),
             im_servant: im_servant::ImServantRepository::new(pool.clone()),
             web_socket: web_socket::WebSocketRepository::new(pool.clone()),
+            im_conversation: im_conversation::ImConversationRepository::new(pool.clone()),
         }
     }
 }

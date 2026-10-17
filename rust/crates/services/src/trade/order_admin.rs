@@ -1,7 +1,9 @@
-//! 订单管理服务（trade::order_admin）：订单列表、订单详情、发货、后台取消订单。
-//! 对应原 Java `OrderServiceImpl`（6289 行）中的
-//! `list` / `detail` / `deliverOrder` / `cancelOrderByAdmin` 四条链路，
-//! 以及 `OrderController` 中对应端点。
+//! 订单管理服务（trade::order_admin）：订单列表、详情、状态流转、发货、
+//! 打印、导出、批量发货导入等 **34 条**管理端接口
+//! （wave1 已实现 `list` / `detail` / `deliver` / `cancelOrderByAdmin` 4 条，
+//! wave3 扩展其余 30 条）。
+//!
+//! 对应原 Java `OrderServiceImpl`（6585 行）与 `OrderController` 中的对应链路。
 //!
 //! 迁移要点（逐条对照 Java 源）：
 //! - `list`：`buildQueryWrapper` 的全部筛选条件在仓储层按同序绑定；
@@ -13,28 +15,45 @@
 //!   发货数量校验 + **原子条件更新**（`WHERE order_status = 1`，防并发重复发货）。
 //! - `cancelOrderByAdmin`：仅「已确认，待发货」可取消，按整单生成
 //!   `aftersales`（类型=仅退款，状态=审核处理中）+ 明细 + 日志，单事务写入。
+//! - wave3 新增（30 条）：`statusCount` / `setAdminNote` / `parentDetail` /
+//!   `setConfirm` / `splitStoreOrder` / `setPaid` / `cancelOrder` / `delOrder` /
+//!   `modifyMoney` / `modifyConsignee` / `confirmReceipt` / `modifyShipping` /
+//!   `modifyProduct` / `getAddProductInfo` / `orderPrint` / `orderPrintBill` /
+//!   `severalDetail` / `batch` / `printSeveral` / 导出标签 3 条 / `orderExport` /
+//!   `shippingInfo` / `getOrderPageConfig` / `changeOrderStatus` / `remindDeliver` /
+//!   批量发货导入 2 条 / `downloadDeliverTemplate`。
 //!
-//! **未迁移（本切片明确不做，已在 `uncertain_points` 中列明）**：
-//! - 部分发货拆单（Java `createSplitOrder` / 售后迁移 / 税费尾差补齐 / 分销订单拆分）
-//! - 电子面单（`shippingMethod = 4`，依赖快递服务商路由）
-//! - 售后自动审核与退款执行（依赖配置项 `afterSalesReview` 与退款域）
-//! - 站内消息、赠积分、微信小程序发货信息录入、自动确认收货延时消息
-//! - `product_comment_enabled` / `after_sales_limit_days` / `auto_delivery_days`
-//!   / `auto_cancel_order_minute` 等配置驱动的行为（Rust 侧尚无配置服务）
+//! **未迁移（本切片明确不做，偏差已在各方法注释列明）**：
+//! - 多店铺/多供应商拆单（`createSplitOrder` + 尾差/税费补齐 + 分销拆单 + 拆单日志）
+//! - 定金预售支付状态机（`presaleType = 2`）
+//! - 部分发货拆单 / 电子面单（`shippingMethod = 4` 的快递服务商下单）
+//! - 第三方物流实时轨迹查询（快递鸟/快递100 HTTP + 密钥）
+//! - 积分/余额/优惠券/秒杀/拼团限购等跨域返还与结算（会员、营销、结算域）
+//! - 后台站内消息/微信小程序发货信息录入/RabbitMQ 延时任务
+//! - xlsx 读写（`orderExport` / 批量发货模板与导入降级为结构化 JSON/CSV）
+//! - 商品改价后的 `order_amount_detail` 店铺级分摊
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use rust_decimal::Decimal;
+use rust_decimal::{Decimal, RoundingStrategy};
 use tigshop_common::utils;
-use tigshop_core::entities::{Aftersales, AftersalesItem, AftersalesLog, Order, OrderItem, Shop, User};
+use tigshop_core::entities::{Aftersales, AftersalesItem, AftersalesLog, Order, OrderItem, Product, Shop, User};
 use tigshop_core::models::trade::order_admin::{
     aftersales_status, aftersales_type, join_status, order_type, pay_type, shipping_method,
-    DeliverOrderParam, OrderActionVO, OrderItemVO, OrderListQuery, OrderShopVO, OrderStatus,
-    OrderUserVO, OrderVO, PayStatus, ShippingStatus, AftersalesApplyAdminParam,
+    DeliverOrderParam, ExportItemSaveParam, LogisticsApiLogVO, OrderAdminNoteParam, OrderActionVO,
+    OrderBatchParam, OrderChangeStatusParam, OrderDeliverImportErrorVO, OrderDeliverImportFailVO,
+    OrderDeliverImportResultVO, OrderDeliverImportRow, OrderDeliverTemplateRow,
+    OrderDeliverTemplateVO, OrderExportItemVO, OrderExportRowVO, OrderExportVO, OrderItemParam,
+    OrderItemVO, OrderListQuery, OrderModifyConsigneeParam, OrderModifyMoneyParam,
+    OrderModifyProductParam, OrderModifyShippingParam, OrderPageConfigVO, OrderShopVO,
+    OrderStatus, OrderStatusCountVO, OrderUserVO, OrderVO, ParentOrderDetailVO, PayStatus,
+    ProductAddInfoVO, ShippingInfoVO, ShippingStatus, AftersalesApplyAdminParam,
+    ORDER_DELIVER_TEMPLATE_DESCRIPTION, ORDER_DELIVER_TEMPLATE_HEADERS,
 };
 use tigshop_core::types::PageResult;
 use tigshop_core::{Error, Result};
+use tigshop_infrastructure::db::repo::trade::order_admin::OrderPatch;
 use tigshop_infrastructure::db::Repositories;
 
 /// 待支付订单支付倒计时兜底分钟数（Java `AUTO_CANCEL_ORDER_MINUTE` 未配置时同为 30）。
@@ -964,6 +983,2227 @@ impl OrderAdminService {
         );
         Ok(aftersale_id)
     }
+
+    // ————————————————————— 管理端扩展（wave3：30 个端点） —————————————————————
+
+    /// 各状态订单数量统计（`GET /order/order/statusCount`）。
+    ///
+    /// 对应 Java `getStatusCount` + `buildQueryWrapper`：复用列表筛选条件
+    /// （`orderStatus = -2` 表示已删除订单的虚拟状态），已删除单独统计。
+    pub async fn status_count(
+        &self,
+        q: &OrderListQuery,
+        platform_view: bool,
+    ) -> Result<OrderStatusCountVO> {
+        let mut vo = OrderStatusCountVO::default();
+        vo.deleted_count = self
+            .repos
+            .trade
+            .order_admin
+            .count_with_status_filter(q, platform_view, Some("-2"))
+            .await?;
+        for (status, count) in self
+            .repos
+            .trade
+            .order_admin
+            .status_counts(q, platform_view)
+            .await?
+        {
+            vo.all_count += count;
+            match OrderStatus::of(status) {
+                Some(OrderStatus::Pending) => vo.pending_count = count,
+                Some(OrderStatus::Confirmed) => vo.confirmed_count = count,
+                Some(OrderStatus::Processing) => vo.processing_count = count,
+                Some(OrderStatus::Cancelled) => vo.cancelled_count = count,
+                Some(OrderStatus::Completed) => vo.completed_count = count,
+                _ => {}
+            }
+        }
+        Ok(vo)
+    }
+
+    /// 设置商家备注 / 标记（`POST /order/order/setAdminNote`）。
+    ///
+    /// 对应 Java `setAdminNote`：`ids` 非空时批量更新，否则按 `id`；
+    /// 每单写一条「订单商家备注已更新」日志。未传的字段不写库
+    /// （MyBatis `NOT_NULL` 语义）。
+    pub async fn set_admin_note(
+        &self,
+        param: &OrderAdminNoteParam,
+        admin_id: i32,
+    ) -> Result<()> {
+        let ids = param.target_ids();
+        if ids.is_empty() {
+            return Err(Error::Validation("订单ID不能为空".into()));
+        }
+        let note = param.admin_note.clone();
+        if note.is_none() && param.mark.is_none() {
+            return Ok(());
+        }
+        for id in ids {
+            let Some(order) = self.repos.trade.order_admin.find_order(id).await? else {
+                continue;
+            };
+            let mut patch = OrderPatch::new();
+            if let Some(v) = note.as_deref() {
+                patch = patch.str_val("admin_note", v);
+            }
+            if let Some(mark) = param.mark {
+                patch = patch.i32_val("mark", mark);
+            }
+            self.repos.trade.order_admin.update_order(id, &patch).await?;
+            self.repos
+                .trade
+                .order_admin
+                .insert_order_log(id, &order.order_sn, "订单商家备注已更新", admin_id, order.shop_id)
+                .await?;
+        }
+        Ok(())
+    }
+
+    /// 父订单详情（`GET /order/order/parentDetail`）。
+    ///
+    /// 对应 Java `OrderSpitLogServiceImpl#getParentDataByOrderId`：
+    /// 优先按拆单日志（`order_split_log`）取父单；父单可读时返回详情并附
+    /// `subOrderIds`，否则回退日志里的 `parent_order_data` JSON 快照；
+    /// 无拆单日志时按 `order.parent_order_id` 兜底。无父单返回 `null`。
+    pub async fn parent_detail(
+        &self,
+        order_id: i32,
+    ) -> Result<Option<ParentOrderDetailVO>> {
+        if let Some((parent_id, data)) = self
+            .repos
+            .trade
+            .order_admin
+            .find_order_split_log(order_id)
+            .await?
+        {
+            if parent_id > 0 {
+                if let Ok(mut vo) = self.detail(parent_id).await {
+                    let subs = self
+                        .repos
+                        .trade
+                        .order_admin
+                        .find_sub_order_ids(parent_id)
+                        .await?;
+                    if !subs.is_empty() {
+                        vo.sub_order_ids = Some(subs);
+                    }
+                    return Ok(Some(ParentOrderDetailVO::Order(vo)));
+                }
+            }
+            if let Some(raw) = data.filter(|s| !s.trim().is_empty()) {
+                if let Ok(mut value) = serde_json::from_str::<serde_json::Value>(&raw) {
+                    let subs = self
+                        .repos
+                        .trade
+                        .order_admin
+                        .find_sub_order_ids(parent_id)
+                        .await?;
+                    if !subs.is_empty() {
+                        value["subOrderIds"] = serde_json::json!(subs);
+                    }
+                    return Ok(Some(ParentOrderDetailVO::Snapshot(value)));
+                }
+            }
+            return Ok(None);
+        }
+
+        // 兜底：无拆单日志时通过 parent_order_id 直查主订单（次卡兑换子订单等）
+        if let Some(order) = self.repos.trade.order_admin.find_order(order_id).await? {
+            if let Some(parent_id) = order.parent_order_id.filter(|v| *v > 0) {
+                if let Ok(mut vo) = self.detail(parent_id).await {
+                    let subs = self
+                        .repos
+                        .trade
+                        .order_admin
+                        .find_sub_order_ids(parent_id)
+                        .await?;
+                    if !subs.is_empty() {
+                        vo.sub_order_ids = Some(subs);
+                    }
+                    return Ok(Some(ParentOrderDetailVO::Order(vo)));
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    /// 设置订单确认（`POST /order/order/setConfirm`）。
+    ///
+    /// ⚠️ 逐字对照 Java `setOrderConfirm`：仅当 `availableActions.confirmReceipt`
+    /// 为 true（即「处理中，已发货」）时才把订单置为「已确认，待发货」；
+    /// 其余状态返回 false（Java 原实现同样返回 false，接口仍 200）。
+    pub async fn set_confirm(&self, id: i32) -> Result<bool> {
+        let order = self
+            .repos
+            .trade
+            .order_admin
+            .find_order(id)
+            .await?
+            .ok_or_else(|| Error::biz_msg("订单不存在"))?;
+        let actions = self.order_actions(&order).await?;
+        if !actions.confirm_receipt {
+            return Ok(false);
+        }
+        self.repos
+            .trade
+            .order_admin
+            .update_order(
+                id,
+                &OrderPatch::new().i32_val("order_status", OrderStatus::Confirmed as i32),
+            )
+            .await?;
+        self.repos
+            .trade
+            .order_admin
+            .quick_order_log(id, &order.order_sn, "订单状态已更新")
+            .await?;
+        Ok(true)
+    }
+
+    /// 订单拆分（`POST /order/order/splitStoreOrder`）。
+    ///
+    /// 对应 Java `splitStoreOrder`：
+    /// - 已拆单（`is_store_splited = 1`）→ 直接返回 false；
+    /// - 全部明细同店铺同供应商（单组）→ 只置 `is_store_splited = 1` 并返回 true。
+    ///
+    /// ⚠️ **未迁移**：多店铺/多供应商拆单（`createSplitOrder` + 尾差/税费补齐 +
+    /// 分销拆单 + 物理删除父单 + 拆单日志）依赖多个未迁移域，本实现在多组场景
+    /// 返回明确业务错误，而不是落一半数据。
+    pub async fn split_store_order(&self, id: i32) -> Result<bool> {
+        let order = self
+            .repos
+            .trade
+            .order_admin
+            .find_order(id)
+            .await?
+            .ok_or_else(|| Error::biz_msg("订单不存在"))?;
+        if order.is_store_splited == 1 {
+            return Ok(false);
+        }
+        let items = self.repos.trade.order_admin.find_items(id).await?;
+        let mut groups: HashSet<(i32, i32)> = HashSet::new();
+        for it in &items {
+            groups.insert((it.shop_id, it.vendor_id.unwrap_or(0)));
+        }
+        if groups.len() <= 1 {
+            self.repos
+                .trade
+                .order_admin
+                .update_order(id, &OrderPatch::new().i32_val("is_store_splited", 1))
+                .await?;
+            return Ok(true);
+        }
+        Err(Error::biz_msg(
+            "多店铺订单拆分依赖拆单日志/分销/税费补齐，Rust 侧未迁移，请人工处理",
+        ))
+    }
+
+    /// 设置已付款（`POST /order/order/setPaid`）。
+    ///
+    /// 对应 Java `setOrderPaid` 的非预售分支：
+    /// `pay_status = 已支付` + `pay_time = now`；线下支付补 `offline_paid_amount`
+    /// 与 `paid_amount`；待支付订单同步转「已确认，待发货」并重算未付金额；
+    /// 最后尝试自动拆单（单店铺分支）。返回 false 表示订单仍存在（未拆单）。
+    ///
+    /// ⚠️ **未迁移**：定金预售（`presale_type = 2`）的定金/尾款状态机、
+    /// 积分赠送、电子卡券发放、拼团成团、分销佣金、店铺会员记账。
+    pub async fn set_paid(&self, id: i32, description: Option<&str>) -> Result<bool> {
+        let order = self
+            .repos
+            .trade
+            .order_admin
+            .find_order(id)
+            .await?
+            .ok_or_else(|| Error::biz_msg("订单不存在"))?;
+        if order.presale_type == Some(2) {
+            return Err(Error::biz_msg(
+                "定金预售订单支付状态机未迁移，请通过支付回调处理",
+            ));
+        }
+        let now = utils::now_seconds() as i32;
+        let mut patch = OrderPatch::new()
+            .i32_val("pay_status", PayStatus::Paid as i32)
+            .i32_val("pay_time", now);
+        let offline = order.pay_type_id == pay_type::OFFLINE;
+        if offline {
+            let paid = order.balance + order.unpaid_amount;
+            patch = patch
+                .decimal("offline_paid_amount", order.unpaid_amount)
+                .decimal("paid_amount", paid);
+        }
+        if order.order_status == OrderStatus::Pending as i32 {
+            patch = patch.i32_val("order_status", OrderStatus::Confirmed as i32);
+            let paid = if offline {
+                order.balance + order.unpaid_amount
+            } else {
+                order.paid_amount
+            };
+            patch = patch.decimal("unpaid_amount", (order.total_amount - paid).max(Decimal::ZERO));
+        }
+        self.repos
+            .trade
+            .order_admin
+            .update_order(id, &patch)
+            .await?;
+        let desc = description
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or("订单支付");
+        self.repos
+            .trade
+            .order_admin
+            .quick_order_log(id, &order.order_sn, desc)
+            .await?;
+        // Java 末尾无条件调用 splitStoreOrder；多店铺返回明确错误，这里降级为告警
+        if let Err(e) = self.split_store_order(id).await {
+            tracing::warn!("设置已支付后自动拆单未执行: order_id={id}, err={e}");
+        }
+        Ok(self
+            .repos
+            .trade
+            .order_admin
+            .find_order(id)
+            .await?
+            .is_none())
+    }
+
+    /// 取消订单（`POST /order/order/cancelOrder`）。
+    ///
+    /// 对应 Java `cancelOrder`：状态门（`availableActions.cancelOrder`）→
+    /// 返还库存 + 扣回虚拟销量 → 置「已取消」+ 取消原因 → 级联取消子单 → 日志。
+    ///
+    /// ⚠️ **未迁移**：积分/余额/优惠券返还、秒杀库存、拼团限购恢复、
+    /// 后台消息、预售尾款校验、礼品卡组库存返还。
+    pub async fn cancel_order(
+        &self,
+        id: i32,
+        description: Option<&str>,
+        admin_id: i32,
+    ) -> Result<()> {
+        let order = self
+            .repos
+            .trade
+            .order_admin
+            .find_order(id)
+            .await?
+            .ok_or_else(|| Error::biz_msg("订单不存在"))?;
+        let actions = self.order_actions(&order).await?;
+        if !actions.cancel_order {
+            return Err(Error::biz_msg("订单状态错误"));
+        }
+        let items = self.repos.trade.order_admin.find_items(id).await?;
+        for it in &items {
+            self.repos
+                .trade
+                .order_admin
+                .restore_stock(it.product_id, it.sku_id, it.quantity)
+                .await?;
+        }
+        let remark = description
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or("");
+        let mut patch = OrderPatch::new().i32_val("order_status", OrderStatus::Cancelled as i32);
+        if !remark.is_empty() {
+            patch = patch.str_val("cancel_remark", remark);
+        }
+        self.repos.trade.order_admin.update_order(id, &patch).await?;
+        self.repos
+            .trade
+            .order_admin
+            .insert_order_log(id, &order.order_sn, "订单已取消", admin_id, order.shop_id)
+            .await?;
+        // 级联取消子单（Java：is_store_splited=1 且父单取消）
+        for child in self.repos.trade.order_admin.find_children(id).await? {
+            if child.order_status == OrderStatus::Cancelled as i32 {
+                continue;
+            }
+            self.repos
+                .trade
+                .order_admin
+                .update_order(
+                    child.order_id,
+                    &OrderPatch::new()
+                        .i32_val("order_status", OrderStatus::Cancelled as i32)
+                        .str_val("cancel_remark", "父订单取消，级联取消"),
+                )
+                .await?;
+        }
+        Ok(())
+    }
+
+    /// 删除订单（`POST /order/order/delOrder`，软删除：`is_del = 1` + 已取消）。
+    pub async fn del_order(&self, id: i32, admin_id: i32) -> Result<()> {
+        let order = self
+            .repos
+            .trade
+            .order_admin
+            .find_order(id)
+            .await?
+            .ok_or_else(|| Error::biz_msg("订单不存在"))?;
+        let actions = self.order_actions(&order).await?;
+        if !actions.del_order {
+            return Err(Error::biz_msg("订单状态错误"));
+        }
+        self.repos
+            .trade
+            .order_admin
+            .update_order(
+                id,
+                &OrderPatch::new()
+                    .i32_val("order_status", OrderStatus::Cancelled as i32)
+                    .i32_val("is_del", 1),
+            )
+            .await?;
+        self.repos
+            .trade
+            .order_admin
+            .insert_order_log(id, &order.order_sn, "订单删除", admin_id, order.shop_id)
+            .await?;
+        Ok(())
+    }
+
+    /// 修改订单金额（`POST /order/order/modifyMoney`）。
+    ///
+    /// 对应 Java `modifyOrderMoney`：可换订单号（仅待支付未付款）、改运费/
+    /// 发票费/服务费/折扣；折扣按明细小计比例分摊到 `order_item.price`
+    /// （`admin_change_pre_price` 记录改价前单价），随后 `updateOrderMoney`
+    /// 重算订单总额/未付金额。
+    pub async fn modify_money(
+        &self,
+        param: &OrderModifyMoneyParam,
+        admin_id: i32,
+    ) -> Result<()> {
+        let id = param
+            .id
+            .ok_or_else(|| Error::Validation("订单ID不能为空".into()))?;
+        let order = self
+            .repos
+            .trade
+            .order_admin
+            .find_order(id)
+            .await?
+            .ok_or_else(|| Error::biz_msg("订单不存在"))?;
+        let actions = self.order_actions(&order).await?;
+        if !actions.modify_order_money {
+            return Err(Error::biz_msg("订单状态错误"));
+        }
+        let mut patch = OrderPatch::new();
+        if param.update_order_sn == Some(1) {
+            if order.pay_status != PayStatus::Unpaid as i32
+                || order.order_status != OrderStatus::Pending as i32
+            {
+                return Err(Error::biz_msg("支付状态异常，仅未支付订单可更换订单号"));
+            }
+            let mut sn = utils::generate_order_sn();
+            let mut guard = 0;
+            while self
+                .repos
+                .trade
+                .order_admin
+                .find_order_by_sn(&sn)
+                .await?
+                .is_some()
+                && guard < 5
+            {
+                sn = utils::generate_order_sn();
+                guard += 1;
+            }
+            patch = patch.str_val("order_sn", &sn);
+        }
+        if let Some(v) = param.shipping_fee {
+            patch = patch.decimal("shipping_fee", v);
+        }
+        if let Some(v) = param.invoice_fee {
+            patch = patch.decimal("invoice_fee", v);
+        }
+        if let Some(v) = param.service_fee {
+            patch = patch.decimal("service_fee", v);
+        }
+        if let Some(discount) = param.discount_amount {
+            let items = self.repos.trade.order_admin.find_items(id).await?;
+            let updates = allocate_discount(&items, discount)?;
+            self.repos
+                .trade
+                .order_admin
+                .update_item_prices(&updates)
+                .await?;
+            patch = patch.decimal("discount_amount", discount);
+        }
+        self.repos.trade.order_admin.update_order(id, &patch).await?;
+        self.recompute_order_money(id).await?;
+        self.repos
+            .trade
+            .order_admin
+            .insert_order_log(id, &order.order_sn, "订单金额修改", admin_id, order.shop_id)
+            .await?;
+        Ok(())
+    }
+
+    /// 修改收货人信息（`POST /order/order/modifyConsignee`）。
+    pub async fn modify_consignee(
+        &self,
+        param: &OrderModifyConsigneeParam,
+        admin_id: i32,
+    ) -> Result<()> {
+        let id = param
+            .id
+            .ok_or_else(|| Error::Validation("订单ID不能为空".into()))?;
+        let order = self
+            .repos
+            .trade
+            .order_admin
+            .find_order(id)
+            .await?
+            .ok_or_else(|| Error::biz_msg("订单不存在"))?;
+        let actions = self.order_actions(&order).await?;
+        if !actions.modify_order_consignee {
+            return Err(Error::biz_msg("订单状态错误"));
+        }
+        let mut patch = OrderPatch::new();
+        if let Some(v) = param.consignee.as_deref() {
+            patch = patch.str_val("consignee", v);
+        }
+        if let Some(v) = param.mobile.as_deref() {
+            patch = patch.str_val("mobile", v);
+        }
+        if let Some(v) = param.email.as_deref() {
+            patch = patch.str_val("email", v);
+        }
+        if let Some(v) = param.address.as_deref() {
+            patch = patch.str_val("address", v);
+        }
+        let region_ids = param.region_ids.clone().unwrap_or_default();
+        let region_names = if region_ids.is_empty() {
+            Vec::new()
+        } else {
+            self.repos
+                .trade
+                .order_admin
+                .find_region_names(&region_ids)
+                .await?
+        };
+        if !region_ids.is_empty() {
+            let ids_json =
+                serde_json::to_string(&region_ids).unwrap_or_else(|_| "[]".to_string());
+            let names_json =
+                serde_json::to_string(&region_names).unwrap_or_else(|_| "[]".to_string());
+            patch = patch
+                .str_val("region_ids", &ids_json)
+                .str_val("region_names", &names_json);
+        }
+        // address_data：保留原快照中的地址标签/用户/默认标记，覆盖展示字段
+        let address_data = merge_address_data(
+            order.address_data.as_deref(),
+            param,
+            &region_ids,
+            &region_names,
+        );
+        if let Some(raw) = address_data {
+            patch = patch.str_val("address_data", &raw);
+        }
+        self.repos.trade.order_admin.update_order(id, &patch).await?;
+        self.repos
+            .trade
+            .order_admin
+            .insert_order_log(id, &order.order_sn, "修改收货人信息", admin_id, order.shop_id)
+            .await?;
+        Ok(())
+    }
+
+    /// 确认收货（`POST /order/order/confirmReceipt`）。
+    ///
+    /// 对应 Java `confirmReceipt`：状态门（`availableActions.confirmReceipt`）→
+    /// `order_status = 已完成`、`shipping_status = 已发货`、`received_time = now`；
+    /// 预约上门订单写「完成上门服务」日志，其余写「确认收货」。
+    ///
+    /// ⚠️ **未迁移**：对账单/分销结算/店铺结算、积分赠送、后台消息、次卡主单完成。
+    pub async fn confirm_receipt(&self, id: i32, admin_id: i32) -> Result<()> {
+        let order = self
+            .repos
+            .trade
+            .order_admin
+            .find_order(id)
+            .await?
+            .ok_or_else(|| Error::biz_msg("订单不存在"))?;
+        let actions = self.order_actions(&order).await?;
+        if !actions.confirm_receipt {
+            return Err(Error::biz_msg("订单状态错误"));
+        }
+        let now = utils::now_seconds() as i32;
+        self.repos
+            .trade
+            .order_admin
+            .update_order(
+                id,
+                &OrderPatch::new()
+                    .i32_val("order_status", OrderStatus::Completed as i32)
+                    .i32_val("shipping_status", ShippingStatus::Sent as i32)
+                    .i32_val("received_time", now),
+            )
+            .await?;
+        let desc = if order.order_type == Some(order_type::RESERVATION_HOME) {
+            "完成上门服务"
+        } else {
+            "确认收货"
+        };
+        self.repos
+            .trade
+            .order_admin
+            .insert_order_log(id, &order.order_sn, desc, admin_id, order.shop_id)
+            .await?;
+        Ok(())
+    }
+
+    /// 修改配送信息（`POST /order/order/modifyShipping`）。
+    ///
+    /// 对应 Java `modifyOrderShipping`：`shipping_method` 1 物流（物流公司 + 单号）、
+    /// 2 商家配送、3 无需配送、4 电子面单（物流公司，单号留空）。
+    /// Java 末尾固定 `return false`（接口 void），本实现同样只落库 + 日志。
+    pub async fn modify_shipping(
+        &self,
+        param: &OrderModifyShippingParam,
+        admin_id: i32,
+    ) -> Result<()> {
+        let id = param
+            .id
+            .ok_or_else(|| Error::Validation("订单ID不能为空".into()))?;
+        let order = self
+            .repos
+            .trade
+            .order_admin
+            .find_order(id)
+            .await?
+            .ok_or_else(|| Error::biz_msg("订单不存在"))?;
+        let actions = self.order_actions(&order).await?;
+        if !actions.modify_shipping_info {
+            return Err(Error::biz_msg("订单状态错误"));
+        }
+        let mut patch = OrderPatch::new();
+        if let Some(method) = param.shipping_method {
+            patch = patch.i32_val("shipping_method", method);
+            match method {
+                shipping_method::LOGISTICS | shipping_method::WAYBILL => {
+                    let lid = param.logistics_id.unwrap_or(0);
+                    let name = self
+                        .repos
+                        .trade
+                        .order_admin
+                        .find_company_name(lid)
+                        .await?
+                        .unwrap_or_default();
+                    patch = patch
+                        .i32_val("logistics_id", lid)
+                        .str_val("logistics_name", &name);
+                    let tracking = if method == shipping_method::LOGISTICS {
+                        param.tracking_no.clone().unwrap_or_default()
+                    } else {
+                        String::new()
+                    };
+                    patch = patch.str_val("tracking_no", &tracking);
+                }
+                shipping_method::MERCHANT => {
+                    patch = patch
+                        .i32_val("logistics_provider", 0)
+                        .i32_val("logistics_id", 0)
+                        .str_val("tracking_no", "")
+                        .str_val("logistics_name", "商家配送");
+                }
+                shipping_method::NONE => {
+                    patch = patch
+                        .i32_val("logistics_provider", 0)
+                        .i32_val("logistics_id", 0)
+                        .str_val("tracking_no", "")
+                        .str_val("logistics_name", "无需配送");
+                }
+                _ => {}
+            }
+        }
+        self.repos.trade.order_admin.update_order(id, &patch).await?;
+        self.repos
+            .trade
+            .order_admin
+            .insert_order_log(id, &order.order_sn, "修改配送信息", admin_id, order.shop_id)
+            .await?;
+        Ok(())
+    }
+
+    /// 修改商品信息（`POST /order/order/modifyProduct`）。
+    ///
+    /// 对应 Java `modifyOrderProduct`：
+    /// 1. 状态门 `availableActions.modifyOrderProduct`；
+    /// 2. 商品单价合计 - 折扣 - 优惠券必须 > 0；
+    /// 3. 以请求明细整批替换订单明细（Java `orderItemService.modifyOrderItem`，
+    ///    这里简化为「删除原明细 + 整批插入」，**item_id 会变化**，见偏差说明）；
+    /// 4. 重算 `product_amount` 与订单金额，写日志。
+    pub async fn modify_product(
+        &self,
+        param: &OrderModifyProductParam,
+        admin_id: i32,
+    ) -> Result<()> {
+        let id = param
+            .id
+            .ok_or_else(|| Error::Validation("订单ID不能为空".into()))?;
+        let order = self
+            .repos
+            .trade
+            .order_admin
+            .find_order(id)
+            .await?
+            .ok_or_else(|| Error::biz_msg("订单不存在"))?;
+        let actions = self.order_actions(&order).await?;
+        if !actions.modify_order_product {
+            return Err(Error::biz_msg("当前订单状态不可执行此操作"));
+        }
+        let items = param
+            .items
+            .as_ref()
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| Error::Validation("请填写商品信息".into()))?;
+        let unit_sum: Decimal = items.iter().map(|it| it.price).sum();
+        if unit_sum - order.discount_amount - order.coupon_amount <= Decimal::ZERO {
+            return Err(Error::biz_msg(
+                "商品价格总和减去优惠价格（优惠券抵扣，优惠折扣）必须大于0",
+            ));
+        }
+        self.repos.trade.order_admin.delete_items(id).await?;
+        for it in items {
+            let entity = to_order_item(id, &order, it);
+            self.repos.trade.order_admin.insert_order_item(&entity).await?;
+        }
+        self.recompute_order_money(id).await?;
+        self.repos
+            .trade
+            .order_admin
+            .insert_order_log(id, &order.order_sn, "订单商品信息修改", admin_id, order.shop_id)
+            .await?;
+        Ok(())
+    }
+
+    /// 添加商品时获取商品信息（`POST /order/order/getAddProductInfo`）。
+    pub async fn add_product_info(&self, ids: &[i32]) -> Result<Vec<ProductAddInfoVO>> {
+        if ids.is_empty() {
+            return Err(Error::Validation("请选择商品".into()));
+        }
+        let products = self.repos.trade.order_admin.find_products(ids).await?;
+        Ok(products.iter().map(to_product_add_info).collect())
+    }
+
+    /// 打印订单信息（`GET /order/order/orderPrint`）。
+    ///
+    /// 返回订单详情并补全 `host`（站点根地址）与 `printTime`
+    /// （Java 从 `HttpServletRequest` 取 scheme/host/port 与 `DateUtil.date()`）。
+    pub async fn order_print(&self, id: i32, host: &str) -> Result<OrderVO> {
+        let mut vo = self.detail(id).await?;
+        vo.host = Some(host.to_string());
+        vo.print_time = Some(fmt_time(utils::now_seconds() as i32));
+        Ok(vo)
+    }
+
+    /// 打印电子面单（`GET /order/order/orderPrintBill`）。
+    ///
+    /// 对应 Java `getOrderPrintWaybillInfo` → `logisticsApiLogService`；
+    /// 无面单日志返回 `null`。
+    pub async fn order_print_bill(&self, id: i32) -> Result<Option<LogisticsApiLogVO>> {
+        Ok(self
+            .repos
+            .trade
+            .order_admin
+            .find_logistics_api_log(id)
+            .await?
+            .map(|log| LogisticsApiLogVO {
+                id: log.id,
+                order_id: log.order_id,
+                provider_type: log.provider_type,
+                order_code: log.order_code,
+                logistic_code: log.logistic_code,
+                add_time: log.add_time,
+                print_template: log.print_template,
+            }))
+    }
+
+    /// 批量详情（`GET /order/order/severalDetail?ids=1,2`）。
+    pub async fn several_detail(&self, ids: &[i32]) -> Result<Vec<OrderVO>> {
+        if ids.is_empty() {
+            return Err(Error::biz_msg("#ids 错误"));
+        }
+        let mut out = Vec::with_capacity(ids.len());
+        for id in ids {
+            out.push(self.detail(*id).await?);
+        }
+        if out.is_empty() {
+            return Err(Error::biz_msg("请选择有效订单"));
+        }
+        Ok(out)
+    }
+
+    /// 批量操作（`POST /order/order/batch`）：仅支持 `type = "deliver"`。
+    pub async fn batch_operation(
+        &self,
+        param: &OrderBatchParam,
+        admin_id: i32,
+    ) -> Result<()> {
+        if param.op_type.as_deref() != Some("deliver") {
+            return Err(Error::biz_msg("#type 错误"));
+        }
+        let data = param
+            .data
+            .as_ref()
+            .ok_or_else(|| Error::biz_msg("请选择发货信息"))?;
+        let ids = param.ids.as_deref().unwrap_or_default();
+        if ids.is_empty() {
+            return Err(Error::Validation("未选择订单".into()));
+        }
+        for id in ids {
+            let entry = data
+                .deliver_data
+                .as_ref()
+                .and_then(|list| list.iter().find(|d| d.id == Some(*id)));
+            let deliver_param = DeliverOrderParam {
+                id: Some(*id),
+                deliver_data: entry.and_then(|e| e.deliver_info.clone()),
+                shipping_method: data.shipping_method,
+                logistics_id: data.logistics_id,
+                tracking_no: entry.and_then(|e| e.tracking_no.clone()),
+                ..Default::default()
+            };
+            if let Err(e) = self.deliver(&deliver_param).await {
+                return Err(Error::biz_msg(e.to_string()));
+            }
+        }
+        let _ = admin_id;
+        Ok(())
+    }
+
+    /// 批量打印（`GET /order/order/printSeveral?ids=1,2`）。
+    ///
+    /// 与 Java `printSeveral` 一致：逐单 `detail` 并补全 `host` / `printTime`。
+    pub async fn print_several(&self, ids: &[i32], host: &str) -> Result<Vec<OrderVO>> {
+        let mut out = Vec::with_capacity(ids.len());
+        for id in ids {
+            out.push(self.order_print(*id, host).await?);
+        }
+        Ok(out)
+    }
+
+    // ————————————————————— 导出列 —————————————————————
+
+    /// 订单导出可选列（`GET /order/order/getExportItemList`）。
+    ///
+    /// 与 Java `getExportItemList()` 的 Map 顺序/文案一致（O2O 场景店铺名称
+    /// 文案差异未迁移，统一「店铺名称」）。
+    #[must_use]
+    pub fn export_item_list(&self) -> Vec<OrderExportItemVO> {
+        export_columns()
+    }
+
+    /// 当前管理员已选导出列（`GET /order/order/exportItemInfo`）。
+    pub async fn export_item_info(&self, admin_id: i32) -> Result<Vec<OrderExportItemVO>> {
+        let raw = self
+            .repos
+            .trade
+            .order_admin
+            .find_admin_order_export(admin_id)
+            .await?
+            .unwrap_or_default();
+        let selected: Vec<String> = serde_json::from_str(&raw).unwrap_or_default();
+        if selected.is_empty() {
+            return Ok(Vec::new());
+        }
+        Ok(export_columns()
+            .into_iter()
+            .filter(|c| selected.iter().any(|k| k == &c.key))
+            .collect())
+    }
+
+    /// 保存导出列（`POST /order/order/saveExportItem`）。
+    pub async fn save_export_item(
+        &self,
+        param: &ExportItemSaveParam,
+        admin_id: i32,
+    ) -> Result<()> {
+        let raw = param
+            .export_item
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| Error::Validation("请选择导出项".into()))?;
+        let items: Vec<String> = raw
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .collect();
+        let json = serde_json::to_string(&items)
+            .map_err(|e| Error::Internal(format!("导出列序列化失败: {e}")))?;
+        self.repos
+            .trade
+            .order_admin
+            .update_admin_order_export(admin_id, &json)
+            .await?;
+        Ok(())
+    }
+
+    /// 订单导出（`GET /order/order/orderExport`）。
+    ///
+    /// 对应 Java `orderExport`：按 2000 条/批流式读取列表并富化，
+    /// 一行 = 一个订单的一个商品；选中 `productInfo` 时展开为商品字段。
+    ///
+    /// ⚠️ **降级**：Java 直接回写 xlsx 二进制（EasyExcel）；Rust 侧未启用
+    /// xlsx 写出依赖，返回「列定义 + 行数据」JSON，前端/运维可自行落地。
+    pub async fn order_export(
+        &self,
+        q: &OrderListQuery,
+        platform_view: bool,
+    ) -> Result<OrderExportVO> {
+        let selected = q.export_items();
+        if selected.is_empty() {
+            return Err(Error::Validation("请选择导出项".into()));
+        }
+        let columns = expand_export_columns(&selected)?;
+        let mut rows: Vec<OrderExportRowVO> = Vec::new();
+        let batch = 2000u64;
+        let mut page = 1u64;
+        loop {
+            let (_, orders) = self
+                .repos
+                .trade
+                .order_admin
+                .paginate_orders_with(q, platform_view, page, batch)
+                .await?;
+            if orders.is_empty() {
+                break;
+            }
+            let fetched = orders.len() as u64;
+            let order_ids: Vec<i32> = orders.iter().map(|o| o.order_id).collect();
+            let items = self
+                .repos
+                .trade
+                .order_admin
+                .find_items_by_order_ids(&order_ids)
+                .await?;
+            let mut items_by_order: HashMap<i32, Vec<OrderItem>> = HashMap::new();
+            for it in items {
+                items_by_order.entry(it.order_id).or_default().push(it);
+            }
+            let user_ids = distinct_i32(orders.iter().map(|o| o.user_id));
+            let users = self.repos.trade.order_admin.find_users(&user_ids).await?;
+            let user_map: HashMap<i32, User> = users.into_iter().map(|u| (u.user_id, u)).collect();
+            let shop_ids = distinct_i32(orders.iter().map(|o| o.shop_id).filter(|v| *v > 0));
+            let shops = self.repos.trade.order_admin.find_shops(&shop_ids).await?;
+            let shop_map: HashMap<i32, Shop> = shops.into_iter().map(|s| (s.shop_id, s)).collect();
+            let pay_codes: HashMap<i32, String> = self
+                .repos
+                .trade
+                .order_admin
+                .find_pay_codes(&order_ids)
+                .await?
+                .into_iter()
+                .collect();
+            let product_ids = distinct_i32(
+                items_by_order
+                    .values()
+                    .flat_map(|list| list.iter().map(|it| it.product_id)),
+            );
+            let products = self.repos.trade.order_admin.find_products(&product_ids).await?;
+            let weight_map: HashMap<i32, Decimal> =
+                products.iter().map(|p| (p.product_id, p.product_weight)).collect();
+
+            let now = utils::now_seconds() as i32;
+            for order in &orders {
+                let empty: Vec<OrderItem> = Vec::new();
+                let order_items = items_by_order.get(&order.order_id).unwrap_or(&empty);
+                let vo = build_vo(VoInput {
+                    order,
+                    items: order_items,
+                    user: user_map.get(&order.user_id),
+                    shop: shop_map.get(&order.shop_id),
+                    full_aftersales: false,
+                    rebuy_available: true,
+                    groupon: None,
+                    way_bill: false,
+                    now,
+                });
+                for item in order_items {
+                    rows.push(OrderExportRowVO {
+                        order_sn: vo.order_sn.clone(),
+                        add_time: vo.add_time.clone(),
+                        order_status_name: vo.order_status_name.clone(),
+                        pay_status_name: vo.pay_status_name.clone(),
+                        shop_name: vo.shop_name.clone().unwrap_or_default(),
+                        username: user_map
+                            .get(&order.user_id)
+                            .map(|u| u.username.clone())
+                            .unwrap_or_default(),
+                        consignee: vo.consignee.clone(),
+                        mobile: vo.mobile.clone(),
+                        address: vo.user_address.clone().unwrap_or_default(),
+                        postcode: vo
+                            .address_data
+                            .as_ref()
+                            .and_then(|v| v.get("postcode"))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or_default()
+                            .to_string(),
+                        total_amount: vo.total_amount,
+                        balance: vo.balance,
+                        discount_amount: vo.discount_amount,
+                        points_amount: vo.points_amount,
+                        coupon_amount: vo.coupon_amount,
+                        pay_time: vo.pay_time.clone(),
+                        pay_type_id: vo.pay_type_id,
+                        pay_type_name: pay_type_name(vo.pay_type_id),
+                        pay_code: pay_codes.get(&order.order_id).cloned().unwrap_or_else(|| "余额支付".to_string()),
+                        out_trade_no: vo.out_trade_no.clone(),
+                        paid_amount: vo.paid_amount,
+                        shipping_time: vo.shipping_time.clone(),
+                        shipping_fee: vo.shipping_fee,
+                        logistics_name: vo.logistics_name.clone(),
+                        tracking_no: vo.tracking_no.clone(),
+                        buyer_note: vo.buyer_note.clone(),
+                        admin_note: vo.admin_note.clone(),
+                        shipping_status_name: vo.shipping_status_name.clone(),
+                        product_weight: weight_map
+                            .get(&item.product_id)
+                            .copied()
+                            .unwrap_or(Decimal::ZERO),
+                        use_points: vo.use_points,
+                        product_name: item.product_name.clone(),
+                        sku_data: item.sku_data.clone(),
+                        product_sn: item.product_sn.clone(),
+                        quantity: item.quantity,
+                        total_price: item.price * Decimal::from(item.quantity),
+                        price: item.price,
+                    });
+                }
+            }
+            if fetched < batch {
+                break;
+            }
+            page += 1;
+        }
+        Ok(OrderExportVO {
+            file_name: format!("订单列表信息{}.xlsx", fmt_time(utils::now_seconds() as i32)),
+            sheet_name: "订单列表信息".to_string(),
+            columns,
+            rows,
+        })
+    }
+
+    /// 物流信息（`GET /order/order/shippingInfo`）。
+    ///
+    /// 对应 Java `getShippingInfo`：无运单号 / 物流公司不存在返回 `null`。
+    ///
+    /// ⚠️ **降级**：Java 通过 `logisticsProviderRouter` 实时查询快递鸟/快递100；
+    /// Rust 未迁移第三方 HTTP 客户端与密钥配置，返回订单自身运单快照
+    /// （`success = "0"` 表示未接入第三方查询，`traces` 为空）。
+    pub async fn shipping_info(
+        &self,
+        id: i32,
+        user_id: i32,
+    ) -> Result<Option<ShippingInfoVO>> {
+        let order = self
+            .repos
+            .trade
+            .order_admin
+            .find_order(id)
+            .await?
+            .ok_or_else(|| Error::biz_msg("订单不存在"))?;
+        if user_id != 0 && order.user_id != user_id {
+            return Ok(None);
+        }
+        if order.tracking_no.trim().is_empty() {
+            return Ok(None);
+        }
+        if self
+            .repos
+            .trade
+            .order_admin
+            .find_company_name(order.logistics_id)
+            .await?
+            .is_none()
+        {
+            return Ok(None);
+        }
+        Ok(Some(ShippingInfoVO {
+            e_business_id: None,
+            shipper_code: Some(order.logistics_name.clone()),
+            logistic_code: Some(order.tracking_no.clone()),
+            state: None,
+            state_ex: None,
+            location: None,
+            traces: Vec::new(),
+            success: Some("0".to_string()),
+        }))
+    }
+
+    /// 订单列表页配置（`GET /order/order/getOrderPageConfig`）。
+    ///
+    /// 对应 Java `configService.getSettings(OrderPageConfigVO.class)`：
+    /// `config.biz_code = isChangeOrderStatus`（`"1"` → 1）。
+    pub async fn order_page_config(&self) -> Result<OrderPageConfigVO> {
+        let raw = self
+            .repos
+            .trade
+            .order_admin
+            .find_config_val("isChangeOrderStatus")
+            .await?;
+        Ok(OrderPageConfigVO {
+            is_change_order_status: if raw.as_deref() == Some("1") { 1 } else { 0 },
+        })
+    }
+
+    /// 修改订单状态（`POST /order/order/changeOrderStatus`）。
+    ///
+    /// 对应 Java `changeOrderStatus`：
+    /// - `val = 3`（已取消）→ 走「后台取消订单」售后流程；
+    /// - 平台取消已付款订单（配置 `isPlatformCancelPaidOrder=1` 且状态=1）→ 回退到已取消；
+    /// - 平台取消已发货订单（配置 `isPlatformCancelDeliverOrder=1` 且状态=2）→ 回退到待发货；
+    /// - 未开启对应配置 → 静默返回（Java 也直接 return）。
+    pub async fn change_order_status(
+        &self,
+        param: &OrderChangeStatusParam,
+        admin_id: i32,
+        operator: Option<&str>,
+    ) -> Result<()> {
+        let id = param
+            .id
+            .ok_or_else(|| Error::Validation("订单ID不能为空".into()))?;
+        let field = param
+            .field
+            .as_deref()
+            .ok_or_else(|| Error::Validation("字段名不能为空".into()))?;
+        let val = param
+            .val
+            .ok_or_else(|| Error::Validation("目标状态不能为空".into()))?;
+        let order = self
+            .repos
+            .trade
+            .order_admin
+            .find_order(id)
+            .await?
+            .ok_or_else(|| Error::biz_msg("订单不存在"))?;
+        if field != "orderStatus" {
+            return Err(Error::Validation("仅支持修改订单状态".into()));
+        }
+        if val == OrderStatus::Cancelled as i32 {
+            let mut admin_param = AftersalesApplyAdminParam {
+                order_id: Some(id),
+                description: param.admin_note.clone(),
+                ..Default::default()
+            };
+            if admin_param.description.is_none() {
+                admin_param.description = Some("商家取消订单".into());
+            }
+            let _ = self
+                .cancel_order_by_admin(&admin_param, operator)
+                .await?;
+            return Ok(());
+        }
+        let old_status = order.order_status;
+        let cfg_paid = self
+            .repos
+            .trade
+            .order_admin
+            .find_config_val("isPlatformCancelPaidOrder")
+            .await?
+            .as_deref()
+            == Some("1");
+        let cfg_deliver = self
+            .repos
+            .trade
+            .order_admin
+            .find_config_val("isPlatformCancelDeliverOrder")
+            .await?
+            .as_deref()
+            == Some("1");
+        let target = if cfg_paid && old_status == OrderStatus::Confirmed as i32 {
+            Some(OrderStatus::Cancelled)
+        } else if cfg_deliver && old_status == OrderStatus::Processing as i32 {
+            Some(OrderStatus::Confirmed)
+        } else {
+            None
+        };
+        let Some(target) = target else {
+            return Ok(());
+        };
+        let mut patch = OrderPatch::new().i32_val("order_status", target as i32);
+        if let Some(note) = param.admin_note.as_deref() {
+            patch = patch.str_val("admin_note", note);
+        }
+        if target == OrderStatus::Cancelled {
+            let items = self.repos.trade.order_admin.find_items(id).await?;
+            for it in &items {
+                self.repos
+                    .trade
+                    .order_admin
+                    .restore_stock(it.product_id, it.sku_id, it.quantity)
+                    .await?;
+            }
+        } else if target == OrderStatus::Confirmed {
+            patch = patch
+                .i32_val("shipping_status", ShippingStatus::Pending as i32)
+                .i32_val("shipping_time", 0)
+                .i32_val("logistics_id", 0)
+                .str_val("tracking_no", "")
+                .str_val("logistics_name", "");
+        }
+        self.repos.trade.order_admin.update_order(id, &patch).await?;
+        let desc = format!(
+            "订单状态由{}改为{}",
+            OrderStatus::name_of(old_status),
+            OrderStatus::name_of(target as i32)
+        );
+        self.repos
+            .trade
+            .order_admin
+            .insert_order_log(id, &order.order_sn, &desc, admin_id, order.shop_id)
+            .await?;
+        Ok(())
+    }
+
+    /// 催发货（`POST /order/order/remindDeliver`）。
+    ///
+    /// 对应 Java `remindDeliver`：仅供应商订单（`vendor_id > 0`）且状态为
+    /// 「已确认，待发货」可催；Java 发后台站内消息（消息域未迁移），
+    /// 本实现落一条订单日志作为可观测替代，校验文案保持逐字一致。
+    pub async fn remind_deliver(&self, id: i32, admin_id: i32) -> Result<()> {
+        let order = self
+            .repos
+            .trade
+            .order_admin
+            .find_order(id)
+            .await?
+            .ok_or_else(|| Error::biz_msg("订单不存在"))?;
+        if order.vendor_id.is_none_or(|v| v <= 0) {
+            return Err(Error::biz_msg("非供应商订单不允许操作"));
+        }
+        if order.order_status != OrderStatus::Confirmed as i32 {
+            return Err(Error::biz_msg("订单状态错误"));
+        }
+        self.repos
+            .trade
+            .order_admin
+            .insert_order_log(id, &order.order_sn, "催发货", admin_id, order.shop_id)
+            .await?;
+        Ok(())
+    }
+
+    /// 批量发货模板（`GET /order/order/downloadDeliverTemplate?ids=`）。
+    ///
+    /// 对应 Java `downloadDeliverTemplate`：每个订单的每个商品一行，
+    /// 发货数量默认 = 购买数量、配送方式/物流公司/单号留空待填写。
+    ///
+    /// ⚠️ **降级**：Java 回写 xlsx；Rust 返回「说明 + 表头 + 行数据」JSON。
+    pub async fn download_deliver_template(
+        &self,
+        ids: &[i32],
+    ) -> Result<OrderDeliverTemplateVO> {
+        if ids.is_empty() {
+            return Err(Error::biz_msg("请选择要发货的订单"));
+        }
+        let mut rows = Vec::new();
+        for id in ids {
+            let vo = self.detail(*id).await?;
+            let users = self
+                .repos
+                .trade
+                .order_admin
+                .find_users(&[vo.user_id])
+                .await?;
+            let username = users
+                .first()
+                .map(|u| u.username.clone())
+                .unwrap_or_default();
+            let full_address = if vo.region_names.is_empty() {
+                vo.address.clone()
+            } else {
+                format!("{} {}", vo.region_names.join(" "), vo.address)
+            };
+            if vo.items.is_empty() {
+                rows.push(OrderDeliverTemplateRow {
+                    order_sn: vo.order_sn.clone(),
+                    username: username.clone(),
+                    consignee: vo.consignee.clone(),
+                    mobile: vo.mobile.clone(),
+                    address: full_address.trim().to_string(),
+                    total_amount: vo.total_amount.to_string(),
+                    product_name: String::new(),
+                    sku_name: String::new(),
+                    quantity: String::new(),
+                    delivery_quantity: String::new(),
+                    shipping_method: String::new(),
+                    logistics_name: String::new(),
+                    logistics_code: String::new(),
+                    tracking_no: String::new(),
+                    add_time: vo.add_time.clone(),
+                });
+                continue;
+            }
+            for item in &vo.items {
+                let sku_name = item
+                    .sku_value
+                    .clone()
+                    .filter(|s| !s.trim().is_empty())
+                    .unwrap_or_else(|| "-".to_string());
+                rows.push(OrderDeliverTemplateRow {
+                    order_sn: vo.order_sn.clone(),
+                    username: username.clone(),
+                    consignee: vo.consignee.clone(),
+                    mobile: vo.mobile.clone(),
+                    address: full_address.trim().to_string(),
+                    total_amount: vo.total_amount.to_string(),
+                    product_name: item.product_name.clone(),
+                    sku_name,
+                    quantity: item.quantity.to_string(),
+                    delivery_quantity: item.quantity.to_string(),
+                    shipping_method: String::new(),
+                    logistics_name: String::new(),
+                    logistics_code: String::new(),
+                    tracking_no: String::new(),
+                    add_time: vo.add_time.clone(),
+                });
+            }
+        }
+        Ok(OrderDeliverTemplateVO {
+            file_name: "批量发货模板.xlsx".to_string(),
+            description: ORDER_DELIVER_TEMPLATE_DESCRIPTION.to_string(),
+            headers: ORDER_DELIVER_TEMPLATE_HEADERS
+                .iter()
+                .map(|s| (*s).to_string())
+                .collect(),
+            rows,
+        })
+    }
+
+    /// 批量发货 Excel/CSV/JSON 导入（`POST /order/order/batchDeliverImport`）。
+    ///
+    /// 对应 Java `batchDeliverImport`：按订单号分组，每个订单只发一次；
+    /// 订单级校验 → 配送方式/物流公司校验 → 逐行匹配商品并汇总发货数量 →
+    /// 调用 `deliverOrder`。失败行进 `failDetails`，不阻断其它订单。
+    ///
+    /// ⚠️ **降级**：Java 用 EasyExcel 读 `.xlsx`；Rust 未启用 xlsx 读依赖，
+    /// 接受「JSON 数组」或「CSV 文本（跳过说明行+表头，列序见模板）」。
+    pub async fn batch_deliver_import(
+        &self,
+        bytes: &[u8],
+        _file_name: Option<&str>,
+    ) -> Result<OrderDeliverImportResultVO> {
+        let rows = parse_deliver_import_rows(bytes)?;
+        if rows.is_empty() {
+            return Err(Error::biz_msg("表格数据为空"));
+        }
+        let groups = group_import_rows(&rows);
+        let mut fail_details: Vec<OrderDeliverImportFailVO> = Vec::new();
+        let mut success_count = 0;
+        for (order_sn, row_list) in groups {
+            let first = &row_list[0].1;
+            let mut order_errors: Vec<(i32, String)> = Vec::new();
+            if let Some(err) = validate_deliver_excel_data(first) {
+                for (row_num, _) in &row_list {
+                    order_errors.push((*row_num, err.clone()));
+                }
+                push_fail(&mut fail_details, &order_errors, &order_sn);
+                continue;
+            }
+            let Some(order) = self
+                .repos
+                .trade
+                .order_admin
+                .find_order_by_sn(&order_sn)
+                .await?
+            else {
+                push_fail(
+                    &mut fail_details,
+                    &row_list.iter().map(|(n, _)| (*n, "订单不存在".to_string())).collect::<Vec<_>>(),
+                    &order_sn,
+                );
+                continue;
+            };
+            let actions = self.order_actions(&order).await?;
+            if !actions.deliver {
+                push_fail(
+                    &mut fail_details,
+                    &row_list.iter().map(|(n, _)| (*n, "订单状态不允许发货".to_string())).collect::<Vec<_>>(),
+                    &order_sn,
+                );
+                continue;
+            }
+            let Some(method) = first.shipping_method.as_deref().and_then(parse_shipping_method_name) else {
+                push_fail(
+                    &mut fail_details,
+                    &row_list.iter().map(|(n, _)| (*n, "无效的配送方式，有效值：物流配送、商家配送、无需配送、电子面单".to_string())).collect::<Vec<_>>(),
+                    &order_sn,
+                );
+                continue;
+            };
+            if let Some(err) = validate_shipping_method_fields(first, method) {
+                push_fail(
+                    &mut fail_details,
+                    &row_list.iter().map(|(n, _)| (*n, err.clone())).collect::<Vec<_>>(),
+                    &order_sn,
+                );
+                continue;
+            }
+            let mut logistics_id = 0i32;
+            if method == shipping_method::LOGISTICS || method == shipping_method::WAYBILL {
+                let name = first.logistics_name.as_deref().unwrap_or("").trim();
+                match self.find_logistics_company_by_name(name).await? {
+                    Some(id) => logistics_id = id,
+                    None => {
+                        push_fail(
+                            &mut fail_details,
+                            &row_list
+                                .iter()
+                                .map(|(n, _)| (*n, format!("物流公司不存在：{name}")))
+                                .collect::<Vec<_>>(),
+                            &order_sn,
+                        );
+                        continue;
+                    }
+                }
+            }
+            let items = self.repos.trade.order_admin.find_items(order.order_id).await?;
+            let mut deliver_info = Vec::new();
+            let mut has_error = false;
+            for (row_num, row) in &row_list {
+                let qty = match parse_delivery_quantity(row) {
+                    Ok(q) => q,
+                    Err(msg) => {
+                        fail_details.push(OrderDeliverImportFailVO {
+                            row_num: *row_num,
+                            order_sn: order_sn.clone(),
+                            reason: msg,
+                        });
+                        has_error = true;
+                        continue;
+                    }
+                };
+                let matched = match_order_item(
+                    &items,
+                    row.product_name.as_deref(),
+                    row.sku_name.as_deref(),
+                );
+                let Some(matched) = matched else {
+                    fail_details.push(OrderDeliverImportFailVO {
+                        row_num: *row_num,
+                        order_sn: order_sn.clone(),
+                        reason: format!(
+                            "未找到匹配的商品：{}{}",
+                            row.product_name.as_deref().unwrap_or(""),
+                            row.sku_name
+                                .as_deref()
+                                .filter(|s| !s.trim().is_empty())
+                                .map(|s| format!("({s})"))
+                                .unwrap_or_default()
+                        ),
+                    });
+                    has_error = true;
+                    continue;
+                };
+                deliver_info.push(tigshop_core::models::trade::order_admin::DeliverInfo {
+                    item_id: Some(matched.item_id),
+                    to_delivery_quantity: Some(qty.unwrap_or(matched.quantity)),
+                });
+            }
+            if has_error || deliver_info.is_empty() {
+                continue;
+            }
+            let param = DeliverOrderParam {
+                id: Some(order.order_id),
+                deliver_data: Some(deliver_info),
+                shipping_method: Some(method),
+                logistics_id: Some(logistics_id),
+                tracking_no: first
+                    .tracking_no
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string),
+                ..Default::default()
+            };
+            match self.deliver(&param).await {
+                Ok(()) => success_count += 1,
+                Err(e) => push_fail(
+                    &mut fail_details,
+                    &row_list
+                        .iter()
+                        .map(|(n, _)| (*n, format!("发货失败：{e}")))
+                        .collect::<Vec<_>>(),
+                    &order_sn,
+                ),
+            }
+        }
+        Ok(OrderDeliverImportResultVO {
+            total_count: rows.len() as i32,
+            success_count,
+            fail_count: fail_details.len() as i32,
+            fail_details,
+        })
+    }
+
+    /// 批量发货导入失败数据（`POST /order/order/getBatchDeliverImportErrorData`）。
+    ///
+    /// 校验逻辑与 [`Self::batch_deliver_import`] 完全一致；Java 把失败行写成
+    /// xlsx 下载流，Rust 侧返回失败行 JSON（降级说明同上）。
+    pub async fn batch_deliver_import_error_data(
+        &self,
+        bytes: &[u8],
+    ) -> Result<Vec<OrderDeliverImportErrorVO>> {
+        let rows = parse_deliver_import_rows(bytes)?;
+        if rows.is_empty() {
+            return Err(Error::biz_msg("表格数据为空"));
+        }
+        let mut errors = Vec::new();
+        for (order_sn, row_list) in group_import_rows(&rows) {
+            let first = &row_list[0].1;
+            let shipping_method = first
+                .shipping_method
+                .as_deref()
+                .map(str::trim)
+                .unwrap_or("")
+                .to_string();
+            let logistics_name = first.logistics_name.clone().unwrap_or_default();
+            let tracking_no = first.tracking_no.clone().unwrap_or_default();
+            if let Some(err) = validate_deliver_excel_data(first) {
+                push_all_import_errors(
+                    &mut errors,
+                    &order_sn,
+                    &row_list,
+                    &shipping_method,
+                    &logistics_name,
+                    &tracking_no,
+                    &err,
+                );
+                continue;
+            }
+            let Some(order) = self
+                .repos
+                .trade
+                .order_admin
+                .find_order_by_sn(&order_sn)
+                .await?
+            else {
+                push_all_import_errors(
+                    &mut errors,
+                    &order_sn,
+                    &row_list,
+                    &shipping_method,
+                    &logistics_name,
+                    &tracking_no,
+                    "订单不存在",
+                );
+                continue;
+            };
+            let actions = self.order_actions(&order).await?;
+            if !actions.deliver {
+                push_all_import_errors(
+                    &mut errors,
+                    &order_sn,
+                    &row_list,
+                    &shipping_method,
+                    &logistics_name,
+                    &tracking_no,
+                    "订单状态不允许发货",
+                );
+                continue;
+            }
+            let method = if shipping_method.is_empty() {
+                None
+            } else {
+                parse_shipping_method_name(&shipping_method)
+            };
+            let Some(method) = method else {
+                push_all_import_errors(
+                    &mut errors,
+                    &order_sn,
+                    &row_list,
+                    &shipping_method,
+                    &logistics_name,
+                    &tracking_no,
+                    "无效的配送方式，有效值：物流配送、商家配送、无需配送、电子面单",
+                );
+                continue;
+            };
+            if let Some(err) = validate_shipping_method_fields(first, method) {
+                push_all_import_errors(
+                    &mut errors,
+                    &order_sn,
+                    &row_list,
+                    &shipping_method,
+                    &logistics_name,
+                    &tracking_no,
+                    &err,
+                );
+                continue;
+            }
+            if (method == shipping_method::LOGISTICS || method == shipping_method::WAYBILL)
+                && self
+                    .find_logistics_company_by_name(logistics_name.trim())
+                    .await?
+                    .is_none()
+            {
+                push_all_import_errors(
+                    &mut errors,
+                    &order_sn,
+                    &row_list,
+                    &shipping_method,
+                    &logistics_name,
+                    &tracking_no,
+                    &format!("物流公司不存在：{logistics_name}"),
+                );
+                continue;
+            }
+            let items = self.repos.trade.order_admin.find_items(order.order_id).await?;
+            for (row_num, row) in &row_list {
+                if let Err(msg) = parse_delivery_quantity(row) {
+                    errors.push(build_import_error_row(
+                        *row_num,
+                        &order_sn,
+                        row,
+                        &shipping_method,
+                        &logistics_name,
+                        &tracking_no,
+                        msg.as_str(),
+                    ));
+                    continue;
+                }
+                if match_order_item(&items, row.product_name.as_deref(), row.sku_name.as_deref())
+                    .is_none()
+                {
+                    errors.push(build_import_error_row(
+                        *row_num,
+                        &order_sn,
+                        row,
+                        &shipping_method,
+                        &logistics_name,
+                        &tracking_no,
+                        &format!(
+                            "未找到匹配的商品：{}{}",
+                            row.product_name.as_deref().unwrap_or(""),
+                            row.sku_name
+                                .as_deref()
+                                .filter(|s| !s.trim().is_empty())
+                                .map(|s| format!("({s})"))
+                                .unwrap_or_default()
+                        ),
+                    ));
+                }
+            }
+        }
+        Ok(errors)
+    }
+
+    // ————————————————————— 内部辅助 —————————————————————
+
+    /// 订单可操作项（`availableActions`；整单售后/在售商品批量预取）。
+    async fn order_actions(&self, order: &Order) -> Result<OrderActionVO> {
+        let total_qty = self
+            .repos
+            .trade
+            .order_admin
+            .order_items_total_quantity(order.order_id)
+            .await?;
+        let full_aftersales = if total_qty > 0 {
+            let covered = self
+                .repos
+                .trade
+                .order_admin
+                .aftersales_covered_quantity(order.order_id, &aftersales_status::valid_statuses())
+                .await?;
+            covered >= total_qty
+        } else {
+            false
+        };
+        let items = self.repos.trade.order_admin.find_items(order.order_id).await?;
+        let product_ids = distinct_i32(items.iter().map(|it| it.product_id));
+        let rebuy_available = items.is_empty()
+            || self
+                .repos
+                .trade
+                .order_admin
+                .any_product_on_sale(&product_ids)
+                .await?;
+        Ok(available_actions(order, full_aftersales, rebuy_available))
+    }
+
+    /// 重算订单金额（对应 Java `updateOrderMoney(order, true)` 的可迁移部分）：
+    /// `product_amount = Σ(price × quantity)`；
+    /// `total_amount = product_amount - 折扣 - 优惠券 - 积分抵现 + 运费 + 发票费 + 服务费`；
+    /// `unpaid_amount = max(total - paid, 0)`。
+    ///
+    /// ⚠️ Java 还会按 `order_extension` 重算各店铺金额明细（`order_amount_detail`），
+    /// 该表未迁移，店铺级分摊保持原值。
+    async fn recompute_order_money(&self, order_id: i32) -> Result<()> {
+        let order = self
+            .repos
+            .trade
+            .order_admin
+            .find_order(order_id)
+            .await?
+            .ok_or_else(|| Error::biz_msg("订单不存在"))?;
+        let items = self.repos.trade.order_admin.find_items(order_id).await?;
+        let product_amount: Decimal = items
+            .iter()
+            .map(|it| it.price * Decimal::from(it.quantity))
+            .sum();
+        let total = product_amount
+            - order.discount_amount
+            - order.coupon_amount
+            - order.points_amount
+            + order.shipping_fee
+            + order.invoice_fee
+            + order.service_fee;
+        let unpaid = (total - order.paid_amount).max(Decimal::ZERO);
+        self.repos
+            .trade
+            .order_admin
+            .update_order(
+                order_id,
+                &OrderPatch::new()
+                    .decimal("product_amount", product_amount)
+                    .decimal("total_amount", total)
+                    .decimal("unpaid_amount", unpaid),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// 按物流公司名查询 ID（批量发货导入用）。
+    async fn find_logistics_company_by_name(&self, name: &str) -> Result<Option<i32>> {
+        if name.is_empty() {
+            return Ok(None);
+        }
+        self.repos
+            .trade
+            .order_admin
+            .find_logistics_company_id_by_name(name)
+            .await
+    }
+}
+
+// ————————————————————— wave3 纯函数辅助（可单测） —————————————————————
+
+/// 订单导出可选列（顺序与 Java `getExportItemList()` 一致）。
+fn export_columns() -> Vec<OrderExportItemVO> {
+    const COLS: [(&str, &str); 30] = [
+        ("orderSn", "订单编号"),
+        ("addTime", "下单时间"),
+        ("orderStatusName", "订单状态"),
+        ("payStatusName", "支付状态"),
+        ("shopName", "店铺名称"),
+        ("username", "会员名称"),
+        ("consignee", "收件人姓名"),
+        ("mobile", "收件人电话"),
+        ("address", "收件人地址"),
+        ("postcode", "收件人邮编"),
+        ("totalAmount", "订单总价"),
+        ("balance", "使用余额"),
+        ("discountAmount", "折扣"),
+        ("pointsAmount", "积分抵金额"),
+        ("couponAmount", "优惠券金额"),
+        ("payTime", "支付时间"),
+        ("payTypeId", "支付类型"),
+        ("payCode", "支付方式"),
+        ("outTradeNo", "交易单号"),
+        ("paidAmount", "支付金额"),
+        ("shippingTime", "发货时间"),
+        ("shippingFee", "运费"),
+        ("logisticsName", "物流名称"),
+        ("trackingNo", "发货单号"),
+        ("buyerNote", "订单备注"),
+        ("adminNote", "商家备注"),
+        ("productInfo", "商品信息"),
+        ("shippingStatusName", "发货状态"),
+        ("productWeight", "总重量(KG)"),
+        ("usePoints", "使用积分"),
+    ];
+    COLS.iter()
+        .map(|(key, label)| OrderExportItemVO {
+            key: (*key).to_string(),
+            label: (*label).to_string(),
+        })
+        .collect()
+}
+
+/// 展开选中导出列（Java `orderExport` 的 `productInfo` / `payTypeId` 展开规则）。
+fn expand_export_columns(selected: &[String]) -> Result<Vec<OrderExportItemVO>> {
+    let all = export_columns();
+    let mut keys: Vec<String> = Vec::new();
+    for key in selected {
+        if key == "productInfo" {
+            for expanded in [
+                "productName",
+                "skuData",
+                "productSn",
+                "quantity",
+                "price",
+                "totalPrice",
+            ] {
+                keys.push(expanded.to_string());
+            }
+        } else {
+            keys.push(key.clone());
+            if key == "payTypeId" {
+                keys.push("payTypeName".to_string());
+            }
+        }
+    }
+    let mut columns = Vec::new();
+    for key in keys {
+        if let Some(col) = all.iter().find(|c| c.key == key) {
+            columns.push(col.clone());
+            continue;
+        }
+        // 展开字段没有单独的列定义，按 Java `@ExcelProperty` 文案补齐
+        let label = match key.as_str() {
+            "productName" => "商品名称",
+            "skuData" => "商品规格",
+            "productSn" => "商品编号",
+            "quantity" => "购买数量",
+            "price" => "购买价格",
+            "totalPrice" => "小计",
+            "payTypeName" => "支付类型",
+            _ => {
+                return Err(Error::Validation(format!("无效的导出项: {key}")));
+            }
+        };
+        columns.push(OrderExportItemVO {
+            key,
+            label: label.to_string(),
+        });
+    }
+    // 去重（保持首次出现顺序）
+    let mut seen = HashSet::new();
+    columns.retain(|c| seen.insert(c.key.clone()));
+    Ok(columns)
+}
+
+/// 支付类型文案（Java `payTypeName` 翻译前的兜底文案）。
+fn pay_type_name(id: i32) -> String {
+    match id {
+        1 => "在线支付",
+        2 => "货到付款",
+        _ => "线下支付",
+    }
+    .to_string()
+}
+
+/// 折扣按明细小计比例分摊（Java `modifyOrderMoney` 的分配算法）：
+/// 除最后一行外按 `折扣 × 行小计 / 总小计` 四舍五入（2 位），最后一行取差额；
+/// 单价 = 原单价 - 每件分摊（不小于 0）；返回 `(item_id, 新单价, 改价前单价)`。
+fn allocate_discount(
+    items: &[OrderItem],
+    discount: Decimal,
+) -> Result<Vec<(i32, Decimal, Option<Decimal>)>> {
+    if items.is_empty() {
+        return Ok(Vec::new());
+    }
+    let originals: Vec<Decimal> = items
+        .iter()
+        .map(|it| it.admin_change_pre_price.unwrap_or(it.price))
+        .collect();
+    let subtotals: Vec<Decimal> = items
+        .iter()
+        .zip(originals.iter())
+        .map(|(it, unit)| *unit * Decimal::from(it.quantity))
+        .collect();
+    let total: Decimal = subtotals.iter().copied().sum();
+    if total <= Decimal::ZERO {
+        return Err(Error::biz_msg(
+            "商品价格总和减去优惠价格（优惠券抵扣，优惠折扣）必须大于0",
+        ));
+    }
+    let mut updates = Vec::with_capacity(items.len());
+    let mut allocated = Decimal::ZERO;
+    let mut new_price_sum = Decimal::ZERO;
+    for (i, it) in items.iter().enumerate() {
+        let line_discount = if i + 1 < items.len() {
+            let v = (discount * subtotals[i] / total)
+                .round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero);
+            allocated += v;
+            v
+        } else {
+            discount - allocated
+        };
+        let qty = Decimal::from(it.quantity.max(1));
+        let per_unit =
+            (line_discount / qty).round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero);
+        let mut new_price = originals[i] - per_unit;
+        if new_price < Decimal::ZERO {
+            new_price = Decimal::ZERO;
+        }
+        new_price_sum += new_price;
+        updates.push((it.item_id, new_price, Some(originals[i])));
+    }
+    if new_price_sum <= Decimal::ZERO {
+        return Err(Error::biz_msg(
+            "商品价格总和减去优惠价格（优惠券抵扣，优惠折扣）必须大于0",
+        ));
+    }
+    Ok(updates)
+}
+
+/// 合并收货人地址快照（Java `modifyOrderConsignee` 构造 `UserAddressVO` 的逻辑）：
+/// 保留原快照中的地址标签 / 用户 / 默认标记，覆盖展示字段。
+fn merge_address_data(
+    old: Option<&str>,
+    p: &OrderModifyConsigneeParam,
+    region_ids: &[i32],
+    region_names: &[String],
+) -> Option<String> {
+    let mut obj = old
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok())
+        .filter(serde_json::Value::is_object)
+        .unwrap_or_else(|| serde_json::json!({}));
+    if let Some(v) = p.address.as_deref() {
+        obj["address"] = serde_json::json!(v);
+    }
+    if !region_ids.is_empty() {
+        obj["regionIds"] = serde_json::json!(region_ids);
+    }
+    if !region_names.is_empty() {
+        obj["regionNames"] = serde_json::json!(region_names);
+    }
+    if let Some(v) = p.postcode.as_deref() {
+        obj["postcode"] = serde_json::json!(v);
+    }
+    if let Some(v) = p.telephone.as_deref() {
+        obj["telephone"] = serde_json::json!(v);
+    }
+    if let Some(v) = p.mobile.as_deref() {
+        obj["mobile"] = serde_json::json!(v);
+    }
+    if let Some(v) = p.email.as_deref() {
+        obj["email"] = serde_json::json!(v);
+    }
+    Some(obj.to_string())
+}
+
+/// 请求明细 → 订单明细实体（`modifyProduct` 整批写入）。
+fn to_order_item(order_id: i32, order: &Order, p: &OrderItemParam) -> OrderItem {
+    OrderItem {
+        item_id: 0,
+        order_id,
+        order_sn: order.order_sn.clone(),
+        user_id: order.user_id,
+        price: p.price,
+        quantity: p.quantity,
+        product_id: p.product_id.unwrap_or(0),
+        product_name: p.product_name.clone().unwrap_or_default(),
+        product_sn: p.product_sn.clone().unwrap_or_default(),
+        pic_thumb: p.pic_thumb.clone().unwrap_or_default(),
+        sku_id: p.sku_id.unwrap_or(0),
+        sku_data: p
+            .sku_data
+            .as_ref()
+            .map(|v| serde_json::to_string(v).unwrap_or_else(|_| "[]".into()))
+            .unwrap_or_else(|| "[]".to_string()),
+        delivery_quantity: p.delivery_quantity.unwrap_or(0),
+        product_type: p.product_type.unwrap_or(1),
+        is_gift: p.is_gift.unwrap_or(0),
+        shop_id: p.shop_id.unwrap_or(order.shop_id),
+        is_pin: p.is_pin.unwrap_or(0),
+        prepay_price: p.prepay_price.unwrap_or(Decimal::ZERO),
+        commission: p.commission.clone(),
+        origin_price: p.origin_price,
+        promotion_data: p.promotion_data.clone(),
+        is_seckill: p.is_seckill,
+        extra_sku_data: p
+            .extra_sku_data
+            .as_ref()
+            .map(|v| serde_json::to_string(v).unwrap_or_default()),
+        suppliers_id: p.suppliers_id.unwrap_or(0),
+        card_group_name: p.card_group_name.clone().unwrap_or_default(),
+        vendor_product_id: p.vendor_product_id,
+        vendor_product_sku_id: p.vendor_product_sku_id,
+        vendor_id: p.vendor_id,
+        vendor_product_supply_price: p.vendor_product_supply_price,
+        ..Default::default()
+    }
+}
+
+/// 商品实体 → `ProductAddInfoVO`（`getAddProductInfo` 返回）。
+fn to_product_add_info(p: &Product) -> ProductAddInfoVO {
+    ProductAddInfoVO {
+        product_id: p.product_id,
+        product_name: p.product_name.clone(),
+        product_sn: p.product_sn.clone(),
+        product_stock: p.product_stock,
+        product_price: p.product_price,
+        market_price: p.market_price,
+        product_status: p.product_status,
+        product_type: p.product_type,
+        shop_id: p.shop_id,
+        pic_url: p.pic_url.clone(),
+        pic_thumb: p.pic_thumb.clone(),
+        product_weight: p.product_weight,
+        virtual_sales: p.virtual_sales,
+        suppliers_id: p.suppliers_id,
+        product_brief: p.product_brief.clone(),
+        is_delete: Some(p.is_delete),
+    }
+}
+
+/// 订单明细规格文本（`sku_value` 未写时由 `sku_data` JSON 还原，`名称:值|...`）。
+fn item_sku_value(it: &OrderItem) -> Option<String> {
+    let raw = it.sku_data.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    let Ok(serde_json::Value::Array(items)) = serde_json::from_str::<serde_json::Value>(raw) else {
+        return None;
+    };
+    let parts: Vec<String> = items
+        .iter()
+        .filter_map(|v| {
+            let o = v.as_object()?;
+            let name = o.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            let value = o.get("value").and_then(|v| v.as_str()).unwrap_or("");
+            Some(format!("{name}:{value}"))
+        })
+        .collect();
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join("|"))
+    }
+}
+
+/// 解析批量发货导入文件：JSON 数组或 CSV 文本（跳过说明行 + 表头）。
+fn parse_deliver_import_rows(bytes: &[u8]) -> Result<Vec<OrderDeliverImportRow>> {
+    let text = std::str::from_utf8(bytes)
+        .map_err(|e| Error::Validation(format!("文件编码错误: {e}")))?;
+    let text = text.trim_start_matches('\u{feff}').trim();
+    if text.is_empty() {
+        return Err(Error::biz_msg("表格数据为空"));
+    }
+    if text.starts_with('[') {
+        let mut rows: Vec<OrderDeliverImportRow> = serde_json::from_str(text)
+            .map_err(|e| Error::Validation(format!("导入数据 JSON 解析失败: {e}")))?;
+        for (i, row) in rows.iter_mut().enumerate() {
+            if row.row_num.is_none() {
+                row.row_num = Some(i as i32 + 3);
+            }
+        }
+        return Ok(rows);
+    }
+    let mut rows = Vec::new();
+    for (idx, line) in text.lines().enumerate() {
+        let line = line.trim();
+        if line.is_empty() || idx < 2 {
+            // CSV 是「整张表」的文本镜像：物理行 0 = Excel 第 1 行（说明），
+            // 物理行 1 = Excel 第 2 行（表头），物理行 2 起是数据。
+            continue;
+        }
+        let cols: Vec<&str> = line.split(',').map(str::trim).collect();
+        let get = |i: usize| {
+            cols.get(i)
+                .map(|s| s.trim_matches('"').trim())
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+        };
+        rows.push(OrderDeliverImportRow {
+            order_sn: get(0),
+            product_name: get(6),
+            sku_name: get(7),
+            delivery_quantity: get(9),
+            shipping_method: get(10),
+            logistics_name: get(11),
+            tracking_no: get(13),
+            // 物理行号 0-based → Excel 行号 1-based：
+            // 首条数据 idx=2 → Excel 第 3 行，与 Java `rowNum = dataListIndex + 3`
+            // 在「数据从 Excel 第 3 行开始」时的口径一致。
+            row_num: Some(idx as i32 + 1),
+        });
+    }
+    Ok(rows)
+}
+
+/// 按订单号分组（保持首次出现顺序），行号缺省按 `index + 3` 补全。
+fn group_import_rows(
+    rows: &[OrderDeliverImportRow],
+) -> Vec<(String, Vec<(i32, OrderDeliverImportRow)>)> {
+    let mut groups: Vec<(String, Vec<(i32, OrderDeliverImportRow)>)> = Vec::new();
+    let mut index: HashMap<String, usize> = HashMap::new();
+    for (i, row) in rows.iter().enumerate() {
+        let sn = row.order_sn.as_deref().unwrap_or("").trim().to_string();
+        let row_num = row.row_num.unwrap_or(i as i32 + 3);
+        let pos = *index.entry(sn.clone()).or_insert_with(|| {
+            groups.push((sn.clone(), Vec::new()));
+            groups.len() - 1
+        });
+        groups[pos].1.push((row_num, row.clone()));
+    }
+    groups
+}
+
+/// 配送方式名 → 数值（Java `parseShippingMethod`）。
+fn parse_shipping_method_name(name: &str) -> Option<i32> {
+    match name.trim() {
+        "物流配送" => Some(shipping_method::LOGISTICS),
+        "商家配送" => Some(shipping_method::MERCHANT),
+        "无需配送" => Some(shipping_method::NONE),
+        "电子面单" => Some(shipping_method::WAYBILL),
+        _ => None,
+    }
+}
+
+/// 基础字段校验（Java `validateDeliverExcelData`）。
+fn validate_deliver_excel_data(row: &OrderDeliverImportRow) -> Option<String> {
+    if row.order_sn.as_deref().is_none_or(|s| s.trim().is_empty()) {
+        return Some("订单编号不能为空".to_string());
+    }
+    if row
+        .shipping_method
+        .as_deref()
+        .is_none_or(|s| s.trim().is_empty())
+    {
+        return Some("配送方式不能为空".to_string());
+    }
+    None
+}
+
+/// 按配送方式校验必填项（Java `validateShippingMethodFields`）。
+fn validate_shipping_method_fields(row: &OrderDeliverImportRow, method: i32) -> Option<String> {
+    let blank = |v: Option<&str>| v.is_none_or(|s| s.trim().is_empty());
+    match method {
+        shipping_method::LOGISTICS => {
+            if blank(row.logistics_name.as_deref()) {
+                return Some("配送方式为物流配送时，物流公司必填".to_string());
+            }
+            if blank(row.tracking_no.as_deref()) {
+                return Some("配送方式为物流配送时，物流单号必填".to_string());
+            }
+        }
+        shipping_method::WAYBILL => {
+            if blank(row.logistics_name.as_deref()) {
+                return Some("配送方式为电子面单时，物流公司必填".to_string());
+            }
+        }
+        shipping_method::MERCHANT | shipping_method::NONE => {}
+        _ => return Some("无效的配送方式".to_string()),
+    }
+    None
+}
+
+/// 解析发货数量（`std::result::Result<Option<i32>, 错误文案>`）：空白 → `None`（整行数量）。
+///
+/// 注意：本文件顶部 `use tigshop_core::Result` 引用了单参数别名
+/// `Result<T> = std::result::Result<T, tigshop_core::Error>`，因此这里必须显式写
+/// `std::result::Result<_, String>`，不能用 2 参数形式。
+fn parse_delivery_quantity(row: &OrderDeliverImportRow) -> std::result::Result<Option<i32>, String> {
+    let Some(raw) = row.delivery_quantity.as_deref().map(str::trim).filter(|s| !s.is_empty())
+    else {
+        return Ok(None);
+    };
+    match raw.parse::<i32>() {
+        Ok(qty) if qty > 0 => Ok(Some(qty)),
+        Ok(_) => Err("发货数量必须大于0".to_string()),
+        Err(_) => Err("发货数量格式错误，必须为正整数".to_string()),
+    }
+}
+
+/// 按商品名/规格匹配订单明细（Java `matchOrderItem`）。
+fn match_order_item<'a>(
+    items: &'a [OrderItem],
+    product_name: Option<&str>,
+    sku_name: Option<&str>,
+) -> Option<&'a OrderItem> {
+    let name = product_name?.trim();
+    if name.is_empty() {
+        return None;
+    }
+    let sku = sku_name
+        .map(str::trim)
+        .filter(|s| !s.is_empty() && *s != "-");
+    for it in items {
+        if it.product_name.trim() != name {
+            continue;
+        }
+        let item_sku = item_sku_value(it);
+        match sku {
+            Some(want) => {
+                if item_sku.as_deref() == Some(want) {
+                    return Some(it);
+                }
+            }
+            None => {
+                if item_sku
+                    .as_deref()
+                    .is_none_or(|v| v.trim().is_empty() || v == "-")
+                {
+                    return Some(it);
+                }
+            }
+        }
+    }
+    items.iter().find(|it| it.product_name.trim() == name)
+}
+
+/// 构造批量发货导入失败行（Java `OrderDeliverImportErrorExcelVO`）。
+#[allow(clippy::too_many_arguments)]
+fn build_import_error_row(
+    row_num: i32,
+    order_sn: &str,
+    row: &OrderDeliverImportRow,
+    shipping_method: &str,
+    logistics_name: &str,
+    tracking_no: &str,
+    error_msg: &str,
+) -> OrderDeliverImportErrorVO {
+    OrderDeliverImportErrorVO {
+        row_num,
+        order_sn: order_sn.to_string(),
+        product_name: row.product_name.clone(),
+        sku_name: row.sku_name.clone(),
+        delivery_quantity: row.delivery_quantity.clone(),
+        shipping_method: (!shipping_method.trim().is_empty()).then(|| shipping_method.to_string()),
+        logistics_name: (!logistics_name.trim().is_empty()).then(|| logistics_name.to_string()),
+        tracking_no: (!tracking_no.trim().is_empty()).then(|| tracking_no.to_string()),
+        error_msg: error_msg.to_string(),
+    }
+}
+
+/// 把订单级错误复制到该订单的每一行（`getBatchDeliverImportErrorData`）。
+#[allow(clippy::too_many_arguments)]
+fn push_all_import_errors(
+    errors: &mut Vec<OrderDeliverImportErrorVO>,
+    order_sn: &str,
+    row_list: &[(i32, OrderDeliverImportRow)],
+    shipping_method: &str,
+    logistics_name: &str,
+    tracking_no: &str,
+    msg: &str,
+) {
+    for (row_num, row) in row_list {
+        errors.push(build_import_error_row(
+            *row_num,
+            order_sn,
+            row,
+            shipping_method,
+            logistics_name,
+            tracking_no,
+            msg,
+        ));
+    }
+}
+
+/// 把「(行号, 原因)」列表追加到失败明细。
+fn push_fail(
+    out: &mut Vec<OrderDeliverImportFailVO>,
+    rows: &[(i32, String)],
+    order_sn: &str,
+) {
+    for (row_num, reason) in rows {
+        out.push(OrderDeliverImportFailVO {
+            row_num: *row_num,
+            order_sn: order_sn.to_string(),
+            reason: reason.clone(),
+        });
+    }
 }
 
 /// 售后单号：`yyyyMMddHHmmss` + 5 位数字（Java
@@ -1324,5 +3564,221 @@ mod tests {
         let vo = to_shop_vo(&s);
         assert_eq!(vo.shop_title, "旗舰店");
         assert_eq!(vo.status_text, "开业");
+    }
+
+    // ————————————————— wave3 新增纯函数 —————————————————
+
+    #[test]
+    fn export_columns_match_java_map_order() {
+        let cols = export_columns();
+        assert_eq!(cols.len(), 30);
+        assert_eq!(cols[0].key, "orderSn");
+        assert_eq!(cols[0].label, "订单编号");
+        assert_eq!(cols[26].key, "productInfo");
+        assert_eq!(cols[29].key, "usePoints");
+        assert_eq!(cols[29].label, "使用积分");
+    }
+
+    #[test]
+    fn expand_export_columns_handles_product_info_and_pay_type() {
+        let cols = expand_export_columns(&[
+            "orderSn".to_string(),
+            "productInfo".to_string(),
+            "payTypeId".to_string(),
+        ])
+        .unwrap();
+        let keys: Vec<&str> = cols.iter().map(|c| c.key.as_str()).collect();
+        assert_eq!(
+            keys,
+            vec![
+                "orderSn",
+                "productName",
+                "skuData",
+                "productSn",
+                "quantity",
+                "price",
+                "totalPrice",
+                "payTypeId",
+                "payTypeName"
+            ]
+        );
+        // 未知导出项报错
+        assert!(expand_export_columns(&["notAKey".to_string()]).is_err());
+        // 重复 key 去重
+        let cols = expand_export_columns(&["orderSn".to_string(), "orderSn".to_string()]).unwrap();
+        assert_eq!(cols.len(), 1);
+    }
+
+    #[test]
+    fn allocate_discount_distributes_and_keeps_positive_prices() {
+        let a = OrderItem {
+            item_id: 1,
+            price: Decimal::new(1000, 2), // 10.00
+            quantity: 2,
+            ..Default::default()
+        };
+        let b = OrderItem {
+            item_id: 2,
+            price: Decimal::new(500, 2), // 5.00
+            quantity: 1,
+            ..Default::default()
+        };
+        let updates = allocate_discount(&[a, b], Decimal::new(300, 2)).unwrap();
+        assert_eq!(updates.len(), 2);
+        // 小计 20 : 5，折扣 3 元 → 行折扣 2.40 / 0.60，单价降 1.20 / 0.60
+        assert_eq!(updates[0].0, 1);
+        assert_eq!(updates[0].1, Decimal::new(880, 2)); // 10.00 - 1.20
+        assert_eq!(updates[0].2, Some(Decimal::new(1000, 2)));
+        assert_eq!(updates[1].1, Decimal::new(440, 2)); // 5.00 - 0.60
+        // 空明细不报错
+        assert!(allocate_discount(&[], Decimal::ONE).unwrap().is_empty());
+        // 无小计（全部 0 元）→ 报错
+        let zero = OrderItem {
+            item_id: 3,
+            price: Decimal::ZERO,
+            quantity: 1,
+            ..Default::default()
+        };
+        assert!(allocate_discount(&[zero], Decimal::ONE).is_err());
+    }
+
+    #[test]
+    fn merge_address_data_keeps_snapshot_extras() {
+        let old = Some(r#"{"addressTag":"家","userId":5,"addressId":9,"isDefault":1}"#);
+        let param = OrderModifyConsigneeParam {
+            address: Some("文一西路 1 号".into()),
+            mobile: Some("13800000000".into()),
+            postcode: Some("310000".into()),
+            ..Default::default()
+        };
+        let raw = merge_address_data(old, &param, &[110000, 110100], &["北京市".to_string(), "东城区".to_string()])
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(v["address"], "文一西路 1 号");
+        assert_eq!(v["mobile"], "13800000000");
+        assert_eq!(v["postcode"], "310000");
+        assert_eq!(v["regionIds"], serde_json::json!([110000, 110100]));
+        assert_eq!(v["regionNames"], serde_json::json!(["北京市", "东城区"]));
+        // 原快照附加字段保留
+        assert_eq!(v["addressTag"], "家");
+        assert_eq!(v["addressId"], 9);
+        assert_eq!(v["isDefault"], 1);
+        // 旧值非法 JSON 时也能生成新快照
+        let raw = merge_address_data(Some("oops"), &param, &[], &[]).unwrap();
+        assert!(serde_json::from_str::<serde_json::Value>(&raw).is_ok());
+    }
+
+    #[test]
+    fn import_rows_parse_from_csv_and_json() {
+        let csv = "说明行\n订单编号,会员名称,收货人,手机号,收货地址,订单金额,商品名称,商品规格,商品数量,*发货数量,配送方式,物流公司,物流代号,物流单号,下单时间\n\
+                   SN1,张三,张三,13800000000,北京市,100.00,衬衫,颜色:红,2,2,物流配送,顺丰,SF,SF123,2026-01-01 10:00:00\n";
+        let rows = parse_deliver_import_rows(csv.as_bytes()).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].order_sn.as_deref(), Some("SN1"));
+        assert_eq!(rows[0].product_name.as_deref(), Some("衬衫"));
+        assert_eq!(rows[0].sku_name.as_deref(), Some("颜色:红"));
+        assert_eq!(rows[0].delivery_quantity.as_deref(), Some("2"));
+        assert_eq!(rows[0].shipping_method.as_deref(), Some("物流配送"));
+        assert_eq!(rows[0].logistics_name.as_deref(), Some("顺丰"));
+        assert_eq!(rows[0].tracking_no.as_deref(), Some("SF123"));
+        assert_eq!(rows[0].row_num, Some(3));
+
+        let json = r#"[{"orderSn":"SN2","productName":"裤子","deliveryQuantity":"1"}]"#;
+        let rows = parse_deliver_import_rows(json.as_bytes()).unwrap();
+        assert_eq!(rows[0].row_num, Some(3), "JSON 载体缺省行号按 index+3 补全");
+        assert!(parse_deliver_import_rows(b"").is_err());
+    }
+
+    #[test]
+    fn import_validation_matches_java_messages() {
+        let row = OrderDeliverImportRow {
+            order_sn: Some("SN1".into()),
+            shipping_method: Some("物流配送".into()),
+            ..Default::default()
+        };
+        assert_eq!(parse_shipping_method_name("物流配送"), Some(shipping_method::LOGISTICS));
+        assert_eq!(parse_shipping_method_name("商家配送"), Some(shipping_method::MERCHANT));
+        assert_eq!(parse_shipping_method_name("无需配送"), Some(shipping_method::NONE));
+        assert_eq!(parse_shipping_method_name("电子面单"), Some(shipping_method::WAYBILL));
+        assert_eq!(parse_shipping_method_name("x"), None);
+        // 物流配送缺物流公司/单号
+        assert_eq!(
+            validate_shipping_method_fields(&row, shipping_method::LOGISTICS).as_deref(),
+            Some("配送方式为物流配送时，物流公司必填")
+        );
+        let row2 = OrderDeliverImportRow {
+            logistics_name: Some("顺丰".into()),
+            ..row.clone()
+        };
+        assert_eq!(
+            validate_shipping_method_fields(&row2, shipping_method::LOGISTICS).as_deref(),
+            Some("配送方式为物流配送时，物流单号必填")
+        );
+        let row3 = OrderDeliverImportRow {
+            logistics_name: Some("顺丰".into()),
+            tracking_no: Some("SF1".into()),
+            ..row.clone()
+        };
+        assert!(validate_shipping_method_fields(&row3, shipping_method::LOGISTICS).is_none());
+        // 基础校验
+        let blank = OrderDeliverImportRow::default();
+        assert_eq!(validate_deliver_excel_data(&blank).as_deref(), Some("订单编号不能为空"));
+        assert_eq!(
+            validate_deliver_excel_data(&row).as_deref(),
+            None
+        );
+        // 发货数量
+        let q = OrderDeliverImportRow { delivery_quantity: Some("3".into()), ..Default::default() };
+        assert_eq!(parse_delivery_quantity(&q), Ok(Some(3)));
+        let q = OrderDeliverImportRow { delivery_quantity: Some("0".into()), ..Default::default() };
+        assert_eq!(parse_delivery_quantity(&q), Err("发货数量必须大于0".to_string()));
+        let q = OrderDeliverImportRow { delivery_quantity: Some("x".into()), ..Default::default() };
+        assert_eq!(
+            parse_delivery_quantity(&q),
+            Err("发货数量格式错误，必须为正整数".to_string())
+        );
+        // 分组：同订单号聚合、保留行号
+        let rows = vec![
+            OrderDeliverImportRow { order_sn: Some("A".into()), row_num: Some(3), ..Default::default() },
+            OrderDeliverImportRow { order_sn: Some("B".into()), row_num: Some(4), ..Default::default() },
+            OrderDeliverImportRow { order_sn: Some("A".into()), row_num: Some(5), ..Default::default() },
+        ];
+        let groups = group_import_rows(&rows);
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups[0].0, "A");
+        assert_eq!(groups[0].1.len(), 2);
+        assert_eq!(groups[0].1[1].0, 5);
+        assert_eq!(groups[1].0, "B");
+    }
+
+    #[test]
+    fn match_order_item_prefers_exact_sku_then_name() {
+        let items = vec![
+            OrderItem {
+                item_id: 1,
+                product_id: 7,
+                product_name: "衬衫".into(),
+                sku_data: r#"[{"name":"颜色","value":"红"}]"#.into(),
+                ..Default::default()
+            },
+            OrderItem {
+                item_id: 2,
+                product_id: 8,
+                product_name: "裤子".into(),
+                sku_data: "[]".into(),
+                ..Default::default()
+            },
+        ];
+        // 精确规格命中
+        let hit = match_order_item(&items, Some("衬衫"), Some("颜色:红")).unwrap();
+        assert_eq!(hit.item_id, 1);
+        // 规格 "-" 视为无规格 → 命中无规格商品
+        let hit = match_order_item(&items, Some("裤子"), Some("-")).unwrap();
+        assert_eq!(hit.item_id, 2);
+        // 规格不匹配 → 回退按商品名命中
+        let hit = match_order_item(&items, Some("衬衫"), Some("颜色:蓝")).unwrap();
+        assert_eq!(hit.item_id, 1);
+        assert!(match_order_item(&items, Some("不存在"), None).is_none());
+        assert!(match_order_item(&items, None, None).is_none());
     }
 }

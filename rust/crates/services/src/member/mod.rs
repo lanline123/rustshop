@@ -1,6 +1,7 @@
 //! member 领域服务。
 
 pub mod feedback;
+pub mod login;
 pub mod member_lists;
 pub mod member_tag;
 pub mod member_tag_group;
@@ -26,4 +27,5 @@ pub struct Services {
     pub user_manage: Arc<user_manage::UserManageService>,
     pub user_points_log: Arc<user_points_log::UserPointsLogService>,
     pub user_rank: Arc<user_rank::UserRankService>,
+    pub login: Arc<login::LoginService>,
 }

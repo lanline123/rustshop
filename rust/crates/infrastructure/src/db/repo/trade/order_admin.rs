@@ -297,6 +297,18 @@ impl OrderAdminRepository {
         Ok(row.map(|r| r.0))
     }
 
+    /// 按物流公司名称精确匹配 ID（批量发货导入：Java `eq(logisticsName).last("LIMIT 1")`）。
+    pub async fn find_logistics_company_id_by_name(&self, name: &str) -> Result<Option<i32>> {
+        let row: Option<(i32,)> = sqlx::query_as(
+            "SELECT logistics_id FROM logistics_company WHERE logistics_name = ? LIMIT 1",
+        )
+        .bind(name)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.map(|r| r.0))
+    }
+
     // ————————————————————— 售后占用数量 —————————————————————
 
     /// 订单「售后中/已完成」占用数量合计（对应 Java
@@ -633,6 +645,432 @@ impl OrderAdminRepository {
         let on_sale = self.on_sale_product_ids(product_ids).await?;
         Ok(!on_sale.is_empty())
     }
+
+    // ————————————————————— 管理端操作（wave3 扩展） —————————————————————
+
+    /// 通用订单字段更新（列名由 [`OrderPatch`] 白名单保证，值走占位符绑定）。
+    pub async fn update_order(&self, order_id: i32, patch: &OrderPatch) -> Result<u64> {
+        if patch.is_empty() {
+            return Ok(0);
+        }
+        let sql = format!("UPDATE `order` SET {} WHERE order_id = ?", patch.sets_sql());
+        Ok(update_with_patch(&self.pool, &sql, patch, order_id, None)
+            .await?
+            .rows_affected())
+    }
+
+    /// 带状态门的订单更新（并发保护）：仅当当前 `order_status = expected` 时生效。
+    pub async fn update_order_if_status(
+        &self,
+        order_id: i32,
+        expected_status: i32,
+        patch: &OrderPatch,
+    ) -> Result<u64> {
+        if patch.is_empty() {
+            return Ok(0);
+        }
+        let sql = format!(
+            "UPDATE `order` SET {} WHERE order_id = ? AND order_status = ?",
+            patch.sets_sql()
+        );
+        Ok(update_with_patch(&self.pool, &sql, patch, order_id, Some(expected_status))
+            .await?
+            .rows_affected())
+    }
+
+    /// 写订单操作日志（`order_log`；Java `OrderLogService#quickCreate` / `save`）。
+    pub async fn insert_order_log(
+        &self,
+        order_id: i32,
+        order_sn: &str,
+        description: &str,
+        admin_id: i32,
+        shop_id: i32,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO order_log (order_id, order_sn, admin_id, user_id, description, log_time, shop_id) \
+             VALUES (?, ?, ?, 0, ?, ?, ?)",
+        )
+        .bind(order_id)
+        .bind(order_sn)
+        .bind(admin_id)
+        .bind(description)
+        .bind(now_secs())
+        .bind(shop_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
+    /// 写「无操作人」的订单日志（Java `quickCreate` 的 adminId/userId 缺省值）。
+    pub async fn quick_order_log(
+        &self,
+        order_id: i32,
+        order_sn: &str,
+        description: &str,
+    ) -> Result<()> {
+        self.insert_order_log(order_id, order_sn, description, 0, 0)
+            .await
+    }
+
+    /// 按订单号查询（批量发货导入 / 换单号唯一性校验）。
+    pub async fn find_order_by_sn(&self, order_sn: &str) -> Result<Option<Order>> {
+        sqlx::query_as::<_, Order>("SELECT * FROM `order` WHERE order_sn = ? LIMIT 1")
+            .bind(order_sn)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(map_err)
+    }
+
+    /// 子订单列表（`parent_order_id = ?`，Java `lambdaQuery().eq(parentOrderId, id)`）。
+    pub async fn find_children(&self, parent_order_id: i32) -> Result<Vec<Order>> {
+        sqlx::query_as::<_, Order>(
+            "SELECT * FROM `order` WHERE parent_order_id = ? ORDER BY order_id ASC",
+        )
+        .bind(parent_order_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 子订单 ID 列表（`parentDetail` 的 `subOrderIds`）。
+    pub async fn find_sub_order_ids(&self, parent_order_id: i32) -> Result<Vec<i32>> {
+        let rows: Vec<(i32,)> =
+            sqlx::query_as("SELECT order_id FROM `order` WHERE parent_order_id = ? ORDER BY order_id ASC")
+                .bind(parent_order_id)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(map_err)?;
+        Ok(rows.into_iter().map(|r| r.0).collect())
+    }
+
+    /// 管理员导出列配置（`admin_user.order_export`，JSON 字符串数组）。
+    pub async fn find_admin_order_export(&self, admin_id: i32) -> Result<Option<String>> {
+        let row: Option<(Option<String>,)> =
+            sqlx::query_as("SELECT order_export FROM admin_user WHERE admin_id = ? LIMIT 1")
+                .bind(admin_id)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(map_err)?;
+        Ok(row.and_then(|r| r.0))
+    }
+
+    /// 保存管理员导出列配置。
+    pub async fn update_admin_order_export(&self, admin_id: i32, raw: &str) -> Result<u64> {
+        Ok(sqlx::query("UPDATE admin_user SET order_export = ? WHERE admin_id = ?")
+            .bind(raw)
+            .bind(admin_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?
+            .rows_affected())
+    }
+
+    /// 读取配置项原始值（`config.biz_code`，Java `ConfigService#getConfigVal`）。
+    pub async fn find_config_val(&self, biz_code: &str) -> Result<Option<String>> {
+        let row: Option<(Option<String>,)> =
+            sqlx::query_as("SELECT biz_val FROM config WHERE biz_code = ? AND is_del = 0 LIMIT 1")
+                .bind(biz_code)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(map_err)?;
+        Ok(row.and_then(|r| r.0))
+    }
+
+    /// 电子面单日志（`orderPrintBill`，取最新一条）。
+    pub async fn find_logistics_api_log(
+        &self,
+        order_id: i32,
+    ) -> Result<Option<tigshop_core::entities::LogisticsApiLog>> {
+        sqlx::query_as::<_, tigshop_core::entities::LogisticsApiLog>(
+            "SELECT * FROM logistics_api_log WHERE order_id = ? ORDER BY id DESC LIMIT 1",
+        )
+        .bind(order_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 批量取订单支付方式（`paylog.pay_code`，导出用）。
+    pub async fn find_pay_codes(&self, order_ids: &[i32]) -> Result<Vec<(i32, String)>> {
+        if order_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let placeholders = vec!["?"; order_ids.len()].join(", ");
+        let sql = format!(
+            "SELECT order_id, pay_code FROM paylog WHERE order_id IN ({placeholders}) ORDER BY paylog_id ASC"
+        );
+        let mut q = sqlx::query_as::<_, (i32, String)>(&sql);
+        for id in order_ids {
+            q = q.bind(*id);
+        }
+        q.fetch_all(&self.pool).await.map_err(map_err)
+    }
+
+    /// 批量取商品（`getAddProductInfo` / 导出重量）。
+    pub async fn find_products(&self, product_ids: &[i32]) -> Result<Vec<tigshop_core::entities::Product>> {
+        if product_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let placeholders = vec!["?"; product_ids.len()].join(", ");
+        let sql = format!("SELECT * FROM product WHERE product_id IN ({placeholders})");
+        let mut q = sqlx::query_as::<_, tigshop_core::entities::Product>(&sql);
+        for id in product_ids {
+            q = q.bind(*id);
+        }
+        q.fetch_all(&self.pool).await.map_err(map_err)
+    }
+
+    /// 地区名（`modifyConsignee`：按 `region_ids` 回填 `region_names`）。
+    pub async fn find_region_names(&self, region_ids: &[i32]) -> Result<Vec<String>> {
+        if region_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let placeholders = vec!["?"; region_ids.len()].join(", ");
+        let fields = region_ids
+            .iter()
+            .map(|v| v.to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        let sql = format!(
+            "SELECT region_id, region_name FROM region WHERE region_id IN ({placeholders}) \
+             ORDER BY FIELD(region_id, {fields})"
+        );
+        let mut q = sqlx::query_as::<_, (i32, String)>(&sql);
+        for id in region_ids {
+            q = q.bind(*id);
+        }
+        let rows = q.fetch_all(&self.pool).await.map_err(map_err)?;
+        Ok(rows.into_iter().map(|r| r.1).collect())
+    }
+
+    /// 取消订单：返还 SKU / 商品库存，并扣回虚拟销量（Java `cancelOrder` 的库存部分）。
+    pub async fn restore_stock(&self, product_id: i32, sku_id: i32, quantity: i32) -> Result<()> {
+        if quantity <= 0 {
+            return Ok(());
+        }
+        if sku_id > 0 {
+            sqlx::query("UPDATE product_sku SET sku_stock = sku_stock + ? WHERE sku_id = ?")
+                .bind(quantity)
+                .bind(sku_id)
+                .execute(&self.pool)
+                .await
+                .map_err(map_err)?;
+        }
+        sqlx::query("UPDATE product SET product_stock = product_stock + ? WHERE product_id = ?")
+            .bind(quantity)
+            .bind(product_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        sqlx::query(
+            "UPDATE product SET virtual_sales = IF(virtual_sales >= ?, virtual_sales - ?, 0) WHERE product_id = ?",
+        )
+        .bind(quantity)
+        .bind(quantity)
+        .bind(product_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
+    /// 拆单日志（`order_split_log`，取最新一条：`(parent_order_id, parent_order_data)`）。
+    pub async fn find_order_split_log(
+        &self,
+        order_id: i32,
+    ) -> Result<Option<(i32, Option<String>)>> {
+        let row: Option<(i32, Option<String>)> = sqlx::query_as(
+            "SELECT parent_order_id, parent_order_data FROM order_split_log \
+             WHERE order_id = ? ORDER BY log_id DESC LIMIT 1",
+        )
+        .bind(order_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row)
+    }
+
+    /// 按订单状态聚合数量（`statusCount` 的单条 GROUP BY 版本）。
+    pub async fn status_counts(
+        &self,
+        q: &OrderListQuery,
+        platform_view: bool,
+    ) -> Result<Vec<(i32, i64)>> {
+        let mut plain = q.clone();
+        plain.order_status = None;
+        let (where_sql, binds) = build_filter(&plain, platform_view)?;
+        let sql = format!(
+            "SELECT order_status, COUNT(*) FROM `order`{where_sql} GROUP BY order_status"
+        );
+        let rows: Vec<(i32, i64)> = bind_all!(sqlx::query_as::<_, (i32, i64)>(&sql), binds)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(rows)
+    }
+
+    /// 复用列表筛选条件，按指定 `order_status`（`-2` = 已删除）计数。
+    pub async fn count_with_status_filter(
+        &self,
+        q: &OrderListQuery,
+        platform_view: bool,
+        order_status: Option<&str>,
+    ) -> Result<i64> {
+        let mut copy = q.clone();
+        copy.order_status = order_status.map(str::to_string);
+        let (where_sql, binds) = build_filter(&copy, platform_view)?;
+        let sql = format!("SELECT COUNT(*) FROM `order`{where_sql}");
+        let row: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&sql), binds)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(row.0.max(0))
+    }
+
+    /// 指定页/页大小的订单分页（`orderExport` 分批导出用，不受 BasePage 100 限制）。
+    pub async fn paginate_orders_with(
+        &self,
+        q: &OrderListQuery,
+        platform_view: bool,
+        page: u64,
+        size: u64,
+    ) -> Result<(u64, Vec<Order>)> {
+        let (where_sql, binds) = build_filter(q, platform_view)?;
+        let limit = size.max(1);
+        let offset = page.saturating_sub(1) * limit;
+        let count_binds = binds.clone();
+        let total_sql = format!("SELECT COUNT(*) FROM `order`{where_sql}");
+        let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&total_sql), count_binds)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(map_err)?;
+        let rows_sql = format!(
+            "SELECT * FROM `order`{where_sql}{} LIMIT ? OFFSET ?",
+            order_by_clause(q)
+        );
+        let rows = bind_all!(sqlx::query_as::<_, Order>(&rows_sql), binds)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok((total.0.max(0) as u64, rows))
+    }
+
+    /// 批量更新订单明细价格（改价后按比例分摊折扣，Java `orderItemService.updateBatchById`）。
+    pub async fn update_item_prices(
+        &self,
+        updates: &[(i32, rust_decimal::Decimal, Option<rust_decimal::Decimal>)],
+    ) -> Result<()> {
+        for (item_id, price, admin_pre) in updates {
+            sqlx::query("UPDATE order_item SET price = ?, admin_change_pre_price = ? WHERE item_id = ?")
+                .bind(*price)
+                .bind(*admin_pre)
+                .bind(*item_id)
+                .execute(&self.pool)
+                .await
+                .map_err(map_err)?;
+        }
+        Ok(())
+    }
+
+    /// 删除订单全部明细（`modifyProduct` 整批替换）。
+    pub async fn delete_items(&self, order_id: i32) -> Result<u64> {
+        Ok(sqlx::query("DELETE FROM order_item WHERE order_id = ?")
+            .bind(order_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?
+            .rows_affected())
+    }
+
+    /// 新增订单明细（`modifyProduct` 整批写入）。
+    pub async fn insert_order_item(&self, it: &OrderItem) -> Result<i32> {
+        let r = sqlx::query(
+            "INSERT INTO order_item (
+                order_id, order_sn, user_id, price, quantity, product_id, product_name,
+                product_sn, pic_thumb, sku_id, sku_data, delivery_quantity, product_type,
+                is_gift, shop_id, is_pin, prepay_price, commission, origin_price,
+                promotion_data, is_seckill, extra_sku_data, suppliers_id, card_group_name,
+                vendor_product_id, vendor_product_sku_id, vendor_id, vendor_product_supply_price,
+                admin_change_pre_price, delivery_service_fee, server_service_fee,
+                is_wholesale_line, wholesale_grade_id, wholesale_base_price
+             ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        )
+        .bind(it.order_id)
+        .bind(&it.order_sn)
+        .bind(it.user_id)
+        .bind(it.price)
+        .bind(it.quantity)
+        .bind(it.product_id)
+        .bind(&it.product_name)
+        .bind(&it.product_sn)
+        .bind(&it.pic_thumb)
+        .bind(it.sku_id)
+        .bind(&it.sku_data)
+        .bind(it.delivery_quantity)
+        .bind(it.product_type)
+        .bind(it.is_gift)
+        .bind(it.shop_id)
+        .bind(it.is_pin)
+        .bind(it.prepay_price)
+        .bind(&it.commission)
+        .bind(it.origin_price)
+        .bind(&it.promotion_data)
+        .bind(it.is_seckill)
+        .bind(&it.extra_sku_data)
+        .bind(it.suppliers_id)
+        .bind(&it.card_group_name)
+        .bind(it.vendor_product_id)
+        .bind(it.vendor_product_sku_id)
+        .bind(it.vendor_id)
+        .bind(it.vendor_product_supply_price)
+        .bind(it.admin_change_pre_price)
+        .bind(it.delivery_service_fee)
+        .bind(it.server_service_fee)
+        .bind(it.is_wholesale_line)
+        .bind(it.wholesale_grade_id)
+        .bind(it.wholesale_base_price)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(r.last_insert_id() as i32)
+    }
+}
+
+/// 执行「订单字段更新」SQL（`update_order` / `update_order_if_status` 共用）。
+async fn update_with_patch(
+    pool: &MySqlPool,
+    sql: &str,
+    patch: &OrderPatch,
+    order_id: i32,
+    expect_status: Option<i32>,
+) -> Result<sqlx::mysql::MySqlQueryResult> {
+    let mut q = sqlx::query(sql);
+    for b in patch.binds() {
+        q = match b {
+            Bind::I32(v) => q.bind(v),
+            Bind::I64(v) => q.bind(v),
+            Bind::Str(v) => q.bind(v),
+            Bind::Decimal(v) => q.bind(v),
+            Bind::Null => q.bind(Option::<i32>::None),
+        };
+    }
+    q = q.bind(order_id);
+    if let Some(status) = expect_status {
+        q = q.bind(status);
+    }
+    q.execute(pool).await.map_err(map_err)
+}
+
+/// 当前秒级时间戳。
+fn now_secs() -> i32 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i32)
+        .unwrap_or(0)
 }
 
 /// 售后申请单插入语句（`insert_aftersales` 与事务版共用，避免两处漂移）。

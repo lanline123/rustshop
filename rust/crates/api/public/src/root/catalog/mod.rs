@@ -10,12 +10,15 @@ use super::super::PublicState;
 pub fn merge_protected(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
+
 }
 
 /// 免登录的根级路由。
 pub fn merge_public(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
+        .merge(short_url::routes(state))
+
 }
 
 /// 汇总本域根级已实现路由。

@@ -145,6 +145,7 @@ pub struct AdminState {
     pub im: std::sync::Arc<tigshop_services::im::Services>,
     pub analytics: std::sync::Arc<tigshop_services::analytics::Services>,
     pub openapi: std::sync::Arc<tigshop_services::openapi::Services>,
+    pub wholesale: std::sync::Arc<tigshop_services::wholesale::Services>,
     pub jwt: JwtService,
 }
 
@@ -179,13 +180,29 @@ pub fn router(state: AdminState) -> Router {
         .route("/login/refresh", post(refresh))
         .route("/health", get(health))
         .nest("/adminapi", protected)
-        .nest("/adminapi", routes::merge_public(&state))
+        // 免登录域路由（Java `URL_WHITELIST`）+ 登录页短信验证码（`/adminapi/login/**`）
+        .nest(
+            "/adminapi",
+            routes::merge_public(&state).route("/login/sendMobileCode", post(send_mobile_code)),
+        )
         .merge(root_public)
         .merge(root_protected)
         .with_state(state)
         // —— 契约与覆盖率（重写期间对照用）——
         // 该子路由自带状态，须在 `with_state` 之后合并。
         .merge(openapi::routes(openapi_state()))
+}
+
+/// `POST /adminapi/login/sendMobileCode`：后台登录页短信验证码。
+///
+/// 原 Java 由 `URL_WHITELIST`（`/adminapi/login/**`）放行，且与 C 端
+/// `POST /api/user/login/sendMobileCode` 共用同一 Service 方法。
+async fn send_mobile_code(
+    State(state): State<AdminState>,
+    Json(dto): Json<tigshop_core::models::member::login::RegisterSmsDTO>,
+) -> ApiResult<()> {
+    state.member.login.send_mobile_code(&dto).await?;
+    ok(())
 }
 
 /// 登录请求（兼容原前端字段）。

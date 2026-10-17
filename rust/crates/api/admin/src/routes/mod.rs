@@ -2,6 +2,7 @@
 
 pub mod identity;
 pub mod merchant;
+pub mod wholesale;
 pub mod catalog;
 pub mod trade;
 pub mod payment;
@@ -23,6 +24,7 @@ pub fn merge_all(state: &AdminState) -> Router<AdminState> {
     Router::new()
         .merge(identity::routes(state))
         .merge(merchant::routes(state))
+        .merge(wholesale::routes(state))
         .merge(catalog::routes(state))
         .merge(trade::routes(state))
         .merge(payment::routes(state))
@@ -41,6 +43,7 @@ pub fn merge_public(state: &AdminState) -> Router<AdminState> {
     Router::new()
         .merge(identity::public_routes(state))
         .merge(merchant::public_routes(state))
+        .merge(wholesale::public_routes(state))
         .merge(catalog::public_routes(state))
         .merge(trade::public_routes(state))
         .merge(payment::public_routes(state))
@@ -59,6 +62,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     let mut out = Vec::new();
     out.extend(identity::implemented_routes());
     out.extend(merchant::implemented_routes());
+    out.extend(wholesale::implemented_routes());
     out.extend(catalog::implemented_routes());
     out.extend(trade::implemented_routes());
     out.extend(payment::implemented_routes());

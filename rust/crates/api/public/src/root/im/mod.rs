@@ -2,6 +2,8 @@
 
 pub mod im_message;
 
+pub mod im_conversation;
+
 use axum::Router;
 
 use super::super::PublicState;
@@ -10,12 +12,16 @@ use super::super::PublicState;
 pub fn merge_protected(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
+        .merge(im_conversation::routes(state))
+        .merge(im_message::routes(state))
+
 }
 
 /// 免登录的根级路由。
 pub fn merge_public(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
+
 }
 
 /// 汇总本域根级已实现路由。

@@ -1,6 +1,7 @@
 //! im 领域服务。
 
 pub mod im_config;
+pub mod im_conversation;
 pub mod im_message;
 pub mod im_servant;
 pub mod web_socket;
@@ -14,4 +15,5 @@ pub struct Services {
     pub im_message: Arc<im_message::ImMessageService>,
     pub im_servant: Arc<im_servant::ImServantService>,
     pub web_socket: Arc<web_socket::WebSocketService>,
+    pub im_conversation: Arc<im_conversation::ImConversationService>,
 }

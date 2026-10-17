@@ -1,6 +1,7 @@
 //! member 领域模型（DTO / Query / VO）。
 
 pub mod feedback;
+pub mod login;
 pub mod member_lists;
 pub mod member_tag;
 pub mod member_tag_group;
