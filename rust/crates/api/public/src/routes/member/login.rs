@@ -60,8 +60,7 @@ use crate::PublicState;
 /// 契约全部 16 条（完整路径 + 原 Java 方法名）。
 ///
 /// `wechatServer` 在 Java 用 `@RequestMapping`（不限方法），故 method 记 `ANY`。
-const ROUTE_TABLE: [(&str, &str, &str); 16] = [
-    ("POST", "/adminapi/login/sendMobileCode", "LoginController.sendMobileCode"),
+const ROUTE_TABLE: [(&str, &str, &str); 15] = [
     ("ANY", "/api/user/login/wechatServer", "LoginController.wechatServer"),
     ("GET", "/api/user/login/getQuickLoginSetting", "LoginController.getQuickLoginSetting"),
     ("GET", "/api/user/login/getWxLoginUrl", "LoginController.getWechatLoginUrl"),
@@ -294,8 +293,9 @@ mod tests {
     /// 契约逐条守卫：16 条（含 `ANY` 的 wechatServer 与 /adminapi 那条）。
     #[test]
     fn implemented_routes_match_all_16_java_paths() {
-        let expected: [(&str, &str); 16] = [
-            ("POST", "/adminapi/login/sendMobileCode"),
+        // 契约 16 条中 `/adminapi/login/sendMobileCode` 由 admin 应用挂载（见 api/admin/src/lib.rs），
+        // 本模块只负责 public 侧 15 条。
+        let expected: [(&str, &str); 15] = [
             ("ANY", "/api/user/login/wechatServer"),
             ("GET", "/api/user/login/getQuickLoginSetting"),
             ("GET", "/api/user/login/getWxLoginUrl"),
@@ -313,7 +313,7 @@ mod tests {
             ("GET", "/api/user/login/unbindWechat"),
         ];
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 16, "契约共 16 条");
+        assert_eq!(docs.len(), 15, "public 侧 15 条（第 16 条 admin 挂载）");
         for (doc, (method, path)) in docs.iter().zip(expected.iter()) {
             assert_eq!(doc.method, *method, "方法不匹配: {path}");
             assert_eq!(doc.path, *path, "路径不匹配");
@@ -322,7 +322,7 @@ mod tests {
         let mut keys: Vec<String> = docs.iter().map(|d| d.key()).collect();
         keys.sort();
         keys.dedup();
-        assert_eq!(keys.len(), 16);
+        assert_eq!(keys.len(), 15);
     }
 
     /// 15 条在 public 应用挂载；`/adminapi/login/sendMobileCode` 归 admin 应用。

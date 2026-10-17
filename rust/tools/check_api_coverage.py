@@ -44,7 +44,10 @@ CRATE_PREFIX = {
 
 # 文档/健康检查等自加端点，不参与覆盖率分母
 SELF_ENDPOINT_PREFIXES = ("/openapi/",)
-SELF_ENDPOINT_EXACT = {"/health", "/login", "/login/refresh"}
+SELF_ENDPOINT_EXACT = {
+    "/health", "/login", "/login/refresh",
+    "/adminapi/health", "/adminapi/login/refresh", "/adminapi/system/profile/password",
+}
 
 
 def read(path):
@@ -91,6 +94,19 @@ def strip_comments(text):
         out.append(ch)
         i += 1
     return "".join(out)
+
+
+def normalize_axum(path):
+    """Axum 0.8 uses `:param`; the Java contract uses `{param}`. Normalize both."""
+    return re.sub(r":([A-Za-z_][A-Za-z0-9_]*)", r"{\1}", path)
+
+
+def full_path(prefix, path):
+    """Join crate prefix unless the path already carries the module prefix."""
+    path = normalize_axum(path)
+    if prefix and (path == prefix or path.startswith(prefix + "/")):
+        return path
+    return join_path(prefix, path)
 
 
 def join_path(prefix, path):
@@ -177,7 +193,7 @@ def collect_rust_routes(crates_dir):
                             OrderedDict(
                                 [
                                     ("method", verb),
-                                    ("path", join_path(eff_prefix, path)),
+                                    ("path", full_path(eff_prefix, path)),
                                     ("handler", handler),
                                     ("java_ref", ""),
                                     ("source", "%s:%d" % (rel, line)),
@@ -192,7 +208,7 @@ def collect_rust_routes(crates_dir):
                         OrderedDict(
                             [
                                 ("method", verb.upper()),
-                                ("path", join_path(eff_prefix, mount)),
+                                ("path", full_path(eff_prefix, mount)),
                                 ("handler", "(ROUTE_TABLE)"),
                                 ("java_ref", java_ref),
                                 ("source", "%s:%d" % (rel, tline)),

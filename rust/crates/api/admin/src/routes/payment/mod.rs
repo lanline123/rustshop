@@ -1,5 +1,8 @@
 //! 管理端 payment 路由。
 
+pub mod category_fee_rule;
+pub mod merchant_application;
+pub mod order_invoice;
 pub mod paylog;
 pub mod paylog_batch;
 pub mod refund_apply;
@@ -14,6 +17,9 @@ use super::super::AdminState;
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new()
+        .merge(category_fee_rule::routes(state))
+        .merge(merchant_application::routes(state))
+        .merge(order_invoice::routes(state))
         .merge(paylog::routes(state))
         .merge(paylog_batch::routes(state))
         .merge(refund_apply::routes(state))
@@ -31,6 +37,9 @@ pub fn public_routes(state: &AdminState) -> Router<AdminState> {
 #[must_use]
 pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     let mut out = Vec::new();
+    out.extend(category_fee_rule::implemented_routes());
+    out.extend(merchant_application::implemented_routes());
+    out.extend(order_invoice::implemented_routes());
     out.extend(paylog::implemented_routes());
     out.extend(paylog_batch::implemented_routes());
     out.extend(refund_apply::implemented_routes());

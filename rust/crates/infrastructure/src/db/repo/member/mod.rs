@@ -5,6 +5,7 @@ pub mod login;
 pub mod member_lists;
 pub mod member_tag;
 pub mod member_tag_group;
+pub mod shop_member;
 pub mod user;
 pub mod user_center;
 pub mod user_company;
@@ -27,6 +28,7 @@ pub struct Repositories {
     pub user_manage: user_manage::UserManageRepository,
     pub user_points_log: user_points_log::UserPointsLogRepository,
     pub user_rank: user_rank::UserRankRepository,
+    pub shop_member: shop_member::ShopMemberRepository,
 }
 
 impl Repositories {
@@ -44,6 +46,7 @@ impl Repositories {
             user_manage: user_manage::UserManageRepository::new(pool.clone()),
             user_points_log: user_points_log::UserPointsLogRepository::new(pool.clone()),
             user_rank: user_rank::UserRankRepository::new(pool.clone()),
+            shop_member: shop_member::ShopMemberRepository::new(pool.clone()),
         }
     }
 }

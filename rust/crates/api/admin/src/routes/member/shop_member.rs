@@ -1,0 +1,312 @@
+//! 管理端店铺会员路由（member::shop_member）。
+//! 对应原 Java `com.tigshop.adminapi.controller.user.ShopMemberController`
+//! （`@RequestMapping("/adminapi/user/shopMember")`，9 个端点）。
+//!
+//! | 本模块路由 | 原 Java | 权限 | 认证 |
+//! |-----------|--------|------|------|
+//! | `GET  /adminapi/user/shopMember/setting/get` | `settingGet` | `shopMemberSettingManage` | 登录 |
+//! | `POST /adminapi/user/shopMember/setting/save` | `settingSave` | `shopMemberSettingManage` | 登录 |
+//! | `GET  /adminapi/user/shopMember/shopList` | `shopList` | `shopMemberManage` | 登录 |
+//! | `GET  /adminapi/user/shopMember/list` | `list` | `shopMemberManage`/`shopMemberCustomerManage` | 登录 |
+//! | `GET  /adminapi/user/shopMember/detail` | `detail` | 同上 | 登录 |
+//! | `POST /adminapi/user/shopMember/add` | `add` | `shopMemberCustomerManage` | 登录 |
+//! | `GET  /adminapi/user/shopMember/downloadImportTemplate` | `downloadImportTemplate` | `shopMemberCustomerManage` | 登录 |
+//! | `POST /adminapi/user/shopMember/import` | `importMembers` | `shopMemberCustomerManage` | 登录 |
+//! | `POST /adminapi/user/shopMember/importErrorData` | `importErrorData` | `shopMemberCustomerManage` | **anonymous** |
+//!
+//! > `importErrorData` 在契约里是 `anonymous` ⇒ 注册在 [`public_routes`]
+//! > （管理端免登录聚合），其余 8 条在 `routes`（登录态）。
+//! > Excel 模板/导入/失败行导出未迁移（明确业务错误）。
+//!
+//! > **身份口径**：`HeaderUtils.getShopId()`：平台=0、店铺/门店=`x-shop-id`。
+//! > 店铺端强制按本店隔离（服务层处理），平台端可显式传 `shopId`。
+
+use axum::{
+    extract::{Multipart, Query, State},
+    http::HeaderMap,
+    routing::{get, post},
+    Json, Router,
+};
+use tigshop_core::models::member::shop_member::{
+    ShopMemberAddParam, ShopMemberDetailQuery, ShopMemberListVO, ShopMemberQueryPage,
+    ShopMemberSettingParam, ShopMemberSettingVO, ShopMemberShopListVO, ShopMemberShopQueryPage,
+};
+use tigshop_core::types::PageResult;
+use tigshop_core::Error;
+use tigshop_security::web::{ok, ApiResult};
+
+use crate::AdminState;
+
+/// 需登录的 8 条路由（去掉 `/adminapi` 前缀后的路径 + 原 Java handler）。
+const ROUTE_TABLE: [(&str, &str, &str); 8] = [
+    (
+        "GET",
+        "/user/shopMember/setting/get",
+        "ShopMemberController.settingGet",
+    ),
+    (
+        "POST",
+        "/user/shopMember/setting/save",
+        "ShopMemberController.settingSave",
+    ),
+    (
+        "GET",
+        "/user/shopMember/shopList",
+        "ShopMemberController.shopList",
+    ),
+    ("GET", "/user/shopMember/list", "ShopMemberController.list"),
+    ("GET", "/user/shopMember/detail", "ShopMemberController.detail"),
+    ("POST", "/user/shopMember/add", "ShopMemberController.add"),
+    (
+        "GET",
+        "/user/shopMember/downloadImportTemplate",
+        "ShopMemberController.downloadImportTemplate",
+    ),
+    (
+        "POST",
+        "/user/shopMember/import",
+        "ShopMemberController.importMembers",
+    ),
+];
+
+/// 免登录的 1 条路由（契约 `anonymous`）。
+const PUBLIC_ROUTE_TABLE: [(&str, &str, &str); 1] = [(
+    "POST",
+    "/user/shopMember/importErrorData",
+    "ShopMemberController.importErrorData",
+)];
+
+/// 需登录路由（挂载于 `/adminapi` 下，外层 `require_auth`）。
+pub fn routes(state: &AdminState) -> Router<AdminState> {
+    let _ = state;
+    Router::new()
+        .route("/user/shopMember/setting/get", get(setting_get))
+        .route("/user/shopMember/setting/save", post(setting_save))
+        .route("/user/shopMember/shopList", get(shop_list))
+        .route("/user/shopMember/list", get(list))
+        .route("/user/shopMember/detail", get(detail))
+        .route("/user/shopMember/add", post(add))
+        .route(
+            "/user/shopMember/downloadImportTemplate",
+            get(download_import_template),
+        )
+        .route("/user/shopMember/import", post(import_members))
+}
+
+/// 免登录路由（对应 Java `URL_WHITELIST` 中的 anonymous 端点）。
+pub fn public_routes(state: &AdminState) -> Router<AdminState> {
+    let _ = state;
+    Router::new().route("/user/shopMember/importErrorData", post(import_error_data))
+}
+
+/// 本模块已实现路由（覆盖率统计，完整契约路径）。
+#[must_use]
+pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
+    ROUTE_TABLE
+        .iter()
+        .chain(PUBLIC_ROUTE_TABLE.iter())
+        .map(|(method, path, java_ref)| {
+            tigshop_openapi::RouteDoc::new(method, &format!("/adminapi{path}"), java_ref)
+        })
+        .collect()
+}
+
+// ——————————————————————————————————————————————
+// handler
+// ——————————————————————————————————————————————
+
+/// 读取请求头文本值。
+fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
+    headers
+        .get(name)
+        .and_then(|v| v.to_str().ok())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(ToString::to_string)
+}
+
+/// 当前上下文店铺（Java `currentShopId`：平台=0、店铺/门店=自身）。
+fn context_shop_id(headers: &HeaderMap) -> i32 {
+    header_str(headers, "x-shop-id")
+        .and_then(|v| v.parse::<i32>().ok())
+        .unwrap_or(0)
+        .max(0)
+}
+
+async fn setting_get(State(state): State<AdminState>) -> ApiResult<ShopMemberSettingVO> {
+    ok(state.member.shop_member.setting_get().await?)
+}
+
+async fn setting_save(
+    State(state): State<AdminState>,
+    Json(param): Json<ShopMemberSettingParam>,
+) -> ApiResult<()> {
+    state.member.shop_member.setting_save(&param).await?;
+    ok(())
+}
+
+async fn shop_list(
+    State(state): State<AdminState>,
+    Query(q): Query<ShopMemberShopQueryPage>,
+) -> ApiResult<PageResult<ShopMemberShopListVO>> {
+    ok(state.member.shop_member.shop_list(&q).await?)
+}
+
+async fn list(
+    State(state): State<AdminState>,
+    headers: HeaderMap,
+    Query(q): Query<ShopMemberQueryPage>,
+) -> ApiResult<PageResult<ShopMemberListVO>> {
+    let ctx = context_shop_id(&headers);
+    ok(state.member.shop_member.member_list(&q, ctx).await?)
+}
+
+async fn detail(
+    State(state): State<AdminState>,
+    headers: HeaderMap,
+    Query(q): Query<ShopMemberDetailQuery>,
+) -> ApiResult<ShopMemberListVO> {
+    let ctx = context_shop_id(&headers);
+    ok(state.member.shop_member.member_detail(&q, ctx).await?)
+}
+
+async fn add(
+    State(state): State<AdminState>,
+    headers: HeaderMap,
+    Json(param): Json<ShopMemberAddParam>,
+) -> ApiResult<i32> {
+    let ctx = context_shop_id(&headers);
+    ok(state.member.shop_member.add_member(&param, ctx).await?)
+}
+
+/// `downloadImportTemplate`：Java 写 xlsx 响应流（未迁移）。
+async fn download_import_template(State(state): State<AdminState>) -> ApiResult<()> {
+    state.member.shop_member.download_import_template()?;
+    ok(())
+}
+
+/// `import`：multipart `file`（Excel 解析未迁移，完成前置校验后报错）。
+async fn import_members(
+    State(state): State<AdminState>,
+    headers: HeaderMap,
+    mut multipart: Multipart,
+) -> ApiResult<()> {
+    let file_present = has_upload_file(&mut multipart).await?;
+    let ctx = context_shop_id(&headers);
+    state.member.shop_member.import_members(file_present, ctx).await?;
+    ok(())
+}
+
+/// `importErrorData`（anonymous）：multipart `file`（xlsx 导出未迁移）。
+async fn import_error_data(
+    State(state): State<AdminState>,
+    mut multipart: Multipart,
+) -> ApiResult<()> {
+    let file_present = has_upload_file(&mut multipart).await?;
+    state.member.shop_member.import_error_data(file_present)?;
+    ok(())
+}
+
+/// 探测 multipart 中是否存在 `file` 字段（不读取内容）。
+async fn has_upload_file(multipart: &mut Multipart) -> Result<bool, Error> {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| Error::Validation(format!("解析上传表单失败: {e}")))?
+    {
+        if field.name().unwrap_or_default() == "file" {
+            return Ok(true);
+        }
+        // 丢弃非文件字段内容，继续找 file
+        let _ = field
+            .text()
+            .await
+            .map_err(|e| Error::Validation(format!("读取表单字段失败: {e}")))?;
+    }
+    Ok(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::{HeaderMap, HeaderValue};
+
+    fn headers(pairs: &[(&str, &str)]) -> HeaderMap {
+        let mut h = HeaderMap::new();
+        for (k, v) in pairs {
+            h.insert(
+                axum::http::HeaderName::from_bytes(k.as_bytes()).unwrap(),
+                HeaderValue::from_str(v).unwrap(),
+            );
+        }
+        h
+    }
+
+    #[test]
+    fn implemented_routes_cover_all_nine_endpoints() {
+        let docs = implemented_routes();
+        assert_eq!(docs.len(), 9, "8 登录 + 1 anonymous");
+        let expected = [
+            ("GET", "/adminapi/user/shopMember/setting/get"),
+            ("POST", "/adminapi/user/shopMember/setting/save"),
+            ("GET", "/adminapi/user/shopMember/shopList"),
+            ("GET", "/adminapi/user/shopMember/list"),
+            ("GET", "/adminapi/user/shopMember/detail"),
+            ("POST", "/adminapi/user/shopMember/add"),
+            ("GET", "/adminapi/user/shopMember/downloadImportTemplate"),
+            ("POST", "/adminapi/user/shopMember/import"),
+            ("POST", "/adminapi/user/shopMember/importErrorData"),
+        ];
+        for (method, path) in expected {
+            assert!(
+                docs.iter().any(|d| d.method == method && d.path == path),
+                "缺少 {method} {path}"
+            );
+        }
+        let mut keys: Vec<String> = docs.iter().map(tigshop_openapi::RouteDoc::key).collect();
+        let mut unique = keys.clone();
+        unique.sort();
+        unique.dedup();
+        keys.sort();
+        assert_eq!(unique, keys);
+    }
+
+    #[test]
+    fn import_error_data_lives_in_public_routes_only() {
+        assert!(ROUTE_TABLE
+            .iter()
+            .all(|(_, p, _)| *p != "/user/shopMember/importErrorData"));
+        assert_eq!(PUBLIC_ROUTE_TABLE.len(), 1);
+        assert_eq!(
+            PUBLIC_ROUTE_TABLE[0].1,
+            "/user/shopMember/importErrorData"
+        );
+    }
+
+    #[test]
+    fn routes_registers_every_logged_in_entry() {
+        let registered = [
+            "/user/shopMember/setting/get",
+            "/user/shopMember/setting/save",
+            "/user/shopMember/shopList",
+            "/user/shopMember/list",
+            "/user/shopMember/detail",
+            "/user/shopMember/add",
+            "/user/shopMember/downloadImportTemplate",
+            "/user/shopMember/import",
+        ];
+        assert_eq!(registered.len(), ROUTE_TABLE.len());
+        for path in registered {
+            assert!(ROUTE_TABLE.iter().any(|(_, p, _)| *p == path));
+        }
+    }
+
+    #[test]
+    fn context_shop_id_from_headers() {
+        assert_eq!(context_shop_id(&headers(&[("x-shop-id", "5")])), 5);
+        assert_eq!(context_shop_id(&headers(&[])), 0);
+        assert_eq!(context_shop_id(&headers(&[("x-shop-id", "abc")])), 0);
+        // 负数归零（平台语义）
+        assert_eq!(context_shop_id(&headers(&[("x-shop-id", "-3")])), 0);
+    }
+}

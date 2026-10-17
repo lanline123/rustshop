@@ -1,5 +1,9 @@
 //! merchant 领域仓储。
 
+pub mod deposit_account;
+pub mod deposit_recharge;
+pub mod deposit_refund;
+pub mod merchant_apply;
 pub mod merchant_client;
 pub mod order_config;
 pub mod shop;
@@ -21,6 +25,10 @@ pub struct Repositories {
     pub shop_manage: shop_manage::ShopManageRepository,
     pub shop_product_category: shop_product_category::ShopProductCategoryRepository,
     pub vendor_deposit_shop: vendor_deposit_shop::VendorDepositShopRepository,
+    pub merchant_apply: merchant_apply::MerchantApplyRepository,
+    pub deposit_account: deposit_account::DepositAccountRepository,
+    pub deposit_recharge: deposit_recharge::DepositRechargeRepository,
+    pub deposit_refund: deposit_refund::DepositRefundRepository,
 }
 
 impl Repositories {
@@ -35,6 +43,10 @@ impl Repositories {
             shop_manage: shop_manage::ShopManageRepository::new(pool.clone()),
             shop_product_category: shop_product_category::ShopProductCategoryRepository::new(pool.clone()),
             vendor_deposit_shop: vendor_deposit_shop::VendorDepositShopRepository::new(pool.clone()),
+            merchant_apply: merchant_apply::MerchantApplyRepository::new(pool.clone()),
+            deposit_account: deposit_account::DepositAccountRepository::new(pool.clone()),
+            deposit_recharge: deposit_recharge::DepositRechargeRepository::new(pool.clone()),
+            deposit_refund: deposit_refund::DepositRefundRepository::new(pool.clone()),
         }
     }
 }

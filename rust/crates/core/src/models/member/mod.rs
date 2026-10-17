@@ -5,6 +5,7 @@ pub mod login;
 pub mod member_lists;
 pub mod member_tag;
 pub mod member_tag_group;
+pub mod shop_member;
 pub mod user_center;
 pub mod user_company;
 pub mod user_manage;

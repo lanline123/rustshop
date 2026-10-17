@@ -2,11 +2,13 @@
 
 pub mod article;
 pub mod decorate;
+pub mod home;
 pub mod mobile_cat_nav;
 pub mod pc_cat_floor;
 pub mod pc_navigation;
 pub mod seo;
 pub mod share;
+pub mod wechat_live;
 pub mod wechat_live_sync_callback;
 
 use std::sync::Arc;
@@ -22,4 +24,6 @@ pub struct Services {
     pub seo: Arc<seo::SeoService>,
     pub share: Arc<share::ShareService>,
     pub wechat_live_sync_callback: Arc<wechat_live_sync_callback::WechatLiveSyncCallbackService>,
+    pub home: Arc<home::HomeService>,
+    pub wechat_live: Arc<wechat_live::WechatLiveService>,
 }

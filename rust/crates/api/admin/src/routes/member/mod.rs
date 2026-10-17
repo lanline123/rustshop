@@ -4,6 +4,7 @@ pub mod feedback;
 pub mod member_lists;
 pub mod member_tag;
 pub mod member_tag_group;
+pub mod shop_member;
 pub mod user_company;
 pub mod user_manage;
 pub mod user_points_log;
@@ -21,6 +22,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(member_lists::routes(state))
         .merge(member_tag::routes(state))
         .merge(member_tag_group::routes(state))
+        .merge(shop_member::routes(state))
         .merge(user_company::routes(state))
         .merge(user_manage::routes(state))
         .merge(user_points_log::routes(state))
@@ -31,6 +33,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
 pub fn public_routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new()
+        .merge(shop_member::public_routes(state))
 }
 
 /// 本域已实现路由（覆盖率统计用）。
@@ -41,6 +44,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(member_lists::implemented_routes());
     out.extend(member_tag::implemented_routes());
     out.extend(member_tag_group::implemented_routes());
+    out.extend(shop_member::implemented_routes());
     out.extend(user_company::implemented_routes());
     out.extend(user_manage::implemented_routes());
     out.extend(user_points_log::implemented_routes());

@@ -2,6 +2,7 @@
 
 pub mod article;
 pub mod decorate;
+pub mod home;
 pub mod seo;
 pub mod share;
 pub mod wechat_live_sync_callback;
@@ -14,6 +15,7 @@ use super::super::PublicState;
 pub fn routes(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
+        .merge(home::routes(state))
         .merge(seo::routes(state))
         .merge(share::routes(state))
         .merge(wechat_live_sync_callback::routes(state))
@@ -30,6 +32,7 @@ pub fn public_routes() -> Router<PublicState> {
 pub fn anonymous_routes(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
+        .merge(home::anonymous_routes(state))
 }
 
 /// 需登录路由（外层统一套 require_auth）。
@@ -45,6 +48,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     let mut out = Vec::new();
     out.extend(article::implemented_routes());
     out.extend(decorate::implemented_routes());
+    out.extend(home::implemented_routes());
     out.extend(seo::implemented_routes());
     out.extend(share::implemented_routes());
     out.extend(wechat_live_sync_callback::implemented_routes());

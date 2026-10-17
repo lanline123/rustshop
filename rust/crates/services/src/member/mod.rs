@@ -5,6 +5,7 @@ pub mod login;
 pub mod member_lists;
 pub mod member_tag;
 pub mod member_tag_group;
+pub mod shop_member;
 pub mod user;
 pub mod user_center;
 pub mod user_company;
@@ -28,4 +29,5 @@ pub struct Services {
     pub user_points_log: Arc<user_points_log::UserPointsLogService>,
     pub user_rank: Arc<user_rank::UserRankService>,
     pub login: Arc<login::LoginService>,
+    pub shop_member: Arc<shop_member::ShopMemberService>,
 }

@@ -2,11 +2,13 @@
 
 pub mod article;
 pub mod decorate;
+pub mod home;
 pub mod mobile_cat_nav;
 pub mod pc_cat_floor;
 pub mod pc_navigation;
 pub mod seo;
 pub mod share;
+pub mod wechat_live;
 pub mod wechat_live_sync_callback;
 
 use crate::db::DbPool;
@@ -21,6 +23,8 @@ pub struct Repositories {
     pub seo: seo::SeoRepository,
     pub share: share::ShareRepository,
     pub wechat_live_sync_callback: wechat_live_sync_callback::WechatLiveSyncCallbackRepository,
+    pub home: home::HomeRepository,
+    pub wechat_live: wechat_live::WechatLiveRepository,
 }
 
 impl Repositories {
@@ -35,6 +39,8 @@ impl Repositories {
             seo: seo::SeoRepository::new(pool.clone()),
             share: share::ShareRepository::new(pool.clone()),
             wechat_live_sync_callback: wechat_live_sync_callback::WechatLiveSyncCallbackRepository::new(pool.clone()),
+            home: home::HomeRepository::new(pool.clone()),
+            wechat_live: wechat_live::WechatLiveRepository::new(pool.clone()),
         }
     }
 }

@@ -62,22 +62,37 @@ Feature 以业务资源命名（`product_manage`、`order_admin`、`user_company
 
 ## 5. 迁移前后对比
 
-| 指标 | 迁移前 | 迁移后 |
-|------|--------|--------|
-| `sliceNNN` 文件 | 529 | **0** |
-| `sliceNNN` 引用 | 4,738 | **0** |
-| 业务模块 | 编号切片 × 4 层 | **14 ctx × 94 feature** |
-| 空壳路由模块 | 59 切片 / 236 文件 | **0** |
-| `AdminState` / `PublicState` | 115 / 56 字段 | **13 / 11 字段** |
-| `Repositories` | 148 字段平铺 / 540 行 | **14 个域聚合 / 277 行** |
-| `services/lib.rs` | 165 行（含死代码 AppState） | **15 行** |
-| `bin/main.rs` | 591 行 | **435 行**（单一装配路径） |
-| 接口覆盖率 | 635 / 1564 = 40.6% | **635 / 1564 = 40.6%**（逐项不变） |
-| 已注册路由 / 多余路由 | 645 / 16 | **645 / 16** |
-| 路由冲突 | 0 | **0** |
-| SQL 语句 / 未知表列 | 1041 / 0 | **1041 / 0** |
-| 单测 | 基线存在 5 个失败（历史遗留） | **2505 passed / 0 failed** |
-| 文件行尾 | 32 个 CRLF 混用 | 被重写文件统一 LF |
+| 指标 | 迁移前 | 结构重构后 | 迁移推进后（wave1-3） |
+|------|--------|-----------|----------------------|
+| `sliceNNN` 文件 | 529 | **0** | **0** |
+| `sliceNNN` 引用 | 4,738 | **0** | **0** |
+| 业务模块 | 编号切片 × 4 层 | **14 ctx × 94 feature** | **14 ctx × 140+ feature** |
+| 空壳路由模块 | 59 切片 / 236 文件 | **0** | **0** |
+| `AdminState` / `PublicState` | 115 / 56 字段 | **13 / 11 字段** | **14 / 14 字段** |
+| `Repositories` | 148 字段平铺 / 540 行 | 90 字段平铺 | **14 个域聚合** |
+| `services/lib.rs` | 165 行（含死代码 AppState） | **15 行** | 15 行 |
+| `bin/main.rs` | 591 行 | **435 行** | ~460 行（140+ 服务显式装配） |
+| 接口覆盖率 | 635 / 1564（40.6%） | 635 / 1564（不变） | **1015 / 1564（64.9%）** |
+| 已注册路由 | 645 | 645 | **1016** |
+| 路由冲突 | 0 | 0 | **0** |
+| SQL 语句 / 未知表列 | 1041 / 0 | 1041 / 0 | **1469 / 0** |
+| 单测 | 基线 5 个失败 | 全绿（2505） | **全绿（3140 passed / 0 failed）** |
+| 结构门禁 `--strict` | 不存在 | exit 0 | **exit 0** |
+| 文件行尾 | 32 个 CRLF 混用 | 被重写文件统一 LF | 保持 LF |
+
+### 5.1 已迁移批次（工作单位 = feature）
+
+| 批次 | 内容 | 接口 |
+|------|------|------|
+| Pilot | `system/csrf`（引入管理端匿名路由能力 `URL_WHITELIST`） | 2 |
+| Wave 1 | catalog/comment(13)、identity/admin_role(7)、logistics/print(8)+print_log(1)、catalog/price_inquiry(5)+product_group(8) | 42 |
+| Wave 2 | system/config_basic(102)、identity/admin_account(7)+system/tips_manage(1)+system/log(1)、catalog/product_batch(2)+search_admin(5)+product_inventory_log(1)+product_search(1)、catalog/e_card_group(8)+e_card(7)、catalog/services(7)+exchange(3) | 189 |
+| Wave 3 | trade/order_admin(30)、member/login(16)、im/im_conversation(23)、wholesale 域 4 个 feature(27) | 96 |
+| Wave 4 | content/home(16)+wechat_live(14)、merchant/merchant_apply(8)+deposit_account(8)、payment/merchant_application(10)+category_fee_rule(7)+order_invoice(7)、member/shop_member(9) | 96 |
+| Wave 4b | merchant/deposit_recharge(10)+deposit_refund(7) | 17 |
+
+> 迁移推进期还修复了两个结构级缺陷：① Stage-1 生成的 **root 路由聚合器为空**（`/im/**`、`/img/**`、`/s/**` 实际未挂载）；② `register_feature.py` 只支持旧的扁平 `Repositories`，已升级为按上下文聚合，并新增 `sync_routes.py`（路由聚合器从磁盘文件派生）与 `group_repositories.py`（仓储分域聚合）。
+
 
 ---
 
@@ -104,11 +119,77 @@ Feature 以业务资源命名（`product_manage`、`order_admin`、`user_company
 
 ---
 
-## 8. 参考文档
+## 8. 继续迁移的操作手册（下一批可直接照做）
+
+```bash
+# 1. 看还剩什么（按 ctx/feature 聚合、P0→P2）
+cd rust && python tools/coverage_by_domain.py          # 按域覆盖率
+python tools/plan_domains.py --batch-size 6            # 剩余特性批次计划
+
+# 2. 为一批 feature 生成精确契约（method/path/handler/Java 源文件行号）
+python tools/restructure/gen_wave_specs.py --features trade/order_log,payment/pay --out docs/_waveN-specs.json
+
+# 3. 每个实现者只写自己的四层文件（严禁共享文件、严禁 cargo）
+#    规范见 docs/ARCHITECTURE.md §4；模板：system/csrf（最小）、catalog/brand（完整四层）
+
+# 4. Lead 统一注册（可在实现者并行期间/之后串行执行；幂等）
+python tools/restructure/register_feature.py --ctx <ctx> --feature <f> \
+  --service-type <F>Service --layers models,repo,service,admin_route \
+  [--ctor-args "repos.clone(), cache.clone(), jwt.clone()"]
+
+# 5. 编译 + 修整合错误（唯一编译入口，串行）
+cd crates && cargo check --workspace --all-targets
+
+# 6. 验收（全部必须通过，再提交）
+cargo test --workspace                             # 0 failed
+cd .. && python tools/check_api_coverage.py        # 覆盖率只增不减
+python tools/check_route_conflicts.py --strict     # 0 重复
+python tools/check_sql_columns.py --strict         # 0 未知表列
+python tools/check_structure.py --strict           # exit 0
+```
+
+约定与坑（wave1-4 实测）：
+- **仓储访问一律 NESTED**：`self.repos.<ctx>.<feature>.<method>()`。
+- 新增 feature 若写 admin 匿名白名单路径，用 `public_routes(&AdminState)`；public 侧三种形态：
+  `routes(&PublicState)`（自带 optional_auth/require_auth）、`public_routes()`（无状态匿名）、
+  `anonymous_routes(&PublicState)`（需要 state 的匿名）。
+- root 路由（`/im/**`、`/img/**`、`/s/**`）放在 `api/*/src/root/<ctx>/<feature>.rs`，
+  并**手工**把新模块加入 `root/<ctx>/mod.rs` 的 `merge_protected/merge_public` 与
+  `implemented_routes()`（`sync_routes.py` 不处理 root 聚合器）。
+- 大 feature 用 `ROUTE_TABLE` + 循环注册时，覆盖率工具现在会解析 `ROUTE_TABLE`，无需写 102 个
+  `.route("...")` 字面量。
+- 测试里时区/金额/掩码断言必须对照 Java 工具类（`AnonymousMaskUtils`、`StringUtils.maskMiddleHalf`、
+  `BigDecimal.setScale(2, HALF_UP)` 会补零）——wave1/3 各抓到过一类“实现对、测试错”的情况。
+- 多租户 `shop_id` 仍来自请求头/query（JWT 无 shop_id），属已知全局缺口，按 Java `HeaderUtils`
+  分支实现并在模块头标注。
+
+
+## 9.5 剩余待实现（549 条，下一轮直接按此派工）
+
+按 ctx 的剩余接口数（`python tools/coverage_by_domain.py` 实测）：
+
+| ctx | 剩余 | 主要待办 feature |
+|-----|------|------------------|
+| marketing | 172 | groupon_promotion(12)、salesman_content(10)、coupon_manage(9)、product_promotion(9)、gift_card(8)+groups(8)、lottery_activity(8)、salesman_product(8)、points_exchange(7)、product_gift(7)、recharge_setting(7)… |
+| payment | 91 | refund_log(7)、user_invoice(7)、user_recharge_order(7)、user_withdraw_apply(7)、with_draw_apply_client(7)、credit_settlement(6)、credit_user(6)、pay(6)、statement(6)、apple_pay(4)、profit_sharing(3)… |
+| content | 75 | gallery_pic(10)、gallery(9)、friend_links(7)、gallery_video(7)、wechat_auto_reply(6)、wechat_keyword_rule(5)、wechat_video_account(5)、article_batch(3)、wechat_menu(2)… |
+| merchant | 60 | admin_user_shop(9)、merchant(8)、shop_funds(8)、shop_withdraw(8)、merchant_account(7)、deposit_rule(6)、deposit_shop(5)… |
+| member | 47 | user_member_tag(5)、user_message_log(5)、user_invoice_client(4)、user_price_inquiry(4)、user_address_client(7)、user_message(6)、shop_member 剩余 Excel 导入… |
+| catalog | 35 | product_manage 剩余(32，含多控制器拆分)、comment_client、product_style_client… |
+| trade | 30 | proxy_shopping_cart(7)、check(6)、user_order(6)、order_invoice_client(3)、order_log(2)… |
+| system | 16 | util(qrCode/miniCode/miniScene 外部能力)、app_version_client、licensed、example 剩余、config_basic 的 6 个外部后端占位 |
+| analytics | 12 | panel(7)、sales_statistics(5) |
+| im | 11 | im_conversation 剩余 0（已完成）、admin_user_kefu(9)、admin_shop_kefu_config(2) |
+
+> 说明：Wave-4 的 `marketing/groupon_promotion + salesman_content + coupon_manage`（task-20）因实现者上下文耗尽只交付了
+> `models/marketing/salesman_content.rs`（未注册、未编译，作为下一轮起点保留），其余 31 条接口未开始；
+> `tools/restructure/gen_wave_specs.py` 可一键生成它们的精确契约，`register_feature.py` 已支持 post-grouping 的 nested repo。
+
+## 9. 参考文档
 
 - `docs/ARCHITECTURE.md` —— 目标结构契约与验收门禁（权威）
 - `docs/architecture-review.md` —— 迁移前独立评审（含 12 项风险与 M1–M6 必须项）
 - `docs/domain-map.json` —— 权威映射（220 切片 + 19 baseline feature + 251 控制器）
-- `docs/domain-roadmap.md` —— 929 条待实现接口的按域路线图
+- `docs/domain-roadmap.md` —— 剩余待实现接口的按域路线图（随覆盖率推进）
 - `docs/TOOLING.md` —— 门禁工具用法与退出码
 - `docs/coverage-by-domain.json` —— 按域覆盖率快照

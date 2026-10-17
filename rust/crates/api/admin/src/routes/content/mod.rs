@@ -4,6 +4,7 @@ pub mod article;
 pub mod decorate;
 pub mod mobile_cat_nav;
 pub mod seo;
+pub mod wechat_live;
 
 use axum::Router;
 
@@ -17,6 +18,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(decorate::routes(state))
         .merge(mobile_cat_nav::routes(state))
         .merge(seo::routes(state))
+        .merge(wechat_live::routes(state))
 }
 
 /// 免登录的域路由（对应 Java `URL_WHITELIST`，外层不套 require_auth）。
@@ -33,5 +35,6 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(decorate::implemented_routes());
     out.extend(mobile_cat_nav::implemented_routes());
     out.extend(seo::implemented_routes());
+    out.extend(wechat_live::implemented_routes());
     out
 }

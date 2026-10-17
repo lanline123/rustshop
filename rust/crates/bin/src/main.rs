@@ -33,6 +33,8 @@ use tigshop_services::catalog::product_inventory_log::ProductInventoryLogService
 use tigshop_services::catalog::product_search::ProductSearchService;
 use tigshop_services::catalog::search_admin::SearchAdminService;
 use tigshop_services::catalog::services::ServicesService;
+use tigshop_services::content::home::HomeService;
+use tigshop_services::content::wechat_live::WechatLiveService;
 use tigshop_services::identity::admin_account::AdminAccountService;
 use tigshop_services::identity::admin_role::AdminRoleService;
 use tigshop_services::identity::auth::AuthService;
@@ -40,6 +42,14 @@ use tigshop_services::im::im_conversation::ImConversationService;
 use tigshop_services::logistics::print::PrintService;
 use tigshop_services::logistics::print_log::PrintLogService;
 use tigshop_services::member::login::LoginService;
+use tigshop_services::member::shop_member::ShopMemberService;
+use tigshop_services::merchant::deposit_account::DepositAccountService;
+use tigshop_services::merchant::deposit_recharge::DepositRechargeService;
+use tigshop_services::merchant::deposit_refund::DepositRefundService;
+use tigshop_services::merchant::merchant_apply::MerchantApplyService;
+use tigshop_services::payment::category_fee_rule::CategoryFeeRuleService;
+use tigshop_services::payment::merchant_application::MerchantApplicationService;
+use tigshop_services::payment::order_invoice::OrderInvoiceService;
 use tigshop_services::system::config_basic::ConfigBasicService;
 use tigshop_services::system::csrf::CsrfService;
 use tigshop_services::system::log::LogService;
@@ -292,6 +302,10 @@ async fn main() -> anyhow::Result<()> {
             admin_role: admin_role.clone(),
         admin_account: admin_account.clone(),
 });
+    let merchant_apply = Arc::new(MerchantApplyService::new(repos.clone()));
+    let deposit_account = Arc::new(DepositAccountService::new(repos.clone()));
+    let deposit_recharge = Arc::new(DepositRechargeService::new(repos.clone()));
+    let deposit_refund = Arc::new(DepositRefundService::new(repos.clone()));
     // ---- merchant 域 ----
     let merchant = Arc::new(tigshop_services::merchant::Services {
         merchant_client: merchant_client.clone(),
@@ -302,7 +316,11 @@ async fn main() -> anyhow::Result<()> {
         shop_manage: shop_manage.clone(),
         shop_product_category: shop_product_category.clone(),
         vendor_deposit_shop: vendor_deposit_shop.clone(),
-    });
+            merchant_apply: merchant_apply.clone(),
+        deposit_account: deposit_account.clone(),
+        deposit_recharge: deposit_recharge.clone(),
+        deposit_refund: deposit_refund.clone(),
+});
     let wholesale_setting = Arc::new(WholesaleSettingService::new(repos.clone()));
     let wholesaler_grade = Arc::new(WholesalerGradeService::new(repos.clone()));
     let wholesaler = Arc::new(WholesalerService::new(repos.clone()));
@@ -363,6 +381,9 @@ async fn main() -> anyhow::Result<()> {
         proxy_shopping_user_address: proxy_shopping_user_address.clone(),
         proxy_shopping_user_coupon: proxy_shopping_user_coupon.clone(),
     });
+    let merchant_application = Arc::new(MerchantApplicationService::new(repos.clone()));
+    let category_fee_rule = Arc::new(CategoryFeeRuleService::new(repos.clone()));
+    let order_invoice = Arc::new(OrderInvoiceService::new(repos.clone()));
     // ---- payment 域 ----
     let payment = Arc::new(tigshop_services::payment::Services {
         balance_pay: balance_pay.clone(),
@@ -371,7 +392,10 @@ async fn main() -> anyhow::Result<()> {
         refund_apply: refund_apply.clone(),
         tax_rate: tax_rate.clone(),
         user_balance_log: user_balance_log.clone(),
-    });
+            merchant_application: merchant_application.clone(),
+        category_fee_rule: category_fee_rule.clone(),
+        order_invoice: order_invoice.clone(),
+});
     // ---- marketing 域 ----
     let marketing = Arc::new(tigshop_services::marketing::Services {
         buyer_show: buyer_show.clone(),
@@ -386,6 +410,7 @@ async fn main() -> anyhow::Result<()> {
         time_discount: time_discount.clone(),
     });
     let login = Arc::new(LoginService::new(repos.clone(), cache.clone(), jwt.clone()));
+    let shop_member = Arc::new(ShopMemberService::new(repos.clone()));
     // ---- member 域 ----
     let member = Arc::new(tigshop_services::member::Services {
         feedback: feedback.clone(),
@@ -399,6 +424,7 @@ async fn main() -> anyhow::Result<()> {
         user_points_log: user_points_log.clone(),
         user_rank: user_rank.clone(),
             login: login.clone(),
+        shop_member: shop_member.clone(),
 });
     let print = Arc::new(PrintService::new(repos.clone()));
     let print_log = Arc::new(PrintLogService::new(repos.clone()));
@@ -414,6 +440,8 @@ async fn main() -> anyhow::Result<()> {
             print: print.clone(),
         print_log: print_log.clone(),
 });
+    let home = Arc::new(HomeService::new(repos.clone()));
+    let wechat_live = Arc::new(WechatLiveService::new(repos.clone()));
     // ---- content 域 ----
     let content = Arc::new(tigshop_services::content::Services {
         article: article.clone(),
@@ -424,7 +452,9 @@ async fn main() -> anyhow::Result<()> {
         seo: seo.clone(),
         share: share.clone(),
         wechat_live_sync_callback: wechat_live_sync_callback.clone(),
-    });
+            home: home.clone(),
+        wechat_live: wechat_live.clone(),
+});
     let csrf = Arc::new(CsrfService::new(cache.clone()));
     let config_basic = Arc::new(ConfigBasicService::new(repos.clone()));
     let tips_manage = Arc::new(TipsManageService::new(repos.clone()));

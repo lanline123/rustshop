@@ -1,5 +1,9 @@
 //! merchant 领域模型（DTO / Query / VO）。
 
+pub mod deposit_account;
+pub mod deposit_recharge;
+pub mod deposit_refund;
+pub mod merchant_apply;
 pub mod merchant_client;
 pub mod order_config;
 pub mod shop;
