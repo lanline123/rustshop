@@ -31,6 +31,10 @@ use tigshop_services::logistics::LogisticsService;
 use tigshop_services::member::MemberService;
 use tigshop_services::seckill::SeckillService;
 use tigshop_services::slice001::Slice001Service;
+use tigshop_services::slice194::Slice194Service;
+use tigshop_services::slice087::Slice087Service;
+use tigshop_services::slice043::Slice043Service;
+use tigshop_services::slice041::Slice041Service;
 use tigshop_services::slice044::Slice044Service;
 use tigshop_services::slice039::Slice039Service;
 use tigshop_services::slice210::Slice210Service;
@@ -230,6 +234,10 @@ async fn main() -> anyhow::Result<()> {
     let refund_apply = Arc::new(RefundApplyService::new(repos.clone()));
     let balance_pay = Arc::new(BalancePayService::new(repos.clone()));
     let slice001 = Arc::new(Slice001Service::new(repos.clone()));
+    let slice194 = Arc::new(Slice194Service::new(repos.clone()));
+    let slice087 = Arc::new(Slice087Service::new(repos.clone()));
+    let slice043 = Arc::new(Slice043Service::new(repos.clone()));
+    let slice041 = Arc::new(Slice041Service::new(repos.clone()));
     let slice044 = Arc::new(Slice044Service::new(repos.clone()));
     let slice039 = Arc::new(Slice039Service::new(repos.clone()));
     let slice210 = Arc::new(Slice210Service::new(repos.clone()));
@@ -477,6 +485,9 @@ async fn main() -> anyhow::Result<()> {
         slice210: slice210.clone(),
         slice039: slice039.clone(),
         slice044: slice044.clone(),
+        slice041: slice041.clone(),
+        slice043: slice043.clone(),
+        slice194: slice194.clone(),
 };
     let public_state = PublicState {
         product: product.clone(),
@@ -534,6 +545,7 @@ async fn main() -> anyhow::Result<()> {
         slice091: slice091.clone(),
         slice172: slice172.clone(),
         slice207: slice207.clone(),
+        slice087: slice087.clone(),
 };
 
     // 6. CORS（开发期允许全部来源，生产按域名收紧）

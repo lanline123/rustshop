@@ -16,6 +16,15 @@
 //! > `shop_data` / `merchant_data` 三个 `text` 列。
 //! > 因此本文件的**入参**与**JSON 列内嵌结构**都必须用
 //! > `#[serde(rename_all = "camelCase")]`，否则读到的历史数据字段全空。
+//!
+//! > **修订记录（slice-087 实现期）**：
+//! > 1. `status_text_or_err` 原先返回 500；Java
+//! >    `new GlobalException(DATA_TYPE_ERROR, SERVICE_DATA_ERROR)` 的业务码是
+//! >    **1001**（`HttpStatus.SERVICE_DATA_ERROR`），已修正为 1001；
+//! > 2. `MerchantApplyApplyParam` 原先带结构级 `#[serde(default)]`，
+//! >    会让缺失的 `baseData`/`merchantData`/`shopData` 被静默填成空结构体
+//! >    （与 Java 三个 `@NotNull` 的 400 行为相反），已移除该 `default`；
+//! > 3. 新增 `ApplyDetailQuery`（`applyDetail` 的必填 `id` 查询参数）。
 
 use serde::{Deserialize, Serialize};
 
@@ -23,10 +32,16 @@ use serde::{Deserialize, Serialize};
 ///
 /// Java 校验注解只有 3 个 `@NotNull`：`baseData` / `merchantData` /
 /// `shopData`；`shopTitle` 与 `type` **没有**校验注解（可为 null）。
-/// Rust 侧同样把这三项设为必填（缺失时 serde 反序列化失败 → 400，
-/// 与 Java `@Validated` 拦成 400 的行为一致）。
+///
+/// ⚠️ **刻意不加结构级 `#[serde(default)]`**：serde 对 `Option<T>` 字段
+/// 天然「缺省 = None」，而 `base_data` / `merchant_data` / `shop_data`
+/// 是**非 Option** 字段，缺省即反序列化失败 —— 恰好复刻 Java
+/// `@Validated` + `@NotNull` 的 400 语义（真正把「申请资料为空」挡在写库前）。
+/// 若加 `default`，缺 `baseData` 会被静默填成空结构体，落库一份脏申请。
+/// （框架差异：axum `Json` 解析失败返回 HTTP 422，Java 返回 400，
+/// 业务码同为参数校验类错误。）
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
+#[serde(rename_all = "camelCase")]
 pub struct MerchantApplyApplyParam {
     /// 店铺名称
     pub shop_title: Option<String>,
@@ -303,19 +318,38 @@ pub fn resolve_status_text(status: i32) -> Option<&'static str> {
 
 /// 状态码 → 文案（未知 code 复刻 Java 抛错语义）。
 ///
-/// 返回 `Err("数据类型异常")`（Java `ExceptionConstants.DATA_TYPE_ERROR`）。
+/// 返回 `Err(1001, "数据类型异常")`：Java
+/// `MerchantApplyStatusEnum#getStatusName` 抛的是
+/// `new GlobalException(DATA_TYPE_ERROR, SERVICE_DATA_ERROR)`，
+/// 而 `HttpStatus.SERVICE_DATA_ERROR = 1001`（**不是** 500）。
 pub fn status_text_or_err(status: Option<i32>) -> Result<String, crate::Error> {
     use crate::Error;
     match status.and_then(resolve_status_text) {
         Some(text) => Ok(text.to_string()),
         // Java `getStatusName` 的入参是 `int`（primitive），
         // status 为 null 时自动拆箱 NPE → HTTP 500；这里统一按业务错误返回
-        None => Err(Error::biz_msg(DATA_TYPE_ERROR)),
+        None => Err(Error::biz(SERVICE_DATA_ERROR, DATA_TYPE_ERROR)),
     }
 }
 
+/// Java `HttpStatus.SERVICE_DATA_ERROR`（`GlobalException` 的默认业务码）。
+pub const SERVICE_DATA_ERROR: i32 = 1001;
+
 /// Java `ExceptionConstants.DATA_TYPE_ERROR` 的文案。
 pub const DATA_TYPE_ERROR: &str = "数据类型异常";
+
+/// 「申请详情」查询参数（Java `MerchantApplyController.applyDetail` 的
+/// `@RequestParam Integer id`，**必填**）。
+///
+/// 刻意不加 `default`：缺 `id` 时 axum `Query` 解析失败 → HTTP 400，
+/// 与 Java 缺 `@RequestParam` 抛 `MissingServletRequestParameterException`
+/// 一致（Java 侧业务码 1001）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApplyDetailQuery {
+    /// 入驻申请 ID（必填）
+    pub id: i32,
+}
 
 /// 入驻申请不存在的文案。
 ///
@@ -356,16 +390,45 @@ mod tests {
 
     #[test]
     fn status_text_or_err_rejects_unknown_and_null() {
-        assert_eq!(status_text_or_err(Some(10)).as_deref(), Ok("审核通过"));
+        assert_eq!(status_text_or_err(Some(10)).unwrap().as_str(), "审核通过");
         let err = status_text_or_err(Some(7)).unwrap_err();
         match &err {
             crate::Error::Biz { code, msg } => {
-                assert_eq!(*code, 500);
+                // Java `new GlobalException(DATA_TYPE_ERROR, SERVICE_DATA_ERROR)`
+                // → HttpStatus.SERVICE_DATA_ERROR = 1001
+                assert_eq!(*code, SERVICE_DATA_ERROR);
+                assert_eq!(*code, 1001);
                 assert_eq!(msg, DATA_TYPE_ERROR);
             }
             other => panic!("应返回业务错误，实际为 {other}"),
         }
         assert!(status_text_or_err(None).is_err());
+    }
+
+    #[test]
+    fn apply_detail_query_requires_id() {
+        // id 存在 → 正常解析
+        let q: ApplyDetailQuery = serde_json::from_str(r#"{"id":8}"#).unwrap();
+        assert_eq!(q.id, 8);
+        // id 缺失 → 反序列化失败（对应 Java 「@RequestParam 必填」）
+        assert!(serde_json::from_str::<ApplyDetailQuery>("{}").is_err());
+    }
+
+    #[test]
+    fn apply_param_requires_not_null_payloads() {
+        // Java `@NotNull`：baseData / merchantData / shopData 三者缺一即 400
+        assert!(serde_json::from_str::<MerchantApplyApplyParam>(r#"{"shopTitle":"x"}"#).is_err());
+        assert!(serde_json::from_str::<MerchantApplyApplyParam>(
+            r#"{"baseData":{},"merchantData":{}}"#
+        )
+        .is_err());
+        // 三者齐备、shopTitle/type 缺失 → 合法（Java 侧无 @NotNull）
+        let ok: MerchantApplyApplyParam = serde_json::from_str(
+            r#"{"baseData":{},"merchantData":{},"shopData":{}}"#,
+        )
+        .unwrap();
+        assert!(ok.shop_title.is_none());
+        assert!(ok.r#type.is_none());
     }
 
     #[test]
@@ -376,6 +439,7 @@ mod tests {
         assert_eq!(APPLY_TYPE_PERSONAL, 1);
         assert_eq!(APPLY_TYPE_ENTERPRISE, 2);
         assert_eq!(ADMIN_MSG_TYPE_SHOP_ENTRY, 41);
+        assert_eq!(SERVICE_DATA_ERROR, 1001);
         assert_eq!(CFG_MERCHANT_APPLY_NEED_CHECK, "merchantApplyNeedCheck");
         assert_eq!(CFG_SHOP_AGREEMENT, "shopAgreement");
     }

@@ -29,7 +29,7 @@
 
 use std::collections::HashMap;
 
-use serde::{de, Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::entities::user::Feedback;
 use crate::types::PageQuery;
@@ -787,7 +787,7 @@ pub fn build_detail_vo(
             shop_title,
         }),
         reply_list,
-        feedback_pics: parse_feedback_pics(f.feedback_pics.as_deref()),
+        feedback_pics: parse_detail_feedback_pics(f.feedback_pics.as_deref()),
     })
 }
 
@@ -806,7 +806,7 @@ pub fn resolve_shop_feedback_types(requested: Option<&str>) -> Vec<i32> {
         return SHOP_FEEDBACK_TYPES.to_vec();
     }
     let mut out: Vec<i32> = Vec::new();
-    for part in split_types(requested) {
+    for part in split_types(requested.unwrap_or_default()) {
         // Java：`SHOP_FEEDBACK_TYPES.stream().anyMatch(t -> t.toString().equals(type))`
         // 即**字符串**比较，故只可能是 "2"，`Integer::valueOf` 必然成功。
         if part.trim() == "2" && !out.contains(&feedback_type::PRODUCT) {
@@ -1017,12 +1017,33 @@ pub fn to_feedback_pics(pics: Option<&[String]>) -> String {
 /// 库列文本 → `Vec<String>`
 /// （Java `JsonUtil.jsonToList(pics, String.class)`）。
 ///
-/// Java 侧仅在 `StrUtil.isNotBlank(pics) && pics.length() > 3` 时调用，
 /// 解析失败（Jackson 抛异常被 `JsonUtil` 吞掉）返回 `null`。
 /// 本实现返回 `Option`：解析失败 → `None`（字段保持 `null`）。
+///
+/// ⚠️ 本函数**只做「非空白才解析」**；`detail` 链路还额外要求
+/// `length() > 3`，请用 [`parse_detail_feedback_pics`]。
 #[must_use]
 pub fn parse_feedback_pics(raw: Option<&str>) -> Option<Vec<String>> {
     let text = non_blank(raw)?;
+    serde_json::from_str::<Vec<String>>(text).ok()
+}
+
+/// `detail` 的 `feedbackPics`（对应 Java `detail` 里的
+/// `StrUtil.isNotBlank(pics) && pics.length() > 3` 才解析）。
+///
+/// ⚠️ 与 [`parse_feedback_pics`] 不同：这里额外要求**非空白且长度 > 3**，
+/// 因此 `"[]"`（长度 2）、`"[1]"`（长度 3）等短串保持 `None`
+/// —— 与 Java 的可观测行为一致（字段不设置 ⇒ JSON `null`）。
+///
+/// ⚠️ 长度按**字符数**近似 Java `String.length()`（UTF-16 码元）；对
+/// BMP 以外的字符（emoji 等）两者会差 1，仅影响「3 与 4 之间」的病态 JSON，
+/// 已列入 `uncertain_points`。
+#[must_use]
+pub fn parse_detail_feedback_pics(raw: Option<&str>) -> Option<Vec<String>> {
+    let text = non_blank(raw)?;
+    if text.chars().count() <= 3 {
+        return None;
+    }
     serde_json::from_str::<Vec<String>>(text).ok()
 }
 
@@ -1573,20 +1594,22 @@ mod tests {
             xss_clean("a<script type=\"text/javascript\">x</script>b"),
             "ab"
         );
-        // 没有闭合标签 ⇒ 不删除（Java 正则要求 `</script>`）
-        assert_eq!(xss_clean("<script>alert(1)"), "alert(1)");
+        // 没有闭合标签 ⇒ 不删除 script 块（Java 正则要求 `</script>`），
+        // 但 `alert(` 仍会被后续的 ALERT_PATTERN 删掉
+        assert_eq!(xss_clean("<script>alert(1)"), "<script>1)");
         // 大小写混合
         assert_eq!(xss_clean("<ScRiPt>1</sCrIpT>"), "");
     }
 
     #[test]
     fn xss_clean_removes_protocols_handlers_and_calls() {
-        assert_eq!(xss_clean("javascript:alert(1)"), "(1)");
+        assert_eq!(xss_clean("javascript:alert(1)"), "1)");
         assert_eq!(xss_clean("java script:"), "java script:");
         assert_eq!(xss_clean("JavaScript :x"), "x");
         assert_eq!(xss_clean("vbscript:x"), "x");
-        assert_eq!(xss_clean("onclick=alert(1)"), "(1)");
-        assert_eq!(xss_clean("on mouseover = x"), "x");
+        assert_eq!(xss_clean("onclick=alert(1)"), "1)");
+        // `on` 与 `=` 之间必须是 `\w+`（"on mouseover" 中间是空格 ⇒ 不匹配）
+        assert_eq!(xss_clean("on mouseover = x"), "on mouseover = x");
         assert_eq!(xss_clean("eval(1)"), "1)");
         assert_eq!(xss_clean("expression(1)"), "1)");
         assert_eq!(xss_clean("confirm(1)"), "1)");
@@ -1678,7 +1701,7 @@ mod tests {
         assert_eq!(vo.order_sn.as_deref(), Some("SN"));
         assert_eq!(vo.order_info.as_ref().map(|o| o.order_id), Some(3));
         assert_eq!(vo.product.as_ref().map(|p| p.product_id), Some(4));
-        assert_eq!(vo.shop.as_ref().and_then(|s| s.shop_id), Some(5));
+        assert_eq!(vo.shop.as_ref().map(|s| s.shop_id), Some(5));
         let list = vo.reply_list.expect("应有回复列表");
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].email.as_deref(), Some("a@b.c"));

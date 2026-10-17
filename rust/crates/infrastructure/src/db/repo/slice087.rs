@@ -61,6 +61,23 @@ const MERCHANT_APPLY_SELECT: &str = "SELECT merchant_apply_id, user_id, add_time
 const REGION_SELECT: &str = "SELECT region_id, region_name, parent_id, level, is_hot, \
      sort_order, first_word, standard_code FROM region";
 
+/// 新增入驻申请的 SQL（列清单与占位符一一对应；提取为常量以便单测锁定）。
+///
+/// `IFNULL(?, 默认值)` 复刻 MyBatis-Plus `NOT_NULL` 字段策略下的列默认值，
+/// 详见 [`Slice087Repository::insert_apply_in_tx`]。
+const INSERT_APPLY_SQL: &str = "INSERT INTO merchant_apply
+       (user_id, add_time, shop_title, status, `type`,
+        audit_time, audit_admin_id, shop_data, base_data,
+        merchant_data, company_name, corporate_name)
+     VALUES (?, ?, IFNULL(?, ''), ?, IFNULL(?, 1),
+             ?, ?, ?, ?, ?, IFNULL(?, ''), IFNULL(?, ''))";
+
+/// 后台站内信 SQL（`admin_msg` 的非空列写死为 Java 实体默认值）。
+const INSERT_ADMIN_MSG_SQL: &str = "INSERT INTO admin_msg
+       (msg_type, send_time, is_readed, shop_id, admin_id, order_id,
+        product_id, title, content, msg_link, related_data, is_broadcast, vendor_id)
+     VALUES (?, ?, 0, 0, 0, 0, 0, ?, ?, '', ?, 1, 0)";
+
 #[derive(Clone)]
 pub struct Slice087Repository {
     pool: MySqlPool,
@@ -76,6 +93,17 @@ impl Slice087Repository {
     #[must_use]
     pub fn pool_clone(&self) -> MySqlPool {
         self.pool.clone()
+    }
+
+    /// 开启事务（Java `@Transactional(rollbackFor = Exception.class)`）。
+    ///
+    /// `MerchantApplyServiceImpl#apply` 是**一个事务**：写 `merchant_apply`
+    /// 与写 `admin_msg` 必须同生共死。本仓储提供 [`Self::begin`] +
+    /// `*_in_tx` 变体，由服务层在同一个事务里串联两处写入。
+    pub async fn begin(
+        &self,
+    ) -> std::result::Result<sqlx::Transaction<'static, sqlx::MySql>, sqlx::Error> {
+        self.pool.begin().await
     }
 
     // ————————————————————— merchant_apply —————————————————————
@@ -104,7 +132,7 @@ impl Slice087Repository {
             .map_err(map_err)
     }
 
-    /// 新增入驻申请，返回自增 `merchant_apply_id`
+    /// 新增入驻申请（事务内），返回自增 `merchant_apply_id`
     /// （Java `this.save(merchantApply)`）。
     ///
     /// 显式列出除主键外的全部可写列；值来自服务层按 Java
@@ -121,60 +149,62 @@ impl Slice087Repository {
     /// `shop_data` / `base_data` / `merchant_data` 三个 `text` 列
     /// 无默认值，Java 侧 `JsonUtil.toJson(...)` 恒给出 JSON 串，
     /// 这里按实体原样写（None ⇒ NULL）。
-    pub async fn insert_apply(&self, apply: &MerchantApply) -> Result<i32> {
-        let res = sqlx::query(
-            "INSERT INTO merchant_apply
-               (user_id, add_time, shop_title, status, `type`,
-                audit_time, audit_admin_id, shop_data, base_data,
-                merchant_data, company_name, corporate_name)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        )
-        .bind(apply.user_id)
-        .bind(apply.add_time)
-        .bind(apply.shop_title.as_deref())
-        .bind(apply.status)
-        .bind(apply.r#type)
-        .bind(apply.audit_time)
-        .bind(apply.audit_admin_id)
-        .bind(apply.shop_data.as_deref())
-        .bind(apply.base_data.as_deref())
-        .bind(apply.merchant_data.as_deref())
-        .bind(apply.company_name.as_deref())
-        .bind(apply.corporate_name.as_deref())
-        .execute(&self.pool)
-        .await
-        .map_err(map_err)?;
+    ///
+    /// ⚠️ **`IFNULL(?, 默认值)` 的用意**（`shop_title` / `type` /
+    /// `company_name` / `corporate_name`）：Java 侧这些字段可能为 null，
+    /// MyBatis-Plus 的 `NOT_NULL` 字段策略会把它们从 INSERT 中剔除，
+    /// 从而落到**列默认值**（`shop_title`/`company_name`/`corporate_name`
+    /// 为 `''`，`type` 为 `1`）。本实现总是写满这些列，故必须显式补
+    /// `IFNULL` 才与 Java 落库结果一致；否则会写入 NULL（可空列），
+    /// 前端拿到 `null` 而非 `""`。
+    pub async fn insert_apply_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::MySql>,
+        apply: &MerchantApply,
+    ) -> Result<i32> {
+        let res = sqlx::query(INSERT_APPLY_SQL)
+            .bind(apply.user_id)
+            .bind(apply.add_time)
+            .bind(apply.shop_title.as_deref())
+            .bind(apply.status)
+            .bind(apply.r#type)
+            .bind(apply.audit_time)
+            .bind(apply.audit_admin_id)
+            .bind(apply.shop_data.as_deref())
+            .bind(apply.base_data.as_deref())
+            .bind(apply.merchant_data.as_deref())
+            .bind(apply.company_name.as_deref())
+            .bind(apply.corporate_name.as_deref())
+            .execute(&mut **tx)
+            .await
+            .map_err(map_err)?;
         Ok(i32::try_from(res.last_insert_id()).unwrap_or(i32::MAX))
     }
 
     // ————————————————————— admin_msg —————————————————————
 
-    /// 写后台站内信（Java `AdminMsgServiceImpl#createMessage`）。
+    /// 写后台站内信（事务内，Java `AdminMsgServiceImpl#createMessage`）。
     ///
     /// Java 由 `AdminMsgCreateDTO` 只填 `msgType` / `title` / `content` /
     /// `relatedData`，其余字段为实体默认（`isReaded` / `shopId` / `adminId` /
     /// `orderId` / `productId` / `vendorId` ⇒ 0，`msgLink` ⇒ `''`）；
     /// `sendTime` = 当前秒级时间戳；`isBroadcast` 为 null 时补 **1**。
-    pub async fn insert_admin_msg(
+    pub async fn insert_admin_msg_in_tx(
         &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::MySql>,
         msg_type: i32,
         title: &str,
         content: &str,
         related_data: &str,
         send_time: i32,
     ) -> Result<()> {
-        sqlx::query(
-            "INSERT INTO admin_msg
-               (msg_type, send_time, is_readed, shop_id, admin_id, order_id,
-                product_id, title, content, msg_link, related_data, is_broadcast, vendor_id)
-             VALUES (?, ?, 0, 0, 0, 0, 0, ?, ?, '', ?, 1, 0)",
-        )
-        .bind(msg_type)
-        .bind(send_time)
-        .bind(title)
-        .bind(content)
-        .bind(related_data)
-        .execute(&self.pool)
+        sqlx::query(INSERT_ADMIN_MSG_SQL)
+            .bind(msg_type)
+            .bind(send_time)
+            .bind(title)
+            .bind(content)
+            .bind(related_data)
+            .execute(&mut **tx)
         .await
         .map_err(map_err)?;
         Ok(())
@@ -186,15 +216,21 @@ impl Slice087Repository {
     /// `biz_code = ? AND is_del = 0`，**查不到时 Java 抛**
     /// `CONFIG_NOT_EXIST`「配置不存在」；此处返回 `None`，
     /// 由服务层抛出同样的业务错误）。
+    ///
+    /// `COALESCE(biz_val, '')`：Java 里「行不存在」（`configPO == null`
+    /// ⇒ 抛「配置不存在」）与「行存在但 `biz_val` 为 NULL」（
+    /// `getBizVal()` 返回 null，调用方做 `"1".equals(null)` / translate(null)）
+    /// 是**两种不同**分支。用 `COALESCE` 把后者映射为 `Some("")`，
+    /// 从而保留该区别，不会把「值为空」误判成「配置不存在」。
     pub async fn find_config_val(&self, biz_code: &str) -> Result<Option<String>> {
-        let row: Option<(Option<String>,)> = sqlx::query_as(
-            "SELECT biz_val FROM config WHERE biz_code = ? AND is_del = 0 LIMIT 1",
+        let row: Option<(String,)> = sqlx::query_as(
+            "SELECT COALESCE(biz_val, '') FROM config WHERE biz_code = ? AND is_del = 0 LIMIT 1",
         )
         .bind(biz_code)
         .fetch_optional(&self.pool)
         .await
         .map_err(map_err)?;
-        Ok(row.and_then(|r| r.0))
+        Ok(row.map(|r| r.0))
     }
 
     // ————————————————————— region —————————————————————
@@ -296,14 +332,14 @@ mod tests {
         assert!(MERCHANT_APPLY_SELECT.contains("`type`"));
     }
 
-    /// INSERT 的列数与占位符数必须一致（12 列 / 12 个 `?`）。
+    /// INSERT 的列数与占位符数必须一致（12 列 / 12 个 `?`），
+    /// 且必须用 `IFNULL` 复刻 MyBatis-Plus `NOT_NULL` 策略下的列默认值。
+    ///
+    /// 直接断言实际下发的 `INSERT_APPLY_SQL` 常量（而非测试里另抄一份），
+    /// 这样常量一改测试就会失败。
     #[test]
     fn insert_apply_placeholder_count_matches_columns() {
-        let sql = "INSERT INTO merchant_apply
-               (user_id, add_time, shop_title, status, `type`,
-                audit_time, audit_admin_id, shop_data, base_data,
-                merchant_data, company_name, corporate_name)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        let sql = INSERT_APPLY_SQL;
         let cols = sql[sql.find('(').unwrap()..sql.find(" VALUES").unwrap()]
             .split(',')
             .filter(|s| !s.trim().is_empty())
@@ -311,15 +347,20 @@ mod tests {
         let marks = sql[sql.find("VALUES").unwrap()..].matches('?').count();
         assert_eq!(cols, 12);
         assert_eq!(marks, cols);
+        // 四个可空列必须补列默认值：shop_title / type / company_name / corporate_name
+        assert_eq!(sql.matches("IFNULL").count(), 4);
+        assert!(sql.contains("IFNULL(?, '')"));
+        assert!(sql.contains("IFNULL(?, 1)"));
+        // 主键（自增）不能出现在列清单里
+        assert!(!sql.contains("merchant_apply_id"));
     }
 
-    /// `admin_msg` INSERT：13 列，6 个占位符（其余写死）。
+    /// `admin_msg` INSERT：13 列 / 13 个值，列数与值数必须一致；
+    /// 实际下发的常量里有 5 个 `?`（`title` / `content` / `related_data`
+    /// 及前两个占位），其余写死。
     #[test]
     fn insert_admin_msg_column_count_matches_values() {
-        let sql = "INSERT INTO admin_msg
-               (msg_type, send_time, is_readed, shop_id, admin_id, order_id,
-                product_id, title, content, msg_link, related_data, is_broadcast, vendor_id)
-             VALUES (?, ?, 0, 0, 0, 0, 0, ?, ?, '', ?, 1, 0)";
+        let sql = INSERT_ADMIN_MSG_SQL;
         let cols = sql[sql.find('(').unwrap()..sql.find(" VALUES").unwrap()]
             .split(',')
             .filter(|s| !s.trim().is_empty())
@@ -332,6 +373,8 @@ mod tests {
             .count();
         assert_eq!(cols, values, "列数与值数必须一致");
         assert_eq!(cols, 13);
+        // 绑定参数个数 = 下发时 `.bind(...)` 的次数
+        assert_eq!(sql.matches('?').count(), 5);
     }
 
     /// `region` 列清单与实体 8 字段一致。

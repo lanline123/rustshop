@@ -323,7 +323,15 @@ impl Slice043Repository {
     /// `column` 必须由服务层经
     /// [`tigshop_core::models::slice043::map_update_field_column`] +
     /// [`tigshop_core::models::slice043::USER_RANK_FIELDS`] 白名单校验后传入。
-    pub async fn update_field(&self, rank_id: i32, column: &str, val: &str) -> Result<u64> {
+    ///
+    /// `val` 为 `None` 时绑定 SQL `NULL`（复刻 Java
+    /// `UpdateWrapper.set(field, null)` 的 `SET <column> = null`）。
+    pub async fn update_field(
+        &self,
+        rank_id: i32,
+        column: &str,
+        val: Option<&str>,
+    ) -> Result<u64> {
         debug_assert!(
             tigshop_core::models::slice043::USER_RANK_FIELDS.contains(&column),
             "update_field 列名未经过白名单映射: {column}"
@@ -753,7 +761,8 @@ mod tests {
     /// INSERT 的列顺序与绑定数量必须一致，且覆盖全部 15 列。
     #[test]
     fn insert_lists_every_column_in_fixed_order() {
-        let (sql, binds) = build_insert(&full_write());
+        let fw = full_write();
+        let (sql, binds) = build_insert(&fw);
         assert_eq!(binds.len(), 15);
         let expected = [
             "rank_id",

@@ -117,7 +117,7 @@ pub const RANK_CONFIG_CODE: &str = "rank_config";
 pub const GROW_CONFIG_CODE: &str = "grow_config";
 
 /// `data` 列表长度下限（Java `@Size(min = 1, max = 10)`）。
-pub const DATA_MIN_LEN: usize = 10_usize.min(1);
+pub const DATA_MIN_LEN: usize = 1;
 
 /// `data` 列表长度上限（Java `@Size(min = 1, max = 10)`）。
 pub const DATA_MAX_LEN: usize = 10;
@@ -449,6 +449,53 @@ impl GrowUpSettingVO {
 }
 
 // ——————————————————————————————————————————————
+// listByPro / detail 出参
+// ——————————————————————————————————————————————
+
+/// `listByPro` 的响应体（Pro 版）。
+///
+/// 对应 Java `UserRankController#listByPro` 的
+/// `Map.of("userRank", userRankService.list(dto), "rankConfig", userRankConfigVO)`。
+///
+/// ⚠️ `user_rank` 是 MyBatis-Plus `Page` 的形态（[`RankPageResult`]），
+/// **不是**项目统一的 `PageResult`：前端 `ProList.vue` 读 `result.userRank.records`。
+///
+/// ⚠️ Java 在 `tigshopProperties.getIsPro() != 1` 时返回
+/// `Map.of("userRank", emptyList(), "rankConfig", emptyList())`（两个空数组）。
+/// 本仓库随包配置 `tigshop.is-pro = 1`（见 [`IS_PRO`]），该分支不可达，
+/// 因此本实现只提供 Pro 形态（见 `uncertain_points`）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RankListByProVO {
+    /// 会员等级分页（MyBatis-Plus `Page` 形态）
+    pub user_rank: RankPageResult<UserRankListVO>,
+    /// 会员等级配置
+    pub rank_config: UserRankConfigVO,
+}
+
+/// 会员等级详情出参，对应 Java `UserRankDetailVO<T>`。
+///
+/// `detail` 只走 Pro 分支（`tigshop.is-pro = 1`），因此 `user_rank_list`
+/// 的元素类型是 [`UserRankListVO`]。
+///
+/// ⚠️ Java 的 `growUpSetting` 字段是 `Object`：
+/// Pro 分支放 `GrowUpSettingInitDTO`（本实现用 [`GrowUpSettingVO`]），
+/// 非 Pro 分支放空串 `""`。本实现只提供 Pro 形态 ⇒
+/// `Option<GrowUpSettingVO>`（`None` 仅出现在 `grow_config.data` 无法解析时）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserRankDetailVO<T> {
+    /// 会员等级类型（Java 取自 `user_rank_config` 的 `rank_config` 行）
+    pub rank_type: i32,
+    /// 会员等级列表
+    pub user_rank_list: Vec<T>,
+    /// 会员等级配置
+    pub user_rank_config: UserRankConfigVO,
+    /// 会员成长值配置（Java 里是 `Object`；Pro 分支为对象或 null）
+    pub grow_up_setting: Option<GrowUpSettingVO>,
+}
+
+// ——————————————————————————————————————————————
 // 入参
 // ——————————————————————————————————————————————
 
@@ -606,7 +653,12 @@ pub struct UserRankDTO {
 }
 
 /// 等级配置入参，对应 Java `UserRankEditParam.RankConfig`。
-#[derive(Debug, Clone, Default, Deserialize)]
+///
+/// ⚠️ 实现 `Serialize` 是因为 `update` 要把该对象
+/// `JsonUtil.toJson(param.getUserRankConfig())` 后写入
+/// `user_rank_config.data`（`code = 'rank_config'`）。Jackson 默认**包含**
+/// null 字段，serde 的 `Option` 同样序列化成 `null`，两者一致。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct RankConfigInput {
     /// 类型 1 永久有效 2 周期重算
@@ -618,7 +670,11 @@ pub struct RankConfigInput {
 }
 
 /// 成长值设置入参，对应 Java `UserRankEditParam.GrowUpSetting`。
-#[derive(Debug, Clone, Default, Deserialize)]
+///
+/// ⚠️ 实现 `Serialize` 的理由同 [`RankConfigInput`]：`update` 会把它
+/// `JsonUtil.toJson(param.getGrowUpSetting())` 后写入
+/// `user_rank_config.data`（`code = 'grow_config'`）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct GrowUpSettingInput {
     /// 完成下单是否赠送
@@ -860,6 +916,29 @@ pub fn parse_json_object(raw: Option<&str>) -> Option<serde_json::Value> {
         return None;
     }
     serde_json::from_str::<serde_json::Value>(text).ok()
+}
+
+/// 把 `user_rank_config.data`（`code = 'grow_config'`）解析成 [`GrowUpSettingVO`]。
+///
+/// 对应 Java `UserRankServiceImpl#detail` 的
+/// `JsonUtil.fromJson(userRankConfigGrow.getData(), GrowUpSettingInitDTO.class)`：
+/// - `data` 为 `null` / 空串 ⇒ `None`（Java `fromJson` 直接返回 Java `null`）；
+/// - `data` 是字面量 `"null"` ⇒ `None`
+///   （Jackson `readValue("null", …)` = `null`，serde 用 `Option<T>` 表达同义）；
+/// - 非法 JSON ⇒ `None`（Java `catch (IOException)` 吞掉后返回 `null`）；
+/// - 合法 JSON 对象 ⇒ `Some`。
+///
+/// ⚠️ 用 `Option<GrowUpSettingVO>` 反序列化（而非直接 `GrowUpSettingVO`），
+/// 才能把 `"null"` 正确识别为 `None`；直接反序列化到非 `Option` 会因类型不符报错。
+#[must_use]
+pub fn parse_grow_setting(raw: Option<&str>) -> Option<GrowUpSettingVO> {
+    let text = raw?;
+    if text.trim().is_empty() {
+        return None;
+    }
+    serde_json::from_str::<Option<GrowUpSettingVO>>(text)
+        .ok()
+        .flatten()
 }
 
 /// Java `getRankConfigInit()` 的 `data` 字段
@@ -1677,5 +1756,130 @@ mod tests {
                 "max_growth_points"
             ]
         );
+    }
+
+    // ————————————— grow_config 解析（对照 detail 的 fromJson） —————————————
+
+    /// `null` / 空串 / 非法 JSON / 字面量 `"null"` 都得到 `None`；
+    /// 合法对象才得到 `Some`（缺键字段为 `None`）。
+    #[test]
+    fn parse_grow_setting_matches_java_from_json() {
+        assert!(parse_grow_setting(None).is_none());
+        assert!(parse_grow_setting(Some("")).is_none());
+        assert!(parse_grow_setting(Some("   ")).is_none());
+        assert!(parse_grow_setting(Some("null")).is_none());
+        assert!(parse_grow_setting(Some("not-json")).is_none());
+        assert!(parse_grow_setting(Some("[1,2]")).is_none());
+
+        let vo = parse_grow_setting(Some(r#"{"buyOrder":1,"buyOrderNumber":2,"bindPhoneGrowth":5}"#))
+            .expect("合法对象应能解析");
+        assert_eq!(vo.buy_order, Some(1));
+        assert_eq!(vo.buy_order_number, Some(2));
+        assert_eq!(vo.bind_phone_growth, Some(5));
+        // 缺失键 ⇒ None（与 Java 的 Integer 字段保持一致）
+        assert_eq!(vo.evpi, None);
+    }
+
+    /// `init()` 的七个字段全是 1（Java `getGrowUpSettingInit()`）。
+    #[test]
+    fn grow_setting_init_uses_ones() {
+        let s = serde_json::to_value(GrowUpSettingVO::init()).expect("应可序列化");
+        for key in [
+            "buyOrder",
+            "buyOrderNumber",
+            "buyOrderGrowth",
+            "evpi",
+            "evpiGrowth",
+            "bindPhone",
+            "bindPhoneGrowth",
+        ] {
+            assert_eq!(s[key], 1, "{key} 应为 1");
+        }
+    }
+
+    // ————————————— update 入参序列化（写入 user_rank_config.data） —————————————
+
+    /// `RankConfigInput` 的 JSON 键名与 Java `RankConfig` 一致，
+    /// 且 **null 字段也会被序列化**（Jackson 默认行为）。
+    #[test]
+    fn rank_config_input_serializes_like_jackson() {
+        let v = serde_json::to_value(RankConfigInput {
+            r#type: Some(2),
+            rank_after_month: Some(12),
+            use_month: None,
+        })
+        .expect("应可序列化");
+        assert_eq!(v["type"], 2);
+        assert_eq!(v["rankAfterMonth"], 12);
+        assert!(v["useMonth"].is_null(), "null 字段也要输出: {v}");
+        assert_eq!(v.as_object().map(serde_json::Map::len), Some(3));
+    }
+
+    /// `GrowUpSettingInput` 的 JSON 键名与 Java `GrowUpSetting` 一致。
+    #[test]
+    fn grow_setting_input_serializes_like_jackson() {
+        let v = serde_json::to_value(GrowUpSettingInput {
+            buy_order: Some(1),
+            buy_order_number: Some(3),
+            buy_order_growth: Some(2),
+            evpi: Some(1),
+            evpi_growth: Some(4),
+            bind_phone: Some(0),
+            bind_phone_growth: Some(5),
+        })
+        .expect("应可序列化");
+        assert_eq!(v["buyOrder"], 1);
+        assert_eq!(v["buyOrderNumber"], 3);
+        assert_eq!(v["buyOrderGrowth"], 2);
+        assert_eq!(v["evpi"], 1);
+        assert_eq!(v["evpiGrowth"], 4);
+        assert_eq!(v["bindPhone"], 0);
+        assert_eq!(v["bindPhoneGrowth"], 5);
+    }
+
+    /// `listByPro` 的响应形态：顶层键是 `userRank` / `rankConfig`，
+    /// `userRank` 用 `records` 而非 `list`。
+    #[test]
+    fn list_by_pro_vo_shape() {
+        let vo = RankListByProVO {
+            user_rank: RankPageResult::new(
+                vec![init_rank_list_vo()],
+                0,
+                &PageQuery { page: 1, page_size: 15 },
+            ),
+            rank_config: init_rank_config_vo(),
+        };
+        let v = serde_json::to_value(&vo).expect("应可序列化");
+        assert!(v["userRank"]["records"].is_array(), "v={v}");
+        assert_eq!(v["userRank"]["total"], 0);
+        assert_eq!(v["rankConfig"]["code"], "rank_config");
+        assert!(v.get("user_rank").is_none(), "不得用 snake_case: {v}");
+    }
+
+    /// `detail` 的响应形态：`rankType` / `userRankList` / `userRankConfig` /
+    /// `growUpSetting` 四个键。
+    #[test]
+    fn detail_vo_shape() {
+        let vo = UserRankDetailVO {
+            rank_type: 1,
+            user_rank_list: vec![init_rank_list_vo()],
+            user_rank_config: init_rank_config_vo(),
+            grow_up_setting: Some(GrowUpSettingVO::init()),
+        };
+        let v = serde_json::to_value(&vo).expect("应可序列化");
+        assert_eq!(v["rankType"], 1);
+        assert!(v["userRankList"].is_array());
+        assert_eq!(v["userRankConfig"]["code"], "rank_config");
+        assert_eq!(v["growUpSetting"]["buyOrder"], 1);
+
+        // grow_up_setting 为 None 时输出 JSON null
+        let vo2: UserRankDetailVO<UserRankListVO> = UserRankDetailVO {
+            rank_type: 1,
+            user_rank_list: Vec::new(),
+            user_rank_config: init_rank_config_vo(),
+            grow_up_setting: None,
+        };
+        let v2 = serde_json::to_value(&vo2).expect("应可序列化");
+        assert!(v2["growUpSetting"].is_null());
     }
 }

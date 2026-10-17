@@ -252,8 +252,12 @@ impl Slice041Repository {
         }
         qb.push(" AND parent_id = 0");
         match q.is_order {
-            Some(v) if v == 1 => qb.push(" AND order_id = 0"),
-            Some(v) if v > 1 => qb.push(" AND order_id > 0"),
+            Some(v) if v == 1 => {
+                qb.push(" AND order_id = 0");
+            }
+            Some(v) if v > 1 => {
+                qb.push(" AND order_id > 0");
+            }
             _ => {}
         }
         if let Some(product_id) = q.product_id {
@@ -914,7 +918,7 @@ mod tests {
         assert!(!sql.contains("order_id = 0"), "{sql}");
         assert!(!sql.contains("order_id > 0"), "{sql}");
 
-        let sql = build(&query(serde_json::json!()), &f);
+        let sql = build(&query(serde_json::json!({})), &f);
         assert!(!sql.contains("order_id"), "{sql}");
     }
 
