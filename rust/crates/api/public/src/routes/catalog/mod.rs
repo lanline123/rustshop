@@ -2,24 +2,32 @@
 
 pub mod category;
 pub mod category_all;
+pub mod comment;
 pub mod product_manage;
 
 use axum::Router;
 
 use super::super::PublicState;
 
-/// 自带鉴权中间件的域路由（并入 merge_public）。
+/// 自带鉴权中间件的域路由（并入 merge_public，外层不再套 require_auth）。
 pub fn routes(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
         .merge(category::routes(state))
+        .merge(comment::routes(state))
         .merge(product_manage::routes(state))
 }
 
-/// 匿名可访问路由（外层不套 require_auth）。
+/// 匿名可访问路由（无状态）。
 pub fn public_routes() -> Router<PublicState> {
     Router::new()
         .merge(category_all::public_routes())
+}
+
+/// 匿名可访问路由（需要 state，外层不套 require_auth）。
+pub fn anonymous_routes(state: &PublicState) -> Router<PublicState> {
+    let _ = state;
+    Router::new()
 }
 
 /// 需登录路由（外层统一套 require_auth）。
@@ -34,6 +42,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     let mut out = Vec::new();
     out.extend(category::implemented_routes());
     out.extend(category_all::implemented_routes());
+    out.extend(comment::implemented_routes());
     out.extend(product_manage::implemented_routes());
     out
 }

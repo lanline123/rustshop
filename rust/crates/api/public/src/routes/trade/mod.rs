@@ -6,15 +6,21 @@ use axum::Router;
 
 use super::super::PublicState;
 
-/// 自带鉴权中间件的域路由（并入 merge_public）。
+/// 自带鉴权中间件的域路由（并入 merge_public，外层不再套 require_auth）。
 pub fn routes(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
         .merge(aftersales_client::routes(state))
 }
 
-/// 匿名可访问路由（外层不套 require_auth）。
+/// 匿名可访问路由（无状态）。
 pub fn public_routes() -> Router<PublicState> {
+    Router::new()
+}
+
+/// 匿名可访问路由（需要 state，外层不套 require_auth）。
+pub fn anonymous_routes(state: &PublicState) -> Router<PublicState> {
+    let _ = state;
     Router::new()
 }
 

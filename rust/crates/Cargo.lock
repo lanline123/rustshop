@@ -2928,6 +2928,8 @@ dependencies = [
  "async-trait",
  "chrono",
  "futures",
+ "hex",
+ "md-5",
  "rust_decimal",
  "serde",
  "serde_json",

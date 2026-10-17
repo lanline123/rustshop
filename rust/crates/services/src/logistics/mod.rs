@@ -2,7 +2,9 @@
 
 pub mod logistics_company;
 pub mod logistics_company_config;
+pub mod print;
 pub mod print_config;
+pub mod print_log;
 pub mod shipping_list;
 pub mod shipping_tpl;
 pub mod shipping_type;
@@ -20,4 +22,6 @@ pub struct Services {
     pub shipping_tpl: Arc<shipping_tpl::ShippingTplService>,
     pub shipping_type: Arc<shipping_type::ShippingTypeService>,
     pub sunmi_print_callback: Arc<sunmi_print_callback::SunmiPrintCallbackService>,
+    pub print: Arc<print::PrintService>,
+    pub print_log: Arc<print_log::PrintLogService>,
 }

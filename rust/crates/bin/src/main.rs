@@ -22,7 +22,13 @@ use tigshop_common::{config::AppConfig, log, utils};
 use tigshop_infrastructure::cache::CacheService;
 use tigshop_infrastructure::db::{self, Repositories};
 use tigshop_security::JwtService;
+use tigshop_services::catalog::comment::CommentService;
+use tigshop_services::catalog::price_inquiry::PriceInquiryService;
+use tigshop_services::catalog::product_group::ProductGroupService;
+use tigshop_services::identity::admin_role::AdminRoleService;
 use tigshop_services::identity::auth::AuthService;
+use tigshop_services::logistics::print::PrintService;
+use tigshop_services::logistics::print_log::PrintLogService;
 use tigshop_services::system::csrf::CsrfService;
 use tigshop_services::trade::cart::CartService;
 use tigshop_services::catalog::category_all::CatalogService;
@@ -257,13 +263,15 @@ async fn main() -> anyhow::Result<()> {
     let decorate = Arc::new(DecorateService::new(repos.clone()));
     let salesman = Arc::new(SalesmanService::new(repos.clone()));
 
+    let admin_role = Arc::new(AdminRoleService::new(repos.clone()));
     // ---- identity 域 ----
     let identity = Arc::new(tigshop_services::identity::Services {
         admin_log: admin_log.clone(),
         admin_user: admin_user.clone(),
         auth: auth.clone(),
         authority: authority.clone(),
-    });
+            admin_role: admin_role.clone(),
+});
     // ---- merchant 域 ----
     let merchant = Arc::new(tigshop_services::merchant::Services {
         merchant_client: merchant_client.clone(),
@@ -279,6 +287,9 @@ async fn main() -> anyhow::Result<()> {
     let wholesale = Arc::new(tigshop_services::wholesale::Services {
         wholesale_client: wholesale_client.clone(),
     });
+    let comment = Arc::new(CommentService::new(repos.clone()));
+    let price_inquiry = Arc::new(PriceInquiryService::new(repos.clone()));
+    let product_group = Arc::new(ProductGroupService::new(repos.clone()));
     // ---- catalog 域 ----
     let catalog = Arc::new(tigshop_services::catalog::Services {
         attributes_tpl: attributes_tpl.clone(),
@@ -290,7 +301,10 @@ async fn main() -> anyhow::Result<()> {
         product_stock: product_stock.clone(),
         short_url: short_url.clone(),
         stock_warning: stock_warning.clone(),
-    });
+            comment: comment.clone(),
+        price_inquiry: price_inquiry.clone(),
+        product_group: product_group.clone(),
+});
     // ---- trade 域 ----
     let trade = Arc::new(tigshop_services::trade::Services {
         aftersales: aftersales.clone(),
@@ -340,6 +354,8 @@ async fn main() -> anyhow::Result<()> {
         user_points_log: user_points_log.clone(),
         user_rank: user_rank.clone(),
     });
+    let print = Arc::new(PrintService::new(repos.clone()));
+    let print_log = Arc::new(PrintLogService::new(repos.clone()));
     // ---- logistics 域 ----
     let logistics = Arc::new(tigshop_services::logistics::Services {
         logistics_company: logistics_company.clone(),
@@ -349,7 +365,9 @@ async fn main() -> anyhow::Result<()> {
         shipping_tpl: shipping_tpl.clone(),
         shipping_type: shipping_type.clone(),
         sunmi_print_callback: sunmi_print_callback.clone(),
-    });
+            print: print.clone(),
+        print_log: print_log.clone(),
+});
     // ---- content 域 ----
     let content = Arc::new(tigshop_services::content::Services {
         article: article.clone(),

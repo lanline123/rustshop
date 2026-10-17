@@ -4,7 +4,10 @@ pub mod attributes_tpl;
 pub mod brand;
 pub mod category;
 pub mod category_all;
+pub mod comment;
+pub mod price_inquiry;
 pub mod product;
+pub mod product_group;
 pub mod product_manage;
 pub mod product_stock;
 pub mod short_url;
@@ -24,4 +27,7 @@ pub struct Services {
     pub product_stock: Arc<product_stock::ProductStockService>,
     pub short_url: Arc<short_url::ShortUrlService>,
     pub stock_warning: Arc<stock_warning::StockWarningService>,
+    pub comment: Arc<comment::CommentService>,
+    pub price_inquiry: Arc<price_inquiry::PriceInquiryService>,
+    pub product_group: Arc<product_group::ProductGroupService>,
 }

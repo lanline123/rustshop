@@ -168,11 +168,16 @@ def main() -> int:
         if ch:
             changed.append(p)
 
-    # 3) repo/<ctx>/mod.rs
+    # 3) repo layer
     if "repo" in layers:
+        # 3a) module declaration in repo/<ctx>/mod.rs
         p = os.path.join(CR, "infrastructure/src/db/repo", ctx, "mod.rs")
         t = read(p)
         t, ch = add_mod(t, feature)
+        write(p, t)
+        if ch:
+            changed.append(p)
+        # 3b) flat field in the central Repositories aggregate (db/mod.rs)
         repo_type = args.repo_type
         if not repo_type:
             src = read(os.path.join(CR, "infrastructure/src/db/repo", ctx, feature + ".rs"))
@@ -180,22 +185,27 @@ def main() -> int:
             if not m:
                 raise SystemExit("cannot detect Repository type in %s" % feature)
             repo_type = m.group(1)
-        field = "    pub %s: %s::%s," % (feature, feature, repo_type)
-        t, ch2 = add_struct_field(t, "pub struct Repositories {", field)
-        anchor = "impl Repositories {"
-        i = t.find(anchor)
+        dbmod = os.path.join(CR, "infrastructure/src/db/mod.rs")
+        t = read(dbmod)
+        flat = "%s_%s" % (ctx, feature)
+        field = "    pub %s: repo::%s::%s::%s," % (flat, ctx, feature, repo_type)
+        i = t.find("pub struct Repositories {")
         if i < 0:
-            raise SystemExit("repo impl not found")
-        # insert ctor before closing `}` of `pub fn new`
-        j = t.index("Self {", i)
-        k = t.index("\n        }", j)
-        ctor = '            %s: %s::%s::new(pool.clone()),' % (feature, feature, repo_type)
-        if ctor.strip() not in t[j:k]:
-            t = t[:k] + "\n" + ctor + t[k:]
-            ch2 = True
-        write(p, t)
-        if ch or ch2:
-            changed.append(p)
+            raise SystemExit("Repositories struct not found")
+        end = t.index("\n}", i)
+        if field.strip() not in t[i:end]:
+            t = t[:end] + "\n" + field + t[end:]
+        ctor = "            %s: repo::%s::%s::%s::new(pool.clone())," % (
+            flat, ctx, feature, repo_type)
+        j = t.find("impl Repositories {")
+        if j < 0:
+            raise SystemExit("Repositories impl not found")
+        k = t.index("Self {", j)
+        m2 = t.index("\n        }", k)
+        if ctor.strip() not in t[k:m2]:
+            t = t[:m2] + "\n" + ctor + t[m2:]
+        write(dbmod, t)
+        changed.append(dbmod)
 
     # 4) bin/src/main.rs
     if "service" in layers:

@@ -200,6 +200,12 @@ pub struct Repositories {
     pub im_web_socket: repo::im::web_socket::WebSocketRepository,
     pub analytics_statistics: repo::analytics::statistics::StatisticsRepository,
     pub openapi_workbuddy: repo::openapi::workbuddy::WorkbuddyRepository,
+    pub catalog_comment: repo::catalog::comment::CommentRepository,
+    pub catalog_price_inquiry: repo::catalog::price_inquiry::PriceInquiryRepository,
+    pub catalog_product_group: repo::catalog::product_group::ProductGroupRepository,
+    pub logistics_print: repo::logistics::print::PrintRepository,
+    pub logistics_print_log: repo::logistics::print_log::PrintLogRepository,
+    pub identity_admin_role: repo::identity::admin_role::AdminRoleRepository,
 }
 
 impl Repositories {
@@ -296,6 +302,12 @@ impl Repositories {
             im_web_socket: repo::im::web_socket::WebSocketRepository::new(pool.clone()),
             analytics_statistics: repo::analytics::statistics::StatisticsRepository::new(pool.clone()),
             openapi_workbuddy: repo::openapi::workbuddy::WorkbuddyRepository::new(pool.clone()),
+            catalog_comment: repo::catalog::comment::CommentRepository::new(pool.clone()),
+            catalog_price_inquiry: repo::catalog::price_inquiry::PriceInquiryRepository::new(pool.clone()),
+            catalog_product_group: repo::catalog::product_group::ProductGroupRepository::new(pool.clone()),
+            logistics_print: repo::logistics::print::PrintRepository::new(pool.clone()),
+            logistics_print_log: repo::logistics::print_log::PrintLogRepository::new(pool.clone()),
+            identity_admin_role: repo::identity::admin_role::AdminRoleRepository::new(pool.clone()),
         }
     }
 }
