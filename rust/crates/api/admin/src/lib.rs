@@ -24,120 +24,79 @@ use tigshop_core::types::{PageQuery, PageResult};
 use tigshop_openapi as openapi;
 use tigshop_security::web::{ok, require_auth, ApiResult, AppError, AuthUser};
 use tigshop_security::JwtService;
-use tigshop_services::auth::AuthService;
-use tigshop_services::catalog::CatalogService;
-use tigshop_services::content::ContentService;
-use tigshop_services::coupon::CouponService;
-use tigshop_services::logistics::LogisticsService;
-use tigshop_services::member::MemberService;
-use tigshop_services::order::OrderService;
-use tigshop_services::paylog::PaylogService;
-use tigshop_services::product::ProductService;
-use tigshop_services::refund_apply::RefundApplyService;
-use tigshop_services::salesman::SalesmanService;
-use tigshop_services::seckill::SeckillService;
-use tigshop_services::shop::ShopService;
-use tigshop_services::slice194::Slice194Service;
-use tigshop_services::slice043::Slice043Service;
-use tigshop_services::slice041::Slice041Service;
-use tigshop_services::slice044::Slice044Service;
-use tigshop_services::slice039::Slice039Service;
-use tigshop_services::slice210::Slice210Service;
-use tigshop_services::slice163::Slice163Service;
-use tigshop_services::slice157::Slice157Service;
-use tigshop_services::slice137::Slice137Service;
-use tigshop_services::slice108::Slice108Service;
-use tigshop_services::slice085::Slice085Service;
-use tigshop_services::slice038::Slice038Service;
-use tigshop_services::slice037::Slice037Service;
-use tigshop_services::slice220::Slice220Service;
-use tigshop_services::slice209::Slice209Service;
-use tigshop_services::slice201::Slice201Service;
-use tigshop_services::slice185::Slice185Service;
-use tigshop_services::slice092::Slice092Service;
-use tigshop_services::slice081::Slice081Service;
-use tigshop_services::slice166::Slice166Service;
-use tigshop_services::slice144::Slice144Service;
-use tigshop_services::slice139::Slice139Service;
-use tigshop_services::slice075::Slice075Service;
-use tigshop_services::slice217::Slice217Service;
-use tigshop_services::slice205::Slice205Service;
-use tigshop_services::slice192::Slice192Service;
-use tigshop_services::slice186::Slice186Service;
-use tigshop_services::slice120::Slice120Service;
-use tigshop_services::slice093::Slice093Service;
-use tigshop_services::slice056::Slice056Service;
-use tigshop_services::slice216::Slice216Service;
-use tigshop_services::slice208::Slice208Service;
-use tigshop_services::slice203::Slice203Service;
-use tigshop_services::slice199::Slice199Service;
-use tigshop_services::slice197::Slice197Service;
-use tigshop_services::slice193::Slice193Service;
-use tigshop_services::slice191::Slice191Service;
-use tigshop_services::slice190::Slice190Service;
-use tigshop_services::slice189::Slice189Service;
-use tigshop_services::slice181::Slice181Service;
-use tigshop_services::slice176::Slice176Service;
-use tigshop_services::slice174::Slice174Service;
-use tigshop_services::slice171::Slice171Service;
-use tigshop_services::slice136::Slice136Service;
-use tigshop_services::slice135::Slice135Service;
-use tigshop_services::slice133::Slice133Service;
-use tigshop_services::slice124::Slice124Service;
-use tigshop_services::slice116::Slice116Service;
-use tigshop_services::slice114::Slice114Service;
-use tigshop_services::slice113::Slice113Service;
-use tigshop_services::slice102::Slice102Service;
-use tigshop_services::slice098::Slice098Service;
-use tigshop_services::slice064::Slice064Service;
-use tigshop_services::slice063::Slice063Service;
-use tigshop_services::slice051::Slice051Service;
-use tigshop_services::slice047::Slice047Service;
-use tigshop_services::slice036::Slice036Service;
-use tigshop_services::slice034::Slice034Service;
-use tigshop_services::slice164::Slice164Service;
-use tigshop_services::slice147::Slice147Service;
-use tigshop_services::slice132::Slice132Service;
-use tigshop_services::slice118::Slice118Service;
-use tigshop_services::slice111::Slice111Service;
-use tigshop_services::slice094::Slice094Service;
-use tigshop_services::slice053::Slice053Service;
-use tigshop_services::slice100::Slice100Service;
-use tigshop_services::slice042::Slice042Service;
-use tigshop_services::slice032::Slice032Service;
-use tigshop_services::slice031::Slice031Service;
-use tigshop_services::slice030::Slice030Service;
-use tigshop_services::slice029::Slice029Service;
-use tigshop_services::slice028::Slice028Service;
-use tigshop_services::slice027::Slice027Service;
-use tigshop_services::slice188::Slice188Service;
-use tigshop_services::slice187::Slice187Service;
-use tigshop_services::slice026::Slice026Service;
-use tigshop_services::slice140::Slice140Service;
-use tigshop_services::slice134::Slice134Service;
-use tigshop_services::slice097::Slice097Service;
-use tigshop_services::slice095::Slice095Service;
-use tigshop_services::slice025::Slice025Service;
-use tigshop_services::slice024::Slice024Service;
-use tigshop_services::slice023::Slice023Service;
-use tigshop_services::slice021::Slice021Service;
-use tigshop_services::slice020::Slice020Service;
-use tigshop_services::slice019::Slice019Service;
-use tigshop_services::slice018::Slice018Service;
-use tigshop_services::slice017::Slice017Service;
-use tigshop_services::slice001::Slice001Service;
-use tigshop_services::slice014::Slice014Service;
-use tigshop_services::slice012::Slice012Service;
-use tigshop_services::slice011::Slice011Service;
-use tigshop_services::slice010::Slice010Service;
-use tigshop_services::slice008::Slice008Service;
-use tigshop_services::slice006::Slice006Service;
-use tigshop_services::slice004::Slice004Service;
-use tigshop_services::slice003::Slice003Service;
-use tigshop_services::slice002::Slice002Service;
-use tigshop_services::slice005::Slice005Service;
-use tigshop_services::decorate::DecorateService;
-use tigshop_services::time_discount::TimeDiscountService;
+use tigshop_services::identity::auth::AuthService;
+use tigshop_services::catalog::category_all::CatalogService;
+use tigshop_services::content::article::ContentService;
+use tigshop_services::marketing::coupon::CouponService;
+use tigshop_services::logistics::shipping_list::LogisticsService;
+use tigshop_services::member::member_lists::MemberService;
+use tigshop_services::trade::order::OrderService;
+use tigshop_services::payment::paylog::PaylogService;
+use tigshop_services::catalog::product::ProductService;
+use tigshop_services::payment::refund_apply::RefundApplyService;
+use tigshop_services::marketing::salesman::SalesmanService;
+use tigshop_services::marketing::seckill::SeckillService;
+use tigshop_services::merchant::shop::ShopService;
+use tigshop_services::analytics::statistics::StatisticsService;
+use tigshop_services::member::user_rank::UserRankService;
+use tigshop_services::member::feedback::FeedbackService;
+use tigshop_services::merchant::vendor_deposit_shop::VendorDepositShopService;
+use tigshop_services::member::member_tag_group::MemberTagGroupService;
+use tigshop_services::logistics::shipping_type::ShippingTypeService;
+use tigshop_services::payment::tax_rate::TaxRateService;
+use tigshop_services::system::example::ExampleService;
+use tigshop_services::openapi::workbuddy::WorkbuddyService;
+use tigshop_services::merchant::shop_product_category::ShopProductCategoryService;
+use tigshop_services::marketing::product_style_admin::ProductStyleAdminService;
+use tigshop_services::member::member_tag::MemberTagService;
+use tigshop_services::member::user_company::UserCompanyService;
+use tigshop_services::content::mobile_cat_nav::MobileCatNavService;
+use tigshop_services::logistics::logistics_company::LogisticsCompanyService;
+use tigshop_services::logistics::shipping_tpl::ShippingTplService;
+use tigshop_services::merchant::order_config::OrderConfigService;
+use tigshop_services::system::region::RegionService;
+use tigshop_services::catalog::attributes_tpl::AttributesTplService;
+use tigshop_services::marketing::salesman_material_category::SalesmanMaterialCategoryService;
+use tigshop_services::logistics::logistics_company_config::LogisticsCompanyConfigService;
+use tigshop_services::system::message_type::MessageTypeService;
+use tigshop_services::system::area_code::AreaCodeService;
+use tigshop_services::system::mail_templates::MailTemplatesService;
+use tigshop_services::logistics::print_config::PrintConfigService;
+use tigshop_services::system::cache_manage::CacheManageService;
+use tigshop_services::identity::admin_log::AdminLogService;
+use tigshop_services::payment::user_balance_log::UserBalanceLogService;
+use tigshop_services::member::user_points_log::UserPointsLogService;
+use tigshop_services::trade::proxy_shopping_order_check::ProxyShoppingOrderCheckService;
+use tigshop_services::trade::proxy_shopping_pickup_contact::ProxyShoppingPickupContactService;
+use tigshop_services::trade::proxy_shopping_user_address::ProxyShoppingUserAddressService;
+use tigshop_services::trade::proxy_shopping_product::ProxyShoppingProductService;
+use tigshop_services::trade::proxy_shopping_user_coupon::ProxyShoppingUserCouponService;
+use tigshop_services::trade::proxy_shopping_user::ProxyShoppingUserService;
+use tigshop_services::payment::paylog_batch::PaylogBatchService;
+use tigshop_services::im::im_message::ImMessageService;
+use tigshop_services::system::files::FilesService;
+use tigshop_services::im::im_servant::ImServantService;
+use tigshop_services::marketing::buyer_show_comment::BuyerShowCommentService;
+use tigshop_services::marketing::buyer_show::BuyerShowService;
+use tigshop_services::marketing::buyer_show_group::BuyerShowGroupService;
+use tigshop_services::content::seo::SeoService;
+use tigshop_services::im::im_config::ImConfigService;
+use tigshop_services::system::app_version_admin::AppVersionAdminService;
+use tigshop_services::content::pc_navigation::PcNavigationService;
+use tigshop_services::content::pc_cat_floor::PcCatFloorService;
+use tigshop_services::catalog::product_manage::ProductManageService;
+use tigshop_services::merchant::shop_manage::ShopManageService;
+use tigshop_services::member::user_manage::UserManageService;
+use tigshop_services::identity::admin_user::AdminUserService;
+use tigshop_services::identity::authority::AuthorityService;
+use tigshop_services::trade::aftersales::AftersalesService;
+use tigshop_services::catalog::stock_warning::StockWarningService;
+use tigshop_services::catalog::category::CategoryService;
+use tigshop_services::catalog::product_stock::ProductStockService;
+use tigshop_services::trade::order_admin::OrderAdminService;
+use tigshop_services::catalog::brand::BrandService;
+use tigshop_services::content::decorate::DecorateService;
+use tigshop_services::marketing::time_discount::TimeDiscountService;
 
 pub mod routes;
 pub mod root;
@@ -173,121 +132,94 @@ fn openapi_state() -> tigshop_openapi::OpenApiState {
 /// 管理端应用状态。
 #[derive(Clone)]
 pub struct AdminState {
-    pub auth: Arc<AuthService>,
-    pub product: Arc<ProductService>,
-    pub order: Arc<OrderService>,
-    pub coupon: Arc<CouponService>,
-    pub content: Arc<ContentService>,
-    pub catalog: Arc<CatalogService>,
-    pub logistics: Arc<LogisticsService>,
-    pub member: Arc<MemberService>,
-    pub seckill: Arc<SeckillService>,
-    pub time_discount: Arc<TimeDiscountService>,
-    pub paylog: Arc<PaylogService>,
-    pub refund_apply: Arc<RefundApplyService>,
-    pub slice001: Arc<Slice001Service>,
-    pub slice002: Arc<Slice002Service>,
-    pub slice003: Arc<Slice003Service>,
-    pub slice004: Arc<Slice004Service>,
-    pub slice005: Arc<Slice005Service>,
-    pub slice006: Arc<Slice006Service>,
-    pub slice008: Arc<Slice008Service>,
-    pub slice010: Arc<Slice010Service>,
-    pub slice011: Arc<Slice011Service>,
-    pub slice012: Arc<Slice012Service>,
-    pub slice014: Arc<Slice014Service>,
-    pub shop: Arc<ShopService>,
-    pub decorate: Arc<DecorateService>,
-    pub salesman: Arc<SalesmanService>,
-    pub slice095: Arc<Slice095Service>,
-    pub slice097: Arc<Slice097Service>,
-    pub slice134: Arc<Slice134Service>,
-    pub slice140: Arc<Slice140Service>,
+    // —— identity ——
+    pub identity_auth: Arc<AuthService>,
+    pub identity_authority: Arc<AuthorityService>,
+    pub identity_admin_user: Arc<AdminUserService>,
+    pub identity_admin_log: Arc<AdminLogService>,
+    // —— merchant ——
+    pub merchant_shop_manage: Arc<ShopManageService>,
+    pub merchant_shop: Arc<ShopService>,
+    pub merchant_order_config: Arc<OrderConfigService>,
+    pub merchant_shop_product_category: Arc<ShopProductCategoryService>,
+    pub merchant_vendor_deposit_shop: Arc<VendorDepositShopService>,
+    // —— catalog ——
+    pub catalog_product: Arc<ProductService>,
+    pub catalog_category_all: Arc<CatalogService>,
+    pub catalog_product_manage: Arc<ProductManageService>,
+    pub catalog_product_stock: Arc<ProductStockService>,
+    pub catalog_category: Arc<CategoryService>,
+    pub catalog_brand: Arc<BrandService>,
+    pub catalog_stock_warning: Arc<StockWarningService>,
+    pub catalog_attributes_tpl: Arc<AttributesTplService>,
+    // —— trade ——
+    pub trade_order: Arc<OrderService>,
+    pub trade_order_admin: Arc<OrderAdminService>,
+    pub trade_aftersales: Arc<AftersalesService>,
+    pub trade_proxy_shopping_user: Arc<ProxyShoppingUserService>,
+    pub trade_proxy_shopping_user_coupon: Arc<ProxyShoppingUserCouponService>,
+    pub trade_proxy_shopping_product: Arc<ProxyShoppingProductService>,
+    pub trade_proxy_shopping_user_address: Arc<ProxyShoppingUserAddressService>,
+    pub trade_proxy_shopping_pickup_contact: Arc<ProxyShoppingPickupContactService>,
+    pub trade_proxy_shopping_order_check: Arc<ProxyShoppingOrderCheckService>,
+    // —— payment ——
+    pub payment_paylog: Arc<PaylogService>,
+    pub payment_refund_apply: Arc<RefundApplyService>,
+    pub payment_paylog_batch: Arc<PaylogBatchService>,
+    pub payment_user_balance_log: Arc<UserBalanceLogService>,
+    pub payment_tax_rate: Arc<TaxRateService>,
+    // —— marketing ——
+    pub marketing_coupon: Arc<CouponService>,
+    pub marketing_seckill: Arc<SeckillService>,
+    pub marketing_time_discount: Arc<TimeDiscountService>,
+    pub marketing_salesman: Arc<SalesmanService>,
+    pub marketing_buyer_show_group: Arc<BuyerShowGroupService>,
+    pub marketing_buyer_show: Arc<BuyerShowService>,
+    pub marketing_buyer_show_comment: Arc<BuyerShowCommentService>,
+    pub marketing_salesman_material_category: Arc<SalesmanMaterialCategoryService>,
+    pub marketing_product_style_admin: Arc<ProductStyleAdminService>,
+    // —— member ——
+    pub member_member_lists: Arc<MemberService>,
+    pub member_user_manage: Arc<UserManageService>,
+    pub member_user_points_log: Arc<UserPointsLogService>,
+    pub member_user_company: Arc<UserCompanyService>,
+    pub member_member_tag: Arc<MemberTagService>,
+    pub member_member_tag_group: Arc<MemberTagGroupService>,
+    pub member_feedback: Arc<FeedbackService>,
+    pub member_user_rank: Arc<UserRankService>,
+    // —— logistics ——
+    pub logistics_shipping_list: Arc<LogisticsService>,
+    pub logistics_print_config: Arc<PrintConfigService>,
+    pub logistics_logistics_company_config: Arc<LogisticsCompanyConfigService>,
+    pub logistics_shipping_tpl: Arc<ShippingTplService>,
+    pub logistics_logistics_company: Arc<LogisticsCompanyService>,
+    pub logistics_shipping_type: Arc<ShippingTypeService>,
+    // —— content ——
+    pub content_article: Arc<ContentService>,
+    pub content_decorate: Arc<DecorateService>,
+    pub content_pc_cat_floor: Arc<PcCatFloorService>,
+    pub content_pc_navigation: Arc<PcNavigationService>,
+    pub content_seo: Arc<SeoService>,
+    pub content_mobile_cat_nav: Arc<MobileCatNavService>,
+    // —— system ——
+    pub system_files: Arc<FilesService>,
+    pub system_app_version_admin: Arc<AppVersionAdminService>,
+    pub system_cache_manage: Arc<CacheManageService>,
+    pub system_mail_templates: Arc<MailTemplatesService>,
+    pub system_area_code: Arc<AreaCodeService>,
+    pub system_message_type: Arc<MessageTypeService>,
+    pub system_region: Arc<RegionService>,
+    pub system_example: Arc<ExampleService>,
+    // —— im ——
+    pub im_im_servant: Arc<ImServantService>,
+    pub im_im_message: Arc<ImMessageService>,
+    pub im_im_config: Arc<ImConfigService>,
+    // —— analytics ——
+    pub analytics_statistics: Arc<StatisticsService>,
+    // —— openapi ——
+    pub openapi_workbuddy: Arc<WorkbuddyService>,
+    // —— misc ——
     pub jwt: JwtService,
-    pub slice017: Arc<Slice017Service>,
-    pub slice018: Arc<Slice018Service>,
-    pub slice019: Arc<Slice019Service>,
-    pub slice020: Arc<Slice020Service>,
-    pub slice021: Arc<Slice021Service>,
-    pub slice023: Arc<Slice023Service>,
-    pub slice024: Arc<Slice024Service>,
-    pub slice025: Arc<Slice025Service>,
-    pub slice026: Arc<Slice026Service>,
-    pub slice187: Arc<Slice187Service>,
-    pub slice188: Arc<Slice188Service>,
-    pub slice027: Arc<Slice027Service>,
-    pub slice028: Arc<Slice028Service>,
-    pub slice029: Arc<Slice029Service>,
-    pub slice030: Arc<Slice030Service>,
-    pub slice031: Arc<Slice031Service>,
-    pub slice032: Arc<Slice032Service>,
-    pub slice042: Arc<Slice042Service>,
-    pub slice100: Arc<Slice100Service>,
-    pub slice053: Arc<Slice053Service>,
-    pub slice094: Arc<Slice094Service>,
-    pub slice111: Arc<Slice111Service>,
-    pub slice118: Arc<Slice118Service>,
-    pub slice132: Arc<Slice132Service>,
-    pub slice147: Arc<Slice147Service>,
-    pub slice164: Arc<Slice164Service>,
-    pub slice034: Arc<Slice034Service>,
-    pub slice036: Arc<Slice036Service>,
-    pub slice047: Arc<Slice047Service>,
-    pub slice051: Arc<Slice051Service>,
-    pub slice063: Arc<Slice063Service>,
-    pub slice064: Arc<Slice064Service>,
-    pub slice098: Arc<Slice098Service>,
-    pub slice102: Arc<Slice102Service>,
-    pub slice113: Arc<Slice113Service>,
-    pub slice114: Arc<Slice114Service>,
-    pub slice116: Arc<Slice116Service>,
-    pub slice124: Arc<Slice124Service>,
-    pub slice133: Arc<Slice133Service>,
-    pub slice135: Arc<Slice135Service>,
-    pub slice136: Arc<Slice136Service>,
-    pub slice171: Arc<Slice171Service>,
-    pub slice174: Arc<Slice174Service>,
-    pub slice176: Arc<Slice176Service>,
-    pub slice181: Arc<Slice181Service>,
-    pub slice189: Arc<Slice189Service>,
-    pub slice190: Arc<Slice190Service>,
-    pub slice191: Arc<Slice191Service>,
-    pub slice193: Arc<Slice193Service>,
-    pub slice197: Arc<Slice197Service>,
-    pub slice199: Arc<Slice199Service>,
-    pub slice203: Arc<Slice203Service>,
-    pub slice208: Arc<Slice208Service>,
-    pub slice216: Arc<Slice216Service>,
-    pub slice056: Arc<Slice056Service>,
-    pub slice093: Arc<Slice093Service>,
-    pub slice120: Arc<Slice120Service>,
-    pub slice186: Arc<Slice186Service>,
-    pub slice192: Arc<Slice192Service>,
-    pub slice205: Arc<Slice205Service>,
-    pub slice217: Arc<Slice217Service>,
-    pub slice075: Arc<Slice075Service>,
-    pub slice139: Arc<Slice139Service>,
-    pub slice144: Arc<Slice144Service>,
-    pub slice166: Arc<Slice166Service>,
-    pub slice081: Arc<Slice081Service>,
-    pub slice092: Arc<Slice092Service>,
-    pub slice185: Arc<Slice185Service>,
-    pub slice201: Arc<Slice201Service>,
-    pub slice209: Arc<Slice209Service>,
-    pub slice220: Arc<Slice220Service>,
-    pub slice037: Arc<Slice037Service>,
-    pub slice038: Arc<Slice038Service>,
-    pub slice085: Arc<Slice085Service>,
-    pub slice108: Arc<Slice108Service>,
-    pub slice137: Arc<Slice137Service>,
-    pub slice157: Arc<Slice157Service>,
-    pub slice163: Arc<Slice163Service>,
-    pub slice210: Arc<Slice210Service>,
-    pub slice039: Arc<Slice039Service>,
-    pub slice044: Arc<Slice044Service>,
-    pub slice041: Arc<Slice041Service>,
-    pub slice043: Arc<Slice043Service>,
-    pub slice194: Arc<Slice194Service>,
 }
 
 /// 构建管理后台路由。
@@ -348,7 +280,7 @@ async fn login(
         .and_then(|s| s.split(',').next())
         .unwrap_or("unknown")
         .to_string();
-    let vo = state.auth.login(&dto, &ip).await?;
+    let vo = state.identity_auth.login(&dto, &ip).await?;
     Ok(Json(ApiResponse::success(vo)))
 }
 
@@ -357,7 +289,7 @@ async fn refresh(
     State(state): State<AdminState>,
     Json(dto): Json<RefreshDTO>,
 ) -> Result<Json<ApiResponse<tigshop_core::models::LoginVO>>, AppError> {
-    let vo = state.auth.refresh(&dto.refresh_token)?;
+    let vo = state.identity_auth.refresh(&dto.refresh_token)?;
     Ok(Json(ApiResponse::success(vo)))
 }
 
@@ -371,7 +303,7 @@ async fn product_list(
     State(state): State<AdminState>,
     Query(query): Query<tigshop_core::models::ProductListQuery>,
 ) -> ApiResult<PageResult<tigshop_core::models::ProductVO>> {
-    let page = state.product.list(&query).await?;
+    let page = state.catalog_product.list(&query).await?;
     ok(page)
 }
 
@@ -388,8 +320,7 @@ async fn change_password(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<ChangePasswordDTO>,
 ) -> ApiResult<&'static str> {
-    state
-        .auth
+    state.identity_auth
         .change_password(auth.id, &dto.old_password, &dto.new_password)
         .await?;
     ok("密码修改成功")

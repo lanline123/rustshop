@@ -10,154 +10,6 @@ use tigshop_common::AppConfig;
 
 pub mod repo;
 
-pub use repo::admin_user::AdminUserRepository;
-pub use repo::cart::CartRepository;
-pub use repo::catalog::CatalogRepository;
-pub use repo::content::ArticleRepository;
-pub use repo::coupon::CouponRepository;
-pub use repo::decorate::DecorateRepository;
-pub use repo::logistics::LogisticsRepository;
-pub use repo::member::MemberRepository;
-pub use repo::order::OrderRepository;
-pub use repo::paylog::PaylogRepository;
-pub use repo::product::ProductRepository;
-pub use repo::refund_apply::RefundApplyRepository;
-pub use repo::salesman::SalesmanRepository;
-pub use repo::seckill::SeckillRepository;
-pub use repo::shop::ShopRepository;
-pub use repo::slice194::Slice194Repository;
-pub use repo::slice087::Slice087Repository;
-pub use repo::slice043::Slice043Repository;
-pub use repo::slice041::Slice041Repository;
-pub use repo::slice044::Slice044Repository;
-pub use repo::slice039::Slice039Repository;
-pub use repo::slice210::Slice210Repository;
-pub use repo::slice207::Slice207Repository;
-pub use repo::slice163::Slice163Repository;
-pub use repo::slice157::Slice157Repository;
-pub use repo::slice137::Slice137Repository;
-pub use repo::slice108::Slice108Repository;
-pub use repo::slice085::Slice085Repository;
-pub use repo::slice038::Slice038Repository;
-pub use repo::slice037::Slice037Repository;
-pub use repo::slice220::Slice220Repository;
-pub use repo::slice209::Slice209Repository;
-pub use repo::slice201::Slice201Repository;
-pub use repo::slice185::Slice185Repository;
-pub use repo::slice092::Slice092Repository;
-pub use repo::slice081::Slice081Repository;
-pub use repo::slice172::Slice172Repository;
-pub use repo::slice166::Slice166Repository;
-pub use repo::slice144::Slice144Repository;
-pub use repo::slice139::Slice139Repository;
-pub use repo::slice091::Slice091Repository;
-pub use repo::slice075::Slice075Repository;
-pub use repo::slice217::Slice217Repository;
-pub use repo::slice205::Slice205Repository;
-pub use repo::slice192::Slice192Repository;
-pub use repo::slice186::Slice186Repository;
-pub use repo::slice170::Slice170Repository;
-pub use repo::slice120::Slice120Repository;
-pub use repo::slice093::Slice093Repository;
-pub use repo::slice082::Slice082Repository;
-pub use repo::slice056::Slice056Repository;
-pub use repo::slice216::Slice216Repository;
-pub use repo::slice214::Slice214Repository;
-pub use repo::slice213::Slice213Repository;
-pub use repo::slice208::Slice208Repository;
-pub use repo::slice206::Slice206Repository;
-pub use repo::slice203::Slice203Repository;
-pub use repo::slice200::Slice200Repository;
-pub use repo::slice199::Slice199Repository;
-pub use repo::slice197::Slice197Repository;
-pub use repo::slice193::Slice193Repository;
-pub use repo::slice191::Slice191Repository;
-pub use repo::slice190::Slice190Repository;
-pub use repo::slice189::Slice189Repository;
-pub use repo::slice181::Slice181Repository;
-pub use repo::slice176::Slice176Repository;
-pub use repo::slice174::Slice174Repository;
-pub use repo::slice171::Slice171Repository;
-pub use repo::slice168::Slice168Repository;
-pub use repo::slice160::Slice160Repository;
-pub use repo::slice148::Slice148Repository;
-pub use repo::slice136::Slice136Repository;
-pub use repo::slice135::Slice135Repository;
-pub use repo::slice133::Slice133Repository;
-pub use repo::slice130::Slice130Repository;
-pub use repo::slice124::Slice124Repository;
-pub use repo::slice116::Slice116Repository;
-pub use repo::slice114::Slice114Repository;
-pub use repo::slice113::Slice113Repository;
-pub use repo::slice102::Slice102Repository;
-pub use repo::slice098::Slice098Repository;
-pub use repo::slice084::Slice084Repository;
-pub use repo::slice073::Slice073Repository;
-pub use repo::slice066::Slice066Repository;
-pub use repo::slice065::Slice065Repository;
-pub use repo::slice064::Slice064Repository;
-pub use repo::slice063::Slice063Repository;
-pub use repo::slice059::Slice059Repository;
-pub use repo::slice051::Slice051Repository;
-pub use repo::slice047::Slice047Repository;
-pub use repo::slice036::Slice036Repository;
-pub use repo::slice034::Slice034Repository;
-pub use repo::slice164::Slice164Repository;
-pub use repo::slice147::Slice147Repository;
-pub use repo::slice143::Slice143Repository;
-pub use repo::slice141::Slice141Repository;
-pub use repo::slice132::Slice132Repository;
-pub use repo::slice118::Slice118Repository;
-pub use repo::slice117::Slice117Repository;
-pub use repo::slice115::Slice115Repository;
-pub use repo::slice111::Slice111Repository;
-pub use repo::slice106::Slice106Repository;
-pub use repo::slice094::Slice094Repository;
-pub use repo::slice090::Slice090Repository;
-pub use repo::slice053::Slice053Repository;
-pub use repo::slice100::Slice100Repository;
-pub use repo::slice042::Slice042Repository;
-pub use repo::slice032::Slice032Repository;
-pub use repo::slice031::Slice031Repository;
-pub use repo::slice030::Slice030Repository;
-pub use repo::slice029::Slice029Repository;
-pub use repo::slice028::Slice028Repository;
-pub use repo::slice027::Slice027Repository;
-pub use repo::slice188::Slice188Repository;
-pub use repo::slice187::Slice187Repository;
-pub use repo::slice026::Slice026Repository;
-pub use repo::slice156::Slice156Repository;
-pub use repo::slice140::Slice140Repository;
-pub use repo::slice134::Slice134Repository;
-pub use repo::slice097::Slice097Repository;
-pub use repo::slice095::Slice095Repository;
-pub use repo::slice025::Slice025Repository;
-pub use repo::slice024::Slice024Repository;
-pub use repo::slice023::Slice023Repository;
-pub use repo::slice022::Slice022Repository;
-pub use repo::slice021::Slice021Repository;
-pub use repo::slice020::Slice020Repository;
-pub use repo::slice019::Slice019Repository;
-pub use repo::slice018::Slice018Repository;
-pub use repo::slice017::Slice017Repository;
-pub use repo::slice016::Slice016Repository;
-pub use repo::slice015::Slice015Repository;
-pub use repo::slice001::Slice001Repository;
-pub use repo::slice002::Slice002Repository;
-pub use repo::slice003::Slice003Repository;
-pub use repo::slice004::Slice004Repository;
-pub use repo::slice005::Slice005Repository;
-pub use repo::slice006::Slice006Repository;
-pub use repo::slice007::Slice007Repository;
-pub use repo::slice008::Slice008Repository;
-pub use repo::slice009::Slice009Repository;
-pub use repo::slice010::Slice010Repository;
-pub use repo::slice011::Slice011Repository;
-pub use repo::slice012::Slice012Repository;
-pub use repo::slice013::Slice013Repository;
-pub use repo::slice014::Slice014Repository;
-pub use repo::time_discount::TimeDiscountRepository;
-pub use repo::user::UserRepository;
 
 /// SQLx 连接池类型别名。
 pub type DbPool = MySqlPool;
@@ -255,310 +107,195 @@ pub async fn run_migrations(pool: &DbPool, dir: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// 仓储集合：全局单例地持有各仓储，替代 Spring 的 @Autowired 注入。
+/// 全仓储聚合根（按限界上下文分组）。
 #[derive(Clone)]
 pub struct Repositories {
-    pub admin_users: AdminUserRepository,
-    pub products: ProductRepository,
-    pub orders: OrderRepository,
-    pub carts: CartRepository,
-    pub users: UserRepository,
-    pub coupons: CouponRepository,
-    pub articles: ArticleRepository,
-    pub catalog: CatalogRepository,
-    pub logistics: LogisticsRepository,
-    pub member: MemberRepository,
-    pub seckills: SeckillRepository,
-    pub time_discounts: TimeDiscountRepository,
-    pub paylogs: PaylogRepository,
-    pub refund_applies: RefundApplyRepository,
-    pub shops: ShopRepository,
-    pub decorates: DecorateRepository,
-    pub salesmen: SalesmanRepository,
-    pub slice001: Slice001Repository,
-    pub slice002: Slice002Repository,
-    pub slice003: Slice003Repository,
-    pub slice004: Slice004Repository,
-    pub slice005: Slice005Repository,
-    pub slice006: Slice006Repository,
-    pub slice007: Slice007Repository,
-    pub slice008: Slice008Repository,
-    pub slice009: Slice009Repository,
-    pub slice010: Slice010Repository,
-    pub slice011: Slice011Repository,
-    pub slice012: Slice012Repository,
-    pub slice013: Slice013Repository,
-    pub slice014: Slice014Repository,
-    pub slice015: Slice015Repository,
-    pub slice016: Slice016Repository,
-    pub slice017: Slice017Repository,
-    pub slice018: Slice018Repository,
-    pub slice019: Slice019Repository,
-    pub slice020: Slice020Repository,
-    pub slice021: Slice021Repository,
-    pub slice022: Slice022Repository,
-    pub slice023: Slice023Repository,
-    pub slice024: Slice024Repository,
-    pub slice025: Slice025Repository,
-    pub slice026: Slice026Repository,
-    pub slice095: Slice095Repository,
-    pub slice097: Slice097Repository,
-    pub slice134: Slice134Repository,
-    pub slice140: Slice140Repository,
-    pub slice156: Slice156Repository,
-    pub slice187: Slice187Repository,
-    pub slice188: Slice188Repository,
-    pub slice027: Slice027Repository,
-    pub slice028: Slice028Repository,
-    pub slice029: Slice029Repository,
-    pub slice030: Slice030Repository,
-    pub slice031: Slice031Repository,
-    pub slice032: Slice032Repository,
-    pub slice042: Slice042Repository,
-    pub slice100: Slice100Repository,
-    pub slice053: Slice053Repository,
-    pub slice090: Slice090Repository,
-    pub slice094: Slice094Repository,
-    pub slice106: Slice106Repository,
-    pub slice111: Slice111Repository,
-    pub slice115: Slice115Repository,
-    pub slice117: Slice117Repository,
-    pub slice118: Slice118Repository,
-    pub slice132: Slice132Repository,
-    pub slice141: Slice141Repository,
-    pub slice143: Slice143Repository,
-    pub slice147: Slice147Repository,
-    pub slice164: Slice164Repository,
-    pub slice034: Slice034Repository,
-    pub slice036: Slice036Repository,
-    pub slice047: Slice047Repository,
-    pub slice051: Slice051Repository,
-    pub slice059: Slice059Repository,
-    pub slice063: Slice063Repository,
-    pub slice064: Slice064Repository,
-    pub slice065: Slice065Repository,
-    pub slice066: Slice066Repository,
-    pub slice073: Slice073Repository,
-    pub slice084: Slice084Repository,
-    pub slice098: Slice098Repository,
-    pub slice102: Slice102Repository,
-    pub slice113: Slice113Repository,
-    pub slice114: Slice114Repository,
-    pub slice116: Slice116Repository,
-    pub slice124: Slice124Repository,
-    pub slice130: Slice130Repository,
-    pub slice133: Slice133Repository,
-    pub slice135: Slice135Repository,
-    pub slice136: Slice136Repository,
-    pub slice148: Slice148Repository,
-    pub slice160: Slice160Repository,
-    pub slice168: Slice168Repository,
-    pub slice171: Slice171Repository,
-    pub slice174: Slice174Repository,
-    pub slice176: Slice176Repository,
-    pub slice181: Slice181Repository,
-    pub slice189: Slice189Repository,
-    pub slice190: Slice190Repository,
-    pub slice191: Slice191Repository,
-    pub slice193: Slice193Repository,
-    pub slice197: Slice197Repository,
-    pub slice199: Slice199Repository,
-    pub slice200: Slice200Repository,
-    pub slice203: Slice203Repository,
-    pub slice206: Slice206Repository,
-    pub slice208: Slice208Repository,
-    pub slice213: Slice213Repository,
-    pub slice214: Slice214Repository,
-    pub slice216: Slice216Repository,
-    pub slice056: Slice056Repository,
-    pub slice082: Slice082Repository,
-    pub slice093: Slice093Repository,
-    pub slice120: Slice120Repository,
-    pub slice170: Slice170Repository,
-    pub slice186: Slice186Repository,
-    pub slice192: Slice192Repository,
-    pub slice205: Slice205Repository,
-    pub slice217: Slice217Repository,
-    pub slice075: Slice075Repository,
-    pub slice091: Slice091Repository,
-    pub slice139: Slice139Repository,
-    pub slice144: Slice144Repository,
-    pub slice166: Slice166Repository,
-    pub slice172: Slice172Repository,
-    pub slice081: Slice081Repository,
-    pub slice092: Slice092Repository,
-    pub slice185: Slice185Repository,
-    pub slice201: Slice201Repository,
-    pub slice209: Slice209Repository,
-    pub slice220: Slice220Repository,
-    pub slice037: Slice037Repository,
-    pub slice038: Slice038Repository,
-    pub slice085: Slice085Repository,
-    pub slice108: Slice108Repository,
-    pub slice137: Slice137Repository,
-    pub slice157: Slice157Repository,
-    pub slice163: Slice163Repository,
-    pub slice207: Slice207Repository,
-    pub slice210: Slice210Repository,
-    pub slice039: Slice039Repository,
-    pub slice044: Slice044Repository,
-    pub slice041: Slice041Repository,
-    pub slice043: Slice043Repository,
-    pub slice087: Slice087Repository,
-    pub slice194: Slice194Repository,
+    pub identity_admin_log: repo::identity::admin_log::AdminLogRepository,
+    pub identity_admin_user: repo::identity::admin_user::AdminUserRepository,
+    pub identity_auth: repo::identity::auth::AdminUserRepository,
+    pub identity_authority: repo::identity::authority::AuthorityRepository,
+    pub merchant_merchant_client: repo::merchant::merchant_client::MerchantClientRepository,
+    pub merchant_order_config: repo::merchant::order_config::OrderConfigRepository,
+    pub merchant_shop: repo::merchant::shop::ShopRepository,
+    pub merchant_shop_client: repo::merchant::shop_client::ShopClientRepository,
+    pub merchant_shop_client_category: repo::merchant::shop_client_category::ShopClientCategoryRepository,
+    pub merchant_shop_manage: repo::merchant::shop_manage::ShopManageRepository,
+    pub merchant_shop_product_category: repo::merchant::shop_product_category::ShopProductCategoryRepository,
+    pub merchant_vendor_deposit_shop: repo::merchant::vendor_deposit_shop::VendorDepositShopRepository,
+    pub wholesale_wholesale_client: repo::wholesale::wholesale_client::WholesaleClientRepository,
+    pub catalog_attributes_tpl: repo::catalog::attributes_tpl::AttributesTplRepository,
+    pub catalog_brand: repo::catalog::brand::BrandRepository,
+    pub catalog_category: repo::catalog::category::CategoryRepository,
+    pub catalog_category_all: repo::catalog::category_all::CatalogRepository,
+    pub catalog_product: repo::catalog::product::ProductRepository,
+    pub catalog_product_manage: repo::catalog::product_manage::ProductManageRepository,
+    pub catalog_product_stock: repo::catalog::product_stock::ProductStockRepository,
+    pub catalog_short_url: repo::catalog::short_url::ShortUrlRepository,
+    pub catalog_stock_warning: repo::catalog::stock_warning::StockWarningRepository,
+    pub trade_aftersales: repo::trade::aftersales::AftersalesRepository,
+    pub trade_aftersales_client: repo::trade::aftersales_client::AftersalesClientRepository,
+    pub trade_cart: repo::trade::cart::CartRepository,
+    pub trade_order: repo::trade::order::OrderRepository,
+    pub trade_order_admin: repo::trade::order_admin::OrderAdminRepository,
+    pub trade_proxy_shopping_order_check: repo::trade::proxy_shopping_order_check::ProxyShoppingOrderCheckRepository,
+    pub trade_proxy_shopping_pickup_contact: repo::trade::proxy_shopping_pickup_contact::ProxyShoppingPickupContactRepository,
+    pub trade_proxy_shopping_product: repo::trade::proxy_shopping_product::ProxyShoppingProductRepository,
+    pub trade_proxy_shopping_user: repo::trade::proxy_shopping_user::ProxyShoppingUserRepository,
+    pub trade_proxy_shopping_user_address: repo::trade::proxy_shopping_user_address::ProxyShoppingUserAddressRepository,
+    pub trade_proxy_shopping_user_coupon: repo::trade::proxy_shopping_user_coupon::ProxyShoppingUserCouponRepository,
+    pub payment_paylog: repo::payment::paylog::PaylogRepository,
+    pub payment_paylog_batch: repo::payment::paylog_batch::PaylogBatchRepository,
+    pub payment_refund_apply: repo::payment::refund_apply::RefundApplyRepository,
+    pub payment_tax_rate: repo::payment::tax_rate::TaxRateRepository,
+    pub payment_user_balance_log: repo::payment::user_balance_log::UserBalanceLogRepository,
+    pub marketing_buyer_show: repo::marketing::buyer_show::BuyerShowRepository,
+    pub marketing_buyer_show_client: repo::marketing::buyer_show_client::BuyerShowClientRepository,
+    pub marketing_buyer_show_comment: repo::marketing::buyer_show_comment::BuyerShowCommentRepository,
+    pub marketing_buyer_show_group: repo::marketing::buyer_show_group::BuyerShowGroupRepository,
+    pub marketing_coupon: repo::marketing::coupon::CouponRepository,
+    pub marketing_product_style_admin: repo::marketing::product_style_admin::ProductStyleAdminRepository,
+    pub marketing_salesman: repo::marketing::salesman::SalesmanRepository,
+    pub marketing_salesman_material_category: repo::marketing::salesman_material_category::SalesmanMaterialCategoryRepository,
+    pub marketing_seckill: repo::marketing::seckill::SeckillRepository,
+    pub marketing_time_discount: repo::marketing::time_discount::TimeDiscountRepository,
+    pub member_feedback: repo::member::feedback::FeedbackRepository,
+    pub member_member_lists: repo::member::member_lists::MemberRepository,
+    pub member_member_tag: repo::member::member_tag::MemberTagRepository,
+    pub member_member_tag_group: repo::member::member_tag_group::MemberTagGroupRepository,
+    pub member_user: repo::member::user::UserRepository,
+    pub member_user_center: repo::member::user_center::UserCenterRepository,
+    pub member_user_company: repo::member::user_company::UserCompanyRepository,
+    pub member_user_manage: repo::member::user_manage::UserManageRepository,
+    pub member_user_points_log: repo::member::user_points_log::UserPointsLogRepository,
+    pub member_user_rank: repo::member::user_rank::UserRankRepository,
+    pub logistics_logistics_company: repo::logistics::logistics_company::LogisticsCompanyRepository,
+    pub logistics_logistics_company_config: repo::logistics::logistics_company_config::LogisticsCompanyConfigRepository,
+    pub logistics_print_config: repo::logistics::print_config::PrintConfigRepository,
+    pub logistics_shipping_list: repo::logistics::shipping_list::LogisticsRepository,
+    pub logistics_shipping_tpl: repo::logistics::shipping_tpl::ShippingTplRepository,
+    pub logistics_shipping_type: repo::logistics::shipping_type::ShippingTypeRepository,
+    pub logistics_sunmi_print_callback: repo::logistics::sunmi_print_callback::SunmiPrintCallbackRepository,
+    pub content_article: repo::content::article::ArticleRepository,
+    pub content_decorate: repo::content::decorate::DecorateRepository,
+    pub content_mobile_cat_nav: repo::content::mobile_cat_nav::MobileCatNavRepository,
+    pub content_pc_cat_floor: repo::content::pc_cat_floor::PcCatFloorRepository,
+    pub content_pc_navigation: repo::content::pc_navigation::PcNavigationRepository,
+    pub content_seo: repo::content::seo::SeoRepository,
+    pub content_share: repo::content::share::ShareRepository,
+    pub content_wechat_live_sync_callback: repo::content::wechat_live_sync_callback::WechatLiveSyncCallbackRepository,
+    pub system_app_version_admin: repo::system::app_version_admin::AppVersionAdminRepository,
+    pub system_area_code: repo::system::area_code::AreaCodeRepository,
+    pub system_cache_manage: repo::system::cache_manage::CacheManageRepository,
+    pub system_config_client: repo::system::config_client::ConfigClientRepository,
+    pub system_example: repo::system::example::ExampleRepository,
+    pub system_files: repo::system::files::FilesRepository,
+    pub system_mail_templates: repo::system::mail_templates::MailTemplatesRepository,
+    pub system_message_type: repo::system::message_type::MessageTypeRepository,
+    pub system_pc: repo::system::pc::PcRepository,
+    pub system_region: repo::system::region::RegionRepository,
+    pub system_region_client: repo::system::region_client::RegionClientRepository,
+    pub im_im_config: repo::im::im_config::ImConfigRepository,
+    pub im_im_message: repo::im::im_message::ImMessageRepository,
+    pub im_im_servant: repo::im::im_servant::ImServantRepository,
+    pub im_web_socket: repo::im::web_socket::WebSocketRepository,
+    pub analytics_statistics: repo::analytics::statistics::StatisticsRepository,
+    pub openapi_workbuddy: repo::openapi::workbuddy::WorkbuddyRepository,
 }
 
 impl Repositories {
+    #[must_use]
     pub fn new(pool: DbPool) -> Self {
         Self {
-            admin_users: AdminUserRepository::new(pool.clone()),
-            products: ProductRepository::new(pool.clone()),
-            orders: OrderRepository::new(pool.clone()),
-            carts: CartRepository::new(pool.clone()),
-            users: UserRepository::new(pool.clone()),
-            coupons: CouponRepository::new(pool.clone()),
-            articles: ArticleRepository::new(pool.clone()),
-            catalog: CatalogRepository::new(pool.clone()),
-            logistics: LogisticsRepository::new(pool.clone()),
-            member: MemberRepository::new(pool.clone()),
-            seckills: SeckillRepository::new(pool.clone()),
-            time_discounts: TimeDiscountRepository::new(pool.clone()),
-            paylogs: PaylogRepository::new(pool.clone()),
-            refund_applies: RefundApplyRepository::new(pool.clone()),
-            shops: ShopRepository::new(pool.clone()),
-            decorates: DecorateRepository::new(pool.clone()),
-            salesmen: SalesmanRepository::new(pool.clone()),
-            slice001: Slice001Repository::new(pool.clone()),
-            slice002: Slice002Repository::new(pool.clone()),
-            slice003: Slice003Repository::new(pool.clone()),
-            slice004: Slice004Repository::new(pool.clone()),
-            slice005: Slice005Repository::new(pool.clone()),
-            slice006: Slice006Repository::new(pool.clone()),
-            slice007: Slice007Repository::new(pool.clone()),
-            slice008: Slice008Repository::new(pool.clone()),
-            slice009: Slice009Repository::new(pool.clone()),
-            slice010: Slice010Repository::new(pool.clone()),
-            slice011: Slice011Repository::new(pool.clone()),
-            slice012: Slice012Repository::new(pool.clone()),
-            slice013: Slice013Repository::new(pool.clone()),
-            slice014: Slice014Repository::new(pool.clone()),
-            slice015: Slice015Repository::new(pool.clone()),
-            slice016: Slice016Repository::new(pool.clone()),
-            slice017: Slice017Repository::new(pool.clone()),
-            slice018: Slice018Repository::new(pool.clone()),
-            slice019: Slice019Repository::new(pool.clone()),
-            slice020: Slice020Repository::new(pool.clone()),
-            slice156: Slice156Repository::new(pool.clone()),
-            slice140: Slice140Repository::new(pool.clone()),
-            slice134: Slice134Repository::new(pool.clone()),
-            slice097: Slice097Repository::new(pool.clone()),
-            slice095: Slice095Repository::new(pool.clone()),
-            slice021: Slice021Repository::new(pool.clone()),
-            slice022: Slice022Repository::new(pool.clone()),
-            slice023: Slice023Repository::new(pool.clone()),
-            slice024: Slice024Repository::new(pool.clone()),
-            slice025: Slice025Repository::new(pool.clone()),
-            slice026: Slice026Repository::new(pool.clone()),
-            slice187: Slice187Repository::new(pool.clone()),
-            slice188: Slice188Repository::new(pool.clone()),
-            slice027: Slice027Repository::new(pool.clone()),
-            slice028: Slice028Repository::new(pool.clone()),
-            slice029: Slice029Repository::new(pool.clone()),
-            slice030: Slice030Repository::new(pool.clone()),
-            slice031: Slice031Repository::new(pool.clone()),
-            slice032: Slice032Repository::new(pool.clone()),
-            slice042: Slice042Repository::new(pool.clone()),
-            slice100: Slice100Repository::new(pool.clone()),
-            slice053: Slice053Repository::new(pool.clone()),
-            slice090: Slice090Repository::new(pool.clone()),
-            slice094: Slice094Repository::new(pool.clone()),
-            slice106: Slice106Repository::new(pool.clone()),
-            slice111: Slice111Repository::new(pool.clone()),
-            slice115: Slice115Repository::new(pool.clone()),
-            slice117: Slice117Repository::new(pool.clone()),
-            slice118: Slice118Repository::new(pool.clone()),
-            slice132: Slice132Repository::new(pool.clone()),
-            slice141: Slice141Repository::new(pool.clone()),
-            slice143: Slice143Repository::new(pool.clone()),
-            slice147: Slice147Repository::new(pool.clone()),
-            slice164: Slice164Repository::new(pool.clone()),
-            slice034: Slice034Repository::new(pool.clone()),
-            slice036: Slice036Repository::new(pool.clone()),
-            slice047: Slice047Repository::new(pool.clone()),
-            slice051: Slice051Repository::new(pool.clone()),
-            slice059: Slice059Repository::new(pool.clone()),
-            slice063: Slice063Repository::new(pool.clone()),
-            slice064: Slice064Repository::new(pool.clone()),
-            slice065: Slice065Repository::new(pool.clone()),
-            slice066: Slice066Repository::new(pool.clone()),
-            slice073: Slice073Repository::new(pool.clone()),
-            slice084: Slice084Repository::new(pool.clone()),
-            slice098: Slice098Repository::new(pool.clone()),
-            slice102: Slice102Repository::new(pool.clone()),
-            slice113: Slice113Repository::new(pool.clone()),
-            slice114: Slice114Repository::new(pool.clone()),
-            slice116: Slice116Repository::new(pool.clone()),
-            slice124: Slice124Repository::new(pool.clone()),
-            slice130: Slice130Repository::new(pool.clone()),
-            slice133: Slice133Repository::new(pool.clone()),
-            slice135: Slice135Repository::new(pool.clone()),
-            slice136: Slice136Repository::new(pool.clone()),
-            slice148: Slice148Repository::new(pool.clone()),
-            slice160: Slice160Repository::new(pool.clone()),
-            slice168: Slice168Repository::new(pool.clone()),
-            slice171: Slice171Repository::new(pool.clone()),
-            slice174: Slice174Repository::new(pool.clone()),
-            slice176: Slice176Repository::new(pool.clone()),
-            slice181: Slice181Repository::new(pool.clone()),
-            slice189: Slice189Repository::new(pool.clone()),
-            slice190: Slice190Repository::new(pool.clone()),
-            slice191: Slice191Repository::new(pool.clone()),
-            slice193: Slice193Repository::new(pool.clone()),
-            slice197: Slice197Repository::new(pool.clone()),
-            slice199: Slice199Repository::new(pool.clone()),
-            slice200: Slice200Repository::new(pool.clone()),
-            slice203: Slice203Repository::new(pool.clone()),
-            slice206: Slice206Repository::new(pool.clone()),
-            slice208: Slice208Repository::new(pool.clone()),
-            slice213: Slice213Repository::new(pool.clone()),
-            slice214: Slice214Repository::new(pool.clone()),
-            slice216: Slice216Repository::new(pool.clone()),
-            slice056: Slice056Repository::new(pool.clone()),
-            slice082: Slice082Repository::new(pool.clone()),
-            slice093: Slice093Repository::new(pool.clone()),
-            slice120: Slice120Repository::new(pool.clone()),
-            slice170: Slice170Repository::new(pool.clone()),
-            slice186: Slice186Repository::new(pool.clone()),
-            slice192: Slice192Repository::new(pool.clone()),
-            slice205: Slice205Repository::new(pool.clone()),
-            slice217: Slice217Repository::new(pool.clone()),
-            slice075: Slice075Repository::new(pool.clone()),
-            slice091: Slice091Repository::new(pool.clone()),
-            slice139: Slice139Repository::new(pool.clone()),
-            slice144: Slice144Repository::new(pool.clone()),
-            slice166: Slice166Repository::new(pool.clone()),
-            slice172: Slice172Repository::new(pool.clone()),
-            slice081: Slice081Repository::new(pool.clone()),
-            slice092: Slice092Repository::new(pool.clone()),
-            slice185: Slice185Repository::new(pool.clone()),
-            slice201: Slice201Repository::new(pool.clone()),
-            slice209: Slice209Repository::new(pool.clone()),
-            slice220: Slice220Repository::new(pool.clone()),
-            slice037: Slice037Repository::new(pool.clone()),
-            slice038: Slice038Repository::new(pool.clone()),
-            slice085: Slice085Repository::new(pool.clone()),
-            slice108: Slice108Repository::new(pool.clone()),
-            slice137: Slice137Repository::new(pool.clone()),
-            slice157: Slice157Repository::new(pool.clone()),
-            slice163: Slice163Repository::new(pool.clone()),
-            slice207: Slice207Repository::new(pool.clone()),
-            slice210: Slice210Repository::new(pool.clone()),
-            slice039: Slice039Repository::new(pool.clone()),
-            slice044: Slice044Repository::new(pool.clone()),
-            slice041: Slice041Repository::new(pool.clone()),
-            slice043: Slice043Repository::new(pool.clone()),
-            slice087: Slice087Repository::new(pool.clone()),
-            slice194: Slice194Repository::new(pool.clone()),
+            identity_admin_log: repo::identity::admin_log::AdminLogRepository::new(pool.clone()),
+            identity_admin_user: repo::identity::admin_user::AdminUserRepository::new(pool.clone()),
+            identity_auth: repo::identity::auth::AdminUserRepository::new(pool.clone()),
+            identity_authority: repo::identity::authority::AuthorityRepository::new(pool.clone()),
+            merchant_merchant_client: repo::merchant::merchant_client::MerchantClientRepository::new(pool.clone()),
+            merchant_order_config: repo::merchant::order_config::OrderConfigRepository::new(pool.clone()),
+            merchant_shop: repo::merchant::shop::ShopRepository::new(pool.clone()),
+            merchant_shop_client: repo::merchant::shop_client::ShopClientRepository::new(pool.clone()),
+            merchant_shop_client_category: repo::merchant::shop_client_category::ShopClientCategoryRepository::new(pool.clone()),
+            merchant_shop_manage: repo::merchant::shop_manage::ShopManageRepository::new(pool.clone()),
+            merchant_shop_product_category: repo::merchant::shop_product_category::ShopProductCategoryRepository::new(pool.clone()),
+            merchant_vendor_deposit_shop: repo::merchant::vendor_deposit_shop::VendorDepositShopRepository::new(pool.clone()),
+            wholesale_wholesale_client: repo::wholesale::wholesale_client::WholesaleClientRepository::new(pool.clone()),
+            catalog_attributes_tpl: repo::catalog::attributes_tpl::AttributesTplRepository::new(pool.clone()),
+            catalog_brand: repo::catalog::brand::BrandRepository::new(pool.clone()),
+            catalog_category: repo::catalog::category::CategoryRepository::new(pool.clone()),
+            catalog_category_all: repo::catalog::category_all::CatalogRepository::new(pool.clone()),
+            catalog_product: repo::catalog::product::ProductRepository::new(pool.clone()),
+            catalog_product_manage: repo::catalog::product_manage::ProductManageRepository::new(pool.clone()),
+            catalog_product_stock: repo::catalog::product_stock::ProductStockRepository::new(pool.clone()),
+            catalog_short_url: repo::catalog::short_url::ShortUrlRepository::new(pool.clone()),
+            catalog_stock_warning: repo::catalog::stock_warning::StockWarningRepository::new(pool.clone()),
+            trade_aftersales: repo::trade::aftersales::AftersalesRepository::new(pool.clone()),
+            trade_aftersales_client: repo::trade::aftersales_client::AftersalesClientRepository::new(pool.clone()),
+            trade_cart: repo::trade::cart::CartRepository::new(pool.clone()),
+            trade_order: repo::trade::order::OrderRepository::new(pool.clone()),
+            trade_order_admin: repo::trade::order_admin::OrderAdminRepository::new(pool.clone()),
+            trade_proxy_shopping_order_check: repo::trade::proxy_shopping_order_check::ProxyShoppingOrderCheckRepository::new(pool.clone()),
+            trade_proxy_shopping_pickup_contact: repo::trade::proxy_shopping_pickup_contact::ProxyShoppingPickupContactRepository::new(pool.clone()),
+            trade_proxy_shopping_product: repo::trade::proxy_shopping_product::ProxyShoppingProductRepository::new(pool.clone()),
+            trade_proxy_shopping_user: repo::trade::proxy_shopping_user::ProxyShoppingUserRepository::new(pool.clone()),
+            trade_proxy_shopping_user_address: repo::trade::proxy_shopping_user_address::ProxyShoppingUserAddressRepository::new(pool.clone()),
+            trade_proxy_shopping_user_coupon: repo::trade::proxy_shopping_user_coupon::ProxyShoppingUserCouponRepository::new(pool.clone()),
+            payment_paylog: repo::payment::paylog::PaylogRepository::new(pool.clone()),
+            payment_paylog_batch: repo::payment::paylog_batch::PaylogBatchRepository::new(pool.clone()),
+            payment_refund_apply: repo::payment::refund_apply::RefundApplyRepository::new(pool.clone()),
+            payment_tax_rate: repo::payment::tax_rate::TaxRateRepository::new(pool.clone()),
+            payment_user_balance_log: repo::payment::user_balance_log::UserBalanceLogRepository::new(pool.clone()),
+            marketing_buyer_show: repo::marketing::buyer_show::BuyerShowRepository::new(pool.clone()),
+            marketing_buyer_show_client: repo::marketing::buyer_show_client::BuyerShowClientRepository::new(pool.clone()),
+            marketing_buyer_show_comment: repo::marketing::buyer_show_comment::BuyerShowCommentRepository::new(pool.clone()),
+            marketing_buyer_show_group: repo::marketing::buyer_show_group::BuyerShowGroupRepository::new(pool.clone()),
+            marketing_coupon: repo::marketing::coupon::CouponRepository::new(pool.clone()),
+            marketing_product_style_admin: repo::marketing::product_style_admin::ProductStyleAdminRepository::new(pool.clone()),
+            marketing_salesman: repo::marketing::salesman::SalesmanRepository::new(pool.clone()),
+            marketing_salesman_material_category: repo::marketing::salesman_material_category::SalesmanMaterialCategoryRepository::new(pool.clone()),
+            marketing_seckill: repo::marketing::seckill::SeckillRepository::new(pool.clone()),
+            marketing_time_discount: repo::marketing::time_discount::TimeDiscountRepository::new(pool.clone()),
+            member_feedback: repo::member::feedback::FeedbackRepository::new(pool.clone()),
+            member_member_lists: repo::member::member_lists::MemberRepository::new(pool.clone()),
+            member_member_tag: repo::member::member_tag::MemberTagRepository::new(pool.clone()),
+            member_member_tag_group: repo::member::member_tag_group::MemberTagGroupRepository::new(pool.clone()),
+            member_user: repo::member::user::UserRepository::new(pool.clone()),
+            member_user_center: repo::member::user_center::UserCenterRepository::new(pool.clone()),
+            member_user_company: repo::member::user_company::UserCompanyRepository::new(pool.clone()),
+            member_user_manage: repo::member::user_manage::UserManageRepository::new(pool.clone()),
+            member_user_points_log: repo::member::user_points_log::UserPointsLogRepository::new(pool.clone()),
+            member_user_rank: repo::member::user_rank::UserRankRepository::new(pool.clone()),
+            logistics_logistics_company: repo::logistics::logistics_company::LogisticsCompanyRepository::new(pool.clone()),
+            logistics_logistics_company_config: repo::logistics::logistics_company_config::LogisticsCompanyConfigRepository::new(pool.clone()),
+            logistics_print_config: repo::logistics::print_config::PrintConfigRepository::new(pool.clone()),
+            logistics_shipping_list: repo::logistics::shipping_list::LogisticsRepository::new(pool.clone()),
+            logistics_shipping_tpl: repo::logistics::shipping_tpl::ShippingTplRepository::new(pool.clone()),
+            logistics_shipping_type: repo::logistics::shipping_type::ShippingTypeRepository::new(pool.clone()),
+            logistics_sunmi_print_callback: repo::logistics::sunmi_print_callback::SunmiPrintCallbackRepository::new(pool.clone()),
+            content_article: repo::content::article::ArticleRepository::new(pool.clone()),
+            content_decorate: repo::content::decorate::DecorateRepository::new(pool.clone()),
+            content_mobile_cat_nav: repo::content::mobile_cat_nav::MobileCatNavRepository::new(pool.clone()),
+            content_pc_cat_floor: repo::content::pc_cat_floor::PcCatFloorRepository::new(pool.clone()),
+            content_pc_navigation: repo::content::pc_navigation::PcNavigationRepository::new(pool.clone()),
+            content_seo: repo::content::seo::SeoRepository::new(pool.clone()),
+            content_share: repo::content::share::ShareRepository::new(pool.clone()),
+            content_wechat_live_sync_callback: repo::content::wechat_live_sync_callback::WechatLiveSyncCallbackRepository::new(pool.clone()),
+            system_app_version_admin: repo::system::app_version_admin::AppVersionAdminRepository::new(pool.clone()),
+            system_area_code: repo::system::area_code::AreaCodeRepository::new(pool.clone()),
+            system_cache_manage: repo::system::cache_manage::CacheManageRepository::new(pool.clone()),
+            system_config_client: repo::system::config_client::ConfigClientRepository::new(pool.clone()),
+            system_example: repo::system::example::ExampleRepository::new(pool.clone()),
+            system_files: repo::system::files::FilesRepository::new(pool.clone()),
+            system_mail_templates: repo::system::mail_templates::MailTemplatesRepository::new(pool.clone()),
+            system_message_type: repo::system::message_type::MessageTypeRepository::new(pool.clone()),
+            system_pc: repo::system::pc::PcRepository::new(pool.clone()),
+            system_region: repo::system::region::RegionRepository::new(pool.clone()),
+            system_region_client: repo::system::region_client::RegionClientRepository::new(pool.clone()),
+            im_im_config: repo::im::im_config::ImConfigRepository::new(pool.clone()),
+            im_im_message: repo::im::im_message::ImMessageRepository::new(pool.clone()),
+            im_im_servant: repo::im::im_servant::ImServantRepository::new(pool.clone()),
+            im_web_socket: repo::im::web_socket::WebSocketRepository::new(pool.clone()),
+            analytics_statistics: repo::analytics::statistics::StatisticsRepository::new(pool.clone()),
+            openapi_workbuddy: repo::openapi::workbuddy::WorkbuddyRepository::new(pool.clone()),
         }
     }
 }

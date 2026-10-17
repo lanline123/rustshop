@@ -2,7 +2,7 @@
 //! 对应 `com.tigshop.bean.model.product.Product` / `ProductSku`。
 //!
 //! 原 Java 中 `@TableField(exist = false)` 的临时字段（store_* 等）
-//! 不属于表结构，放入 `crate::models::product` 的 VO 中。
+//! 不属于表结构，放入 `crate::models::catalog::product` 的 VO 中。
 
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};

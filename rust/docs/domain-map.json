@@ -1,0 +1,6144 @@
+{
+ "version": "5.8.57",
+ "contexts": [
+  "identity",
+  "merchant",
+  "wholesale",
+  "catalog",
+  "trade",
+  "payment",
+  "marketing",
+  "member",
+  "logistics",
+  "content",
+  "system",
+  "im",
+  "analytics",
+  "openapi"
+ ],
+ "slices": [
+  {
+   "slice_id": "slice-001",
+   "ctx": "catalog",
+   "feature": "product_manage",
+   "type_prefix": "ProductManage",
+   "coded": true,
+   "java_modules": [
+    "adminapi",
+    "api"
+   ],
+   "controllers": [
+    "ProductBatchController",
+    "ProductController",
+    "SearchController",
+    "SearchGuessController"
+   ],
+   "split": [
+    {
+     "ctx": "catalog",
+     "feature": "product_batch",
+     "type_prefix": "ProductBatch",
+     "controllers": [
+      "ProductBatchController"
+     ]
+    },
+    {
+     "ctx": "catalog",
+     "feature": "product_search",
+     "type_prefix": "ProductSearch",
+     "controllers": [
+      "SearchController",
+      "SearchGuessController"
+     ]
+    }
+   ],
+   "notes": "multi-controller: ProductBatch+Product+Search+SearchGuess; multi-controller slice: split manually into catalog/product_batch, catalog/product_search",
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/catalog/product_manage.rs",
+    "repo": "crates/infrastructure/src/db/repo/catalog/product_manage.rs",
+    "service": "crates/services/src/catalog/product_manage.rs",
+    "admin_route": "crates/api/admin/src/routes/catalog/product_manage.rs",
+    "public_route": "crates/api/public/src/routes/catalog/product_manage.rs"
+   }
+  },
+  {
+   "slice_id": "slice-002",
+   "ctx": "trade",
+   "feature": "order_admin",
+   "type_prefix": "OrderAdmin",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "OrderController"
+   ],
+   "notes": "OrderController(adminapi)，基线下单流程在 trade::order",
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/trade/order_admin.rs",
+    "repo": "crates/infrastructure/src/db/repo/trade/order_admin.rs",
+    "service": "crates/services/src/trade/order_admin.rs",
+    "admin_route": "crates/api/admin/src/routes/trade/order_admin.rs"
+   }
+  },
+  {
+   "slice_id": "slice-003",
+   "ctx": "catalog",
+   "feature": "product_stock",
+   "type_prefix": "ProductStock",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ProductStockController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/catalog/product_stock.rs",
+    "repo": "crates/infrastructure/src/db/repo/catalog/product_stock.rs",
+    "service": "crates/services/src/catalog/product_stock.rs",
+    "admin_route": "crates/api/admin/src/routes/catalog/product_stock.rs"
+   }
+  },
+  {
+   "slice_id": "slice-004",
+   "ctx": "catalog",
+   "feature": "category",
+   "type_prefix": "Category",
+   "coded": true,
+   "java_modules": [
+    "adminapi",
+    "api"
+   ],
+   "controllers": [
+    "CategoryController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/catalog/category.rs",
+    "repo": "crates/infrastructure/src/db/repo/catalog/category.rs",
+    "service": "crates/services/src/catalog/category.rs",
+    "admin_route": "crates/api/admin/src/routes/catalog/category.rs",
+    "public_route": "crates/api/public/src/routes/catalog/category.rs"
+   }
+  },
+  {
+   "slice_id": "slice-005",
+   "ctx": "catalog",
+   "feature": "brand",
+   "type_prefix": "Brand",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "BrandController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/catalog/brand.rs",
+    "repo": "crates/infrastructure/src/db/repo/catalog/brand.rs",
+    "service": "crates/services/src/catalog/brand.rs",
+    "admin_route": "crates/api/admin/src/routes/catalog/brand.rs"
+   }
+  },
+  {
+   "slice_id": "slice-006",
+   "ctx": "catalog",
+   "feature": "stock_warning",
+   "type_prefix": "StockWarning",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "StockWarningController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/catalog/stock_warning.rs",
+    "repo": "crates/infrastructure/src/db/repo/catalog/stock_warning.rs",
+    "service": "crates/services/src/catalog/stock_warning.rs",
+    "admin_route": "crates/api/admin/src/routes/catalog/stock_warning.rs"
+   }
+  },
+  {
+   "slice_id": "slice-007",
+   "ctx": "member",
+   "feature": "user_center",
+   "type_prefix": "UserCenter",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "UserController"
+   ],
+   "notes": "UserController(tigshop-api C 端用户中心)",
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/member/user_center.rs",
+    "repo": "crates/infrastructure/src/db/repo/member/user_center.rs",
+    "service": "crates/services/src/member/user_center.rs",
+    "public_route": "crates/api/public/src/routes/member/user_center.rs"
+   }
+  },
+  {
+   "slice_id": "slice-008",
+   "ctx": "trade",
+   "feature": "aftersales",
+   "type_prefix": "Aftersales",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "AftersalesController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/trade/aftersales.rs",
+    "repo": "crates/infrastructure/src/db/repo/trade/aftersales.rs",
+    "service": "crates/services/src/trade/aftersales.rs",
+    "admin_route": "crates/api/admin/src/routes/trade/aftersales.rs"
+   }
+  },
+  {
+   "slice_id": "slice-009",
+   "ctx": "trade",
+   "feature": "aftersales_client",
+   "type_prefix": "AftersalesClient",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "AfterSalesController"
+   ],
+   "notes": "AfterSalesController(tigshop-api 售后)",
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/trade/aftersales_client.rs",
+    "repo": "crates/infrastructure/src/db/repo/trade/aftersales_client.rs",
+    "service": "crates/services/src/trade/aftersales_client.rs",
+    "public_route": "crates/api/public/src/routes/trade/aftersales_client.rs"
+   }
+  },
+  {
+   "slice_id": "slice-010",
+   "ctx": "identity",
+   "feature": "authority",
+   "type_prefix": "Authority",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "AuthorityController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/identity/authority.rs",
+    "repo": "crates/infrastructure/src/db/repo/identity/authority.rs",
+    "service": "crates/services/src/identity/authority.rs",
+    "admin_route": "crates/api/admin/src/routes/identity/authority.rs"
+   }
+  },
+  {
+   "slice_id": "slice-011",
+   "ctx": "identity",
+   "feature": "admin_user",
+   "type_prefix": "AdminUser",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "AdminUserController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/identity/admin_user.rs",
+    "repo": "crates/infrastructure/src/db/repo/identity/admin_user.rs",
+    "service": "crates/services/src/identity/admin_user.rs",
+    "admin_route": "crates/api/admin/src/routes/identity/admin_user.rs"
+   }
+  },
+  {
+   "slice_id": "slice-012",
+   "ctx": "member",
+   "feature": "user_manage",
+   "type_prefix": "UserManage",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "UserController"
+   ],
+   "notes": "UserController(tigshop-adminapi 会员管理)",
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/member/user_manage.rs",
+    "repo": "crates/infrastructure/src/db/repo/member/user_manage.rs",
+    "service": "crates/services/src/member/user_manage.rs",
+    "admin_route": "crates/api/admin/src/routes/member/user_manage.rs"
+   }
+  },
+  {
+   "slice_id": "slice-013",
+   "ctx": "merchant",
+   "feature": "shop_client",
+   "type_prefix": "ShopClient",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "ShopClientController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/merchant/shop_client.rs",
+    "repo": "crates/infrastructure/src/db/repo/merchant/shop_client.rs",
+    "service": "crates/services/src/merchant/shop_client.rs",
+    "public_route": "crates/api/public/src/routes/merchant/shop_client.rs"
+   }
+  },
+  {
+   "slice_id": "slice-014",
+   "ctx": "merchant",
+   "feature": "shop_manage",
+   "type_prefix": "ShopManage",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ShopController"
+   ],
+   "notes": "ShopController(adminapi)，基线店铺查询在 merchant::shop",
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/merchant/shop_manage.rs",
+    "repo": "crates/infrastructure/src/db/repo/merchant/shop_manage.rs",
+    "service": "crates/services/src/merchant/shop_manage.rs",
+    "admin_route": "crates/api/admin/src/routes/merchant/shop_manage.rs"
+   }
+  },
+  {
+   "slice_id": "slice-015",
+   "ctx": "wholesale",
+   "feature": "wholesale_client",
+   "type_prefix": "WholesaleClient",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "WholesaleClientController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/wholesale/wholesale_client.rs",
+    "repo": "crates/infrastructure/src/db/repo/wholesale/wholesale_client.rs",
+    "service": "crates/services/src/wholesale/wholesale_client.rs",
+    "public_route": "crates/api/public/src/routes/wholesale/wholesale_client.rs"
+   }
+  },
+  {
+   "slice_id": "slice-016",
+   "ctx": "system",
+   "feature": "pc",
+   "type_prefix": "Pc",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "PCController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/system/pc.rs",
+    "repo": "crates/infrastructure/src/db/repo/system/pc.rs",
+    "service": "crates/services/src/system/pc.rs",
+    "public_route": "crates/api/public/src/routes/system/pc.rs"
+   }
+  },
+  {
+   "slice_id": "slice-017",
+   "ctx": "content",
+   "feature": "pc_cat_floor",
+   "type_prefix": "PcCatFloor",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "PcCatFloorController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/content/pc_cat_floor.rs",
+    "repo": "crates/infrastructure/src/db/repo/content/pc_cat_floor.rs",
+    "service": "crates/services/src/content/pc_cat_floor.rs",
+    "admin_route": "crates/api/admin/src/routes/content/pc_cat_floor.rs"
+   }
+  },
+  {
+   "slice_id": "slice-018",
+   "ctx": "content",
+   "feature": "pc_navigation",
+   "type_prefix": "PcNavigation",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "PcNavigationController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/content/pc_navigation.rs",
+    "repo": "crates/infrastructure/src/db/repo/content/pc_navigation.rs",
+    "service": "crates/services/src/content/pc_navigation.rs",
+    "admin_route": "crates/api/admin/src/routes/content/pc_navigation.rs"
+   }
+  },
+  {
+   "slice_id": "slice-019",
+   "ctx": "system",
+   "feature": "app_version_admin",
+   "type_prefix": "AppVersionAdmin",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "AppVersionController"
+   ],
+   "notes": "AppVersionController(adminapi)",
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/system/app_version_admin.rs",
+    "repo": "crates/infrastructure/src/db/repo/system/app_version_admin.rs",
+    "service": "crates/services/src/system/app_version_admin.rs",
+    "admin_route": "crates/api/admin/src/routes/system/app_version_admin.rs"
+   }
+  },
+  {
+   "slice_id": "slice-020",
+   "ctx": "im",
+   "feature": "im_config",
+   "type_prefix": "ImConfig",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "IMConfigController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/im/im_config.rs",
+    "repo": "crates/infrastructure/src/db/repo/im/im_config.rs",
+    "service": "crates/services/src/im/im_config.rs",
+    "admin_root": "crates/api/admin/src/root/im/im_config.rs"
+   }
+  },
+  {
+   "slice_id": "slice-021",
+   "ctx": "content",
+   "feature": "seo",
+   "type_prefix": "Seo",
+   "coded": true,
+   "java_modules": [
+    "adminapi",
+    "api"
+   ],
+   "controllers": [
+    "SeoController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/content/seo.rs",
+    "repo": "crates/infrastructure/src/db/repo/content/seo.rs",
+    "service": "crates/services/src/content/seo.rs",
+    "admin_route": "crates/api/admin/src/routes/content/seo.rs",
+    "public_route": "crates/api/public/src/routes/content/seo.rs"
+   }
+  },
+  {
+   "slice_id": "slice-022",
+   "ctx": "marketing",
+   "feature": "buyer_show_client",
+   "type_prefix": "BuyerShowClient",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "BuyerShowController"
+   ],
+   "notes": "BuyerShowController(tigshop-api C 端)",
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/marketing/buyer_show_client.rs",
+    "repo": "crates/infrastructure/src/db/repo/marketing/buyer_show_client.rs",
+    "service": "crates/services/src/marketing/buyer_show_client.rs",
+    "public_route": "crates/api/public/src/routes/marketing/buyer_show_client.rs"
+   }
+  },
+  {
+   "slice_id": "slice-023",
+   "ctx": "marketing",
+   "feature": "buyer_show_group",
+   "type_prefix": "BuyerShowGroup",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "BuyerShowGroupController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/marketing/buyer_show_group.rs",
+    "repo": "crates/infrastructure/src/db/repo/marketing/buyer_show_group.rs",
+    "service": "crates/services/src/marketing/buyer_show_group.rs",
+    "admin_route": "crates/api/admin/src/routes/marketing/buyer_show_group.rs"
+   }
+  },
+  {
+   "slice_id": "slice-024",
+   "ctx": "marketing",
+   "feature": "buyer_show",
+   "type_prefix": "BuyerShow",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "BuyerShowController"
+   ],
+   "notes": "BuyerShowController(adminapi 主体)",
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/marketing/buyer_show.rs",
+    "repo": "crates/infrastructure/src/db/repo/marketing/buyer_show.rs",
+    "service": "crates/services/src/marketing/buyer_show.rs",
+    "admin_route": "crates/api/admin/src/routes/marketing/buyer_show.rs"
+   }
+  },
+  {
+   "slice_id": "slice-025",
+   "ctx": "marketing",
+   "feature": "buyer_show_comment",
+   "type_prefix": "BuyerShowComment",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "BuyerShowCommentController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/marketing/buyer_show_comment.rs",
+    "repo": "crates/infrastructure/src/db/repo/marketing/buyer_show_comment.rs",
+    "service": "crates/services/src/marketing/buyer_show_comment.rs",
+    "admin_route": "crates/api/admin/src/routes/marketing/buyer_show_comment.rs"
+   }
+  },
+  {
+   "slice_id": "slice-026",
+   "ctx": "payment",
+   "feature": "paylog_batch",
+   "type_prefix": "PaylogBatch",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "PaylogController"
+   ],
+   "notes": "PaylogController 批处理/字段更新",
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "repo": "crates/infrastructure/src/db/repo/payment/paylog_batch.rs",
+    "service": "crates/services/src/payment/paylog_batch.rs",
+    "admin_route": "crates/api/admin/src/routes/payment/paylog_batch.rs"
+   }
+  },
+  {
+   "slice_id": "slice-027",
+   "ctx": "trade",
+   "feature": "proxy_shopping_user",
+   "type_prefix": "ProxyShoppingUser",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ProxyShoppingUserController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "repo": "crates/infrastructure/src/db/repo/trade/proxy_shopping_user.rs",
+    "service": "crates/services/src/trade/proxy_shopping_user.rs",
+    "admin_route": "crates/api/admin/src/routes/trade/proxy_shopping_user.rs"
+   }
+  },
+  {
+   "slice_id": "slice-028",
+   "ctx": "trade",
+   "feature": "proxy_shopping_user_coupon",
+   "type_prefix": "ProxyShoppingUserCoupon",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ProxyShoppingUserCouponController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "repo": "crates/infrastructure/src/db/repo/trade/proxy_shopping_user_coupon.rs",
+    "service": "crates/services/src/trade/proxy_shopping_user_coupon.rs",
+    "admin_route": "crates/api/admin/src/routes/trade/proxy_shopping_user_coupon.rs"
+   }
+  },
+  {
+   "slice_id": "slice-029",
+   "ctx": "trade",
+   "feature": "proxy_shopping_product",
+   "type_prefix": "ProxyShoppingProduct",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ProxyShoppingProductController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/trade/proxy_shopping_product.rs",
+    "repo": "crates/infrastructure/src/db/repo/trade/proxy_shopping_product.rs",
+    "service": "crates/services/src/trade/proxy_shopping_product.rs",
+    "admin_route": "crates/api/admin/src/routes/trade/proxy_shopping_product.rs"
+   }
+  },
+  {
+   "slice_id": "slice-030",
+   "ctx": "trade",
+   "feature": "proxy_shopping_user_address",
+   "type_prefix": "ProxyShoppingUserAddress",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ProxyShoppingUserAddressController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/trade/proxy_shopping_user_address.rs",
+    "repo": "crates/infrastructure/src/db/repo/trade/proxy_shopping_user_address.rs",
+    "service": "crates/services/src/trade/proxy_shopping_user_address.rs",
+    "admin_route": "crates/api/admin/src/routes/trade/proxy_shopping_user_address.rs"
+   }
+  },
+  {
+   "slice_id": "slice-031",
+   "ctx": "trade",
+   "feature": "proxy_shopping_pickup_contact",
+   "type_prefix": "ProxyShoppingPickupContact",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ProxyShoppingPickupContactController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/trade/proxy_shopping_pickup_contact.rs",
+    "repo": "crates/infrastructure/src/db/repo/trade/proxy_shopping_pickup_contact.rs",
+    "service": "crates/services/src/trade/proxy_shopping_pickup_contact.rs",
+    "admin_route": "crates/api/admin/src/routes/trade/proxy_shopping_pickup_contact.rs"
+   }
+  },
+  {
+   "slice_id": "slice-032",
+   "ctx": "trade",
+   "feature": "proxy_shopping_order_check",
+   "type_prefix": "ProxyShoppingOrderCheck",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ProxyShoppingOrderCheckController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/trade/proxy_shopping_order_check.rs",
+    "repo": "crates/infrastructure/src/db/repo/trade/proxy_shopping_order_check.rs",
+    "service": "crates/services/src/trade/proxy_shopping_order_check.rs",
+    "admin_route": "crates/api/admin/src/routes/trade/proxy_shopping_order_check.rs"
+   }
+  },
+  {
+   "slice_id": "slice-033",
+   "ctx": "trade",
+   "feature": "proxy_shopping_cart",
+   "type_prefix": "ProxyShoppingCart",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ProxyShoppingCartController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-034",
+   "ctx": "trade",
+   "feature": "proxy_shopping_delivery",
+   "type_prefix": "ProxyShoppingDelivery",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ProxyShoppingDeliveryController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-035",
+   "ctx": "marketing",
+   "feature": "coupon_manage",
+   "type_prefix": "CouponManage",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "CouponController"
+   ],
+   "notes": "not implemented; renamed from marketing/coupon: baseline feature marketing/coupon is reserved",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-036",
+   "ctx": "member",
+   "feature": "member_audience",
+   "type_prefix": "MemberAudience",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "MemberAudienceController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-037",
+   "ctx": "member",
+   "feature": "user_company",
+   "type_prefix": "UserCompany",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "UserCompanyController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/member/user_company.rs",
+    "repo": "crates/infrastructure/src/db/repo/member/user_company.rs",
+    "service": "crates/services/src/member/user_company.rs",
+    "admin_route": "crates/api/admin/src/routes/member/user_company.rs"
+   }
+  },
+  {
+   "slice_id": "slice-038",
+   "ctx": "member",
+   "feature": "member_tag",
+   "type_prefix": "MemberTag",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "MemberTagController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/member/member_tag.rs",
+    "repo": "crates/infrastructure/src/db/repo/member/member_tag.rs",
+    "service": "crates/services/src/member/member_tag.rs",
+    "admin_route": "crates/api/admin/src/routes/member/member_tag.rs"
+   }
+  },
+  {
+   "slice_id": "slice-039",
+   "ctx": "member",
+   "feature": "member_tag_group",
+   "type_prefix": "MemberTagGroup",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "MemberTagGroupController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/member/member_tag_group.rs",
+    "repo": "crates/infrastructure/src/db/repo/member/member_tag_group.rs",
+    "service": "crates/services/src/member/member_tag_group.rs",
+    "admin_route": "crates/api/admin/src/routes/member/member_tag_group.rs"
+   }
+  },
+  {
+   "slice_id": "slice-040",
+   "ctx": "member",
+   "feature": "user_message_log",
+   "type_prefix": "UserMessageLog",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "UserMessageLogController"
+   ],
+   "notes": "empty scaffold / partial file, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-041",
+   "ctx": "member",
+   "feature": "feedback",
+   "type_prefix": "Feedback",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "FeedbackController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/member/feedback.rs",
+    "repo": "crates/infrastructure/src/db/repo/member/feedback.rs",
+    "service": "crates/services/src/member/feedback.rs",
+    "admin_route": "crates/api/admin/src/routes/member/feedback.rs"
+   }
+  },
+  {
+   "slice_id": "slice-042",
+   "ctx": "member",
+   "feature": "user_points_log",
+   "type_prefix": "UserPointsLog",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "UserPointsLogController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/member/user_points_log.rs",
+    "repo": "crates/infrastructure/src/db/repo/member/user_points_log.rs",
+    "service": "crates/services/src/member/user_points_log.rs",
+    "admin_route": "crates/api/admin/src/routes/member/user_points_log.rs"
+   }
+  },
+  {
+   "slice_id": "slice-043",
+   "ctx": "member",
+   "feature": "user_rank",
+   "type_prefix": "UserRank",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "UserRankController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/member/user_rank.rs",
+    "repo": "crates/infrastructure/src/db/repo/member/user_rank.rs",
+    "service": "crates/services/src/member/user_rank.rs",
+    "admin_route": "crates/api/admin/src/routes/member/user_rank.rs"
+   }
+  },
+  {
+   "slice_id": "slice-044",
+   "ctx": "merchant",
+   "feature": "vendor_deposit_shop",
+   "type_prefix": "VendorDepositShop",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "VendorDepositShopController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/merchant/vendor_deposit_shop.rs",
+    "repo": "crates/infrastructure/src/db/repo/merchant/vendor_deposit_shop.rs",
+    "service": "crates/services/src/merchant/vendor_deposit_shop.rs",
+    "admin_route": "crates/api/admin/src/routes/merchant/vendor_deposit_shop.rs"
+   }
+  },
+  {
+   "slice_id": "slice-045",
+   "ctx": "merchant",
+   "feature": "deposit_payee_account",
+   "type_prefix": "DepositPayeeAccount",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "DepositPayeeAccountController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-046",
+   "ctx": "merchant",
+   "feature": "deposit_rule",
+   "type_prefix": "DepositRule",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "DepositRuleController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-047",
+   "ctx": "merchant",
+   "feature": "deposit_setting",
+   "type_prefix": "DepositSetting",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "DepositSettingController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-048",
+   "ctx": "marketing",
+   "feature": "recharge_setting",
+   "type_prefix": "RechargeSetting",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "RechargeSettingController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-049",
+   "ctx": "payment",
+   "feature": "user_recharge_order",
+   "type_prefix": "UserRechargeOrder",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "UserRechargeOrderController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-050",
+   "ctx": "merchant",
+   "feature": "merchant_apply",
+   "type_prefix": "MerchantApply",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "MerchantApplyController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-051",
+   "ctx": "catalog",
+   "feature": "search_admin",
+   "type_prefix": "SearchAdmin",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "SearchController"
+   ],
+   "notes": "SearchController(adminapi 聚合搜索) empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-052",
+   "ctx": "content",
+   "feature": "wechat_keyword_rule",
+   "type_prefix": "WechatKeywordRule",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "WechatKeywordRuleController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-053",
+   "ctx": "content",
+   "feature": "wechat_kefu_capability",
+   "type_prefix": "WechatKefuCapability",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "WechatKefuCapabilityController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-054",
+   "ctx": "content",
+   "feature": "wechat_auto_reply",
+   "type_prefix": "WechatAutoReply",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "WechatAutoReplyController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-055",
+   "ctx": "marketing",
+   "feature": "salesman_group",
+   "type_prefix": "SalesmanGroup",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "SalesmanGroupController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-056",
+   "ctx": "payment",
+   "feature": "profit_sharing",
+   "type_prefix": "ProfitSharing",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ProfitSharingController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-057",
+   "ctx": "marketing",
+   "feature": "salesman_order",
+   "type_prefix": "SalesmanOrder",
+   "coded": false,
+   "java_modules": [
+    "adminapi",
+    "api"
+   ],
+   "controllers": [
+    "SalesmanOrderController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-058",
+   "ctx": "marketing",
+   "feature": "salesman_content",
+   "type_prefix": "SalesmanContent",
+   "coded": false,
+   "java_modules": [
+    "adminapi",
+    "api"
+   ],
+   "controllers": [
+    "SalesmanContentController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-059",
+   "ctx": "marketing",
+   "feature": "salesman_material_client",
+   "type_prefix": "SalesmanMaterialClient",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "SalesmanMaterialController"
+   ],
+   "notes": "empty scaffold, dropped; renamed from marketing/salesman_material: duplicate of slice-167; this slice is the api/client side; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-060",
+   "ctx": "marketing",
+   "feature": "salesman_admin",
+   "type_prefix": "SalesmanAdmin",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "SalesmanController"
+   ],
+   "notes": "not implemented; renamed from marketing/salesman: baseline feature marketing/salesman is reserved; admin salesman list",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-061",
+   "ctx": "marketing",
+   "feature": "salesman_client",
+   "type_prefix": "SalesmanClient",
+   "coded": false,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "SalesmanController"
+   ],
+   "notes": "not implemented; renamed from marketing/salesman: duplicate of slice-060 and baseline feature marketing/salesman reserved",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-062",
+   "ctx": "marketing",
+   "feature": "salesman_product",
+   "type_prefix": "SalesmanProduct",
+   "coded": false,
+   "java_modules": [
+    "adminapi",
+    "api"
+   ],
+   "controllers": [
+    "SalesmanProductController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-063",
+   "ctx": "marketing",
+   "feature": "overview",
+   "type_prefix": "Overview",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "OverviewController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-064",
+   "ctx": "marketing",
+   "feature": "salesman_config",
+   "type_prefix": "SalesmanConfig",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "SalesmanConfigController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-065",
+   "ctx": "member",
+   "feature": "user_feedback_client",
+   "type_prefix": "UserFeedbackClient",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "UserFeedbackClientController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-066",
+   "ctx": "trade",
+   "feature": "order_invoice_client",
+   "type_prefix": "OrderInvoiceClient",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "OrderInvoiceClientController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-067",
+   "ctx": "member",
+   "feature": "user_invoice_client",
+   "type_prefix": "UserInvoiceClient",
+   "coded": false,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "UserInvoiceClientController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-068",
+   "ctx": "payment",
+   "feature": "with_draw_apply_client",
+   "type_prefix": "WithDrawApplyClient",
+   "coded": false,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "WithDrawApplyClientController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-069",
+   "ctx": "member",
+   "feature": "user_message",
+   "type_prefix": "UserMessage",
+   "coded": false,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "UserMessageController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-070",
+   "ctx": "trade",
+   "feature": "user_order",
+   "type_prefix": "UserOrder",
+   "coded": false,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "UserOrderController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-071",
+   "ctx": "catalog",
+   "feature": "comment_client",
+   "type_prefix": "CommentClient",
+   "coded": false,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "CommentController"
+   ],
+   "notes": "not implemented; renamed from catalog/comment: duplicate of slice-195; this slice is the api/client side",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-072",
+   "ctx": "member",
+   "feature": "user_price_inquiry",
+   "type_prefix": "UserPriceInquiry",
+   "coded": false,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "UserPriceInquiryController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-073",
+   "ctx": "payment",
+   "feature": "user_account",
+   "type_prefix": "UserAccount",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "AccountController"
+   ],
+   "notes": "AccountController(tigshop-api 佣金/账户) empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-074",
+   "ctx": "payment",
+   "feature": "recharge_order",
+   "type_prefix": "RechargeOrder",
+   "coded": false,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "RechargeOrderController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-075",
+   "ctx": "system",
+   "feature": "area_code",
+   "type_prefix": "AreaCode",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "AreaCodeController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/system/area_code.rs",
+    "repo": "crates/infrastructure/src/db/repo/system/area_code.rs",
+    "service": "crates/services/src/system/area_code.rs",
+    "admin_route": "crates/api/admin/src/routes/system/area_code.rs"
+   }
+  },
+  {
+   "slice_id": "slice-076",
+   "ctx": "content",
+   "feature": "friend_links",
+   "type_prefix": "FriendLinks",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "FriendLinksController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-077",
+   "ctx": "payment",
+   "feature": "order_invoice",
+   "type_prefix": "OrderInvoice",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "OrderInvoiceController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-078",
+   "ctx": "payment",
+   "feature": "user_invoice",
+   "type_prefix": "UserInvoice",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "UserInvoiceController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-079",
+   "ctx": "payment",
+   "feature": "category_fee_rule",
+   "type_prefix": "CategoryFeeRule",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "CategoryFeeRuleController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-080",
+   "ctx": "catalog",
+   "feature": "product_group",
+   "type_prefix": "ProductGroup",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ProductGroupController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-081",
+   "ctx": "catalog",
+   "feature": "attributes_tpl",
+   "type_prefix": "AttributesTpl",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "AttributesTplController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/catalog/attributes_tpl.rs",
+    "repo": "crates/infrastructure/src/db/repo/catalog/attributes_tpl.rs",
+    "service": "crates/services/src/catalog/attributes_tpl.rs",
+    "admin_route": "crates/api/admin/src/routes/catalog/attributes_tpl.rs"
+   }
+  },
+  {
+   "slice_id": "slice-082",
+   "ctx": "member",
+   "feature": "collect_product",
+   "type_prefix": "CollectProduct",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "CollectProductController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-083",
+   "ctx": "catalog",
+   "feature": "services",
+   "type_prefix": "Services",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ServicesController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-084",
+   "ctx": "catalog",
+   "feature": "product_style_client",
+   "type_prefix": "ProductStyleClient",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "ProductStyleController"
+   ],
+   "notes": "ProductStyleController(tigshop-api) empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-085",
+   "ctx": "marketing",
+   "feature": "product_style_admin",
+   "type_prefix": "ProductStyleAdmin",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ProductStyleController"
+   ],
+   "notes": "ProductStyleController(adminapi)",
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/marketing/product_style_admin.rs",
+    "repo": "crates/infrastructure/src/db/repo/marketing/product_style_admin.rs",
+    "service": "crates/services/src/marketing/product_style_admin.rs",
+    "admin_route": "crates/api/admin/src/routes/marketing/product_style_admin.rs"
+   }
+  },
+  {
+   "slice_id": "slice-086",
+   "ctx": "merchant",
+   "feature": "shop_withdraw",
+   "type_prefix": "ShopWithdraw",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ShopWithdrawController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-087",
+   "ctx": "merchant",
+   "feature": "merchant_client",
+   "type_prefix": "MerchantClient",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "MerchantClientController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/merchant/merchant_client.rs",
+    "repo": "crates/infrastructure/src/db/repo/merchant/merchant_client.rs",
+    "service": "crates/services/src/merchant/merchant_client.rs",
+    "public_route": "crates/api/public/src/routes/merchant/merchant_client.rs"
+   }
+  },
+  {
+   "slice_id": "slice-088",
+   "ctx": "merchant",
+   "feature": "merchant",
+   "type_prefix": "Merchant",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "MerchantController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-089",
+   "ctx": "merchant",
+   "feature": "merchant_account",
+   "type_prefix": "MerchantAccount",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "MerchantAccountController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-090",
+   "ctx": "logistics",
+   "feature": "sunmi_print_callback",
+   "type_prefix": "SunmiPrintCallback",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "SunmiPrintCallbackController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/logistics/sunmi_print_callback.rs",
+    "repo": "crates/infrastructure/src/db/repo/logistics/sunmi_print_callback.rs",
+    "service": "crates/services/src/logistics/sunmi_print_callback.rs",
+    "public_route": "crates/api/public/src/routes/logistics/sunmi_print_callback.rs"
+   }
+  },
+  {
+   "slice_id": "slice-091",
+   "ctx": "system",
+   "feature": "region_client",
+   "type_prefix": "RegionClient",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "RegionController"
+   ],
+   "notes": "RegionController(tigshop-api)",
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/system/region_client.rs",
+    "repo": "crates/infrastructure/src/db/repo/system/region_client.rs",
+    "service": "crates/services/src/system/region_client.rs",
+    "public_route": "crates/api/public/src/routes/system/region_client.rs"
+   }
+  },
+  {
+   "slice_id": "slice-092",
+   "ctx": "system",
+   "feature": "region",
+   "type_prefix": "Region",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "RegionController"
+   ],
+   "notes": "RegionController(adminapi)",
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/system/region.rs",
+    "repo": "crates/infrastructure/src/db/repo/system/region.rs",
+    "service": "crates/services/src/system/region.rs",
+    "admin_route": "crates/api/admin/src/routes/system/region.rs"
+   }
+  },
+  {
+   "slice_id": "slice-093",
+   "ctx": "payment",
+   "feature": "sub_merchant",
+   "type_prefix": "SubMerchant",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "SubMerchantController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-094",
+   "ctx": "marketing",
+   "feature": "salesman_customer_transaction",
+   "type_prefix": "SalesmanCustomerTransaction",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "SalesmanCustomerTransactionController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-095",
+   "ctx": "im",
+   "feature": "im_servant",
+   "type_prefix": "ImServant",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ImServantController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/im/im_servant.rs",
+    "repo": "crates/infrastructure/src/db/repo/im/im_servant.rs",
+    "service": "crates/services/src/im/im_servant.rs",
+    "admin_root": "crates/api/admin/src/root/im/im_servant.rs"
+   }
+  },
+  {
+   "slice_id": "slice-096",
+   "ctx": "im",
+   "feature": "admin_user_kefu",
+   "type_prefix": "AdminUserKefu",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "AdminUserKefuController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-097",
+   "ctx": "im",
+   "feature": "im_conversation",
+   "type_prefix": "ImConversation",
+   "coded": true,
+   "java_modules": [
+    "adminapi",
+    "api"
+   ],
+   "controllers": [
+    "ImConversationController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-098",
+   "ctx": "im",
+   "feature": "admin_shop_kefu_config",
+   "type_prefix": "AdminShopKefuConfig",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "AdminShopKefuConfigController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-099",
+   "ctx": "payment",
+   "feature": "statement",
+   "type_prefix": "Statement",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "StatementController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-100",
+   "ctx": "catalog",
+   "feature": "product_inventory_log",
+   "type_prefix": "ProductInventoryLog",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ProductInventoryLogController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-101",
+   "ctx": "member",
+   "feature": "shop_member",
+   "type_prefix": "ShopMember",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ShopMemberController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-102",
+   "ctx": "merchant",
+   "feature": "deposit_log",
+   "type_prefix": "DepositLog",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "DepositLogController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-103",
+   "ctx": "merchant",
+   "feature": "deposit_recharge",
+   "type_prefix": "DepositRecharge",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "DepositRechargeController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-104",
+   "ctx": "merchant",
+   "feature": "deposit_account",
+   "type_prefix": "DepositAccount",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "DepositAccountController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-105",
+   "ctx": "merchant",
+   "feature": "deposit_refund",
+   "type_prefix": "DepositRefund",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "DepositRefundController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-106",
+   "ctx": "merchant",
+   "feature": "shop_client_category",
+   "type_prefix": "ShopClientCategory",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "ShopClientCategoryController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/merchant/shop_client_category.rs",
+    "repo": "crates/infrastructure/src/db/repo/merchant/shop_client_category.rs",
+    "service": "crates/services/src/merchant/shop_client_category.rs",
+    "public_route": "crates/api/public/src/routes/merchant/shop_client_category.rs"
+   }
+  },
+  {
+   "slice_id": "slice-107",
+   "ctx": "merchant",
+   "feature": "admin_user_shop",
+   "type_prefix": "AdminUserShop",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "AdminUserShopController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-108",
+   "ctx": "merchant",
+   "feature": "shop_product_category",
+   "type_prefix": "ShopProductCategory",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ShopProductCategoryController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/merchant/shop_product_category.rs",
+    "repo": "crates/infrastructure/src/db/repo/merchant/shop_product_category.rs",
+    "service": "crates/services/src/merchant/shop_product_category.rs",
+    "admin_route": "crates/api/admin/src/routes/merchant/shop_product_category.rs"
+   }
+  },
+  {
+   "slice_id": "slice-109",
+   "ctx": "merchant",
+   "feature": "deposit_shop",
+   "type_prefix": "DepositShop",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "DepositShopController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-110",
+   "ctx": "merchant",
+   "feature": "shop_funds",
+   "type_prefix": "ShopFunds",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ShopFundsController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-111",
+   "ctx": "merchant",
+   "feature": "shop_account_log",
+   "type_prefix": "ShopAccountLog",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "AccountController"
+   ],
+   "notes": "AccountController(adminapi 店铺资金变化) empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-112",
+   "ctx": "content",
+   "feature": "api_wechat_live",
+   "type_prefix": "ApiWechatLive",
+   "coded": false,
+   "java_modules": [
+    "adminapi",
+    "api"
+   ],
+   "controllers": [
+    "ApiWechatLiveController",
+    "WechatLiveController"
+   ],
+   "split": [
+    {
+     "ctx": "content",
+     "feature": "wechat_live",
+     "type_prefix": "WechatLive",
+     "controllers": [
+      "WechatLiveController"
+     ]
+    }
+   ],
+   "notes": "not implemented; multi-controller slice: split manually into content/wechat_live",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-113",
+   "ctx": "content",
+   "feature": "wechat_live_goods",
+   "type_prefix": "WechatLiveGoods",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "WechatLiveGoodsController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-114",
+   "ctx": "content",
+   "feature": "wechat_live_order_sync",
+   "type_prefix": "WechatLiveOrderSync",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "WechatLiveOrderSyncController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-115",
+   "ctx": "content",
+   "feature": "wechat_live_sync_callback",
+   "type_prefix": "WechatLiveSyncCallback",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "WechatLiveSyncCallbackController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/content/wechat_live_sync_callback.rs",
+    "repo": "crates/infrastructure/src/db/repo/content/wechat_live_sync_callback.rs",
+    "service": "crates/services/src/content/wechat_live_sync_callback.rs",
+    "public_route": "crates/api/public/src/routes/content/wechat_live_sync_callback.rs"
+   }
+  },
+  {
+   "slice_id": "slice-116",
+   "ctx": "content",
+   "feature": "wechat_menu",
+   "type_prefix": "WechatMenu",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "WechatMenuController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-117",
+   "ctx": "marketing",
+   "feature": "salesman_card_invite",
+   "type_prefix": "SalesmanCardInvite",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "SalesmanCardInviteController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-118",
+   "ctx": "logistics",
+   "feature": "print_log",
+   "type_prefix": "PrintLog",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "PrintLogController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-119",
+   "ctx": "logistics",
+   "feature": "print",
+   "type_prefix": "Print",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "PrintController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-120",
+   "ctx": "logistics",
+   "feature": "print_config",
+   "type_prefix": "PrintConfig",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "PrintConfigController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/logistics/print_config.rs",
+    "repo": "crates/infrastructure/src/db/repo/logistics/print_config.rs",
+    "service": "crates/services/src/logistics/print_config.rs",
+    "admin_route": "crates/api/admin/src/routes/logistics/print_config.rs"
+   }
+  },
+  {
+   "slice_id": "slice-121",
+   "ctx": "wholesale",
+   "feature": "wholesale_product",
+   "type_prefix": "WholesaleProduct",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "WholesaleProductController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-122",
+   "ctx": "wholesale",
+   "feature": "wholesaler_grade",
+   "type_prefix": "WholesalerGrade",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "WholesalerGradeController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-123",
+   "ctx": "wholesale",
+   "feature": "wholesaler",
+   "type_prefix": "Wholesaler",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "WholesalerController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-124",
+   "ctx": "wholesale",
+   "feature": "wholesale_setting",
+   "type_prefix": "WholesaleSetting",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "WholesaleSettingController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-125",
+   "ctx": "marketing",
+   "feature": "lottery",
+   "type_prefix": "Lottery",
+   "coded": false,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "LotteryController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-126",
+   "ctx": "marketing",
+   "feature": "lottery_activity",
+   "type_prefix": "LotteryActivity",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "LotteryActivityController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-127",
+   "ctx": "marketing",
+   "feature": "groupon_promotion",
+   "type_prefix": "GrouponPromotion",
+   "coded": false,
+   "java_modules": [
+    "adminapi",
+    "api"
+   ],
+   "controllers": [
+    "GrouponPromotionController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-128",
+   "ctx": "marketing",
+   "feature": "groupon_promotion_record",
+   "type_prefix": "GrouponPromotionRecord",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "GrouponPromotionRecordController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-129",
+   "ctx": "payment",
+   "feature": "credit_user",
+   "type_prefix": "CreditUser",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "CreditUserController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-130",
+   "ctx": "system",
+   "feature": "recommend",
+   "type_prefix": "Recommend",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "RecommendController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-131",
+   "ctx": "payment",
+   "feature": "user_withdraw_apply",
+   "type_prefix": "UserWithdrawApply",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "UserWithdrawApplyController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-132",
+   "ctx": "system",
+   "feature": "tips_manage",
+   "type_prefix": "TipsManage",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "TipsManageController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-133",
+   "ctx": "trade",
+   "feature": "shop_order_config",
+   "type_prefix": "ShopOrderConfig",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ShopOrderConfigController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-134",
+   "ctx": "system",
+   "feature": "files",
+   "type_prefix": "Files",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "FilesController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/system/files.rs",
+    "repo": "crates/infrastructure/src/db/repo/system/files.rs",
+    "service": "crates/services/src/system/files.rs",
+    "admin_root": "crates/api/admin/src/root/system/files.rs"
+   }
+  },
+  {
+   "slice_id": "slice-135",
+   "ctx": "content",
+   "feature": "article_batch",
+   "type_prefix": "ArticleBatch",
+   "coded": true,
+   "java_modules": [
+    "adminapi",
+    "api"
+   ],
+   "controllers": [
+    "ArticleController"
+   ],
+   "notes": "ArticleController 剩余（batch/issueInfo） empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-136",
+   "ctx": "content",
+   "feature": "article_category",
+   "type_prefix": "ArticleCategory",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ArticleCategoryController"
+   ],
+   "notes": "ArticleCategoryController 剩余（update/batch） empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-137",
+   "ctx": "openapi",
+   "feature": "workbuddy",
+   "type_prefix": "Workbuddy",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "MessagePushController",
+    "WorkBuddyProductImportController",
+    "WorkBuddyProductIntelligenceController",
+    "WorkBuddyProductManageController"
+   ],
+   "split": [
+    {
+     "ctx": "openapi",
+     "feature": "message_push",
+     "type_prefix": "MessagePush",
+     "controllers": [
+      "MessagePushController"
+     ]
+    },
+    {
+     "ctx": "openapi",
+     "feature": "workbuddy_product_import",
+     "type_prefix": "WorkBuddyProductImport",
+     "controllers": [
+      "WorkBuddyProductImportController"
+     ]
+    },
+    {
+     "ctx": "openapi",
+     "feature": "workbuddy_product_intelligence",
+     "type_prefix": "WorkBuddyProductIntelligence",
+     "controllers": [
+      "WorkBuddyProductIntelligenceController"
+     ]
+    }
+   ],
+   "notes": "multi-controller: MessagePush+WorkBuddy*; multi-controller slice: split manually into openapi/message_push, openapi/workbuddy_product_import, openapi/workbuddy_product_intelligence",
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/openapi/workbuddy.rs",
+    "repo": "crates/infrastructure/src/db/repo/openapi/workbuddy.rs",
+    "service": "crates/services/src/openapi/workbuddy.rs",
+    "admin_route": "crates/api/admin/src/routes/openapi/workbuddy.rs"
+   }
+  },
+  {
+   "slice_id": "slice-138",
+   "ctx": "marketing",
+   "feature": "product_gift",
+   "type_prefix": "ProductGift",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ProductGiftController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-139",
+   "ctx": "system",
+   "feature": "message_type",
+   "type_prefix": "MessageType",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "MessageTypeController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/system/message_type.rs",
+    "repo": "crates/infrastructure/src/db/repo/system/message_type.rs",
+    "service": "crates/services/src/system/message_type.rs",
+    "admin_route": "crates/api/admin/src/routes/system/message_type.rs"
+   }
+  },
+  {
+   "slice_id": "slice-140",
+   "ctx": "im",
+   "feature": "im_message",
+   "type_prefix": "ImMessage",
+   "coded": true,
+   "java_modules": [
+    "adminapi",
+    "api"
+   ],
+   "controllers": [
+    "ImMessageController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/im/im_message.rs",
+    "repo": "crates/infrastructure/src/db/repo/im/im_message.rs",
+    "service": "crates/services/src/im/im_message.rs",
+    "admin_root": "crates/api/admin/src/root/im/im_message.rs",
+    "public_root": "crates/api/public/src/root/im/im_message.rs"
+   }
+  },
+  {
+   "slice_id": "slice-141",
+   "ctx": "im",
+   "feature": "web_socket",
+   "type_prefix": "WebSocket",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "WebSocketController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/im/web_socket.rs",
+    "repo": "crates/infrastructure/src/db/repo/im/web_socket.rs",
+    "service": "crates/services/src/im/web_socket.rs",
+    "public_route": "crates/api/public/src/routes/im/web_socket.rs"
+   }
+  },
+  {
+   "slice_id": "slice-142",
+   "ctx": "marketing",
+   "feature": "product_promotion",
+   "type_prefix": "ProductPromotion",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ProductPromotionController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-143",
+   "ctx": "system",
+   "feature": "app_version_client",
+   "type_prefix": "AppVersionClient",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "AppVersionController"
+   ],
+   "notes": "AppVersionController(tigshop-api 升级检查) empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-144",
+   "ctx": "logistics",
+   "feature": "logistics_company_config",
+   "type_prefix": "LogisticsCompanyConfig",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "LogisticsCompanyConfigController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/logistics/logistics_company_config.rs",
+    "repo": "crates/infrastructure/src/db/repo/logistics/logistics_company_config.rs",
+    "service": "crates/services/src/logistics/logistics_company_config.rs",
+    "admin_route": "crates/api/admin/src/routes/logistics/logistics_company_config.rs"
+   }
+  },
+  {
+   "slice_id": "slice-145",
+   "ctx": "content",
+   "feature": "gallery_video_info",
+   "type_prefix": "GalleryVideoInfo",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "GalleryVideoInfoController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-146",
+   "ctx": "content",
+   "feature": "gallery_video",
+   "type_prefix": "GalleryVideo",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "GalleryVideoController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-147",
+   "ctx": "payment",
+   "feature": "user_balance_log",
+   "type_prefix": "UserBalanceLog",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "UserBalanceLogController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/payment/user_balance_log.rs",
+    "repo": "crates/infrastructure/src/db/repo/payment/user_balance_log.rs",
+    "service": "crates/services/src/payment/user_balance_log.rs",
+    "admin_route": "crates/api/admin/src/routes/payment/user_balance_log.rs"
+   }
+  },
+  {
+   "slice_id": "slice-148",
+   "ctx": "member",
+   "feature": "user_company_client",
+   "type_prefix": "UserCompanyClient",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "UserCompanyClientController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-149",
+   "ctx": "member",
+   "feature": "user_address_client",
+   "type_prefix": "UserAddressClient",
+   "coded": false,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "UserAddressClientController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-150",
+   "ctx": "member",
+   "feature": "user_member_tag",
+   "type_prefix": "UserMemberTag",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "UserMemberTagController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-151",
+   "ctx": "catalog",
+   "feature": "e_card",
+   "type_prefix": "ECard",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ECardController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-152",
+   "ctx": "catalog",
+   "feature": "e_card_group",
+   "type_prefix": "ECardGroup",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ECardGroupController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-153",
+   "ctx": "member",
+   "feature": "login",
+   "type_prefix": "Login",
+   "coded": false,
+   "java_modules": [
+    "adminapi",
+    "api"
+   ],
+   "controllers": [
+    "LoginController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-154",
+   "ctx": "content",
+   "feature": "gallery_pic",
+   "type_prefix": "GalleryPic",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "GalleryPicController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-155",
+   "ctx": "content",
+   "feature": "gallery",
+   "type_prefix": "Gallery",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "GalleryController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-156",
+   "ctx": "catalog",
+   "feature": "short_url",
+   "type_prefix": "ShortUrl",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "ShortUrlController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/catalog/short_url.rs",
+    "repo": "crates/infrastructure/src/db/repo/catalog/short_url.rs",
+    "service": "crates/services/src/catalog/short_url.rs",
+    "public_root": "crates/api/public/src/root/catalog/short_url.rs"
+   }
+  },
+  {
+   "slice_id": "slice-157",
+   "ctx": "system",
+   "feature": "example",
+   "type_prefix": "Example",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ExampleController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/system/example.rs",
+    "repo": "crates/infrastructure/src/db/repo/system/example.rs",
+    "service": "crates/services/src/system/example.rs",
+    "admin_route": "crates/api/admin/src/routes/system/example.rs"
+   }
+  },
+  {
+   "slice_id": "slice-158",
+   "ctx": "marketing",
+   "feature": "gift_card",
+   "type_prefix": "GiftCard",
+   "coded": false,
+   "java_modules": [
+    "adminapi",
+    "api"
+   ],
+   "controllers": [
+    "GiftCardController",
+    "GiftCardGroupsController"
+   ],
+   "split": [
+    {
+     "ctx": "marketing",
+     "feature": "gift_card_client",
+     "type_prefix": "GiftCardClient",
+     "controllers": [
+      "GiftCardGroupsController"
+     ]
+    }
+   ],
+   "notes": "not implemented; multi-controller slice: split manually into marketing/gift_card_client",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-159",
+   "ctx": "marketing",
+   "feature": "gift_card_groups",
+   "type_prefix": "GiftCardGroups",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "GiftCardGroupsController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-160",
+   "ctx": "catalog",
+   "feature": "exchange",
+   "type_prefix": "Exchange",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "ExchangeController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-161",
+   "ctx": "marketing",
+   "feature": "points_exchange",
+   "type_prefix": "PointsExchange",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "PointsExchangeController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-162",
+   "ctx": "marketing",
+   "feature": "sign_in_setting",
+   "type_prefix": "SignInSetting",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "SignInSettingController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-163",
+   "ctx": "payment",
+   "feature": "tax_rate",
+   "type_prefix": "TaxRate",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "TaxRateController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/payment/tax_rate.rs",
+    "repo": "crates/infrastructure/src/db/repo/payment/tax_rate.rs",
+    "service": "crates/services/src/payment/tax_rate.rs",
+    "admin_route": "crates/api/admin/src/routes/payment/tax_rate.rs"
+   }
+  },
+  {
+   "slice_id": "slice-164",
+   "ctx": "identity",
+   "feature": "admin_log",
+   "type_prefix": "AdminLog",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "AdminLogController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/identity/admin_log.rs",
+    "repo": "crates/infrastructure/src/db/repo/identity/admin_log.rs",
+    "service": "crates/services/src/identity/admin_log.rs",
+    "admin_route": "crates/api/admin/src/routes/identity/admin_log.rs"
+   }
+  },
+  {
+   "slice_id": "slice-165",
+   "ctx": "system",
+   "feature": "admin_msg",
+   "type_prefix": "AdminMsg",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "AdminMsgController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-166",
+   "ctx": "marketing",
+   "feature": "salesman_material_category",
+   "type_prefix": "SalesmanMaterialCategory",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "SalesmanMaterialCategoryController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/marketing/salesman_material_category.rs",
+    "repo": "crates/infrastructure/src/db/repo/marketing/salesman_material_category.rs",
+    "service": "crates/services/src/marketing/salesman_material_category.rs",
+    "admin_route": "crates/api/admin/src/routes/marketing/salesman_material_category.rs"
+   }
+  },
+  {
+   "slice_id": "slice-167",
+   "ctx": "marketing",
+   "feature": "salesman_material",
+   "type_prefix": "SalesmanMaterial",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "SalesmanMaterialController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-168",
+   "ctx": "system",
+   "feature": "log",
+   "type_prefix": "Log",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "LogController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-169",
+   "ctx": "marketing",
+   "feature": "promotion",
+   "type_prefix": "Promotion",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "PromotionController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-170",
+   "ctx": "member",
+   "feature": "captcha_api",
+   "type_prefix": "CaptchaApi",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "CaptchaApiController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-171",
+   "ctx": "system",
+   "feature": "csrf",
+   "type_prefix": "Csrf",
+   "coded": true,
+   "java_modules": [
+    "adminapi",
+    "api"
+   ],
+   "controllers": [
+    "CSRFController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-172",
+   "ctx": "content",
+   "feature": "share",
+   "type_prefix": "Share",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "ShareController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/content/share.rs",
+    "repo": "crates/infrastructure/src/db/repo/content/share.rs",
+    "service": "crates/services/src/content/share.rs",
+    "public_route": "crates/api/public/src/routes/content/share.rs"
+   }
+  },
+  {
+   "slice_id": "slice-173",
+   "ctx": "content",
+   "feature": "decorate_share",
+   "type_prefix": "DecorateShare",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "DecorateShareController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-174",
+   "ctx": "content",
+   "feature": "decorate_promote",
+   "type_prefix": "DecoratePromote",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "DecoratePromoteController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-175",
+   "ctx": "content",
+   "feature": "decorate_discrete",
+   "type_prefix": "DecorateDiscrete",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "DecorateDiscreteController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-176",
+   "ctx": "content",
+   "feature": "decorate_template",
+   "type_prefix": "DecorateTemplate",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "DecorateTemplateController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-177",
+   "ctx": "content",
+   "feature": "decorate_manage",
+   "type_prefix": "DecorateManage",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "DecorateController"
+   ],
+   "notes": "not implemented; renamed from content/decorate: baseline feature content/decorate is reserved",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-178",
+   "ctx": "content",
+   "feature": "decorate_discrete_client",
+   "type_prefix": "DecorateDiscreteClient",
+   "coded": false,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "DecorateDiscreteController"
+   ],
+   "notes": "not implemented; renamed from content/decorate_discrete: duplicate of slice-175; this slice is the api/client side",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-179",
+   "ctx": "content",
+   "feature": "wechat_video_account",
+   "type_prefix": "WechatVideoAccount",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "WechatVideoAccountController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-180",
+   "ctx": "identity",
+   "feature": "admin_role",
+   "type_prefix": "AdminRole",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "AdminRoleController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-181",
+   "ctx": "trade",
+   "feature": "order_log",
+   "type_prefix": "OrderLog",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "OrderLogController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-182",
+   "ctx": "payment",
+   "feature": "pay",
+   "type_prefix": "Pay",
+   "coded": false,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "PayController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-183",
+   "ctx": "payment",
+   "feature": "apple_pay",
+   "type_prefix": "ApplePay",
+   "coded": false,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "ApplePayController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-184",
+   "ctx": "trade",
+   "feature": "check",
+   "type_prefix": "Check",
+   "coded": false,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "CheckController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-185",
+   "ctx": "merchant",
+   "feature": "order_config",
+   "type_prefix": "OrderConfig",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "OrderConfigController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/merchant/order_config.rs",
+    "repo": "crates/infrastructure/src/db/repo/merchant/order_config.rs",
+    "service": "crates/services/src/merchant/order_config.rs",
+    "admin_route": "crates/api/admin/src/routes/merchant/order_config.rs"
+   }
+  },
+  {
+   "slice_id": "slice-186",
+   "ctx": "system",
+   "feature": "licensed",
+   "type_prefix": "Licensed",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "LicensedController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-187",
+   "ctx": "system",
+   "feature": "config_basic",
+   "type_prefix": "ConfigBasic",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ConfigController"
+   ],
+   "notes": "ConfigController 基础/商品/购物设置 empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-188",
+   "ctx": "system",
+   "feature": "config_style",
+   "type_prefix": "ConfigStyle",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ConfigController"
+   ],
+   "notes": "ConfigController 装修/详情/搜索样式 empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-189",
+   "ctx": "system",
+   "feature": "config_cashier",
+   "type_prefix": "ConfigCashier",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ConfigController"
+   ],
+   "notes": "ConfigController 收银订单设置 empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-190",
+   "ctx": "payment",
+   "feature": "apple_pay_config",
+   "type_prefix": "ApplePayConfig",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ApplePayConfigController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-191",
+   "ctx": "payment",
+   "feature": "lakala_config",
+   "type_prefix": "LakalaConfig",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "LakalaConfigController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-192",
+   "ctx": "payment",
+   "feature": "yeepay_config",
+   "type_prefix": "YeepayConfig",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "YeepayConfigController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-193",
+   "ctx": "payment",
+   "feature": "huifu_config",
+   "type_prefix": "HuifuConfig",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "HuifuConfigController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-194",
+   "ctx": "analytics",
+   "feature": "statistics",
+   "type_prefix": "Statistics",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "StatisticsAccessController",
+    "StatisticsUserController"
+   ],
+   "split": [
+    {
+     "ctx": "analytics",
+     "feature": "statistics_user",
+     "type_prefix": "StatisticsUser",
+     "controllers": [
+      "StatisticsUserController"
+     ]
+    }
+   ],
+   "notes": "StatisticsAccess+StatisticsUser; multi-controller slice: split manually into analytics/statistics_user",
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/analytics/statistics.rs",
+    "repo": "crates/infrastructure/src/db/repo/analytics/statistics.rs",
+    "service": "crates/services/src/analytics/statistics.rs",
+    "admin_route": "crates/api/admin/src/routes/analytics/statistics.rs"
+   }
+  },
+  {
+   "slice_id": "slice-195",
+   "ctx": "catalog",
+   "feature": "comment",
+   "type_prefix": "Comment",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "CommentController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-196",
+   "ctx": "identity",
+   "feature": "admin_account",
+   "type_prefix": "AdminAccount",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "AdminAccountController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-197",
+   "ctx": "payment",
+   "feature": "account_panel",
+   "type_prefix": "AccountPanel",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "AccountPanelController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-198",
+   "ctx": "payment",
+   "feature": "credit_settlement",
+   "type_prefix": "CreditSettlement",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "CreditSettlementController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-199",
+   "ctx": "payment",
+   "feature": "credit_order",
+   "type_prefix": "CreditOrder",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "CreditOrderController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-200",
+   "ctx": "trade",
+   "feature": "cart_summary",
+   "type_prefix": "CartSummary",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "CartController"
+   ],
+   "notes": "CartController 剩余（getCount/getCouponDiscount） empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-201",
+   "ctx": "logistics",
+   "feature": "shipping_tpl",
+   "type_prefix": "ShippingTpl",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ShippingTplController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/logistics/shipping_tpl.rs",
+    "repo": "crates/infrastructure/src/db/repo/logistics/shipping_tpl.rs",
+    "service": "crates/services/src/logistics/shipping_tpl.rs",
+    "admin_route": "crates/api/admin/src/routes/logistics/shipping_tpl.rs"
+   }
+  },
+  {
+   "slice_id": "slice-202",
+   "ctx": "payment",
+   "feature": "merchant_application",
+   "type_prefix": "MerchantApplication",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "MerchantApplicationController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-203",
+   "ctx": "payment",
+   "feature": "refund_apply_admin",
+   "type_prefix": "RefundApplyAdmin",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "RefundApplyController"
+   ],
+   "notes": "empty scaffold, dropped; renamed from payment/refund_apply: baseline feature payment/refund_apply is reserved; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-204",
+   "ctx": "payment",
+   "feature": "refund_log",
+   "type_prefix": "RefundLog",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "RefundLogController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-205",
+   "ctx": "system",
+   "feature": "mail_templates",
+   "type_prefix": "MailTemplates",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "MailTemplatesController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/system/mail_templates.rs",
+    "repo": "crates/infrastructure/src/db/repo/system/mail_templates.rs",
+    "service": "crates/services/src/system/mail_templates.rs",
+    "admin_route": "crates/api/admin/src/routes/system/mail_templates.rs"
+   }
+  },
+  {
+   "slice_id": "slice-206",
+   "ctx": "system",
+   "feature": "util",
+   "type_prefix": "Util",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "UtilController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-207",
+   "ctx": "system",
+   "feature": "config_client",
+   "type_prefix": "ConfigClient",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "ConfigController"
+   ],
+   "notes": "ConfigController(tigshop-api 前台配置)",
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/system/config_client.rs",
+    "repo": "crates/infrastructure/src/db/repo/system/config_client.rs",
+    "service": "crates/services/src/system/config_client.rs",
+    "public_route": "crates/api/public/src/routes/system/config_client.rs"
+   }
+  },
+  {
+   "slice_id": "slice-208",
+   "ctx": "system",
+   "feature": "cache_manage",
+   "type_prefix": "CacheManage",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "CacheManageController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/system/cache_manage.rs",
+    "repo": "crates/infrastructure/src/db/repo/system/cache_manage.rs",
+    "service": "crates/services/src/system/cache_manage.rs",
+    "admin_route": "crates/api/admin/src/routes/system/cache_manage.rs"
+   }
+  },
+  {
+   "slice_id": "slice-209",
+   "ctx": "logistics",
+   "feature": "logistics_company",
+   "type_prefix": "LogisticsCompany",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "LogisticsCompanyController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/logistics/logistics_company.rs",
+    "repo": "crates/infrastructure/src/db/repo/logistics/logistics_company.rs",
+    "service": "crates/services/src/logistics/logistics_company.rs",
+    "admin_route": "crates/api/admin/src/routes/logistics/logistics_company.rs"
+   }
+  },
+  {
+   "slice_id": "slice-210",
+   "ctx": "logistics",
+   "feature": "shipping_type",
+   "type_prefix": "ShippingType",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "ShippingTypeController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/logistics/shipping_type.rs",
+    "repo": "crates/infrastructure/src/db/repo/logistics/shipping_type.rs",
+    "service": "crates/services/src/logistics/shipping_type.rs",
+    "admin_route": "crates/api/admin/src/routes/logistics/shipping_type.rs"
+   }
+  },
+  {
+   "slice_id": "slice-211",
+   "ctx": "catalog",
+   "feature": "price_inquiry",
+   "type_prefix": "PriceInquiry",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "PriceInquiryController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-212",
+   "ctx": "marketing",
+   "feature": "groupon_promotion_item",
+   "type_prefix": "GrouponPromotionItem",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "GrouponPromotionItemController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-213",
+   "ctx": "marketing",
+   "feature": "groupon_records",
+   "type_prefix": "GrouponRecords",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "GrouponRecordsController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-214",
+   "ctx": "member",
+   "feature": "user_sign",
+   "type_prefix": "UserSign",
+   "coded": true,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "UserSignController"
+   ],
+   "notes": "empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-215",
+   "ctx": "analytics",
+   "feature": "sales_statistics",
+   "type_prefix": "SalesStatistics",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "SalesStatisticsController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-216",
+   "ctx": "marketing",
+   "feature": "time_discount_batch",
+   "type_prefix": "TimeDiscountBatch",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "TimeDiscountController"
+   ],
+   "notes": "TimeDiscountController 剩余（batch） empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-217",
+   "ctx": "marketing",
+   "feature": "seckill_batch",
+   "type_prefix": "SeckillBatch",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "SeckillController"
+   ],
+   "notes": "SeckillController 剩余（batch/decorate 列表） empty scaffold, dropped; coded=false: empty scaffold, deleted/dropped by the restructure codemod",
+   "real": false,
+   "deleted": true,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-218",
+   "ctx": "analytics",
+   "feature": "panel",
+   "type_prefix": "Panel",
+   "coded": false,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "PanelController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-219",
+   "ctx": "content",
+   "feature": "home",
+   "type_prefix": "Home",
+   "coded": false,
+   "java_modules": [
+    "api"
+   ],
+   "controllers": [
+    "HomeController"
+   ],
+   "notes": "not implemented",
+   "real": false,
+   "deleted": false,
+   "layers": {}
+  },
+  {
+   "slice_id": "slice-220",
+   "ctx": "content",
+   "feature": "mobile_cat_nav",
+   "type_prefix": "MobileCatNav",
+   "coded": true,
+   "java_modules": [
+    "adminapi"
+   ],
+   "controllers": [
+    "MobileCatNavController"
+   ],
+   "real": true,
+   "deleted": false,
+   "layers": {
+    "models": "crates/core/src/models/content/mobile_cat_nav.rs",
+    "repo": "crates/infrastructure/src/db/repo/content/mobile_cat_nav.rs",
+    "service": "crates/services/src/content/mobile_cat_nav.rs",
+    "admin_route": "crates/api/admin/src/routes/content/mobile_cat_nav.rs"
+   }
+  }
+ ],
+ "controllers": [
+  {
+   "controller": "AdminAccountController",
+   "module": "adminapi",
+   "package": "account",
+   "ctx": "identity",
+   "feature": "admin_account"
+  },
+  {
+   "controller": "AdminLogController",
+   "module": "adminapi",
+   "package": "authority",
+   "ctx": "identity",
+   "feature": "admin_log"
+  },
+  {
+   "controller": "AdminRoleController",
+   "module": "adminapi",
+   "package": "authority",
+   "ctx": "identity",
+   "feature": "admin_role"
+  },
+  {
+   "controller": "AdminUserController",
+   "module": "adminapi",
+   "package": "authority",
+   "ctx": "identity",
+   "feature": "admin_user"
+  },
+  {
+   "controller": "AuthorityController",
+   "module": "adminapi",
+   "package": "authority",
+   "ctx": "identity",
+   "feature": "authority"
+  },
+  {
+   "controller": "CSRFController",
+   "module": "adminapi",
+   "package": "common",
+   "ctx": "system",
+   "feature": "csrf"
+  },
+  {
+   "controller": "CacheManageController",
+   "module": "adminapi",
+   "package": "common",
+   "ctx": "system",
+   "feature": "cache_manage"
+  },
+  {
+   "controller": "TipsManageController",
+   "module": "adminapi",
+   "package": "common",
+   "ctx": "system",
+   "feature": "tips_manage"
+  },
+  {
+   "controller": "ArticleCategoryController",
+   "module": "adminapi",
+   "package": "content",
+   "ctx": "content",
+   "feature": "article_category"
+  },
+  {
+   "controller": "ArticleController",
+   "module": "adminapi",
+   "package": "content",
+   "ctx": "content",
+   "feature": "article_batch"
+  },
+  {
+   "controller": "WechatLiveController",
+   "module": "adminapi",
+   "package": "content",
+   "ctx": "content",
+   "feature": "wechat_live"
+  },
+  {
+   "controller": "WechatLiveGoodsController",
+   "module": "adminapi",
+   "package": "content",
+   "ctx": "content",
+   "feature": "wechat_live_goods"
+  },
+  {
+   "controller": "WechatLiveOrderSyncController",
+   "module": "adminapi",
+   "package": "content",
+   "ctx": "content",
+   "feature": "wechat_live_order_sync"
+  },
+  {
+   "controller": "WechatVideoAccountController",
+   "module": "adminapi",
+   "package": "content",
+   "ctx": "content",
+   "feature": "wechat_video_account"
+  },
+  {
+   "controller": "DecorateController",
+   "module": "adminapi",
+   "package": "decorate",
+   "ctx": "content",
+   "feature": "decorate_manage"
+  },
+  {
+   "controller": "DecorateDiscreteController",
+   "module": "adminapi",
+   "package": "decorate",
+   "ctx": "content",
+   "feature": "decorate_discrete"
+  },
+  {
+   "controller": "DecoratePromoteController",
+   "module": "adminapi",
+   "package": "decorate",
+   "ctx": "content",
+   "feature": "decorate_promote"
+  },
+  {
+   "controller": "DecorateShareController",
+   "module": "adminapi",
+   "package": "decorate",
+   "ctx": "content",
+   "feature": "decorate_share"
+  },
+  {
+   "controller": "DecorateTemplateController",
+   "module": "adminapi",
+   "package": "decorate",
+   "ctx": "content",
+   "feature": "decorate_template"
+  },
+  {
+   "controller": "MobileCatNavController",
+   "module": "adminapi",
+   "package": "decorate",
+   "ctx": "content",
+   "feature": "mobile_cat_nav"
+  },
+  {
+   "controller": "PcCatFloorController",
+   "module": "adminapi",
+   "package": "decorate",
+   "ctx": "content",
+   "feature": "pc_cat_floor"
+  },
+  {
+   "controller": "PcNavigationController",
+   "module": "adminapi",
+   "package": "decorate",
+   "ctx": "content",
+   "feature": "pc_navigation"
+  },
+  {
+   "controller": "DepositAccountController",
+   "module": "adminapi",
+   "package": "deposit",
+   "ctx": "merchant",
+   "feature": "deposit_account"
+  },
+  {
+   "controller": "DepositLogController",
+   "module": "adminapi",
+   "package": "deposit",
+   "ctx": "merchant",
+   "feature": "deposit_log"
+  },
+  {
+   "controller": "DepositPayeeAccountController",
+   "module": "adminapi",
+   "package": "deposit",
+   "ctx": "merchant",
+   "feature": "deposit_payee_account"
+  },
+  {
+   "controller": "DepositRechargeController",
+   "module": "adminapi",
+   "package": "deposit",
+   "ctx": "merchant",
+   "feature": "deposit_recharge"
+  },
+  {
+   "controller": "DepositRefundController",
+   "module": "adminapi",
+   "package": "deposit",
+   "ctx": "merchant",
+   "feature": "deposit_refund"
+  },
+  {
+   "controller": "DepositRuleController",
+   "module": "adminapi",
+   "package": "deposit",
+   "ctx": "merchant",
+   "feature": "deposit_rule"
+  },
+  {
+   "controller": "DepositSettingController",
+   "module": "adminapi",
+   "package": "deposit",
+   "ctx": "merchant",
+   "feature": "deposit_setting"
+  },
+  {
+   "controller": "DepositShopController",
+   "module": "adminapi",
+   "package": "deposit",
+   "ctx": "merchant",
+   "feature": "deposit_shop"
+  },
+  {
+   "controller": "VendorDepositShopController",
+   "module": "adminapi",
+   "package": "deposit",
+   "ctx": "merchant",
+   "feature": "vendor_deposit_shop"
+  },
+  {
+   "controller": "ExampleController",
+   "module": "adminapi",
+   "package": "example",
+   "ctx": "system",
+   "feature": "example"
+  },
+  {
+   "controller": "MessagePushController",
+   "module": "adminapi",
+   "package": "example",
+   "ctx": "openapi",
+   "feature": "message_push"
+  },
+  {
+   "controller": "AccountPanelController",
+   "module": "adminapi",
+   "package": "finance",
+   "ctx": "payment",
+   "feature": "account_panel"
+  },
+  {
+   "controller": "CategoryFeeRuleController",
+   "module": "adminapi",
+   "package": "finance",
+   "ctx": "payment",
+   "feature": "category_fee_rule"
+  },
+  {
+   "controller": "CreditOrderController",
+   "module": "adminapi",
+   "package": "finance",
+   "ctx": "payment",
+   "feature": "credit_order"
+  },
+  {
+   "controller": "CreditSettlementController",
+   "module": "adminapi",
+   "package": "finance",
+   "ctx": "payment",
+   "feature": "credit_settlement"
+  },
+  {
+   "controller": "CreditUserController",
+   "module": "adminapi",
+   "package": "finance",
+   "ctx": "payment",
+   "feature": "credit_user"
+  },
+  {
+   "controller": "MerchantApplicationController",
+   "module": "adminapi",
+   "package": "finance",
+   "ctx": "payment",
+   "feature": "merchant_application"
+  },
+  {
+   "controller": "OrderInvoiceController",
+   "module": "adminapi",
+   "package": "finance",
+   "ctx": "payment",
+   "feature": "order_invoice"
+  },
+  {
+   "controller": "PaylogController",
+   "module": "adminapi",
+   "package": "finance",
+   "ctx": "payment",
+   "feature": "paylog_batch"
+  },
+  {
+   "controller": "ProfitSharingController",
+   "module": "adminapi",
+   "package": "finance",
+   "ctx": "payment",
+   "feature": "profit_sharing"
+  },
+  {
+   "controller": "RefundApplyController",
+   "module": "adminapi",
+   "package": "finance",
+   "ctx": "payment",
+   "feature": "refund_apply_admin"
+  },
+  {
+   "controller": "RefundLogController",
+   "module": "adminapi",
+   "package": "finance",
+   "ctx": "payment",
+   "feature": "refund_log"
+  },
+  {
+   "controller": "StatementController",
+   "module": "adminapi",
+   "package": "finance",
+   "ctx": "payment",
+   "feature": "statement"
+  },
+  {
+   "controller": "SubMerchantController",
+   "module": "adminapi",
+   "package": "finance",
+   "ctx": "payment",
+   "feature": "sub_merchant"
+  },
+  {
+   "controller": "UserBalanceLogController",
+   "module": "adminapi",
+   "package": "finance",
+   "ctx": "payment",
+   "feature": "user_balance_log"
+  },
+  {
+   "controller": "UserInvoiceController",
+   "module": "adminapi",
+   "package": "finance",
+   "ctx": "payment",
+   "feature": "user_invoice"
+  },
+  {
+   "controller": "UserRechargeOrderController",
+   "module": "adminapi",
+   "package": "finance",
+   "ctx": "payment",
+   "feature": "user_recharge_order"
+  },
+  {
+   "controller": "UserWithdrawApplyController",
+   "module": "adminapi",
+   "package": "finance",
+   "ctx": "payment",
+   "feature": "user_withdraw_apply"
+  },
+  {
+   "controller": "AdminShopKefuConfigController",
+   "module": "adminapi",
+   "package": "im",
+   "ctx": "im",
+   "feature": "admin_shop_kefu_config"
+  },
+  {
+   "controller": "AdminUserKefuController",
+   "module": "adminapi",
+   "package": "im",
+   "ctx": "im",
+   "feature": "admin_user_kefu"
+  },
+  {
+   "controller": "IMConfigController",
+   "module": "adminapi",
+   "package": "im",
+   "ctx": "im",
+   "feature": "im_config"
+  },
+  {
+   "controller": "ImConversationController",
+   "module": "adminapi",
+   "package": "im",
+   "ctx": "im",
+   "feature": "im_conversation"
+  },
+  {
+   "controller": "ImMessageController",
+   "module": "adminapi",
+   "package": "im",
+   "ctx": "im",
+   "feature": "im_message"
+  },
+  {
+   "controller": "ImServantController",
+   "module": "adminapi",
+   "package": "im",
+   "ctx": "im",
+   "feature": "im_servant"
+  },
+  {
+   "controller": "MerchantAccountController",
+   "module": "adminapi",
+   "package": "merchant",
+   "ctx": "merchant",
+   "feature": "merchant_account"
+  },
+  {
+   "controller": "MerchantApplyController",
+   "module": "adminapi",
+   "package": "merchant",
+   "ctx": "merchant",
+   "feature": "merchant_apply"
+  },
+  {
+   "controller": "MerchantController",
+   "module": "adminapi",
+   "package": "merchant",
+   "ctx": "merchant",
+   "feature": "merchant"
+  },
+  {
+   "controller": "AdminMsgController",
+   "module": "adminapi",
+   "package": "msg",
+   "ctx": "system",
+   "feature": "admin_msg"
+  },
+  {
+   "controller": "WorkBuddyApiExceptionHandler",
+   "module": "adminapi",
+   "package": "openapi",
+   "ctx": "openapi",
+   "feature": "workbuddy"
+  },
+  {
+   "controller": "WorkBuddyProductImportController",
+   "module": "adminapi",
+   "package": "openapi",
+   "ctx": "openapi",
+   "feature": "workbuddy_product_import"
+  },
+  {
+   "controller": "WorkBuddyProductIntelligenceController",
+   "module": "adminapi",
+   "package": "openapi",
+   "ctx": "openapi",
+   "feature": "workbuddy_product_intelligence"
+  },
+  {
+   "controller": "WorkBuddyProductManageController",
+   "module": "adminapi",
+   "package": "openapi",
+   "ctx": "openapi",
+   "feature": "workbuddy"
+  },
+  {
+   "controller": "AftersalesController",
+   "module": "adminapi",
+   "package": "order",
+   "ctx": "trade",
+   "feature": "aftersales"
+  },
+  {
+   "controller": "OrderController",
+   "module": "adminapi",
+   "package": "order",
+   "ctx": "trade",
+   "feature": "order_admin"
+  },
+  {
+   "controller": "OrderLogController",
+   "module": "adminapi",
+   "package": "order",
+   "ctx": "trade",
+   "feature": "order_log"
+  },
+  {
+   "controller": "ShopOrderConfigController",
+   "module": "adminapi",
+   "package": "order",
+   "ctx": "trade",
+   "feature": "shop_order_config"
+  },
+  {
+   "controller": "PanelController",
+   "module": "adminapi",
+   "package": "panel",
+   "ctx": "analytics",
+   "feature": "panel"
+  },
+  {
+   "controller": "SalesStatisticsController",
+   "module": "adminapi",
+   "package": "panel",
+   "ctx": "analytics",
+   "feature": "sales_statistics"
+  },
+  {
+   "controller": "StatisticsAccessController",
+   "module": "adminapi",
+   "package": "panel",
+   "ctx": "analytics",
+   "feature": "statistics"
+  },
+  {
+   "controller": "StatisticsUserController",
+   "module": "adminapi",
+   "package": "panel",
+   "ctx": "analytics",
+   "feature": "statistics_user"
+  },
+  {
+   "controller": "PrintConfigController",
+   "module": "adminapi",
+   "package": "print",
+   "ctx": "logistics",
+   "feature": "print_config"
+  },
+  {
+   "controller": "PrintController",
+   "module": "adminapi",
+   "package": "print",
+   "ctx": "logistics",
+   "feature": "print"
+  },
+  {
+   "controller": "PrintLogController",
+   "module": "adminapi",
+   "package": "print",
+   "ctx": "logistics",
+   "feature": "print_log"
+  },
+  {
+   "controller": "AttributesTplController",
+   "module": "adminapi",
+   "package": "product",
+   "ctx": "catalog",
+   "feature": "attributes_tpl"
+  },
+  {
+   "controller": "BrandController",
+   "module": "adminapi",
+   "package": "product",
+   "ctx": "catalog",
+   "feature": "brand"
+  },
+  {
+   "controller": "CategoryController",
+   "module": "adminapi",
+   "package": "product",
+   "ctx": "catalog",
+   "feature": "category"
+  },
+  {
+   "controller": "CommentController",
+   "module": "adminapi",
+   "package": "product",
+   "ctx": "catalog",
+   "feature": "comment"
+  },
+  {
+   "controller": "ECardController",
+   "module": "adminapi",
+   "package": "product",
+   "ctx": "catalog",
+   "feature": "e_card"
+  },
+  {
+   "controller": "ECardGroupController",
+   "module": "adminapi",
+   "package": "product",
+   "ctx": "catalog",
+   "feature": "e_card_group"
+  },
+  {
+   "controller": "PriceInquiryController",
+   "module": "adminapi",
+   "package": "product",
+   "ctx": "catalog",
+   "feature": "price_inquiry"
+  },
+  {
+   "controller": "ProductBatchController",
+   "module": "adminapi",
+   "package": "product",
+   "ctx": "catalog",
+   "feature": "product_batch"
+  },
+  {
+   "controller": "ProductController",
+   "module": "adminapi",
+   "package": "product",
+   "ctx": "catalog",
+   "feature": "product_manage"
+  },
+  {
+   "controller": "ProductGroupController",
+   "module": "adminapi",
+   "package": "product",
+   "ctx": "catalog",
+   "feature": "product_group"
+  },
+  {
+   "controller": "ProductInventoryLogController",
+   "module": "adminapi",
+   "package": "product",
+   "ctx": "catalog",
+   "feature": "product_inventory_log"
+  },
+  {
+   "controller": "ProductStockController",
+   "module": "adminapi",
+   "package": "product",
+   "ctx": "catalog",
+   "feature": "product_stock"
+  },
+  {
+   "controller": "ServicesController",
+   "module": "adminapi",
+   "package": "product",
+   "ctx": "catalog",
+   "feature": "services"
+  },
+  {
+   "controller": "StockWarningController",
+   "module": "adminapi",
+   "package": "product",
+   "ctx": "catalog",
+   "feature": "stock_warning"
+  },
+  {
+   "controller": "BuyerShowCommentController",
+   "module": "adminapi",
+   "package": "promotion",
+   "ctx": "marketing",
+   "feature": "buyer_show_comment"
+  },
+  {
+   "controller": "BuyerShowController",
+   "module": "adminapi",
+   "package": "promotion",
+   "ctx": "marketing",
+   "feature": "buyer_show"
+  },
+  {
+   "controller": "BuyerShowGroupController",
+   "module": "adminapi",
+   "package": "promotion",
+   "ctx": "marketing",
+   "feature": "buyer_show_group"
+  },
+  {
+   "controller": "CouponController",
+   "module": "adminapi",
+   "package": "promotion",
+   "ctx": "marketing",
+   "feature": "coupon_manage"
+  },
+  {
+   "controller": "GiftCardController",
+   "module": "adminapi",
+   "package": "promotion",
+   "ctx": "marketing",
+   "feature": "gift_card"
+  },
+  {
+   "controller": "GiftCardGroupsController",
+   "module": "adminapi",
+   "package": "promotion",
+   "ctx": "marketing",
+   "feature": "gift_card_groups"
+  },
+  {
+   "controller": "GrouponPromotionController",
+   "module": "adminapi",
+   "package": "promotion",
+   "ctx": "marketing",
+   "feature": "groupon_promotion"
+  },
+  {
+   "controller": "GrouponPromotionItemController",
+   "module": "adminapi",
+   "package": "promotion",
+   "ctx": "marketing",
+   "feature": "groupon_promotion_item"
+  },
+  {
+   "controller": "GrouponPromotionRecordController",
+   "module": "adminapi",
+   "package": "promotion",
+   "ctx": "marketing",
+   "feature": "groupon_promotion_record"
+  },
+  {
+   "controller": "LotteryActivityController",
+   "module": "adminapi",
+   "package": "promotion",
+   "ctx": "marketing",
+   "feature": "lottery_activity"
+  },
+  {
+   "controller": "PointsExchangeController",
+   "module": "adminapi",
+   "package": "promotion",
+   "ctx": "marketing",
+   "feature": "points_exchange"
+  },
+  {
+   "controller": "ProductGiftController",
+   "module": "adminapi",
+   "package": "promotion",
+   "ctx": "marketing",
+   "feature": "product_gift"
+  },
+  {
+   "controller": "ProductPromotionController",
+   "module": "adminapi",
+   "package": "promotion",
+   "ctx": "marketing",
+   "feature": "product_promotion"
+  },
+  {
+   "controller": "ProductStyleController",
+   "module": "adminapi",
+   "package": "promotion",
+   "ctx": "marketing",
+   "feature": "product_style_admin"
+  },
+  {
+   "controller": "PromotionController",
+   "module": "adminapi",
+   "package": "promotion",
+   "ctx": "marketing",
+   "feature": "promotion"
+  },
+  {
+   "controller": "RechargeSettingController",
+   "module": "adminapi",
+   "package": "promotion",
+   "ctx": "marketing",
+   "feature": "recharge_setting"
+  },
+  {
+   "controller": "SeckillController",
+   "module": "adminapi",
+   "package": "promotion",
+   "ctx": "marketing",
+   "feature": "seckill_batch"
+  },
+  {
+   "controller": "SignInSettingController",
+   "module": "adminapi",
+   "package": "promotion",
+   "ctx": "marketing",
+   "feature": "sign_in_setting"
+  },
+  {
+   "controller": "TimeDiscountController",
+   "module": "adminapi",
+   "package": "promotion",
+   "ctx": "marketing",
+   "feature": "time_discount_batch"
+  },
+  {
+   "controller": "ProxyShoppingCartController",
+   "module": "adminapi",
+   "package": "proxyshopping",
+   "ctx": "trade",
+   "feature": "proxy_shopping_cart"
+  },
+  {
+   "controller": "ProxyShoppingDeliveryController",
+   "module": "adminapi",
+   "package": "proxyshopping",
+   "ctx": "trade",
+   "feature": "proxy_shopping_delivery"
+  },
+  {
+   "controller": "ProxyShoppingOrderCheckController",
+   "module": "adminapi",
+   "package": "proxyshopping",
+   "ctx": "trade",
+   "feature": "proxy_shopping_order_check"
+  },
+  {
+   "controller": "ProxyShoppingPickupContactController",
+   "module": "adminapi",
+   "package": "proxyshopping",
+   "ctx": "trade",
+   "feature": "proxy_shopping_pickup_contact"
+  },
+  {
+   "controller": "ProxyShoppingProductController",
+   "module": "adminapi",
+   "package": "proxyshopping",
+   "ctx": "trade",
+   "feature": "proxy_shopping_product"
+  },
+  {
+   "controller": "ProxyShoppingUserAddressController",
+   "module": "adminapi",
+   "package": "proxyshopping",
+   "ctx": "trade",
+   "feature": "proxy_shopping_user_address"
+  },
+  {
+   "controller": "ProxyShoppingUserController",
+   "module": "adminapi",
+   "package": "proxyshopping",
+   "ctx": "trade",
+   "feature": "proxy_shopping_user"
+  },
+  {
+   "controller": "ProxyShoppingUserCouponController",
+   "module": "adminapi",
+   "package": "proxyshopping",
+   "ctx": "trade",
+   "feature": "proxy_shopping_user_coupon"
+  },
+  {
+   "controller": "OverviewController",
+   "module": "adminapi",
+   "package": "salesman",
+   "ctx": "marketing",
+   "feature": "overview"
+  },
+  {
+   "controller": "SalesmanConfigController",
+   "module": "adminapi",
+   "package": "salesman",
+   "ctx": "marketing",
+   "feature": "salesman_config"
+  },
+  {
+   "controller": "SalesmanContentController",
+   "module": "adminapi",
+   "package": "salesman",
+   "ctx": "marketing",
+   "feature": "salesman_content"
+  },
+  {
+   "controller": "SalesmanController",
+   "module": "adminapi",
+   "package": "salesman",
+   "ctx": "marketing",
+   "feature": "salesman_admin"
+  },
+  {
+   "controller": "SalesmanCustomerTransactionController",
+   "module": "adminapi",
+   "package": "salesman",
+   "ctx": "marketing",
+   "feature": "salesman_customer_transaction"
+  },
+  {
+   "controller": "SalesmanGroupController",
+   "module": "adminapi",
+   "package": "salesman",
+   "ctx": "marketing",
+   "feature": "salesman_group"
+  },
+  {
+   "controller": "SalesmanMaterialCategoryController",
+   "module": "adminapi",
+   "package": "salesman",
+   "ctx": "marketing",
+   "feature": "salesman_material_category"
+  },
+  {
+   "controller": "SalesmanMaterialController",
+   "module": "adminapi",
+   "package": "salesman",
+   "ctx": "marketing",
+   "feature": "salesman_material"
+  },
+  {
+   "controller": "SalesmanOrderController",
+   "module": "adminapi",
+   "package": "salesman",
+   "ctx": "marketing",
+   "feature": "salesman_order"
+  },
+  {
+   "controller": "SalesmanProductController",
+   "module": "adminapi",
+   "package": "salesman",
+   "ctx": "marketing",
+   "feature": "salesman_product"
+  },
+  {
+   "controller": "SearchController",
+   "module": "adminapi",
+   "package": "search",
+   "ctx": "catalog",
+   "feature": "search_admin"
+  },
+  {
+   "controller": "AppVersionController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "system",
+   "feature": "app_version_admin"
+  },
+  {
+   "controller": "ApplePayConfigController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "payment",
+   "feature": "apple_pay_config"
+  },
+  {
+   "controller": "AreaCodeController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "system",
+   "feature": "area_code"
+  },
+  {
+   "controller": "ConfigController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "system",
+   "feature": "config_basic"
+  },
+  {
+   "controller": "FilesController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "system",
+   "feature": "files"
+  },
+  {
+   "controller": "FriendLinksController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "content",
+   "feature": "friend_links"
+  },
+  {
+   "controller": "GalleryController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "content",
+   "feature": "gallery"
+  },
+  {
+   "controller": "GalleryPicController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "content",
+   "feature": "gallery_pic"
+  },
+  {
+   "controller": "GalleryVideoController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "content",
+   "feature": "gallery_video"
+  },
+  {
+   "controller": "GalleryVideoInfoController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "content",
+   "feature": "gallery_video_info"
+  },
+  {
+   "controller": "HuifuConfigController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "payment",
+   "feature": "huifu_config"
+  },
+  {
+   "controller": "LakalaConfigController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "payment",
+   "feature": "lakala_config"
+  },
+  {
+   "controller": "LicensedController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "system",
+   "feature": "licensed"
+  },
+  {
+   "controller": "LogisticsCompanyConfigController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "logistics",
+   "feature": "logistics_company_config"
+  },
+  {
+   "controller": "LogisticsCompanyController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "logistics",
+   "feature": "logistics_company"
+  },
+  {
+   "controller": "MailTemplatesController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "system",
+   "feature": "mail_templates"
+  },
+  {
+   "controller": "MessageTypeController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "system",
+   "feature": "message_type"
+  },
+  {
+   "controller": "RegionController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "system",
+   "feature": "region"
+  },
+  {
+   "controller": "SeoController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "content",
+   "feature": "seo"
+  },
+  {
+   "controller": "ShippingTplController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "logistics",
+   "feature": "shipping_tpl"
+  },
+  {
+   "controller": "ShippingTypeController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "logistics",
+   "feature": "shipping_type"
+  },
+  {
+   "controller": "TaxRateController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "payment",
+   "feature": "tax_rate"
+  },
+  {
+   "controller": "YeepayConfigController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "payment",
+   "feature": "yeepay_config"
+  },
+  {
+   "controller": "WechatAutoReplyController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "content",
+   "feature": "wechat_auto_reply"
+  },
+  {
+   "controller": "WechatKefuCapabilityController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "content",
+   "feature": "wechat_kefu_capability"
+  },
+  {
+   "controller": "WechatKeywordRuleController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "content",
+   "feature": "wechat_keyword_rule"
+  },
+  {
+   "controller": "WechatMenuController",
+   "module": "adminapi",
+   "package": "setting",
+   "ctx": "content",
+   "feature": "wechat_menu"
+  },
+  {
+   "controller": "AccountController",
+   "module": "adminapi",
+   "package": "shop",
+   "ctx": "merchant",
+   "feature": "shop_account_log"
+  },
+  {
+   "controller": "AdminUserShopController",
+   "module": "adminapi",
+   "package": "shop",
+   "ctx": "merchant",
+   "feature": "admin_user_shop"
+  },
+  {
+   "controller": "OrderConfigController",
+   "module": "adminapi",
+   "package": "shop",
+   "ctx": "merchant",
+   "feature": "order_config"
+  },
+  {
+   "controller": "ShopController",
+   "module": "adminapi",
+   "package": "shop",
+   "ctx": "merchant",
+   "feature": "shop_manage"
+  },
+  {
+   "controller": "ShopFundsController",
+   "module": "adminapi",
+   "package": "shop",
+   "ctx": "merchant",
+   "feature": "shop_funds"
+  },
+  {
+   "controller": "ShopProductCategoryController",
+   "module": "adminapi",
+   "package": "shop",
+   "ctx": "merchant",
+   "feature": "shop_product_category"
+  },
+  {
+   "controller": "ShopWithdrawController",
+   "module": "adminapi",
+   "package": "shop",
+   "ctx": "merchant",
+   "feature": "shop_withdraw"
+  },
+  {
+   "controller": "FeedbackController",
+   "module": "adminapi",
+   "package": "user",
+   "ctx": "member",
+   "feature": "feedback"
+  },
+  {
+   "controller": "LoginController",
+   "module": "adminapi",
+   "package": "user",
+   "ctx": "member",
+   "feature": "login"
+  },
+  {
+   "controller": "MemberAudienceController",
+   "module": "adminapi",
+   "package": "user",
+   "ctx": "member",
+   "feature": "member_audience"
+  },
+  {
+   "controller": "MemberTagController",
+   "module": "adminapi",
+   "package": "user",
+   "ctx": "member",
+   "feature": "member_tag"
+  },
+  {
+   "controller": "MemberTagGroupController",
+   "module": "adminapi",
+   "package": "user",
+   "ctx": "member",
+   "feature": "member_tag_group"
+  },
+  {
+   "controller": "ShopMemberController",
+   "module": "adminapi",
+   "package": "user",
+   "ctx": "member",
+   "feature": "shop_member"
+  },
+  {
+   "controller": "UserCompanyController",
+   "module": "adminapi",
+   "package": "user",
+   "ctx": "member",
+   "feature": "user_company"
+  },
+  {
+   "controller": "UserController",
+   "module": "adminapi",
+   "package": "user",
+   "ctx": "member",
+   "feature": "user_manage"
+  },
+  {
+   "controller": "UserMemberTagController",
+   "module": "adminapi",
+   "package": "user",
+   "ctx": "member",
+   "feature": "user_member_tag"
+  },
+  {
+   "controller": "UserMessageLogController",
+   "module": "adminapi",
+   "package": "user",
+   "ctx": "member",
+   "feature": "user_message_log"
+  },
+  {
+   "controller": "UserPointsLogController",
+   "module": "adminapi",
+   "package": "user",
+   "ctx": "member",
+   "feature": "user_points_log"
+  },
+  {
+   "controller": "UserRankController",
+   "module": "adminapi",
+   "package": "user",
+   "ctx": "member",
+   "feature": "user_rank"
+  },
+  {
+   "controller": "WholesaleProductController",
+   "module": "adminapi",
+   "package": "wholesale",
+   "ctx": "wholesale",
+   "feature": "wholesale_product"
+  },
+  {
+   "controller": "WholesaleSettingController",
+   "module": "adminapi",
+   "package": "wholesale",
+   "ctx": "wholesale",
+   "feature": "wholesale_setting"
+  },
+  {
+   "controller": "WholesalerController",
+   "module": "adminapi",
+   "package": "wholesale",
+   "ctx": "wholesale",
+   "feature": "wholesaler"
+  },
+  {
+   "controller": "WholesalerGradeController",
+   "module": "adminapi",
+   "package": "wholesale",
+   "ctx": "wholesale",
+   "feature": "wholesaler_grade"
+  },
+  {
+   "controller": "AppVersionController",
+   "module": "api",
+   "package": "app",
+   "ctx": "system",
+   "feature": "app_version_client"
+  },
+  {
+   "controller": "ArticleCategoryClientController",
+   "module": "api",
+   "package": "article",
+   "ctx": "content",
+   "feature": "article"
+  },
+  {
+   "controller": "ArticleController",
+   "module": "api",
+   "package": "article",
+   "ctx": "content",
+   "feature": "article_batch"
+  },
+  {
+   "controller": "BuyerShowController",
+   "module": "api",
+   "package": "buyershow",
+   "ctx": "marketing",
+   "feature": "buyer_show_client"
+  },
+  {
+   "controller": "CartController",
+   "module": "api",
+   "package": "cart",
+   "ctx": "trade",
+   "feature": "cart_summary"
+  },
+  {
+   "controller": "CSRFController",
+   "module": "api",
+   "package": "common",
+   "ctx": "system",
+   "feature": "csrf"
+  },
+  {
+   "controller": "ConfigController",
+   "module": "api",
+   "package": "common",
+   "ctx": "system",
+   "feature": "config_client"
+  },
+  {
+   "controller": "LogController",
+   "module": "api",
+   "package": "common",
+   "ctx": "system",
+   "feature": "log"
+  },
+  {
+   "controller": "PCController",
+   "module": "api",
+   "package": "common",
+   "ctx": "system",
+   "feature": "pc"
+  },
+  {
+   "controller": "RecommendController",
+   "module": "api",
+   "package": "common",
+   "ctx": "system",
+   "feature": "recommend"
+  },
+  {
+   "controller": "UtilController",
+   "module": "api",
+   "package": "common",
+   "ctx": "system",
+   "feature": "util"
+  },
+  {
+   "controller": "ApiWechatLiveController",
+   "module": "api",
+   "package": "content",
+   "ctx": "content",
+   "feature": "api_wechat_live"
+  },
+  {
+   "controller": "WechatLiveSyncCallbackController",
+   "module": "api",
+   "package": "content",
+   "ctx": "content",
+   "feature": "wechat_live_sync_callback"
+  },
+  {
+   "controller": "DecorateDiscreteController",
+   "module": "api",
+   "package": "decorate",
+   "ctx": "content",
+   "feature": "decorate_discrete_client"
+  },
+  {
+   "controller": "ProfitSharingNotifyController",
+   "module": "api",
+   "package": "finance",
+   "ctx": "payment",
+   "feature": "gateway"
+  },
+  {
+   "controller": "HomeController",
+   "module": "api",
+   "package": "home",
+   "ctx": "content",
+   "feature": "home"
+  },
+  {
+   "controller": "ShareController",
+   "module": "api",
+   "package": "home",
+   "ctx": "content",
+   "feature": "share"
+  },
+  {
+   "controller": "ImConversationController",
+   "module": "api",
+   "package": "im",
+   "ctx": "im",
+   "feature": "im_conversation"
+  },
+  {
+   "controller": "ImMessageController",
+   "module": "api",
+   "package": "im",
+   "ctx": "im",
+   "feature": "im_message"
+  },
+  {
+   "controller": "WebSocketController",
+   "module": "api",
+   "package": "im",
+   "ctx": "im",
+   "feature": "web_socket"
+  },
+  {
+   "controller": "MerchantClientController",
+   "module": "api",
+   "package": "merchant",
+   "ctx": "merchant",
+   "feature": "merchant_client"
+  },
+  {
+   "controller": "ApplePayController",
+   "module": "api",
+   "package": "order",
+   "ctx": "payment",
+   "feature": "apple_pay"
+  },
+  {
+   "controller": "CheckController",
+   "module": "api",
+   "package": "order",
+   "ctx": "trade",
+   "feature": "check"
+  },
+  {
+   "controller": "PayController",
+   "module": "api",
+   "package": "order",
+   "ctx": "payment",
+   "feature": "pay"
+  },
+  {
+   "controller": "SunmiPrintCallbackController",
+   "module": "api",
+   "package": "print",
+   "ctx": "logistics",
+   "feature": "sunmi_print_callback"
+  },
+  {
+   "controller": "CategoryController",
+   "module": "api",
+   "package": "product",
+   "ctx": "catalog",
+   "feature": "category"
+  },
+  {
+   "controller": "ExchangeController",
+   "module": "api",
+   "package": "product",
+   "ctx": "catalog",
+   "feature": "exchange"
+  },
+  {
+   "controller": "ProductController",
+   "module": "api",
+   "package": "product",
+   "ctx": "catalog",
+   "feature": "product_manage"
+  },
+  {
+   "controller": "ProductStyleController",
+   "module": "api",
+   "package": "product",
+   "ctx": "catalog",
+   "feature": "product_style_client"
+  },
+  {
+   "controller": "ShortUrlController",
+   "module": "api",
+   "package": "product",
+   "ctx": "catalog",
+   "feature": "short_url"
+  },
+  {
+   "controller": "CouponClientController",
+   "module": "api",
+   "package": "promotion",
+   "ctx": "marketing",
+   "feature": "coupon"
+  },
+  {
+   "controller": "GiftCardGroupsController",
+   "module": "api",
+   "package": "promotion",
+   "ctx": "marketing",
+   "feature": "gift_card_client"
+  },
+  {
+   "controller": "GrouponPromotionController",
+   "module": "api",
+   "package": "promotion",
+   "ctx": "marketing",
+   "feature": "groupon_promotion"
+  },
+  {
+   "controller": "GrouponRecordsController",
+   "module": "api",
+   "package": "promotion",
+   "ctx": "marketing",
+   "feature": "groupon_records"
+  },
+  {
+   "controller": "LotteryController",
+   "module": "api",
+   "package": "promotion",
+   "ctx": "marketing",
+   "feature": "lottery"
+  },
+  {
+   "controller": "SalesmanCardInviteController",
+   "module": "api",
+   "package": "salesman",
+   "ctx": "marketing",
+   "feature": "salesman_card_invite"
+  },
+  {
+   "controller": "SalesmanContentController",
+   "module": "api",
+   "package": "salesman",
+   "ctx": "marketing",
+   "feature": "salesman_content"
+  },
+  {
+   "controller": "SalesmanController",
+   "module": "api",
+   "package": "salesman",
+   "ctx": "marketing",
+   "feature": "salesman_client"
+  },
+  {
+   "controller": "SalesmanMaterialController",
+   "module": "api",
+   "package": "salesman",
+   "ctx": "marketing",
+   "feature": "salesman_material_client"
+  },
+  {
+   "controller": "SalesmanOrderController",
+   "module": "api",
+   "package": "salesman",
+   "ctx": "marketing",
+   "feature": "salesman_order"
+  },
+  {
+   "controller": "SalesmanProductController",
+   "module": "api",
+   "package": "salesman",
+   "ctx": "marketing",
+   "feature": "salesman_product"
+  },
+  {
+   "controller": "SearchController",
+   "module": "api",
+   "package": "search",
+   "ctx": "catalog",
+   "feature": "product_search"
+  },
+  {
+   "controller": "SearchGuessController",
+   "module": "api",
+   "package": "search",
+   "ctx": "catalog",
+   "feature": "product_search"
+  },
+  {
+   "controller": "ShopClientCategoryController",
+   "module": "api",
+   "package": "shop",
+   "ctx": "merchant",
+   "feature": "shop_client_category"
+  },
+  {
+   "controller": "ShopClientController",
+   "module": "api",
+   "package": "shop",
+   "ctx": "merchant",
+   "feature": "shop_client"
+  },
+  {
+   "controller": "RegionController",
+   "module": "api",
+   "package": "sys",
+   "ctx": "system",
+   "feature": "region_client"
+  },
+  {
+   "controller": "SeoController",
+   "module": "api",
+   "package": "sys",
+   "ctx": "content",
+   "feature": "seo"
+  },
+  {
+   "controller": "AccountController",
+   "module": "api",
+   "package": "user",
+   "ctx": "payment",
+   "feature": "user_account"
+  },
+  {
+   "controller": "AfterSalesController",
+   "module": "api",
+   "package": "user",
+   "ctx": "trade",
+   "feature": "aftersales_client"
+  },
+  {
+   "controller": "CaptchaApiController",
+   "module": "api",
+   "package": "user",
+   "ctx": "member",
+   "feature": "captcha_api"
+  },
+  {
+   "controller": "CollectProductController",
+   "module": "api",
+   "package": "user",
+   "ctx": "member",
+   "feature": "collect_product"
+  },
+  {
+   "controller": "CommentController",
+   "module": "api",
+   "package": "user",
+   "ctx": "catalog",
+   "feature": "comment_client"
+  },
+  {
+   "controller": "LoginController",
+   "module": "api",
+   "package": "user",
+   "ctx": "member",
+   "feature": "login"
+  },
+  {
+   "controller": "OrderInvoiceClientController",
+   "module": "api",
+   "package": "user",
+   "ctx": "trade",
+   "feature": "order_invoice_client"
+  },
+  {
+   "controller": "PointsLogController",
+   "module": "api",
+   "package": "user",
+   "ctx": "member",
+   "feature": "member_lists"
+  },
+  {
+   "controller": "RechargeOrderController",
+   "module": "api",
+   "package": "user",
+   "ctx": "payment",
+   "feature": "recharge_order"
+  },
+  {
+   "controller": "RegisterController",
+   "module": "api",
+   "package": "user",
+   "ctx": "identity",
+   "feature": "auth"
+  },
+  {
+   "controller": "UserAddressClientController",
+   "module": "api",
+   "package": "user",
+   "ctx": "member",
+   "feature": "user_address_client"
+  },
+  {
+   "controller": "UserCompanyClientController",
+   "module": "api",
+   "package": "user",
+   "ctx": "member",
+   "feature": "user_company_client"
+  },
+  {
+   "controller": "UserController",
+   "module": "api",
+   "package": "user",
+   "ctx": "member",
+   "feature": "user_center"
+  },
+  {
+   "controller": "UserCouponController",
+   "module": "api",
+   "package": "user",
+   "ctx": "marketing",
+   "feature": "coupon"
+  },
+  {
+   "controller": "UserFeedbackClientController",
+   "module": "api",
+   "package": "user",
+   "ctx": "member",
+   "feature": "user_feedback_client"
+  },
+  {
+   "controller": "UserInvoiceClientController",
+   "module": "api",
+   "package": "user",
+   "ctx": "member",
+   "feature": "user_invoice_client"
+  },
+  {
+   "controller": "UserMessageController",
+   "module": "api",
+   "package": "user",
+   "ctx": "member",
+   "feature": "user_message"
+  },
+  {
+   "controller": "UserOrderController",
+   "module": "api",
+   "package": "user",
+   "ctx": "trade",
+   "feature": "user_order"
+  },
+  {
+   "controller": "UserPriceInquiryController",
+   "module": "api",
+   "package": "user",
+   "ctx": "member",
+   "feature": "user_price_inquiry"
+  },
+  {
+   "controller": "UserSignController",
+   "module": "api",
+   "package": "user",
+   "ctx": "member",
+   "feature": "user_sign"
+  },
+  {
+   "controller": "WithDrawApplyClientController",
+   "module": "api",
+   "package": "user",
+   "ctx": "payment",
+   "feature": "with_draw_apply_client"
+  },
+  {
+   "controller": "WholesaleClientController",
+   "module": "api",
+   "package": "wholesale",
+   "ctx": "wholesale",
+   "feature": "wholesale_client"
+  },
+  {
+   "controller": "SeoResponseAdvice",
+   "module": "api",
+   "package": "handler",
+   "ctx": "content",
+   "feature": "seo"
+  },
+  {
+   "controller": "GlobalExceptionHandler",
+   "module": "common",
+   "package": "handler",
+   "ctx": "system",
+   "feature": "error_handling"
+  },
+  {
+   "controller": "GlobalResponseAdvice",
+   "module": "common",
+   "package": "handler",
+   "ctx": "system",
+   "feature": "error_handling"
+  },
+  {
+   "controller": "LoginFilter",
+   "module": "adminapi",
+   "package": "filter",
+   "ctx": "identity",
+   "feature": "auth"
+  },
+  {
+   "controller": "ClientLoginFilter",
+   "module": "api",
+   "package": "filter",
+   "ctx": "identity",
+   "feature": "auth"
+  }
+ ],
+ "baseline": [
+  {
+   "ctx": "catalog",
+   "feature": "category_all",
+   "source_key": "catalog",
+   "layers": {
+    "models": "crates/core/src/models/catalog/category_all.rs",
+    "repo": "crates/infrastructure/src/db/repo/catalog/category_all.rs",
+    "service": "crates/services/src/catalog/category_all.rs",
+    "admin_route": "crates/api/admin/src/routes/catalog/category_all.rs",
+    "public_route": "crates/api/public/src/routes/catalog/category_all.rs"
+   }
+  },
+  {
+   "ctx": "catalog",
+   "feature": "product",
+   "source_key": "product",
+   "layers": {
+    "models": "crates/core/src/models/catalog/product.rs",
+    "repo": "crates/infrastructure/src/db/repo/catalog/product.rs",
+    "service": "crates/services/src/catalog/product.rs"
+   }
+  },
+  {
+   "ctx": "content",
+   "feature": "article",
+   "source_key": "content",
+   "layers": {
+    "models": "crates/core/src/models/content/article.rs",
+    "repo": "crates/infrastructure/src/db/repo/content/article.rs",
+    "service": "crates/services/src/content/article.rs",
+    "admin_route": "crates/api/admin/src/routes/content/article.rs",
+    "public_route": "crates/api/public/src/routes/content/article.rs"
+   }
+  },
+  {
+   "ctx": "content",
+   "feature": "decorate",
+   "source_key": "decorate",
+   "layers": {
+    "models": "crates/core/src/models/content/decorate.rs",
+    "repo": "crates/infrastructure/src/db/repo/content/decorate.rs",
+    "service": "crates/services/src/content/decorate.rs",
+    "admin_route": "crates/api/admin/src/routes/content/decorate.rs",
+    "public_route": "crates/api/public/src/routes/content/decorate.rs"
+   }
+  },
+  {
+   "ctx": "identity",
+   "feature": "auth",
+   "source_key": "auth",
+   "layers": {
+    "models": "crates/core/src/models/identity/auth.rs",
+    "repo": "crates/infrastructure/src/db/repo/identity/auth.rs",
+    "service": "crates/services/src/identity/auth.rs"
+   }
+  },
+  {
+   "ctx": "logistics",
+   "feature": "shipping_list",
+   "source_key": "logistics",
+   "layers": {
+    "models": "crates/core/src/models/logistics/shipping_list.rs",
+    "repo": "crates/infrastructure/src/db/repo/logistics/shipping_list.rs",
+    "service": "crates/services/src/logistics/shipping_list.rs",
+    "admin_route": "crates/api/admin/src/routes/logistics/shipping_list.rs",
+    "public_route": "crates/api/public/src/routes/logistics/shipping_list.rs"
+   }
+  },
+  {
+   "ctx": "marketing",
+   "feature": "coupon",
+   "source_key": "coupon",
+   "layers": {
+    "models": "crates/core/src/models/marketing/coupon.rs",
+    "repo": "crates/infrastructure/src/db/repo/marketing/coupon.rs",
+    "service": "crates/services/src/marketing/coupon.rs",
+    "admin_route": "crates/api/admin/src/routes/marketing/coupon.rs",
+    "public_route": "crates/api/public/src/routes/marketing/coupon.rs"
+   }
+  },
+  {
+   "ctx": "marketing",
+   "feature": "salesman",
+   "source_key": "salesman",
+   "layers": {
+    "models": "crates/core/src/models/marketing/salesman.rs",
+    "repo": "crates/infrastructure/src/db/repo/marketing/salesman.rs",
+    "service": "crates/services/src/marketing/salesman.rs",
+    "admin_route": "crates/api/admin/src/routes/marketing/salesman.rs",
+    "public_route": "crates/api/public/src/routes/marketing/salesman.rs"
+   }
+  },
+  {
+   "ctx": "marketing",
+   "feature": "seckill",
+   "source_key": "promotion",
+   "layers": {
+    "models": "crates/core/src/models/marketing/seckill.rs",
+    "repo": "crates/infrastructure/src/db/repo/marketing/seckill.rs",
+    "service": "crates/services/src/marketing/seckill.rs",
+    "admin_route": "crates/api/admin/src/routes/marketing/seckill.rs",
+    "public_route": "crates/api/public/src/routes/marketing/seckill.rs"
+   }
+  },
+  {
+   "ctx": "marketing",
+   "feature": "time_discount",
+   "source_key": "time_discount",
+   "layers": {
+    "models": "crates/core/src/models/marketing/time_discount.rs",
+    "repo": "crates/infrastructure/src/db/repo/marketing/time_discount.rs",
+    "service": "crates/services/src/marketing/time_discount.rs",
+    "admin_route": "crates/api/admin/src/routes/marketing/time_discount.rs",
+    "public_route": "crates/api/public/src/routes/marketing/time_discount.rs"
+   }
+  },
+  {
+   "ctx": "member",
+   "feature": "member_lists",
+   "source_key": "member",
+   "layers": {
+    "models": "crates/core/src/models/member/member_lists.rs",
+    "repo": "crates/infrastructure/src/db/repo/member/member_lists.rs",
+    "service": "crates/services/src/member/member_lists.rs",
+    "admin_route": "crates/api/admin/src/routes/member/member_lists.rs",
+    "public_route": "crates/api/public/src/routes/member/member_lists.rs"
+   }
+  },
+  {
+   "ctx": "member",
+   "feature": "user",
+   "source_key": "user",
+   "layers": {
+    "repo": "crates/infrastructure/src/db/repo/member/user.rs",
+    "service": "crates/services/src/member/user.rs"
+   }
+  },
+  {
+   "ctx": "merchant",
+   "feature": "shop",
+   "source_key": "shop",
+   "layers": {
+    "models": "crates/core/src/models/merchant/shop.rs",
+    "repo": "crates/infrastructure/src/db/repo/merchant/shop.rs",
+    "service": "crates/services/src/merchant/shop.rs",
+    "admin_route": "crates/api/admin/src/routes/merchant/shop.rs",
+    "public_route": "crates/api/public/src/routes/merchant/shop.rs"
+   }
+  },
+  {
+   "ctx": "payment",
+   "feature": "balance_pay",
+   "source_key": "balance_pay",
+   "layers": {
+    "service": "crates/services/src/payment/balance_pay.rs",
+    "public_route": "crates/api/public/src/routes/payment/balance_pay.rs"
+   }
+  },
+  {
+   "ctx": "payment",
+   "feature": "gateway",
+   "source_key": "payment",
+   "layers": {
+    "service": "crates/services/src/payment/gateway.rs"
+   }
+  },
+  {
+   "ctx": "payment",
+   "feature": "paylog",
+   "source_key": "paylog",
+   "layers": {
+    "models": "crates/core/src/models/payment/paylog.rs",
+    "repo": "crates/infrastructure/src/db/repo/payment/paylog.rs",
+    "service": "crates/services/src/payment/paylog.rs",
+    "admin_route": "crates/api/admin/src/routes/payment/paylog.rs",
+    "public_route": "crates/api/public/src/routes/payment/paylog.rs"
+   }
+  },
+  {
+   "ctx": "payment",
+   "feature": "refund_apply",
+   "source_key": "refund_apply",
+   "layers": {
+    "models": "crates/core/src/models/payment/refund_apply.rs",
+    "repo": "crates/infrastructure/src/db/repo/payment/refund_apply.rs",
+    "service": "crates/services/src/payment/refund_apply.rs",
+    "admin_route": "crates/api/admin/src/routes/payment/refund_apply.rs"
+   }
+  },
+  {
+   "ctx": "trade",
+   "feature": "cart",
+   "source_key": "cart",
+   "layers": {
+    "repo": "crates/infrastructure/src/db/repo/trade/cart.rs",
+    "service": "crates/services/src/trade/cart.rs"
+   }
+  },
+  {
+   "ctx": "trade",
+   "feature": "order",
+   "source_key": "order",
+   "layers": {
+    "models": "crates/core/src/models/trade/order.rs",
+    "repo": "crates/infrastructure/src/db/repo/trade/order.rs",
+    "service": "crates/services/src/trade/order.rs"
+   }
+  }
+ ],
+ "migration": {
+  "stage": 1,
+  "tool": "tools/restructure/migrate.py",
+  "real_slices": 73,
+  "deleted_scaffolds": 59,
+  "baseline_features": 19
+ }
+}

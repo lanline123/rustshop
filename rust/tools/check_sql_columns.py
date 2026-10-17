@@ -206,7 +206,7 @@ def main() -> int:
     total_unknown_col = 0
     total_unknown_tbl = 0
     total_stmts = 0
-    files = sorted(REPO_DIR.glob("*.rs"))
+    files = sorted(REPO_DIR.rglob("*.rs"))
 
     for f in files:
         src = strip_rust_comments(f.read_text(encoding="utf-8", errors="replace"))
@@ -245,6 +245,9 @@ def main() -> int:
                     print(r)
 
     print(f"\n扫描 {len(files)} 个仓储文件 / {total_stmts} 条 SQL 语句")
+    if len(files) < 80:
+        print(f"\n⚠️  仓储文件数仅 {len(files)}，低于下限 80：递归扫描可能未覆盖新目录结构", file=sys.stderr)
+        return 1
     print(f"未知表: {total_unknown_tbl}    未知列: {total_unknown_col}")
 
     if total_unknown_col or total_unknown_tbl:

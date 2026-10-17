@@ -13,7 +13,7 @@ use super::{
     AdminUser, Article, ArticleCategory, Cart, Category, Coupon, Order, Product, ProductSku, User,
     UserCoupon,
 };
-use crate::models::coupon::UserCouponStatus;
+use crate::models::marketing::coupon::UserCouponStatus;
 
 /// 优惠券会员限制：非专享。
 pub const NEW_USER_NONE: i32 = 0;
