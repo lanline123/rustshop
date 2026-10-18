@@ -66,6 +66,7 @@ pub struct CouponListQuery {
     pub keyword: Option<String>,
     pub page: Option<u64>,
     #[serde(rename = "pageSize")]
+    #[serde(alias = "size")]
     pub page_size: Option<u64>,
     /// 店铺ID，-1 表示不限
     pub shop_id: Option<i32>,
@@ -105,6 +106,7 @@ pub struct UserCouponIdDTO {
 pub struct UserCouponListQuery {
     pub page: Option<u64>,
     #[serde(rename = "pageSize")]
+    #[serde(alias = "size")]
     pub page_size: Option<u64>,
     /// 使用时间过滤
     pub used_time: Option<i64>,

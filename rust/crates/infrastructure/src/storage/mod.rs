@@ -59,3 +59,37 @@ impl Storage for LocalStorage {
         }
     }
 }
+
+/// 上传根目录（`TIG_FILE__UPLOAD_DIR`，缺省 `./uploads`，相对进程工作目录）。
+#[must_use]
+pub fn upload_root() -> String {
+    std::env::var("TIG_FILE__UPLOAD_DIR").unwrap_or_else(|_| "./uploads".to_string())
+}
+
+/// 保存上传文件到本地磁盘，返回前端可直接访问的 `/static/...` URL。
+///
+/// 文件名使用「毫秒时间戳 + 进程内序号 + 原扩展名」，避免中文/路径穿越问题；
+/// `kind` 用于分目录（`gallery` / `video` / `config` / `app`）。
+pub async fn save_local_upload(kind: &str, original_name: &str, bytes: &[u8]) -> Result<String> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+
+    let ext = std::path::Path::new(original_name)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .filter(|e| !e.is_empty() && e.len() <= 8 && e.chars().all(|c| c.is_ascii_alphanumeric()))
+        .unwrap_or_else(|| "bin".to_string());
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let seq = SEQ.fetch_add(1, Ordering::Relaxed);
+    let safe_kind: String = kind
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
+        .collect();
+    let key = format!("{safe_kind}/{stamp}_{seq}.{ext}");
+    let storage = LocalStorage::new(upload_root());
+    storage.put(&key, bytes.to_vec(), "").await
+}

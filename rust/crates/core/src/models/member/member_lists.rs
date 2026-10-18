@@ -20,5 +20,6 @@ pub struct UserRankVO {
 pub struct UserPointsLogQuery {
     pub user_id: Option<i32>,
     pub page: Option<u64>,
+    #[serde(alias = "size")]
     pub page_size: Option<u64>,
 }

@@ -14,6 +14,7 @@ pub struct SeckillListQuery {
     pub shop_id: Option<i32>,
     pub page: Option<u64>,
     #[serde(rename = "pageSize")]
+    #[serde(alias = "size")]
     pub page_size: Option<u64>,
 }
 

@@ -91,6 +91,7 @@ pub struct DecorateListQuery {
     pub sort_field: Option<String>,
     pub sort_order: Option<String>,
     pub page: Option<u64>,
+    #[serde(alias = "size")]
     pub page_size: Option<u64>,
 }
 
@@ -289,6 +290,7 @@ pub struct PcNavigationListQuery {
     pub parent_id: Option<i32>,
     pub keyword: Option<String>,
     pub page: Option<u64>,
+    #[serde(alias = "size")]
     pub page_size: Option<u64>,
 }
 
@@ -407,6 +409,7 @@ pub struct PcCatFloorListQuery {
     pub is_show: Option<i32>,
     pub keyword: Option<String>,
     pub page: Option<u64>,
+    #[serde(alias = "size")]
     pub page_size: Option<u64>,
 }
 
@@ -501,6 +504,7 @@ pub struct MobileCatNavListQuery {
     pub is_show: Option<i32>,
     pub keyword: Option<String>,
     pub page: Option<u64>,
+    #[serde(alias = "size")]
     pub page_size: Option<u64>,
 }
 
@@ -590,6 +594,7 @@ pub struct MobileCatNavUpdateDTO {
 #[serde(rename_all = "camelCase", default)]
 pub struct DecorateShareListQuery {
     pub page: Option<u64>,
+    #[serde(alias = "size")]
     pub page_size: Option<u64>,
 }
 

@@ -219,13 +219,30 @@ impl GalleryVideoInfoService {
     /// # Errors
     /// - 空文件 / 非法类型 → `Validation`（Java 文案）
     /// - 其余 → 业务错误「未迁移」
-    pub fn upload_video(
+    pub async fn upload_video(
         &self,
         file_name: Option<&str>,
         content_type: Option<&str>,
+        bytes: &[u8],
     ) -> Result<UploadVideoInfoVO> {
         validate_upload_file(file_name, content_type).map_err(Error::Validation)?;
-        Err(Error::biz_msg(MSG_UPLOAD_NOT_MIGRATED))
+        let original = file_name
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or("video.mp4");
+        let url =
+            tigshop_infrastructure::storage::save_local_upload("video", original, bytes).await?;
+        let stem = std::path::Path::new(original)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("video")
+            .to_string();
+        Ok(UploadVideoInfoVO {
+            video_url: url,
+            video_name: stem,
+            format: "mp4".to_string(),
+            video_cover: String::new(),
+        })
     }
 }
 

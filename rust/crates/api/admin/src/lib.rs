@@ -9,6 +9,8 @@
 //! | `GET /adminapi/order/list` | `OrderController.list` |
 //! | `POST /adminapi/order/ship` | `OrderController.ship` |
 
+use tower_http::services::ServeDir;
+
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -171,22 +173,29 @@ pub fn router(state: AdminState) -> Router {
             require_auth,
         ));
 
-    Router::new()
-        // —— 登录（无需认证）——
+    // 管理端匿名路由：Java 的 `URL_WHITELIST` + LoginFilter 登录端点，全部挂 `/adminapi`
+    let admin_public = routes::merge_public(&state)
+        .route("/login/sendMobileCode", post(send_mobile_code))
         // 原系统登录由 Spring Security 的 LoginFilter 注册：
         // `setFilterProcessesUrl("/adminapi/login/signin")`
         .route("/login/signin", post(login))
         // 刷新令牌为 Rust 版新增（原系统靠 Redis 会话续期）
         .route("/login/refresh", post(refresh))
+        .route("/health", get(health));
+
+    Router::new()
         .route("/health", get(health))
         .nest("/adminapi", protected)
-        // 免登录域路由（Java `URL_WHITELIST`）+ 登录页短信验证码（`/adminapi/login/**`）
-        .nest(
-            "/adminapi",
-            routes::merge_public(&state).route("/login/sendMobileCode", post(send_mobile_code)),
-        )
+        .nest("/adminapi", admin_public)
         .merge(root_public)
         .merge(root_protected)
+        // 本地对象存储（上传文件）；nginx 需把 /static 反代到本服务
+        .nest_service(
+            "/static",
+            ServeDir::new(
+                std::env::var("TIG_FILE__UPLOAD_DIR").unwrap_or_else(|_| "./uploads".to_string()),
+            ),
+        )
         .with_state(state)
         // —— 契约与覆盖率（重写期间对照用）——
         // 该子路由自带状态，须在 `with_state` 之后合并。

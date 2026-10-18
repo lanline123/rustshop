@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 pub struct ShippingTplListQuery {
     pub keyword: Option<String>,
     pub page: Option<u64>,
+    #[serde(alias = "size")]
     pub page_size: Option<u64>,
 }
 

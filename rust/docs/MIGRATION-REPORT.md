@@ -188,6 +188,28 @@ models + repo + service + route 四层与路由表一致性测试。
 
 这些均在对应模块头文档化，并在 `ARCHITECTURE.md §10` 的横切债务表中有汇总。
 
+## 9.6 前端兼容层与「只用 Rust 跑起来」
+
+原 100% 契约覆盖只保证「路径/方法存在」，不等于现有前端可用。本轮补齐了前端兼容层，实际验证通过的链路：
+MySQL（demo.sql）+ Redis 可缺省 → Rust 服务启动（8080/8181）→ 管理员登录（返回 	oken/adminType）→
+菜单权限 → 分页列表（
+ecords/size/current/pages）→ 图片/视频上传（本地存储 + /static）→ 静态资源访问。
+
+关键改动：
+- 登录 LoginVO 同时输出 	oken/dminType（前端读这两个字段）；
+- PageResult 序列化同时输出 Java MyBatis-Plus 形状与历史字段，请求参数兼容 size；
+- 响应体同时输出 msg 与 message；
+- 修正 login/signin、health、/api 公开路由未挂在契约前缀下的问题；
+- 本地上传（galleryPic/uploadImg、galleryVideoInfo/uploadVideo）+ /static 静态服务；
+- MySQL UNSIGNED 归一化为 signed（工具 	ools/compat/mysql_signed_schema.py）；
+- 修正 product_manage 列表占位符/绑定数不一致（MySQL 1835）与 axum 0.8 路由参数写法。
+
+详细运行步骤、nginx 代理示例与冒烟清单见 docs/RUN-RUST-FRONTEND.md。
+
+仍未迁移（页面/流程不可用，但服务可启动）：支付渠道（全部 create 返回未迁移）、短信/邮件验证码、
+微信生态、Excel 导入导出、IM WebSocket、定时任务/MQ、RBAC 方法级权限、多租户 header 完整隔离、
+支付证书/APP 更新包上传。
+
 ## 9. 参考文档
 
 - `docs/ARCHITECTURE.md` —— 目标结构契约与验收门禁（权威）

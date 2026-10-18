@@ -366,16 +366,18 @@ mod tests {
         };
         let v = serde_json::to_value(&page).unwrap();
         assert_eq!(v["total"], 1);
-        // `PageResult` 只对 `page_size` 显式 rename 为 `pageSize`，
-        // `total_page` 保持 snake_case（既有实现，勿臆改为 camelCase）。
-        assert_eq!(v["total_page"], 1);
+        // 同时输出 Java MyBatis-Plus 形状（前端读取 records/size/current/pages）
+        // 与历史字段（totalPage/pageSize/page/list）。
+        assert_eq!(v["totalPage"], 1);
         assert_eq!(v["pageSize"], 15);
         assert_eq!(v["page"], 1);
         assert_eq!(v["list"][0]["userId"], 7);
         assert!(v["list"][0]["password"].is_null());
-        // MyBatis-Plus 的字段名不应出现（项目统一口径）
-        assert!(v.get("records").is_none());
-        assert!(v.get("current").is_none());
+        assert_eq!(v["records"].as_array().map(Vec::len), Some(1));
+        assert_eq!(v["records"][0]["userId"], 7);
+        assert_eq!(v["size"], 15);
+        assert_eq!(v["current"], 1);
+        assert_eq!(v["pages"], 1);
     }
 
     #[test]

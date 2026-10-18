@@ -150,6 +150,9 @@ fn not_in_clause(column: &str, count: usize) -> String {
 macro_rules! bind_product_filters {
     ($q:expr, $f:expr) => {{
         let mut q = $q;
+        // keyword_group_sql: `(? IS NULL OR (product_name LIKE ? OR keywords LIKE ?
+        // OR product_sn LIKE ? OR product_tsn LIKE ?))` → 5 个占位符
+        q = q.bind(&$f.keyword_like);
         q = q.bind(&$f.keyword_like);
         q = q.bind(&$f.keyword_like);
         q = q.bind(&$f.keyword_like);

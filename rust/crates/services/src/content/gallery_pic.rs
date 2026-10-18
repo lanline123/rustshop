@@ -286,11 +286,16 @@ impl GalleryPicService {
     /// # Errors
     /// - 文件为空 / 类型非法 / 超过配置上限 → `Biz(1001, ..)`（同 Java `SERVICE_DATA_ERROR`）
     /// - 校验通过 → `Biz(1001, 未迁移提示)`
+    #[allow(clippy::too_many_arguments)]
     pub async fn upload_img(
         &self,
-        _gallery_id: Option<i32>,
+        gallery_id: Option<i32>,
         content_type: Option<&str>,
         size: u64,
+        file_name: Option<&str>,
+        bytes: &[u8],
+        shop_id: i32,
+        owner_id: i32,
     ) -> Result<GalleryPicUploadVO> {
         let max_size = self
             .repo()
@@ -299,7 +304,40 @@ impl GalleryPicService {
             .unwrap_or_else(|| DEFAULT_IMAGE_UPLOAD_MAX_SIZE.to_string());
         validate_upload_file(content_type, size, &max_size)
             .map_err(|(code, message)| Error::biz(code, message))?;
-        Err(Error::biz_msg(ERR_UPLOAD_NOT_MIGRATED))
+
+        let original = file_name
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or("upload.jpg");
+        let url = tigshop_infrastructure::storage::save_local_upload("gallery", original, bytes)
+            .await?;
+        let ext = std::path::Path::new(original)
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_ascii_lowercase())
+            .unwrap_or_else(|| "jpg".to_string());
+
+        let pic = GalleryPic {
+            pic_id: 0,
+            shop_id,
+            gallery_id: gallery_id.unwrap_or(0),
+            pic_ower_id: owner_id,
+            pic_url: url.clone(),
+            pic_name: original.to_string(),
+            pic_thumb: url.clone(),
+            add_time: now_seconds().to_string(),
+            vendor_id: 0,
+            hidden: Some(0),
+            pic_width: None,
+            pic_height: None,
+            pic_size: Some(i64::try_from(size).unwrap_or(i64::MAX)),
+            file_type: Some(ext),
+            pic_sort: None,
+            source: "upload".to_string(),
+        };
+        let mut saved = pic.clone();
+        saved.pic_id = self.repo().insert_pic(&pic).await?;
+        Ok(upload_vo(&saved))
     }
 }
 

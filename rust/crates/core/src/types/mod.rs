@@ -11,7 +11,7 @@ pub struct PageQuery {
     #[serde(default = "default_page")]
     pub page: u64,
     /// 每页大小。
-    #[serde(default = "default_page_size", rename = "pageSize")]
+    #[serde(default = "default_page_size", rename = "pageSize", alias = "size")]
     pub page_size: u64,
 }
 
@@ -38,8 +38,12 @@ impl PageQuery {
     }
 }
 
-/// 分页响应，字段与原 Java 分页返回结构兼容（total/list/totalPage）。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// 分页响应。
+///
+/// 序列化同时输出：
+/// - 原 Java MyBatis-Plus `Page` 形状（前端实际读取）：`records/total/size/current/pages`
+/// - Rust 历史字段：`list/totalPage/pageSize/page`（保持内部/测试兼容）
+#[derive(Debug, Clone, Deserialize)]
 pub struct PageResult<T> {
     pub total: u64,
     pub list: Vec<T>,
@@ -47,6 +51,26 @@ pub struct PageResult<T> {
     #[serde(rename = "pageSize")]
     pub page_size: u64,
     pub page: u64,
+}
+
+impl<T: Serialize> Serialize for PageResult<T> {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut st = serializer.serialize_struct("PageResult", 9)?;
+        st.serialize_field("records", &self.list)?;
+        st.serialize_field("total", &self.total)?;
+        st.serialize_field("size", &self.page_size)?;
+        st.serialize_field("current", &self.page)?;
+        st.serialize_field("pages", &self.total_page)?;
+        st.serialize_field("list", &self.list)?;
+        st.serialize_field("totalPage", &self.total_page)?;
+        st.serialize_field("pageSize", &self.page_size)?;
+        st.serialize_field("page", &self.page)?;
+        st.end()
+    }
 }
 
 impl<T> PageResult<T> {

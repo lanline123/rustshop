@@ -159,16 +159,17 @@ mod tests {
         assert_eq!(full.total_page, 3); // 41 / 20 向上取整
         let v = serde_json::to_value(&full).unwrap();
         assert_eq!(v["total"], 41);
-        // `PageResult` 仅 `page_size` 被 rename 为 `pageSize`；`total_page`
-        // 序列化为 snake_case（既有实现，勿臆改为 camelCase）。
-        assert_eq!(v["total_page"], 3);
+        // 同时输出 Java MyBatis-Plus 形状（前端读取）与历史字段。
+        assert_eq!(v["totalPage"], 3);
         assert_eq!(v["pageSize"], 20);
         assert_eq!(v["page"], 2);
         assert_eq!(v["list"].as_array().map(Vec::len), Some(1));
         assert_eq!(v["list"][0]["logId"], 11);
         assert_eq!(v["list"][0]["changeTypeName"], "增加");
-        // MyBatis-Plus 的字段名不应出现
-        assert!(v.get("records").is_none());
-        assert!(v.get("current").is_none());
+        assert_eq!(v["records"].as_array().map(Vec::len), Some(1));
+        assert_eq!(v["records"][0]["logId"], 11);
+        assert_eq!(v["size"], 20);
+        assert_eq!(v["current"], 2);
+        assert_eq!(v["pages"], 3);
     }
 }

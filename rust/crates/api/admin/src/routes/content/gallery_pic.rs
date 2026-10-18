@@ -191,10 +191,12 @@ struct UploadQuery {
 /// 完成本地校验后由服务层返回「对象存储未迁移」业务错误。
 async fn upload_img(
     State(state): State<AdminState>,
+    headers: HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<UploadQuery>,
     mut multipart: Multipart,
 ) -> ApiResult<GalleryPicUploadVO> {
-    let mut file_meta: Option<(Option<String>, u64)> = None;
+    let mut payload: Option<(Option<String>, Option<String>, Vec<u8>)> = None;
     while let Some(field) = multipart
         .next_field()
         .await
@@ -204,22 +206,38 @@ async fn upload_img(
             continue;
         }
         let content_type = field.content_type().map(ToString::to_string);
+        let file_name = field.file_name().map(ToString::to_string);
         let bytes = field
             .bytes()
             .await
-            .map_err(|e| AppError(tigshop_core::Error::Validation(format!("文件不能为空: {e}"))))?;
-        file_meta = Some((content_type, u64::try_from(bytes.len()).unwrap_or(u64::MAX)));
+            .map_err(|e| AppError(tigshop_core::Error::Validation(format!("文件不能为空: {e}"))))?
+            .to_vec();
+        payload = Some((content_type, file_name, bytes));
         break;
     }
-    let Some((content_type, size)) = file_meta else {
+    let Some((content_type, file_name, bytes)) = payload else {
         return Err(AppError(tigshop_core::Error::Validation(
             ERR_UPLOAD_FILE_EMPTY.into(),
         )));
     };
+    let size = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+    let shop_id = headers
+        .get("x-shop-id")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.parse::<i32>().ok())
+        .unwrap_or(0);
     ok(state
         .content
         .gallery_pic
-        .upload_img(q.gallery_id, content_type.as_deref(), size)
+        .upload_img(
+            q.gallery_id,
+            content_type.as_deref(),
+            size,
+            file_name.as_deref(),
+            &bytes,
+            shop_id,
+            auth.id,
+        )
         .await?)
 }
 

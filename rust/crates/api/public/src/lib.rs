@@ -13,6 +13,8 @@
 //! | `POST /api/order/check/submit` | `CheckController.submit` |
 //! | `GET  /api/user/order/list` | `UserOrderController.list` |
 
+use tower_http::services::ServeDir;
+
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -122,17 +124,28 @@ pub fn router(state: PublicState) -> Router {
     // 公开域路由（无需登录），与需登录路由组同挂载于 `/api` 下
     let public_api = routes::merge_public(&state);
 
-    Router::new()
-        // —— 公开接口 ——
-        .route("/health", get(health))
+    // 契约内 `/api` 前缀的公开路由（含登录/注册/商城首页商品列表）
+    let public_root = Router::new()
         .route("/product/product/list", get(product_list))
         // 原系统登录由 Spring Security 的 ClientLoginFilter 注册：
         // `setFilterProcessesUrl("/api/user/login/signin")`
         .route("/user/login/signin", post(user_login))
         .route("/user/regist/registAct", post(user_register))
-        .nest("/api", authorized.merge(public_api))
+        .route("/health", get(health));
+
+    Router::new()
+        // 裸根健康检查（负载均衡探活用，不属于契约）
+        .route("/health", get(health))
+        .nest("/api", authorized.merge(public_api).merge(public_root))
         .merge(root_public)
         .merge(root_protected)
+        // 本地对象存储（上传文件）；nginx 需把 /static 反代到本服务
+        .nest_service(
+            "/static",
+            ServeDir::new(
+                std::env::var("TIG_FILE__UPLOAD_DIR").unwrap_or_else(|_| "./uploads".to_string()),
+            ),
+        )
         .with_state(state)
         // —— 契约与覆盖率（重写期间对照用）——
         .merge(openapi::routes(openapi_state()))
@@ -237,6 +250,8 @@ async fn user_login(
             .jwt
             .issue_pair(user_id.to_string(), username.clone(), None, Some("member".into()))?;
     Ok(Json(ApiResponse::success(LoginVO {
+        token: access.clone(),
+        admin_type: None,
         access_token: access,
         refresh_token: refresh,
         token_type: "Bearer".into(),

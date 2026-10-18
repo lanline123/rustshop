@@ -133,7 +133,7 @@ async fn upload_video(
     State(state): State<AdminState>,
     mut multipart: Multipart,
 ) -> ApiResult<UploadVideoInfoVO> {
-    let mut file_meta: Option<(Option<String>, Option<String>)> = None;
+    let mut payload: Option<(Option<String>, Option<String>, Vec<u8>)> = None;
     while let Some(field) = multipart
         .next_field()
         .await
@@ -144,11 +144,15 @@ async fn upload_video(
         }
         let file_name = field.file_name().map(ToString::to_string);
         let content_type = field.content_type().map(ToString::to_string);
-        // 只读取元数据（不落盘）：本接口在服务层本地校验后返回「未迁移」
-        file_meta = Some((file_name, content_type));
+        let bytes = field
+            .bytes()
+            .await
+            .map_err(|e| AppError(tigshop_core::Error::Validation(format!("文件不能为空: {e}"))))?
+            .to_vec();
+        payload = Some((file_name, content_type, bytes));
         break;
     }
-    let Some((file_name, content_type)) = file_meta else {
+    let Some((file_name, content_type, bytes)) = payload else {
         return Err(AppError(tigshop_core::Error::Validation(
             tigshop_core::models::content::gallery_video_info::MSG_FILE_EMPTY.into(),
         )));
@@ -156,7 +160,8 @@ async fn upload_video(
     ok(state
         .content
         .gallery_video_info
-        .upload_video(file_name.as_deref(), content_type.as_deref())?)
+        .upload_video(file_name.as_deref(), content_type.as_deref(), &bytes)
+        .await?)
 }
 
 /// `POST /adminapi/setting/galleryVideoInfo/create`：保存视频信息。

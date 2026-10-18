@@ -18,6 +18,12 @@ pub struct LoginDTO {
 /// 登录成功返回。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoginVO {
+    /// Java 前端读取的令牌字段（原 Java `LoginVO.token`）
+    #[serde(rename = "token")]
+    pub token: String,
+    /// 管理员类型（原 Java `LoginVO.adminType`；C 端登录为空）
+    #[serde(rename = "adminType", skip_serializing_if = "Option::is_none", default)]
+    pub admin_type: Option<String>,
     /// 访问令牌（JWT）
     #[serde(rename = "accessToken")]
     pub access_token: String,
@@ -48,6 +54,8 @@ mod tests {
     #[test]
     fn login_json_field_names() {
         let v = LoginVO {
+            token: "t".into(),
+            admin_type: Some("admin".into()),
             access_token: "t".into(),
             refresh_token: "r".into(),
             token_type: "Bearer".into(),

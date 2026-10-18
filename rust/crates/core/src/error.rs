@@ -110,15 +110,35 @@ impl Error {
     }
 }
 
-/// 统一 API 响应体，保持与原 Java `ResultWrapper` 的 JSON 字段兼容：
-/// `{"code":0,"msg":"success","data":...,"timestamp":...}`
-#[derive(Debug, Serialize)]
+/// 统一 API 响应体。
+///
+/// Java 的 `AjaxResult` 字段为 `{code,message,data}`，早期 Rust 骨架用的是
+/// `{code,msg,data,timestamp}`。前端两套都读过（错误提示读 `message || msg`），
+/// 因此这里同时输出 `msg` 与 `message`，保持双向兼容。
+#[derive(Debug)]
 pub struct ApiResponse<T: Serialize> {
     pub code: i32,
     pub msg: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<T>,
     pub timestamp: i64,
+}
+
+impl<T: Serialize> Serialize for ApiResponse<T> {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut st = serializer.serialize_struct("ApiResponse", 5)?;
+        st.serialize_field("code", &self.code)?;
+        st.serialize_field("msg", &self.msg)?;
+        st.serialize_field("message", &self.msg)?;
+        if let Some(data) = &self.data {
+            st.serialize_field("data", data)?;
+        }
+        st.serialize_field("timestamp", &self.timestamp)?;
+        st.end()
+    }
 }
 
 impl<T: Serialize> ApiResponse<T> {

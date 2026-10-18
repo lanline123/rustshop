@@ -20,6 +20,7 @@ pub struct ProductListQuery {
     pub sort_by: Option<String>,
     pub sort_order: Option<String>,
     pub page: Option<u64>,
+    #[serde(alias = "size")]
     pub page_size: Option<u64>,
 }
 

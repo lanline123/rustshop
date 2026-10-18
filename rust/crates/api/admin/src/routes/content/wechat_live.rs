@@ -45,7 +45,7 @@ use tigshop_security::web::{ok, ApiResult};
 use crate::AdminState;
 
 /// 本域 14 条路由（`/adminapi` 前缀之后的路径 + 原 Java 方法名）。
-/// 路径参数使用契约写法 `{roomId}`（axum 注册时为 `:roomId`）。
+/// 路径参数使用契约写法 `{roomId}`（axum 注册时为 `{roomId}`）。
 const ROUTE_TABLE: [(&str, &str, &str); 14] = [
     ("GET", "/content/wechatLive/list", "WechatLiveController.list"),
     ("GET", "/content/wechatLive/detail", "WechatLiveController.detail"),
@@ -105,13 +105,13 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/content/wechatLive/refresh", get(refresh))
         .route("/content/wechatLive/create", post(create))
         .route("/content/wechatLive/delete", post(delete))
-        .route("/content/wechatLive/pushUrl/:roomId", get(push_url))
-        .route("/content/wechatLive/promote/:roomId", get(promote))
+        .route("/content/wechatLive/pushUrl/{roomId}", get(push_url))
+        .route("/content/wechatLive/promote/{roomId}", get(promote))
         .route("/content/wechatLive/syncFromWechat", get(sync_from_wechat))
         .route("/content/wechatLive/syncToWechat", post(sync_to_wechat))
         .route("/content/wechatLive/addToRoom", post(add_to_room))
         .route("/content/wechatLive/removeFromRoom", post(remove_from_room))
-        .route("/content/wechatLive/room/:roomId", get(room_goods))
+        .route("/content/wechatLive/room/{roomId}", get(room_goods))
         .route(
             "/content/wechatLive/finderLiveRecord",
             get(finder_live_record),
@@ -291,7 +291,7 @@ mod tests {
 
     #[test]
     fn routes_registers_all_paths_with_axum_param_syntax() {
-        // axum 0.8 路由参数写法为 `:roomId`；契约写法为 `{roomId}`，逐条映射校验
+        // axum 0.8 路由参数写法为 `{roomId}`（与契约一致）
         let registered = [
             ("GET", "/content/wechatLive/list"),
             ("GET", "/content/wechatLive/detail"),
@@ -299,18 +299,18 @@ mod tests {
             ("GET", "/content/wechatLive/refresh"),
             ("POST", "/content/wechatLive/create"),
             ("POST", "/content/wechatLive/delete"),
-            ("GET", "/content/wechatLive/pushUrl/:roomId"),
-            ("GET", "/content/wechatLive/promote/:roomId"),
+            ("GET", "/content/wechatLive/pushUrl/{roomId}"),
+            ("GET", "/content/wechatLive/promote/{roomId}"),
             ("GET", "/content/wechatLive/syncFromWechat"),
             ("POST", "/content/wechatLive/syncToWechat"),
             ("POST", "/content/wechatLive/addToRoom"),
             ("POST", "/content/wechatLive/removeFromRoom"),
-            ("GET", "/content/wechatLive/room/:roomId"),
+            ("GET", "/content/wechatLive/room/{roomId}"),
             ("GET", "/content/wechatLive/finderLiveRecord"),
         ];
         assert_eq!(registered.len(), ROUTE_TABLE.len());
         for (method, path) in registered {
-            let contract_path = path.replace(":roomId", "{roomId}");
+            let contract_path = path.replace("{roomId}", "{roomId}");
             assert!(
                 ROUTE_TABLE
                     .iter()
@@ -319,7 +319,7 @@ mod tests {
             );
         }
         for (method, path, _) in ROUTE_TABLE.iter() {
-            let registered_path = path.replace("{roomId}", ":roomId");
+            let registered_path = path.replace("{roomId}", "{roomId}");
             assert!(
                 registered
                     .iter()

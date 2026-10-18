@@ -34,6 +34,7 @@ pub struct SalesmanListQuery {
     pub user_id: Option<i32>,
     pub salesman_id: Option<i32>,
     pub page: Option<u64>,
+    #[serde(alias = "size")]
     pub page_size: Option<u64>,
 }
 
@@ -43,6 +44,7 @@ pub struct SalesmanListQuery {
 pub struct SalesmanGroupListQuery {
     pub group_name: Option<String>,
     pub page: Option<u64>,
+    #[serde(alias = "size")]
     pub page_size: Option<u64>,
 }
 
@@ -56,6 +58,7 @@ pub struct CustomerListQuery {
     pub start_time: Option<String>,
     pub end_time: Option<String>,
     pub page: Option<u64>,
+    #[serde(alias = "size")]
     pub page_size: Option<u64>,
 }
 
@@ -72,6 +75,7 @@ pub struct SalesmanOrderListQuery {
     pub order_time_end: Option<String>,
     pub salesman_id: Option<i32>,
     pub page: Option<u64>,
+    #[serde(alias = "size")]
     pub page_size: Option<u64>,
 }
 
@@ -83,6 +87,7 @@ pub struct CustomerTransactionListQuery {
     pub start_time: Option<String>,
     pub end_time: Option<String>,
     pub page: Option<u64>,
+    #[serde(alias = "size")]
     pub page_size: Option<u64>,
 }
 
@@ -95,6 +100,7 @@ pub struct SalesmanProductListQuery {
     pub is_join: Option<i32>,
     pub user_id: Option<i32>,
     pub page: Option<u64>,
+    #[serde(alias = "size")]
     pub page_size: Option<u64>,
 }
 
@@ -109,6 +115,7 @@ pub struct SalesmanMaterialListQuery {
     /// `user` 表示前台视角（只看有效素材、按分销员店铺过滤）
     pub from: Option<String>,
     pub page: Option<u64>,
+    #[serde(alias = "size")]
     pub page_size: Option<u64>,
 }
 
@@ -118,6 +125,7 @@ pub struct SalesmanMaterialListQuery {
 pub struct SalesmanMaterialCategoryListQuery {
     pub category_name: Option<String>,
     pub page: Option<u64>,
+    #[serde(alias = "size")]
     pub page_size: Option<u64>,
 }
 
@@ -133,6 +141,7 @@ pub struct SalesmanContentListQuery {
     /// `user` 表示前台视角
     pub from: Option<String>,
     pub page: Option<u64>,
+    #[serde(alias = "size")]
     pub page_size: Option<u64>,
 }
 

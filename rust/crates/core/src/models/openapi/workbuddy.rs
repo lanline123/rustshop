@@ -1998,6 +1998,7 @@ pub struct MediaQueryDTO {
     pub group_id: Option<i32>,
     pub keyword: Option<String>,
     pub page: Option<i32>,
+    #[serde(alias = "size")]
     pub page_size: Option<i32>,
     pub id: Option<i32>,
 }

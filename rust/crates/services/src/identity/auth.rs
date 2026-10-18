@@ -61,6 +61,8 @@ impl AuthService {
         );
 
         Ok(LoginVO {
+            token: access.clone(),
+            admin_type: Some(user.admin_type.clone()),
             access_token: access,
             refresh_token: refresh,
             token_type: "Bearer".into(),
@@ -83,6 +85,8 @@ impl AuthService {
             claims.typ.clone(),
         )?;
         Ok(LoginVO {
+            token: access.clone(),
+            admin_type: claims.typ.clone(),
             access_token: access,
             refresh_token: refresh,
             token_type: "Bearer".into(),

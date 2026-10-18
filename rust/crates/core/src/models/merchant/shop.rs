@@ -82,6 +82,7 @@ pub struct ShopListQuery {
     /// 排序方向 asc/desc。
     pub sort_order: Option<String>,
     pub page: Option<u64>,
+    #[serde(alias = "size")]
     pub page_size: Option<u64>,
 }
 
@@ -267,6 +268,7 @@ pub struct ShopAccountLogListQuery {
     /// 结束日期 `yyyy-MM-dd`。
     pub end_time: Option<String>,
     pub page: Option<u64>,
+    #[serde(alias = "size")]
     pub page_size: Option<u64>,
 }
 
@@ -313,6 +315,7 @@ pub struct ShopWithdrawListQuery {
     pub sort_field: Option<String>,
     pub sort_order: Option<String>,
     pub page: Option<u64>,
+    #[serde(alias = "size")]
     pub page_size: Option<u64>,
 }
 
@@ -374,6 +377,7 @@ pub struct ShopProductCategoryListQuery {
     pub keyword: Option<String>,
     pub shop_id: Option<i32>,
     pub page: Option<u64>,
+    #[serde(alias = "size")]
     pub page_size: Option<u64>,
 }
 
