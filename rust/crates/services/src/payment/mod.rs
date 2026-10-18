@@ -2,14 +2,19 @@
 
 pub mod balance_pay;
 pub mod category_fee_rule;
+pub mod credit_settlement;
+pub mod credit_user;
 pub mod gateway;
 pub mod merchant_application;
 pub mod order_invoice;
 pub mod paylog;
 pub mod paylog_batch;
 pub mod refund_apply;
+pub mod refund_log;
 pub mod tax_rate;
 pub mod user_balance_log;
+pub mod user_invoice;
+pub mod with_draw_apply_client;
 
 use std::sync::Arc;
 
@@ -25,4 +30,9 @@ pub struct Services {
     pub merchant_application: Arc<merchant_application::MerchantApplicationService>,
     pub category_fee_rule: Arc<category_fee_rule::CategoryFeeRuleService>,
     pub order_invoice: Arc<order_invoice::OrderInvoiceService>,
+    pub with_draw_apply_client: Arc<with_draw_apply_client::WithDrawApplyClientService>,
+    pub refund_log: Arc<refund_log::RefundLogService>,
+    pub credit_settlement: Arc<credit_settlement::CreditSettlementService>,
+    pub user_invoice: Arc<user_invoice::UserInvoiceService>,
+    pub credit_user: Arc<credit_user::CreditUserService>,
 }

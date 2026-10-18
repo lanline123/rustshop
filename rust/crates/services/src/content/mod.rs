@@ -2,6 +2,8 @@
 
 pub mod article;
 pub mod decorate;
+pub mod gallery;
+pub mod gallery_pic;
 pub mod home;
 pub mod mobile_cat_nav;
 pub mod pc_cat_floor;
@@ -26,4 +28,6 @@ pub struct Services {
     pub wechat_live_sync_callback: Arc<wechat_live_sync_callback::WechatLiveSyncCallbackService>,
     pub home: Arc<home::HomeService>,
     pub wechat_live: Arc<wechat_live::WechatLiveService>,
+    pub gallery: Arc<gallery::GalleryService>,
+    pub gallery_pic: Arc<gallery_pic::GalleryPicService>,
 }

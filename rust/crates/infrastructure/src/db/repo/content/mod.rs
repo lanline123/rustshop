@@ -2,6 +2,8 @@
 
 pub mod article;
 pub mod decorate;
+pub mod gallery;
+pub mod gallery_pic;
 pub mod home;
 pub mod mobile_cat_nav;
 pub mod pc_cat_floor;
@@ -25,6 +27,8 @@ pub struct Repositories {
     pub wechat_live_sync_callback: wechat_live_sync_callback::WechatLiveSyncCallbackRepository,
     pub home: home::HomeRepository,
     pub wechat_live: wechat_live::WechatLiveRepository,
+    pub gallery: gallery::GalleryRepository,
+    pub gallery_pic: gallery_pic::GalleryPicRepository,
 }
 
 impl Repositories {
@@ -41,6 +45,8 @@ impl Repositories {
             wechat_live_sync_callback: wechat_live_sync_callback::WechatLiveSyncCallbackRepository::new(pool.clone()),
             home: home::HomeRepository::new(pool.clone()),
             wechat_live: wechat_live::WechatLiveRepository::new(pool.clone()),
+            gallery: gallery::GalleryRepository::new(pool.clone()),
+            gallery_pic: gallery_pic::GalleryPicRepository::new(pool.clone()),
         }
     }
 }

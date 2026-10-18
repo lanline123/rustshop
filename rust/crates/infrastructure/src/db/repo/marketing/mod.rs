@@ -5,8 +5,11 @@ pub mod buyer_show_client;
 pub mod buyer_show_comment;
 pub mod buyer_show_group;
 pub mod coupon;
+pub mod coupon_manage;
+pub mod groupon_promotion;
 pub mod product_style_admin;
 pub mod salesman;
+pub mod salesman_content;
 pub mod salesman_material_category;
 pub mod seckill;
 pub mod time_discount;
@@ -25,6 +28,9 @@ pub struct Repositories {
     pub salesman_material_category: salesman_material_category::SalesmanMaterialCategoryRepository,
     pub seckill: seckill::SeckillRepository,
     pub time_discount: time_discount::TimeDiscountRepository,
+    pub groupon_promotion: groupon_promotion::GrouponPromotionRepository,
+    pub coupon_manage: coupon_manage::CouponManageRepository,
+    pub salesman_content: salesman_content::SalesmanContentRepository,
 }
 
 impl Repositories {
@@ -41,6 +47,9 @@ impl Repositories {
             salesman_material_category: salesman_material_category::SalesmanMaterialCategoryRepository::new(pool.clone()),
             seckill: seckill::SeckillRepository::new(pool.clone()),
             time_discount: time_discount::TimeDiscountRepository::new(pool.clone()),
+            groupon_promotion: groupon_promotion::GrouponPromotionRepository::new(pool.clone()),
+            coupon_manage: coupon_manage::CouponManageRepository::new(pool.clone()),
+            salesman_content: salesman_content::SalesmanContentRepository::new(pool.clone()),
         }
     }
 }

@@ -2,6 +2,8 @@
 
 pub mod article;
 pub mod decorate;
+pub mod gallery;
+pub mod gallery_pic;
 pub mod mobile_cat_nav;
 pub mod seo;
 pub mod wechat_live;
@@ -16,6 +18,8 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
     Router::new()
         .merge(article::routes(state))
         .merge(decorate::routes(state))
+        .merge(gallery::routes(state))
+        .merge(gallery_pic::routes(state))
         .merge(mobile_cat_nav::routes(state))
         .merge(seo::routes(state))
         .merge(wechat_live::routes(state))
@@ -33,6 +37,8 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     let mut out = Vec::new();
     out.extend(article::implemented_routes());
     out.extend(decorate::implemented_routes());
+    out.extend(gallery::implemented_routes());
+    out.extend(gallery_pic::implemented_routes());
     out.extend(mobile_cat_nav::implemented_routes());
     out.extend(seo::implemented_routes());
     out.extend(wechat_live::implemented_routes());

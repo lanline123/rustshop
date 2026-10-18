@@ -1,0 +1,1257 @@
+{
+ "content/gallery": {
+  "ctx": "content",
+  "feature": "gallery",
+  "count": 9,
+  "endpoints": [
+   {
+    "method": "GET",
+    "path": "/adminapi/setting/gallery/list",
+    "summary": "相册列表",
+    "auth": "jwt+perm",
+    "permissions": [
+     "decorate",
+     "galleryManage"
+    ],
+    "controller": "GalleryController",
+    "handler": "list",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryController.java:47"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/setting/gallery/detail",
+    "summary": "相册详情",
+    "auth": "jwt+perm",
+    "permissions": [
+     "galleryManage"
+    ],
+    "controller": "GalleryController",
+    "handler": "detail",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryController.java:53"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/setting/gallery/del",
+    "summary": "删除相册",
+    "auth": "jwt+perm",
+    "permissions": [
+     "galleryModifyManage"
+    ],
+    "controller": "GalleryController",
+    "handler": "del",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryController.java:60"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/setting/gallery/create",
+    "summary": "添加相册",
+    "auth": "jwt+perm",
+    "permissions": [
+     "galleryModifyManage",
+     "decorateModifyManage"
+    ],
+    "controller": "GalleryController",
+    "handler": "create",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryController.java:72"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/setting/gallery/update",
+    "summary": "修改相册",
+    "auth": "jwt+perm",
+    "permissions": [
+     "galleryModifyManage"
+    ],
+    "controller": "GalleryController",
+    "handler": "update",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryController.java:79"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/setting/gallery/batch",
+    "summary": "批量操作相册",
+    "auth": "jwt+perm",
+    "permissions": [
+     "galleryModifyManage"
+    ],
+    "controller": "GalleryController",
+    "handler": "batch",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryController.java:86"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/setting/gallery/tree",
+    "summary": "统一分组树",
+    "auth": "jwt+perm",
+    "permissions": [
+     "decorate",
+     "galleryManage"
+    ],
+    "controller": "GalleryController",
+    "handler": "tree",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryController.java:93"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/setting/gallery/sort",
+    "summary": "分组排序",
+    "auth": "jwt+perm",
+    "permissions": [
+     "galleryModifyManage"
+    ],
+    "controller": "GalleryController",
+    "handler": "sort",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryController.java:108"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/setting/gallery/move",
+    "summary": "分组转移/素材移动",
+    "auth": "jwt+perm",
+    "permissions": [
+     "galleryModifyManage"
+    ],
+    "controller": "GalleryController",
+    "handler": "move",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryController.java:119"
+   }
+  ]
+ },
+ "content/gallery_pic": {
+  "ctx": "content",
+  "feature": "gallery_pic",
+  "count": 10,
+  "endpoints": [
+   {
+    "method": "GET",
+    "path": "/adminapi/setting/galleryPic/list",
+    "summary": "相册图片列表",
+    "auth": "jwt+perm",
+    "permissions": [
+     "decorate",
+     "galleryPicManage"
+    ],
+    "controller": "GalleryPicController",
+    "handler": "list",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryPicController.java:50"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/setting/galleryPic/del",
+    "summary": "删除相册图片",
+    "auth": "jwt+perm",
+    "permissions": [
+     "galleryPicModifyManage"
+    ],
+    "controller": "GalleryPicController",
+    "handler": "del",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryPicController.java:57"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/setting/galleryPic/uploadImg",
+    "summary": "上传图片",
+    "auth": "jwt+perm",
+    "permissions": [
+     "galleryPicManage"
+    ],
+    "controller": "GalleryPicController",
+    "handler": "uploadImg",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryPicController.java:63"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/setting/galleryPic/updateField",
+    "summary": "更新权限字段",
+    "auth": "jwt+perm",
+    "permissions": [
+     "galleryPicModifyManage"
+    ],
+    "controller": "GalleryPicController",
+    "handler": "updateField",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryPicController.java:72"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/setting/galleryPic/detail",
+    "summary": "图片详情",
+    "auth": "jwt+perm",
+    "permissions": [
+     "galleryPicManage"
+    ],
+    "controller": "GalleryPicController",
+    "handler": "detail",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryPicController.java:78"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/setting/galleryPic/sort",
+    "summary": "图片手动排序",
+    "auth": "jwt+perm",
+    "permissions": [
+     "galleryPicModifyManage"
+    ],
+    "controller": "GalleryPicController",
+    "handler": "sort",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryPicController.java:85"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/setting/galleryPic/transfer",
+    "summary": "批量移动素材",
+    "auth": "jwt+perm",
+    "permissions": [
+     "galleryPicModifyManage"
+    ],
+    "controller": "GalleryPicController",
+    "handler": "transfer",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryPicController.java:92"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/setting/galleryPic/batchDel",
+    "summary": "批量删除素材",
+    "auth": "jwt+perm",
+    "permissions": [
+     "galleryPicModifyManage"
+    ],
+    "controller": "GalleryPicController",
+    "handler": "batchDel",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryPicController.java:99"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/setting/galleryPic/batchDownload",
+    "summary": "批量下载素材",
+    "auth": "jwt+perm",
+    "permissions": [
+     "galleryPicManage"
+    ],
+    "controller": "GalleryPicController",
+    "handler": "batchDownload",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryPicController.java:106"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/setting/galleryPic/createFromExternal",
+    "summary": "通过外部链接创建图片",
+    "auth": "jwt+perm",
+    "permissions": [
+     "galleryPicManage"
+    ],
+    "controller": "GalleryPicController",
+    "handler": "createFromExternal",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryPicController.java:112"
+   }
+  ]
+ },
+ "marketing/coupon_manage": {
+  "ctx": "marketing",
+  "feature": "coupon_manage",
+  "count": 9,
+  "endpoints": [
+   {
+    "method": "POST",
+    "path": "/adminapi/promotion/coupon/create",
+    "summary": "创建",
+    "auth": "jwt+perm",
+    "permissions": [
+     "promotionCouponModifyManage"
+    ],
+    "controller": "CouponController",
+    "handler": "create",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\CouponController.java:97"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/promotion/coupon/update",
+    "summary": "更新",
+    "auth": "jwt+perm",
+    "permissions": [
+     "promotionCouponModifyManage"
+    ],
+    "controller": "CouponController",
+    "handler": "update",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\CouponController.java:104"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/promotion/coupon/del",
+    "summary": "删除",
+    "auth": "jwt+perm",
+    "permissions": [
+     "promotionCouponModifyManage"
+    ],
+    "controller": "CouponController",
+    "handler": "del",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\CouponController.java:111"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/promotion/coupon/updateField",
+    "summary": "更新字段",
+    "auth": "jwt+perm",
+    "permissions": [
+     "promotionCouponModifyManage"
+    ],
+    "controller": "CouponController",
+    "handler": "updateField",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\CouponController.java:118"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/promotion/coupon/batch",
+    "summary": "批量操作",
+    "auth": "jwt+perm",
+    "permissions": [
+     "promotionCouponModifyManage"
+    ],
+    "controller": "CouponController",
+    "handler": "batch",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\CouponController.java:125"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/promotion/coupon/config",
+    "summary": "营销配置项",
+    "auth": "jwt+perm",
+    "permissions": [
+     "couponManage"
+    ],
+    "controller": "CouponController",
+    "handler": "config",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\CouponController.java:131"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/promotion/coupon/issue/preview",
+    "summary": "手动发放优惠券预览",
+    "auth": "jwt+perm",
+    "permissions": [
+     "couponManage"
+    ],
+    "controller": "CouponController",
+    "handler": "issuePreview",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\CouponController.java:151"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/promotion/coupon/issue/log",
+    "summary": "优惠券发放日志列表",
+    "auth": "jwt+perm",
+    "permissions": [
+     "couponManage"
+    ],
+    "controller": "CouponController",
+    "handler": "issueLog",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\CouponController.java:164"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/promotion/coupon/issue/batch",
+    "summary": "优惠券发放批次列表",
+    "auth": "jwt+perm",
+    "permissions": [
+     "couponManage"
+    ],
+    "controller": "CouponController",
+    "handler": "issueBatch",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\CouponController.java:170"
+   }
+  ]
+ },
+ "marketing/groupon_promotion": {
+  "ctx": "marketing",
+  "feature": "groupon_promotion",
+  "count": 12,
+  "endpoints": [
+   {
+    "method": "POST",
+    "path": "/adminapi/promotion/groupon/create",
+    "summary": "创建",
+    "auth": "jwt+perm",
+    "permissions": [
+     "grouponPromotionModifyManage"
+    ],
+    "controller": "GrouponPromotionController",
+    "handler": "create",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GrouponPromotionController.java:34"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/promotion/groupon/update",
+    "summary": "更新",
+    "auth": "jwt+perm",
+    "permissions": [
+     "grouponPromotionModifyManage"
+    ],
+    "controller": "GrouponPromotionController",
+    "handler": "update",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GrouponPromotionController.java:41"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/promotion/groupon/finish",
+    "summary": "立即结束",
+    "auth": "jwt+perm",
+    "permissions": [
+     "grouponPromotionModifyManage"
+    ],
+    "controller": "GrouponPromotionController",
+    "handler": "finish",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GrouponPromotionController.java:48"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/promotion/groupon/del",
+    "summary": "删除",
+    "auth": "jwt+perm",
+    "permissions": [
+     "grouponPromotionModifyManage"
+    ],
+    "controller": "GrouponPromotionController",
+    "handler": "del",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GrouponPromotionController.java:55"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/promotion/groupon/detail",
+    "summary": "获取详情",
+    "auth": "jwt+perm",
+    "permissions": [
+     "grouponPromotionManage"
+    ],
+    "controller": "GrouponPromotionController",
+    "handler": "detail",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GrouponPromotionController.java:61"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/promotion/groupon/list",
+    "summary": "获取列表",
+    "auth": "jwt+perm",
+    "permissions": [
+     "grouponPromotionManage"
+    ],
+    "controller": "GrouponPromotionController",
+    "handler": "list",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GrouponPromotionController.java:67"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/promotion/groupon/promotionPromote",
+    "summary": "活动推广",
+    "auth": "jwt+perm",
+    "permissions": [
+     "grouponPromotionManage"
+    ],
+    "controller": "GrouponPromotionController",
+    "handler": "post",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GrouponPromotionController.java:74"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/promotion/groupon/clientList",
+    "summary": "获取客户端列表",
+    "auth": "jwt+perm",
+    "permissions": [
+     "grouponPromotionManage"
+    ],
+    "controller": "GrouponPromotionController",
+    "handler": "clientList",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GrouponPromotionController.java:80"
+   },
+   {
+    "method": "GET",
+    "path": "/api/promotion/groupon/detail",
+    "summary": "客户端详情",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "GrouponPromotionController",
+    "handler": "clientDetail",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\promotion\\GrouponPromotionController.java:30"
+   },
+   {
+    "method": "GET",
+    "path": "/api/promotion/groupon/itemList",
+    "summary": "拼团活动商品列表",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "GrouponPromotionController",
+    "handler": "itemList",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\promotion\\GrouponPromotionController.java:36"
+   },
+   {
+    "method": "GET",
+    "path": "/api/promotion/groupon/imageList",
+    "summary": "拼团图片列表",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "GrouponPromotionController",
+    "handler": "grouponPromotionImages",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\promotion\\GrouponPromotionController.java:42"
+   },
+   {
+    "method": "GET",
+    "path": "/api/promotion/groupon/getGrouponInfo",
+    "summary": "商品id获取拼团活动信息",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "GrouponPromotionController",
+    "handler": "getGrouponInfo",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\promotion\\GrouponPromotionController.java:48"
+   }
+  ]
+ },
+ "marketing/salesman_content": {
+  "ctx": "marketing",
+  "feature": "salesman_content",
+  "count": 10,
+  "endpoints": [
+   {
+    "method": "GET",
+    "path": "/adminapi/salesman/content/list",
+    "summary": "获取列表",
+    "auth": "jwt",
+    "permissions": [],
+    "controller": "SalesmanContentController",
+    "handler": "list",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\salesman\\SalesmanContentController.java:58"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/salesman/content/config",
+    "summary": "获取配置",
+    "auth": "jwt",
+    "permissions": [],
+    "controller": "SalesmanContentController",
+    "handler": "config",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\salesman\\SalesmanContentController.java:64"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/salesman/content/detail",
+    "summary": "获取详情",
+    "auth": "jwt",
+    "permissions": [],
+    "controller": "SalesmanContentController",
+    "handler": "detail",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\salesman\\SalesmanContentController.java:75"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/salesman/content/create",
+    "summary": "创建",
+    "auth": "jwt+perm",
+    "permissions": [
+     "salesmanContentModifyManage"
+    ],
+    "controller": "SalesmanContentController",
+    "handler": "create",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\salesman\\SalesmanContentController.java:82"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/salesman/content/update",
+    "summary": "更新",
+    "auth": "jwt+perm",
+    "permissions": [
+     "salesmanContentModifyManage"
+    ],
+    "controller": "SalesmanContentController",
+    "handler": "update",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\salesman\\SalesmanContentController.java:89"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/salesman/content/del",
+    "summary": "删除",
+    "auth": "jwt+perm",
+    "permissions": [
+     "salesmanContentModifyManage"
+    ],
+    "controller": "SalesmanContentController",
+    "handler": "del",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\salesman\\SalesmanContentController.java:96"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/salesman/content/updateField",
+    "summary": "更新字段",
+    "auth": "jwt+perm",
+    "permissions": [
+     "salesmanContentModifyManage"
+    ],
+    "controller": "SalesmanContentController",
+    "handler": "updateField",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\salesman\\SalesmanContentController.java:103"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/salesman/content/batch",
+    "summary": "批量操作",
+    "auth": "jwt+perm",
+    "permissions": [
+     "salesmanContentModifyManage"
+    ],
+    "controller": "SalesmanContentController",
+    "handler": "batch",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\salesman\\SalesmanContentController.java:115"
+   },
+   {
+    "method": "GET",
+    "path": "/api/salesman/content/list",
+    "summary": "获取列表",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "SalesmanContentController",
+    "handler": "list",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\salesman\\SalesmanContentController.java:44"
+   },
+   {
+    "method": "GET",
+    "path": "/api/salesman/content/detail",
+    "summary": "获取详情",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "SalesmanContentController",
+    "handler": "detail",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\salesman\\SalesmanContentController.java:52"
+   }
+  ]
+ },
+ "payment/credit_settlement": {
+  "ctx": "payment",
+  "feature": "credit_settlement",
+  "count": 6,
+  "endpoints": [
+   {
+    "method": "GET",
+    "path": "/adminapi/credit/settlement/userList",
+    "summary": "结算会员列表",
+    "auth": "jwt+perm",
+    "permissions": [
+     "termPayManage"
+    ],
+    "controller": "CreditSettlementController",
+    "handler": "userList",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\CreditSettlementController.java:43"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/credit/settlement/pendingOrders",
+    "summary": "待结算订单列表",
+    "auth": "jwt+perm",
+    "permissions": [
+     "termPayManage"
+    ],
+    "controller": "CreditSettlementController",
+    "handler": "pendingOrders",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\CreditSettlementController.java:50"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/credit/settlement/submit",
+    "summary": "确认结算",
+    "auth": "jwt+perm",
+    "permissions": [
+     "termPayModifyManage"
+    ],
+    "controller": "CreditSettlementController",
+    "handler": "submit",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\CreditSettlementController.java:62"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/credit/settlement/history",
+    "summary": "历史结算列表",
+    "auth": "jwt+perm",
+    "permissions": [
+     "termPayManage"
+    ],
+    "controller": "CreditSettlementController",
+    "handler": "history",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\CreditSettlementController.java:69"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/credit/settlement/historyOrders",
+    "summary": "历史结算订单明细",
+    "auth": "jwt+perm",
+    "permissions": [
+     "termPayManage"
+    ],
+    "controller": "CreditSettlementController",
+    "handler": "historyOrders",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\CreditSettlementController.java:76"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/credit/settlement/cancel",
+    "summary": "撤销结算",
+    "auth": "jwt+perm",
+    "permissions": [
+     "termPayModifyManage"
+    ],
+    "controller": "CreditSettlementController",
+    "handler": "cancel",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\CreditSettlementController.java:87"
+   }
+  ]
+ },
+ "payment/credit_user": {
+  "ctx": "payment",
+  "feature": "credit_user",
+  "count": 6,
+  "endpoints": [
+   {
+    "method": "GET",
+    "path": "/adminapi/credit/user/list",
+    "summary": "授信会员列表",
+    "auth": "jwt+perm",
+    "permissions": [
+     "termMemberManage"
+    ],
+    "controller": "CreditUserController",
+    "handler": "list",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\CreditUserController.java:36"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/credit/user/detail",
+    "summary": "授信会员详情",
+    "auth": "jwt+perm",
+    "permissions": [
+     "termMemberManage"
+    ],
+    "controller": "CreditUserController",
+    "handler": "detail",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\CreditUserController.java:43"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/credit/user/create",
+    "summary": "添加授信会员",
+    "auth": "jwt+perm",
+    "permissions": [
+     "termMemberModifyManage"
+    ],
+    "controller": "CreditUserController",
+    "handler": "create",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\CreditUserController.java:50"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/credit/user/update",
+    "summary": "修改授信会员",
+    "auth": "jwt+perm",
+    "permissions": [
+     "termMemberModifyManage"
+    ],
+    "controller": "CreditUserController",
+    "handler": "update",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\CreditUserController.java:57"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/credit/user/delete",
+    "summary": "删除授信会员",
+    "auth": "jwt+perm",
+    "permissions": [
+     "termMemberModifyManage"
+    ],
+    "controller": "CreditUserController",
+    "handler": "delete",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\CreditUserController.java:64"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/credit/user/updateField",
+    "summary": "更新授信会员字段（用于启用/禁用等）",
+    "auth": "jwt+perm",
+    "permissions": [
+     "termMemberModifyManage"
+    ],
+    "controller": "CreditUserController",
+    "handler": "updateField",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\CreditUserController.java:71"
+   }
+  ]
+ },
+ "payment/pay": {
+  "ctx": "payment",
+  "feature": "pay",
+  "count": 6,
+  "endpoints": [
+   {
+    "method": "GET",
+    "path": "/api/order/pay/index",
+    "summary": "订单支付",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "PayController",
+    "handler": "index",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\order\\PayController.java:84"
+   },
+   {
+    "method": "GET",
+    "path": "/api/order/pay/paymentList",
+    "summary": "支付方式列表（下单前收银台，无需订单）",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "PayController",
+    "handler": "paymentList",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\order\\PayController.java:92"
+   },
+   {
+    "method": "GET",
+    "path": "/api/order/pay/getPayLog",
+    "summary": "检测订单支付状态",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "PayController",
+    "handler": "getPayLog",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\order\\PayController.java:99"
+   },
+   {
+    "method": "GET",
+    "path": "/api/order/pay/checkStatus",
+    "summary": "检测订单支付状态",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "PayController",
+    "handler": "checkStatus",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\order\\PayController.java:183"
+   },
+   {
+    "method": "GET",
+    "path": "/api/order/pay/create",
+    "summary": "支付订单创建（尾款支付/普通订单支付）",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "PayController",
+    "handler": "create",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\order\\PayController.java:192"
+   },
+   {
+    "method": "GET",
+    "path": "/api/order/pay/createDepositPayment",
+    "summary": "预售定金支付创建",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "PayController",
+    "handler": "createDepositPayment",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\order\\PayController.java:202"
+   }
+  ]
+ },
+ "payment/refund_log": {
+  "ctx": "payment",
+  "feature": "refund_log",
+  "count": 7,
+  "endpoints": [
+   {
+    "method": "GET",
+    "path": "/adminapi/finance/refundLog/list",
+    "summary": "获取列表",
+    "auth": "jwt",
+    "permissions": [],
+    "controller": "RefundLogController",
+    "handler": "list",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\RefundLogController.java:48"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/finance/refundLog/detail",
+    "summary": "获取详情",
+    "auth": "jwt",
+    "permissions": [],
+    "controller": "RefundLogController",
+    "handler": "detail",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\RefundLogController.java:54"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/finance/refundLog/create",
+    "summary": "创建",
+    "auth": "jwt",
+    "permissions": [],
+    "controller": "RefundLogController",
+    "handler": "create",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\RefundLogController.java:60"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/finance/refundLog/update",
+    "summary": "更新",
+    "auth": "jwt",
+    "permissions": [],
+    "controller": "RefundLogController",
+    "handler": "update",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\RefundLogController.java:66"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/finance/refundLog/del",
+    "summary": "删除",
+    "auth": "jwt",
+    "permissions": [],
+    "controller": "RefundLogController",
+    "handler": "del",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\RefundLogController.java:72"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/finance/refundLog/updateField",
+    "summary": "更新字段",
+    "auth": "jwt",
+    "permissions": [],
+    "controller": "RefundLogController",
+    "handler": "updateField",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\RefundLogController.java:78"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/finance/refundLog/batch",
+    "summary": "批量操作",
+    "auth": "jwt",
+    "permissions": [],
+    "controller": "RefundLogController",
+    "handler": "batch",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\RefundLogController.java:84"
+   }
+  ]
+ },
+ "payment/user_invoice": {
+  "ctx": "payment",
+  "feature": "user_invoice",
+  "count": 7,
+  "endpoints": [
+   {
+    "method": "GET",
+    "path": "/adminapi/finance/userInvoice/list",
+    "summary": "获取列表",
+    "auth": "jwt",
+    "permissions": [],
+    "controller": "UserInvoiceController",
+    "handler": "list",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserInvoiceController.java:39"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/finance/userInvoice/detail",
+    "summary": "获取详情",
+    "auth": "jwt",
+    "permissions": [],
+    "controller": "UserInvoiceController",
+    "handler": "detail",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserInvoiceController.java:45"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/finance/userInvoice/create",
+    "summary": "创建",
+    "auth": "jwt",
+    "permissions": [],
+    "controller": "UserInvoiceController",
+    "handler": "create",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserInvoiceController.java:51"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/finance/userInvoice/update",
+    "summary": "更新",
+    "auth": "jwt+perm",
+    "permissions": [
+     "userInvoiceUpdateManage"
+    ],
+    "controller": "UserInvoiceController",
+    "handler": "update",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserInvoiceController.java:58"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/finance/userInvoice/del",
+    "summary": "删除",
+    "auth": "jwt+perm",
+    "permissions": [
+     "userInvoiceDelManage"
+    ],
+    "controller": "UserInvoiceController",
+    "handler": "del",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserInvoiceController.java:65"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/finance/userInvoice/updateField",
+    "summary": "更新字段",
+    "auth": "jwt",
+    "permissions": [],
+    "controller": "UserInvoiceController",
+    "handler": "updateField",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserInvoiceController.java:71"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/finance/userInvoice/batch",
+    "summary": "批量操作",
+    "auth": "jwt+perm",
+    "permissions": [
+     "userInvoiceBatchManage"
+    ],
+    "controller": "UserInvoiceController",
+    "handler": "batch",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserInvoiceController.java:78"
+   }
+  ]
+ },
+ "payment/user_recharge_order": {
+  "ctx": "payment",
+  "feature": "user_recharge_order",
+  "count": 7,
+  "endpoints": [
+   {
+    "method": "GET",
+    "path": "/adminapi/finance/userRechargeOrder/list",
+    "summary": "获取列表",
+    "auth": "jwt",
+    "permissions": [],
+    "controller": "UserRechargeOrderController",
+    "handler": "list",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserRechargeOrderController.java:49"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/finance/userRechargeOrder/detail",
+    "summary": "获取详情",
+    "auth": "jwt",
+    "permissions": [],
+    "controller": "UserRechargeOrderController",
+    "handler": "detail",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserRechargeOrderController.java:55"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/finance/userRechargeOrder/create",
+    "summary": "创建",
+    "auth": "jwt+perm",
+    "permissions": [
+     "userRechargeOrderUpdateManage"
+    ],
+    "controller": "UserRechargeOrderController",
+    "handler": "create",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserRechargeOrderController.java:62"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/finance/userRechargeOrder/update",
+    "summary": "更新",
+    "auth": "jwt+perm",
+    "permissions": [
+     "userRechargeOrderUpdateManage"
+    ],
+    "controller": "UserRechargeOrderController",
+    "handler": "update",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserRechargeOrderController.java:69"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/finance/userRechargeOrder/del",
+    "summary": "删除",
+    "auth": "jwt+perm",
+    "permissions": [
+     "userRechargeOrderDelManage"
+    ],
+    "controller": "UserRechargeOrderController",
+    "handler": "del",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserRechargeOrderController.java:76"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/finance/userRechargeOrder/updateField",
+    "summary": "更新字段",
+    "auth": "jwt",
+    "permissions": [],
+    "controller": "UserRechargeOrderController",
+    "handler": "updateField",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserRechargeOrderController.java:82"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/finance/userRechargeOrder/batch",
+    "summary": "批量操作",
+    "auth": "jwt+perm",
+    "permissions": [
+     "userRechargeOrderBatchManage"
+    ],
+    "controller": "UserRechargeOrderController",
+    "handler": "batch",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserRechargeOrderController.java:89"
+   }
+  ]
+ },
+ "payment/user_withdraw_apply": {
+  "ctx": "payment",
+  "feature": "user_withdraw_apply",
+  "count": 7,
+  "endpoints": [
+   {
+    "method": "GET",
+    "path": "/adminapi/finance/userWithdrawApply/list",
+    "summary": "获取列表",
+    "auth": "jwt",
+    "permissions": [],
+    "controller": "UserWithdrawApplyController",
+    "handler": "list",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserWithdrawApplyController.java:50"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/finance/userWithdrawApply/detail",
+    "summary": "获取详情",
+    "auth": "jwt",
+    "permissions": [],
+    "controller": "UserWithdrawApplyController",
+    "handler": "detail",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserWithdrawApplyController.java:56"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/finance/userWithdrawApply/create",
+    "summary": "创建",
+    "auth": "jwt+perm",
+    "permissions": [
+     "userWithdrawApplyUpdateManage"
+    ],
+    "controller": "UserWithdrawApplyController",
+    "handler": "create",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserWithdrawApplyController.java:63"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/finance/userWithdrawApply/update",
+    "summary": "更新",
+    "auth": "jwt+perm",
+    "permissions": [
+     "userWithdrawApplyUpdateManage"
+    ],
+    "controller": "UserWithdrawApplyController",
+    "handler": "update",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserWithdrawApplyController.java:70"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/finance/userWithdrawApply/del",
+    "summary": "删除",
+    "auth": "jwt+perm",
+    "permissions": [
+     "userWithdrawApplyDelManage"
+    ],
+    "controller": "UserWithdrawApplyController",
+    "handler": "del",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserWithdrawApplyController.java:77"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/finance/userWithdrawApply/updateField",
+    "summary": "更新字段",
+    "auth": "jwt+perm",
+    "permissions": [
+     "userWithdrawApplyUpdateManage"
+    ],
+    "controller": "UserWithdrawApplyController",
+    "handler": "updateField",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserWithdrawApplyController.java:84"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/finance/userWithdrawApply/batch",
+    "summary": "批量操作",
+    "auth": "jwt+perm",
+    "permissions": [
+     "userWithdrawApplyBatchManage"
+    ],
+    "controller": "UserWithdrawApplyController",
+    "handler": "batch",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserWithdrawApplyController.java:91"
+   }
+  ]
+ },
+ "payment/with_draw_apply_client": {
+  "ctx": "payment",
+  "feature": "with_draw_apply_client",
+  "count": 7,
+  "endpoints": [
+   {
+    "method": "GET",
+    "path": "/api/user/withdrawApply/list",
+    "summary": "列表",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "WithDrawApplyClientController",
+    "handler": "list",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\WithDrawApplyClientController.java:30"
+   },
+   {
+    "method": "POST",
+    "path": "/api/user/withdrawApply/createAccount",
+    "summary": "创建提现账号",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "WithDrawApplyClientController",
+    "handler": "createAccount",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\WithDrawApplyClientController.java:36"
+   },
+   {
+    "method": "POST",
+    "path": "/api/user/withdrawApply/updateAccount",
+    "summary": "修改提现账号",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "WithDrawApplyClientController",
+    "handler": "updateAccount",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\WithDrawApplyClientController.java:42"
+   },
+   {
+    "method": "GET",
+    "path": "/api/user/withdrawApply/accountDetail",
+    "summary": "提现账号详情",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "WithDrawApplyClientController",
+    "handler": "accountDetail",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\WithDrawApplyClientController.java:48"
+   },
+   {
+    "method": "POST",
+    "path": "/api/user/withdrawApply/delAccount",
+    "summary": "删除提现账号",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "WithDrawApplyClientController",
+    "handler": "delAccount",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\WithDrawApplyClientController.java:54"
+   },
+   {
+    "method": "POST",
+    "path": "/api/user/withdrawApply/apply",
+    "summary": "提现申请",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "WithDrawApplyClientController",
+    "handler": "apply",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\WithDrawApplyClientController.java:60"
+   },
+   {
+    "method": "POST",
+    "path": "/api/user/withdrawApply/applyCommission",
+    "summary": "佣金提现申请（D1107）",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "WithDrawApplyClientController",
+    "handler": "applyCommission",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\WithDrawApplyClientController.java:66"
+   }
+  ]
+ }
+}

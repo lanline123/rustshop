@@ -2,6 +2,7 @@
 
 pub mod balance_pay;
 pub mod paylog;
+pub mod with_draw_apply_client;
 
 use axum::Router;
 
@@ -11,6 +12,7 @@ use super::super::PublicState;
 pub fn routes(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
+        .merge(with_draw_apply_client::routes(state))
 }
 
 /// 匿名可访问路由（无状态）。
@@ -38,5 +40,6 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     let mut out = Vec::new();
     out.extend(balance_pay::implemented_routes());
     out.extend(paylog::implemented_routes());
+    out.extend(with_draw_apply_client::implemented_routes());
     out
 }

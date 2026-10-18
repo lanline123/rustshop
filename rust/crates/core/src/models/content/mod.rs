@@ -2,6 +2,8 @@
 
 pub mod article;
 pub mod decorate;
+pub mod gallery;
+pub mod gallery_pic;
 pub mod home;
 pub mod mobile_cat_nav;
 pub mod pc_cat_floor;
