@@ -1,9 +1,14 @@
 //! payment 领域仓储。
 
+pub mod account_panel;
 pub mod apple_pay;
+pub mod apple_pay_config;
 pub mod category_fee_rule;
+pub mod credit_order;
 pub mod credit_settlement;
 pub mod credit_user;
+pub mod huifu_config;
+pub mod lakala_config;
 pub mod merchant_application;
 pub mod order_invoice;
 pub mod pay;
@@ -12,6 +17,7 @@ pub mod paylog_batch;
 pub mod profit_sharing;
 pub mod recharge_order;
 pub mod refund_apply;
+pub mod refund_apply_admin;
 pub mod refund_log;
 pub mod statement;
 pub mod sub_merchant;
@@ -21,6 +27,7 @@ pub mod user_invoice;
 pub mod user_recharge_order;
 pub mod user_withdraw_apply;
 pub mod with_draw_apply_client;
+pub mod yeepay_config;
 
 use crate::db::DbPool;
 
@@ -47,6 +54,13 @@ pub struct Repositories {
     pub recharge_order: recharge_order::RechargeOrderRepository,
     pub statement: statement::StatementRepository,
     pub apple_pay: apple_pay::ApplePayRepository,
+    pub apple_pay_config: apple_pay_config::ApplePayConfigRepository,
+    pub huifu_config: huifu_config::HuifuConfigRepository,
+    pub lakala_config: lakala_config::LakalaConfigRepository,
+    pub yeepay_config: yeepay_config::YeepayConfigRepository,
+    pub refund_apply_admin: refund_apply_admin::RefundApplyAdminRepository,
+    pub account_panel: account_panel::AccountPanelRepository,
+    pub credit_order: credit_order::CreditOrderRepository,
 }
 
 impl Repositories {
@@ -74,6 +88,13 @@ impl Repositories {
             recharge_order: recharge_order::RechargeOrderRepository::new(pool.clone()),
             statement: statement::StatementRepository::new(pool.clone()),
             apple_pay: apple_pay::ApplePayRepository::new(pool.clone()),
+            apple_pay_config: apple_pay_config::ApplePayConfigRepository::new(pool.clone()),
+            huifu_config: huifu_config::HuifuConfigRepository::new(pool.clone()),
+            lakala_config: lakala_config::LakalaConfigRepository::new(pool.clone()),
+            yeepay_config: yeepay_config::YeepayConfigRepository::new(pool.clone()),
+            refund_apply_admin: refund_apply_admin::RefundApplyAdminRepository::new(pool.clone()),
+            account_panel: account_panel::AccountPanelRepository::new(pool.clone()),
+            credit_order: credit_order::CreditOrderRepository::new(pool.clone()),
         }
     }
 }

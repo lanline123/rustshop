@@ -1767,3 +1767,110 @@ mod tests {
         assert_eq!(vo.product_count, 12);
     }
 }
+
+// ——————————————————————————————————————————————
+// 公共端（/api/product/productStyle，optional auth）
+// ——————————————————————————————————————————————
+
+/// 样式类型：边框背景（Java `ProductStyleTypeEnum.BORDER`）。
+pub const STYLE_TYPE_BORDER_ACTIVE: i32 = 1;
+/// 样式类型：活动背景（Java `ProductStyleTypeEnum.ACTIVITY_BACKGROUND`）。
+pub const STYLE_TYPE_ACTIVITY_BACKGROUND_ACTIVE: i32 = 2;
+
+/// 商品当前生效样式（Java `ProductActiveStyleVO`）。
+///
+/// 公共端 3 个端点（`activeStyle` / `batchActiveStyle` /
+/// `batchActiveStyleBySn`）共用：同一商品可同时命中边框背景与活动背景两类，
+/// 每类取 `itemAddTime` 最新一条（服务层按 `add_time DESC` 首行赋值）。
+///
+/// # 与 Java 的差异
+/// Java `translatePackage.translate(styleImage, 19)` 做多语言翻译；Rust 未
+/// 迁移翻译包，直接返回库内原值。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProductActiveStyleVO {
+    pub border_style_id: Option<i32>,
+    pub border_image: Option<String>,
+    pub border_pc_image: Option<String>,
+    pub activity_style_id: Option<i32>,
+    pub activity_style_name: Option<String>,
+    pub activity_background_image: Option<String>,
+    pub activity_background_pc_image: Option<String>,
+}
+
+impl ProductActiveStyleVO {
+    /// 按 Java `batchGetActiveStyles` 合并一行（每类只取首行）。
+    pub fn apply_row(
+        &mut self,
+        style_type: i32,
+        style_id: i32,
+        style_name: Option<&str>,
+        style_image: Option<&str>,
+        pc_image: Option<&str>,
+    ) {
+        if style_type == STYLE_TYPE_BORDER_ACTIVE && self.border_style_id.is_none() {
+            self.border_style_id = Some(style_id);
+            self.border_image = style_image.map(str::to_string);
+            self.border_pc_image = pc_image.map(str::to_string);
+        } else if style_type == STYLE_TYPE_ACTIVITY_BACKGROUND_ACTIVE
+            && self.activity_style_id.is_none()
+        {
+            self.activity_style_id = Some(style_id);
+            self.activity_style_name = style_name.map(str::to_string);
+            self.activity_background_image = style_image.map(str::to_string);
+            self.activity_background_pc_image = pc_image.map(str::to_string);
+        }
+    }
+
+    /// 是否为空 VO（Java 找不到时返回 `new ProductActiveStyleVO()`）。
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.border_style_id.is_none()
+            && self.activity_style_id.is_none()
+            && self.border_image.is_none()
+            && self.activity_background_image.is_none()
+    }
+}
+
+#[cfg(test)]
+mod public_active_style_tests {
+    use super::*;
+
+    #[test]
+    fn apply_row_keeps_first_per_style_type() {
+        let mut vo = ProductActiveStyleVO::default();
+        vo.apply_row(STYLE_TYPE_BORDER_ACTIVE, 3, Some("边框"), Some("b.png"), Some("b_pc.png"));
+        vo.apply_row(STYLE_TYPE_BORDER_ACTIVE, 9, Some("边框2"), Some("x.png"), None);
+        assert_eq!(vo.border_style_id, Some(3));
+        assert_eq!(vo.border_image.as_deref(), Some("b.png"));
+        // 边框不落 styleName（Java 行为）
+        assert!(vo.activity_style_name.is_none());
+
+        vo.apply_row(
+            STYLE_TYPE_ACTIVITY_BACKGROUND_ACTIVE,
+            5,
+            Some("活动"),
+            Some("a.png"),
+            Some("a_pc.png"),
+        );
+        assert_eq!(vo.activity_style_id, Some(5));
+        assert_eq!(vo.activity_style_name.as_deref(), Some("活动"));
+        assert_eq!(vo.activity_background_pc_image.as_deref(), Some("a_pc.png"));
+        assert!(!vo.is_empty());
+    }
+
+    #[test]
+    fn empty_vo_serializes_null_fields() {
+        let vo = ProductActiveStyleVO::default();
+        assert!(vo.is_empty());
+        let json = serde_json::to_value(&vo).unwrap();
+        assert_eq!(json["borderStyleId"], serde_json::Value::Null);
+        assert_eq!(json["activityStyleName"], serde_json::Value::Null);
+    }
+
+    #[test]
+    fn style_type_constants_match_java_enum() {
+        assert_eq!(STYLE_TYPE_BORDER_ACTIVE, 1);
+        assert_eq!(STYLE_TYPE_ACTIVITY_BACKGROUND_ACTIVE, 2);
+    }
+}

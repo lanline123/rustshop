@@ -9,11 +9,14 @@ pub mod gift_card;
 pub mod gift_card_groups;
 pub mod groupon_promotion;
 pub mod groupon_promotion_item;
+pub mod groupon_promotion_record;
 pub mod lottery_activity;
+pub mod overview;
 pub mod points_exchange;
 pub mod product_gift;
 pub mod product_promotion;
 pub mod product_style_admin;
+pub mod promotion;
 pub mod recharge_setting;
 pub mod salesman;
 pub mod salesman_admin;
@@ -26,6 +29,7 @@ pub mod salesman_material_category;
 pub mod salesman_order;
 pub mod salesman_product;
 pub mod seckill;
+pub mod seckill_batch;
 pub mod sign_in_setting;
 pub mod time_discount;
 pub mod time_discount_batch;
@@ -47,11 +51,14 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(gift_card_groups::routes(state))
         .merge(groupon_promotion::routes(state))
         .merge(groupon_promotion_item::routes(state))
+        .merge(groupon_promotion_record::routes(state))
         .merge(lottery_activity::routes(state))
+        .merge(overview::routes(state))
         .merge(points_exchange::routes(state))
         .merge(product_gift::routes(state))
         .merge(product_promotion::routes(state))
         .merge(product_style_admin::routes(state))
+        .merge(promotion::routes(state))
         .merge(recharge_setting::routes(state))
         .merge(salesman::routes(state))
         .merge(salesman_admin::routes(state))
@@ -64,6 +71,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(salesman_order::routes(state))
         .merge(salesman_product::routes(state))
         .merge(seckill::routes(state))
+        .merge(seckill_batch::routes(state))
         .merge(sign_in_setting::routes(state))
         .merge(time_discount::routes(state))
         .merge(time_discount_batch::routes(state))
@@ -88,11 +96,14 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(gift_card_groups::implemented_routes());
     out.extend(groupon_promotion::implemented_routes());
     out.extend(groupon_promotion_item::implemented_routes());
+    out.extend(groupon_promotion_record::implemented_routes());
     out.extend(lottery_activity::implemented_routes());
+    out.extend(overview::implemented_routes());
     out.extend(points_exchange::implemented_routes());
     out.extend(product_gift::implemented_routes());
     out.extend(product_promotion::implemented_routes());
     out.extend(product_style_admin::implemented_routes());
+    out.extend(promotion::implemented_routes());
     out.extend(recharge_setting::implemented_routes());
     out.extend(salesman::implemented_routes());
     out.extend(salesman_admin::implemented_routes());
@@ -105,6 +116,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(salesman_order::implemented_routes());
     out.extend(salesman_product::implemented_routes());
     out.extend(seckill::implemented_routes());
+    out.extend(seckill_batch::implemented_routes());
     out.extend(sign_in_setting::implemented_routes());
     out.extend(time_discount::implemented_routes());
     out.extend(time_discount_batch::implemented_routes());

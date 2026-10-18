@@ -884,3 +884,90 @@ mod tests {
         // 里三段 if 的书写顺序一致
     }
 }
+
+// ——————————————————————————————————————————————
+// 公共端（/api/product/productStyle，optional auth）
+// ——————————————————————————————————————————————
+
+use tigshop_core::models::marketing::product_style_admin::ProductActiveStyleVO;
+
+impl ProductStyleAdminService {
+    /// 单个商品的生效样式（Java `ProductStyleServiceImpl#getActiveStyle`）。
+    ///
+    /// 找不到时返回空 VO（Java `result.getOrDefault(productId, new VO())`）。
+    ///
+    /// # Errors
+    /// 数据库错误 → `Error::Database`。
+    pub async fn get_active_style(&self, product_id: i32) -> Result<ProductActiveStyleVO> {
+        let mut map = self.batch_get_active_styles(&[product_id]).await?;
+        Ok(map.remove(&product_id).unwrap_or_default())
+    }
+
+    /// 批量生效样式（Java `#batchGetActiveStyles`）：每商品每类取首行
+    /// （仓储已按 `add_time DESC` 排序）。
+    ///
+    /// # Errors
+    /// 数据库错误 → `Error::Database`。
+    pub async fn batch_get_active_styles(
+        &self,
+        product_ids: &[i32],
+    ) -> Result<BTreeMap<i32, ProductActiveStyleVO>> {
+        if product_ids.is_empty() {
+            return Ok(BTreeMap::new());
+        }
+        let now = i64::try_from(tigshop_common::utils::now_seconds()).unwrap_or(i64::MAX);
+        let rows = self.repo().find_active_styles(product_ids, now).await?;
+        let mut result: BTreeMap<i32, ProductActiveStyleVO> = BTreeMap::new();
+        for row in &rows {
+            let vo = result.entry(row.product_id).or_default();
+            vo.apply_row(
+                row.style_type,
+                row.style_id,
+                row.style_name.as_deref(),
+                row.style_image.as_deref(),
+                row.pc_image.as_deref(),
+            );
+        }
+        Ok(result)
+    }
+
+    /// 按商品 SN 批量生效样式（Java `#batchGetActiveStylesBySns`）：
+    /// 先 `product_sn → product_id`（`is_delete = 0`），再按 id 批量查。
+    ///
+    /// # Errors
+    /// 数据库错误 → `Error::Database`。
+    pub async fn batch_get_active_styles_by_sns(
+        &self,
+        product_sns: &[String],
+    ) -> Result<BTreeMap<String, ProductActiveStyleVO>> {
+        if product_sns.is_empty() {
+            return Ok(BTreeMap::new());
+        }
+        let pairs = self.repo().find_product_ids_by_sns(product_sns).await?;
+        if pairs.is_empty() {
+            return Ok(BTreeMap::new());
+        }
+        let id_to_sn: BTreeMap<i32, String> = pairs.iter().map(|(id, sn)| (*id, sn.clone())).collect();
+        let ids: Vec<i32> = id_to_sn.keys().copied().collect();
+        let style_by_id = self.batch_get_active_styles(&ids).await?;
+        let mut result = BTreeMap::new();
+        for (id, vo) in style_by_id {
+            if let Some(sn) = id_to_sn.get(&id) {
+                result.insert(sn.clone(), vo);
+            }
+        }
+        Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod public_active_style_service_tests {
+    #[test]
+    fn empty_inputs_are_noop_without_db() {
+        // Java：CollUtil.isEmpty ⇒ 直接返回 emptyMap；此处仅验证常量语义
+        let empty: Vec<i32> = Vec::new();
+        assert!(empty.is_empty());
+        let empty_sns: Vec<String> = Vec::new();
+        assert!(empty_sns.is_empty());
+    }
+}

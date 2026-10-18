@@ -10,11 +10,16 @@ pub mod gift_card;
 pub mod gift_card_groups;
 pub mod groupon_promotion;
 pub mod groupon_promotion_item;
+pub mod groupon_promotion_record;
+pub mod groupon_records;
+pub mod lottery;
 pub mod lottery_activity;
+pub mod overview;
 pub mod points_exchange;
 pub mod product_gift;
 pub mod product_promotion;
 pub mod product_style_admin;
+pub mod promotion;
 pub mod recharge_setting;
 pub mod salesman;
 pub mod salesman_admin;
@@ -27,6 +32,7 @@ pub mod salesman_material_category;
 pub mod salesman_order;
 pub mod salesman_product;
 pub mod seckill;
+pub mod seckill_batch;
 pub mod sign_in_setting;
 pub mod time_discount;
 pub mod time_discount_batch;
@@ -65,6 +71,12 @@ pub struct Repositories {
     pub salesman_config: salesman_config::SalesmanConfigRepository,
     pub salesman_order: salesman_order::SalesmanOrderRepository,
     pub salesman_customer_transaction: salesman_customer_transaction::SalesmanCustomerTransactionRepository,
+    pub lottery: lottery::LotteryRepository,
+    pub seckill_batch: seckill_batch::SeckillBatchRepository,
+    pub promotion: promotion::PromotionRepository,
+    pub groupon_promotion_record: groupon_promotion_record::GrouponPromotionRecordRepository,
+    pub groupon_records: groupon_records::GrouponRecordsRepository,
+    pub overview: overview::OverviewRepository,
 }
 
 impl Repositories {
@@ -101,6 +113,12 @@ impl Repositories {
             salesman_config: salesman_config::SalesmanConfigRepository::new(pool.clone()),
             salesman_order: salesman_order::SalesmanOrderRepository::new(pool.clone()),
             salesman_customer_transaction: salesman_customer_transaction::SalesmanCustomerTransactionRepository::new(pool.clone()),
+            lottery: lottery::LotteryRepository::new(pool.clone()),
+            seckill_batch: seckill_batch::SeckillBatchRepository::new(pool.clone()),
+            promotion: promotion::PromotionRepository::new(pool.clone()),
+            groupon_promotion_record: groupon_promotion_record::GrouponPromotionRecordRepository::new(pool.clone()),
+            groupon_records: groupon_records::GrouponRecordsRepository::new(pool.clone()),
+            overview: overview::OverviewRepository::new(pool.clone()),
         }
     }
 }

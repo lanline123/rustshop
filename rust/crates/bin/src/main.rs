@@ -69,10 +69,15 @@ use tigshop_services::marketing::gift_card::GiftCardService;
 use tigshop_services::marketing::gift_card_groups::GiftCardGroupsService;
 use tigshop_services::marketing::groupon_promotion::GrouponPromotionService;
 use tigshop_services::marketing::groupon_promotion_item::GrouponPromotionItemService;
+use tigshop_services::marketing::groupon_promotion_record::GrouponPromotionRecordService;
+use tigshop_services::marketing::groupon_records::GrouponRecordsService;
+use tigshop_services::marketing::lottery::LotteryService;
 use tigshop_services::marketing::lottery_activity::LotteryActivityService;
+use tigshop_services::marketing::overview::OverviewService;
 use tigshop_services::marketing::points_exchange::PointsExchangeService;
 use tigshop_services::marketing::product_gift::ProductGiftService;
 use tigshop_services::marketing::product_promotion::ProductPromotionService;
+use tigshop_services::marketing::promotion::PromotionService;
 use tigshop_services::marketing::recharge_setting::RechargeSettingService;
 use tigshop_services::marketing::salesman_admin::SalesmanAdminService;
 use tigshop_services::marketing::salesman_config::SalesmanConfigService;
@@ -82,18 +87,23 @@ use tigshop_services::marketing::salesman_group::SalesmanGroupService;
 use tigshop_services::marketing::salesman_material::SalesmanMaterialService;
 use tigshop_services::marketing::salesman_order::SalesmanOrderService;
 use tigshop_services::marketing::salesman_product::SalesmanProductService;
+use tigshop_services::marketing::seckill_batch::SeckillBatchService;
 use tigshop_services::marketing::sign_in_setting::SignInSettingService;
 use tigshop_services::marketing::time_discount_batch::TimeDiscountBatchService;
 use tigshop_services::member::captcha_api::CaptchaService;
 use tigshop_services::member::collect_product::CollectProductService;
 use tigshop_services::member::login::LoginService;
+use tigshop_services::member::member_audience::MemberAudienceService;
 use tigshop_services::member::shop_member::ShopMemberService;
 use tigshop_services::member::user_address_client::UserAddressClientService;
 use tigshop_services::member::user_company_client::UserCompanyClientService;
+use tigshop_services::member::user_feedback_client::UserFeedbackClientService;
 use tigshop_services::member::user_invoice_client::UserInvoiceClientService;
 use tigshop_services::member::user_member_tag::UserMemberTagService;
 use tigshop_services::member::user_message::UserMessageService;
 use tigshop_services::member::user_message_log::UserMessageLogService;
+use tigshop_services::member::user_price_inquiry::UserPriceInquiryService;
+use tigshop_services::member::user_sign::UserSignService;
 use tigshop_services::merchant::admin_user_shop::AdminUserShopService;
 use tigshop_services::merchant::deposit_account::DepositAccountService;
 use tigshop_services::merchant::deposit_log::DepositLogService;
@@ -109,15 +119,21 @@ use tigshop_services::merchant::merchant_apply::MerchantApplyService;
 use tigshop_services::merchant::shop_account_log::ShopAccountLogService;
 use tigshop_services::merchant::shop_funds::ShopFundsService;
 use tigshop_services::merchant::shop_withdraw::ShopWithdrawService;
+use tigshop_services::payment::account_panel::AccountPanelService;
 use tigshop_services::payment::apple_pay::ApplePayService;
+use tigshop_services::payment::apple_pay_config::ApplePayConfigService;
 use tigshop_services::payment::category_fee_rule::CategoryFeeRuleService;
+use tigshop_services::payment::credit_order::CreditOrderService;
 use tigshop_services::payment::credit_settlement::CreditSettlementService;
 use tigshop_services::payment::credit_user::CreditUserService;
+use tigshop_services::payment::huifu_config::HuifuConfigService;
+use tigshop_services::payment::lakala_config::LakalaConfigService;
 use tigshop_services::payment::merchant_application::MerchantApplicationService;
 use tigshop_services::payment::order_invoice::OrderInvoiceService;
 use tigshop_services::payment::pay::PayService;
 use tigshop_services::payment::profit_sharing::ProfitSharingService;
 use tigshop_services::payment::recharge_order::RechargeOrderService;
+use tigshop_services::payment::refund_apply_admin::RefundApplyAdminService;
 use tigshop_services::payment::refund_log::RefundLogService;
 use tigshop_services::payment::statement::StatementService;
 use tigshop_services::payment::sub_merchant::SubMerchantService;
@@ -125,6 +141,7 @@ use tigshop_services::payment::user_invoice::UserInvoiceService;
 use tigshop_services::payment::user_recharge_order::UserRechargeOrderService;
 use tigshop_services::payment::user_withdraw_apply::UserWithdrawApplyService;
 use tigshop_services::payment::with_draw_apply_client::WithDrawApplyClientService;
+use tigshop_services::payment::yeepay_config::YeepayConfigService;
 use tigshop_services::system::admin_msg::AdminMsgService;
 use tigshop_services::system::config_basic::ConfigBasicService;
 use tigshop_services::system::csrf::CsrfService;
@@ -526,6 +543,13 @@ async fn main() -> anyhow::Result<()> {
     let recharge_order = Arc::new(RechargeOrderService::new(repos.clone()));
     let statement = Arc::new(StatementService::new(repos.clone()));
     let apple_pay = Arc::new(ApplePayService::new(repos.clone()));
+    let apple_pay_config = Arc::new(ApplePayConfigService::new(repos.clone()));
+    let huifu_config = Arc::new(HuifuConfigService::new(repos.clone()));
+    let lakala_config = Arc::new(LakalaConfigService::new(repos.clone()));
+    let yeepay_config = Arc::new(YeepayConfigService::new(repos.clone()));
+    let refund_apply_admin = Arc::new(RefundApplyAdminService::new(repos.clone()));
+    let account_panel = Arc::new(AccountPanelService::new(repos.clone()));
+    let credit_order = Arc::new(CreditOrderService::new(repos.clone()));
     // ---- payment 域 ----
     let payment = Arc::new(tigshop_services::payment::Services {
         balance_pay: balance_pay.clone(),
@@ -550,6 +574,13 @@ async fn main() -> anyhow::Result<()> {
         recharge_order: recharge_order.clone(),
         statement: statement.clone(),
         apple_pay: apple_pay.clone(),
+        apple_pay_config: apple_pay_config.clone(),
+        huifu_config: huifu_config.clone(),
+        lakala_config: lakala_config.clone(),
+        yeepay_config: yeepay_config.clone(),
+        refund_apply_admin: refund_apply_admin.clone(),
+        account_panel: account_panel.clone(),
+        credit_order: credit_order.clone(),
 });
     let groupon_promotion = Arc::new(GrouponPromotionService::new(repos.clone()));
     let coupon_manage = Arc::new(CouponManageService::new(repos.clone()));
@@ -571,6 +602,12 @@ async fn main() -> anyhow::Result<()> {
     let salesman_config = Arc::new(SalesmanConfigService::new(repos.clone()));
     let salesman_order = Arc::new(SalesmanOrderService::new(repos.clone()));
     let salesman_customer_transaction = Arc::new(SalesmanCustomerTransactionService::new(repos.clone()));
+    let lottery = Arc::new(LotteryService::new(repos.clone()));
+    let seckill_batch = Arc::new(SeckillBatchService::new(repos.clone()));
+    let promotion = Arc::new(PromotionService::new(repos.clone()));
+    let groupon_promotion_record = Arc::new(GrouponPromotionRecordService::new(repos.clone()));
+    let groupon_records = Arc::new(GrouponRecordsService::new(repos.clone()));
+    let overview = Arc::new(OverviewService::new(repos.clone()));
     // ---- marketing 域 ----
     let marketing = Arc::new(tigshop_services::marketing::Services {
         buyer_show: buyer_show.clone(),
@@ -603,6 +640,12 @@ async fn main() -> anyhow::Result<()> {
         salesman_config: salesman_config.clone(),
         salesman_order: salesman_order.clone(),
         salesman_customer_transaction: salesman_customer_transaction.clone(),
+        lottery: lottery.clone(),
+        seckill_batch: seckill_batch.clone(),
+        promotion: promotion.clone(),
+        groupon_promotion_record: groupon_promotion_record.clone(),
+        groupon_records: groupon_records.clone(),
+        overview: overview.clone(),
 });
     let login = Arc::new(LoginService::new(repos.clone(), cache.clone(), jwt.clone()));
     let shop_member = Arc::new(ShopMemberService::new(repos.clone()));
@@ -614,6 +657,10 @@ async fn main() -> anyhow::Result<()> {
     let collect_product = Arc::new(CollectProductService::new(repos.clone()));
     let user_company_client = Arc::new(UserCompanyClientService::new(repos.clone()));
     let user_invoice_client = Arc::new(UserInvoiceClientService::new(repos.clone()));
+    let user_price_inquiry = Arc::new(UserPriceInquiryService::new(repos.clone()));
+    let member_audience = Arc::new(MemberAudienceService::new(repos.clone()));
+    let user_feedback_client = Arc::new(UserFeedbackClientService::new(repos.clone()));
+    let user_sign = Arc::new(UserSignService::new(repos.clone()));
     // ---- member 域 ----
     let member = Arc::new(tigshop_services::member::Services {
         feedback: feedback.clone(),
@@ -636,6 +683,10 @@ async fn main() -> anyhow::Result<()> {
         collect_product: collect_product.clone(),
         user_company_client: user_company_client.clone(),
         user_invoice_client: user_invoice_client.clone(),
+        user_price_inquiry: user_price_inquiry.clone(),
+        member_audience: member_audience.clone(),
+        user_feedback_client: user_feedback_client.clone(),
+        user_sign: user_sign.clone(),
 });
     let print = Arc::new(PrintService::new(repos.clone()));
     let print_log = Arc::new(PrintLogService::new(repos.clone()));

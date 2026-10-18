@@ -10,11 +10,16 @@ pub mod gift_card;
 pub mod gift_card_groups;
 pub mod groupon_promotion;
 pub mod groupon_promotion_item;
+pub mod groupon_promotion_record;
+pub mod groupon_records;
+pub mod lottery;
 pub mod lottery_activity;
+pub mod overview;
 pub mod points_exchange;
 pub mod product_gift;
 pub mod product_promotion;
 pub mod product_style_admin;
+pub mod promotion;
 pub mod recharge_setting;
 pub mod salesman;
 pub mod salesman_admin;
@@ -27,6 +32,7 @@ pub mod salesman_material_category;
 pub mod salesman_order;
 pub mod salesman_product;
 pub mod seckill;
+pub mod seckill_batch;
 pub mod sign_in_setting;
 pub mod time_discount;
 pub mod time_discount_batch;
@@ -66,4 +72,10 @@ pub struct Services {
     pub salesman_config: Arc<salesman_config::SalesmanConfigService>,
     pub salesman_order: Arc<salesman_order::SalesmanOrderService>,
     pub salesman_customer_transaction: Arc<salesman_customer_transaction::SalesmanCustomerTransactionService>,
+    pub lottery: Arc<lottery::LotteryService>,
+    pub seckill_batch: Arc<seckill_batch::SeckillBatchService>,
+    pub promotion: Arc<promotion::PromotionService>,
+    pub groupon_promotion_record: Arc<groupon_promotion_record::GrouponPromotionRecordService>,
+    pub groupon_records: Arc<groupon_records::GrouponRecordsService>,
+    pub overview: Arc<overview::OverviewService>,
 }

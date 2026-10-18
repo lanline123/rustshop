@@ -1,6 +1,7 @@
 //! 管理端 member 路由。
 
 pub mod feedback;
+pub mod member_audience;
 pub mod member_lists;
 pub mod member_tag;
 pub mod member_tag_group;
@@ -21,6 +22,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new()
         .merge(feedback::routes(state))
+        .merge(member_audience::routes(state))
         .merge(member_lists::routes(state))
         .merge(member_tag::routes(state))
         .merge(member_tag_group::routes(state))
@@ -45,6 +47,7 @@ pub fn public_routes(state: &AdminState) -> Router<AdminState> {
 pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     let mut out = Vec::new();
     out.extend(feedback::implemented_routes());
+    out.extend(member_audience::implemented_routes());
     out.extend(member_lists::implemented_routes());
     out.extend(member_tag::implemented_routes());
     out.extend(member_tag_group::implemented_routes());

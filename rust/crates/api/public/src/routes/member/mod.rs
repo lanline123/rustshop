@@ -7,8 +7,11 @@ pub mod member_lists;
 pub mod user_address_client;
 pub mod user_center;
 pub mod user_company_client;
+pub mod user_feedback_client;
 pub mod user_invoice_client;
 pub mod user_message;
+pub mod user_price_inquiry;
+pub mod user_sign;
 
 use axum::Router;
 
@@ -23,8 +26,11 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .merge(user_address_client::routes(state))
         .merge(user_center::routes(state))
         .merge(user_company_client::routes(state))
+        .merge(user_feedback_client::routes(state))
         .merge(user_invoice_client::routes(state))
         .merge(user_message::routes(state))
+        .merge(user_price_inquiry::routes(state))
+        .merge(user_sign::routes(state))
 }
 
 /// 匿名可访问路由（无状态）。
@@ -58,7 +64,10 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(user_address_client::implemented_routes());
     out.extend(user_center::implemented_routes());
     out.extend(user_company_client::implemented_routes());
+    out.extend(user_feedback_client::implemented_routes());
     out.extend(user_invoice_client::implemented_routes());
     out.extend(user_message::implemented_routes());
+    out.extend(user_price_inquiry::implemented_routes());
+    out.extend(user_sign::implemented_routes());
     out
 }

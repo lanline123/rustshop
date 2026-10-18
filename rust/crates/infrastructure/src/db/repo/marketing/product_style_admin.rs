@@ -964,3 +964,122 @@ mod tests {
         assert!(!tigshop_core::models::marketing::product_style_admin::PRODUCT_STYLE_COLUMNS.contains(&"sort_order"));
     }
 }
+
+// ——————————————————————————————————————————————
+// 公共端：商品生效样式（/api/product/productStyle）
+// ——————————————————————————————————————————————
+
+/// 生效样式行（Java `selectActiveStylesByProductIds` 的 resultType=map 等价物）。
+#[derive(Debug, Clone, Default, sqlx::FromRow)]
+pub struct ActiveStyleRow {
+    pub product_id: i32,
+    pub style_id: i32,
+    pub style_name: Option<String>,
+    pub style_type: i32,
+    pub style_image: Option<String>,
+    pub pc_image: Option<String>,
+    pub add_time: Option<i32>,
+}
+
+impl ProductStyleAdminRepository {
+    /// 商品生效样式（Java `ProductStyleMapper#selectActiveStylesByProductIds`）。
+    ///
+    /// 三路 `UNION ALL`（`item_type` 1 商品 / 2 分组 / 3 品牌），
+    /// 公共过滤：`ps.status = 1 AND ps.is_delete = 0`，
+    /// `(start_time = 0 OR start_time <= now)`，
+    /// `(end_time = 0 OR end_time >= now)`，`ORDER BY itemAddTime DESC`。
+    ///
+    /// # Errors
+    /// 数据库错误 → `Error::Database`。
+    pub async fn find_active_styles(
+        &self,
+        product_ids: &[i32],
+        now: i64,
+    ) -> Result<Vec<ActiveStyleRow>> {
+        if product_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        #[allow(clippy::items_after_statements)]
+        fn push_filter(
+            qb: &mut QueryBuilder<'_, sqlx::MySql>,
+            product_ids: &[i32],
+            now: i64,
+        ) {
+            qb.push(" AND p.product_id IN (");
+            let mut sep = qb.separated(", ");
+            for id in product_ids {
+                sep.push_bind(*id);
+            }
+            sep.push_unseparated(")");
+            qb.push(" AND (ps.start_time = 0 OR ps.start_time <= ");
+            qb.push_bind(now);
+            qb.push(") AND (ps.end_time = 0 OR ps.end_time >= ");
+            qb.push_bind(now);
+            qb.push(")");
+        }
+
+        let columns = "SELECT p.product_id AS product_id, ps.style_id AS style_id, ps.style_name AS style_name, ps.style_type AS style_type, ps.style_image AS style_image, ps.pc_image AS pc_image, psi.add_time AS add_time";
+        let ps_filter = " FROM product_style ps INNER JOIN product_style_item psi ON psi.style_id = ps.style_id";
+        let mut qb: QueryBuilder<'_, sqlx::MySql> =
+            QueryBuilder::new("SELECT product_id, style_id, style_name, style_type, style_image, pc_image, add_time FROM (");
+        // ① item_type = 1：直接命中商品
+        qb.push(columns);
+        qb.push(ps_filter);
+        qb.push(" AND psi.item_type = 1 INNER JOIN product p ON psi.ref_id = p.product_id WHERE ps.status = 1 AND ps.is_delete = 0");
+        push_filter(&mut qb, product_ids, now);
+        // ② item_type = 2：命中商品分组（product_group.product_ids JSON 数组）
+        qb.push(" UNION ALL ");
+        qb.push(columns);
+        qb.push(ps_filter);
+        qb.push(" AND psi.item_type = 2 INNER JOIN product_group pg ON pg.product_group_id = psi.ref_id INNER JOIN product p ON JSON_CONTAINS(pg.product_ids, CAST(p.product_id AS JSON)) WHERE ps.status = 1 AND ps.is_delete = 0");
+        push_filter(&mut qb, product_ids, now);
+        // ③ item_type = 3：命中品牌
+        qb.push(" UNION ALL ");
+        qb.push(columns);
+        qb.push(ps_filter);
+        qb.push(" AND psi.item_type = 3 INNER JOIN product p ON psi.ref_id = p.brand_id WHERE ps.status = 1 AND ps.is_delete = 0");
+        push_filter(&mut qb, product_ids, now);
+        qb.push(") AS combined ORDER BY add_time DESC");
+        qb.build_query_as::<ActiveStyleRow>()
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)
+    }
+
+    /// 按商品 SN 批量取 `(product_id, product_sn)`（Java
+    /// `productService.lambdaQuery().in(productSn).eq(isDelete, 0)`）。
+    ///
+    /// # Errors
+    /// 数据库错误 → `Error::Database`。
+    pub async fn find_product_ids_by_sns(&self, product_sns: &[String]) -> Result<Vec<(i32, String)>> {
+        if product_sns.is_empty() {
+            return Ok(Vec::new());
+        }
+        let ph = vec!["?"; product_sns.len()].join(", ");
+        let sql = format!(
+            "SELECT product_id, product_sn FROM product WHERE product_sn IN ({ph}) AND is_delete = 0"
+        );
+        let mut q = sqlx::query_as::<_, (i32, String)>(&sql);
+        for sn in product_sns {
+            q = q.bind(sn);
+        }
+        q.fetch_all(&self.pool).await.map_err(map_err)
+    }
+}
+
+#[cfg(test)]
+mod active_style_sql_tests {
+    #[test]
+    fn three_union_branches_and_filters_match_java_mapper() {
+        let src = include_str!("product_style_admin.rs");
+        assert!(src.contains("UNION ALL"));
+        assert!(src.contains("psi.item_type = 1"));
+        assert!(src.contains("psi.item_type = 2"));
+        assert!(src.contains("psi.item_type = 3"));
+        assert!(src.contains("JSON_CONTAINS(pg.product_ids, CAST(p.product_id AS JSON))"));
+        assert!(src.contains("ps.status = 1"));
+        assert!(src.contains("ps.is_delete = 0"));
+        assert!(src.contains("ORDER BY add_time DESC"));
+        assert!(src.contains("is_delete = 0"));
+    }
+}

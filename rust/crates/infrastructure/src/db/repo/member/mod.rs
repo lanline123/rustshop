@@ -3,6 +3,7 @@
 pub mod collect_product;
 pub mod feedback;
 pub mod login;
+pub mod member_audience;
 pub mod member_lists;
 pub mod member_tag;
 pub mod member_tag_group;
@@ -12,13 +13,16 @@ pub mod user_address_client;
 pub mod user_center;
 pub mod user_company;
 pub mod user_company_client;
+pub mod user_feedback_client;
 pub mod user_invoice_client;
 pub mod user_manage;
 pub mod user_member_tag;
 pub mod user_message;
 pub mod user_message_log;
 pub mod user_points_log;
+pub mod user_price_inquiry;
 pub mod user_rank;
+pub mod user_sign;
 
 use crate::db::DbPool;
 
@@ -43,6 +47,10 @@ pub struct Repositories {
     pub collect_product: collect_product::CollectProductRepository,
     pub user_company_client: user_company_client::UserCompanyClientRepository,
     pub user_invoice_client: user_invoice_client::UserInvoiceClientRepository,
+    pub user_price_inquiry: user_price_inquiry::UserPriceInquiryRepository,
+    pub member_audience: member_audience::MemberAudienceRepository,
+    pub user_feedback_client: user_feedback_client::UserFeedbackClientRepository,
+    pub user_sign: user_sign::UserSignRepository,
 }
 
 impl Repositories {
@@ -68,6 +76,10 @@ impl Repositories {
             collect_product: collect_product::CollectProductRepository::new(pool.clone()),
             user_company_client: user_company_client::UserCompanyClientRepository::new(pool.clone()),
             user_invoice_client: user_invoice_client::UserInvoiceClientRepository::new(pool.clone()),
+            user_price_inquiry: user_price_inquiry::UserPriceInquiryRepository::new(pool.clone()),
+            member_audience: member_audience::MemberAudienceRepository::new(pool.clone()),
+            user_feedback_client: user_feedback_client::UserFeedbackClientRepository::new(pool.clone()),
+            user_sign: user_sign::UserSignRepository::new(pool.clone()),
         }
     }
 }

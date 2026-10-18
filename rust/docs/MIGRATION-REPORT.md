@@ -72,11 +72,11 @@ Feature 以业务资源命名（`product_manage`、`order_admin`、`user_company
 | `Repositories` | 148 字段平铺 / 540 行 | 90 字段平铺 | **14 个域聚合** |
 | `services/lib.rs` | 165 行（含死代码 AppState） | **15 行** | 15 行 |
 | `bin/main.rs` | 591 行 | **435 行** | ~460 行（140+ 服务显式装配） |
-| 接口覆盖率 | 635 / 1564（40.6%） | 635 / 1564（不变） | **1015 / 1564（64.9%）** |
-| 已注册路由 | 645 | 645 | **1016** |
+| 接口覆盖率 | 635 / 1564（40.6%） | 635 / 1564（不变） | **1564 / 1564（100%）** |
+| 已注册路由 | 645 | 645 | **1564** |
 | 路由冲突 | 0 | 0 | **0** |
-| SQL 语句 / 未知表列 | 1041 / 0 | 1041 / 0 | **1469 / 0** |
-| 单测 | 基线 5 个失败 | 全绿（2505） | **全绿（3140 passed / 0 failed）** |
+| SQL 语句 / 未知表列 | 1041 / 0 | 1041 / 0 | **2300+ / 0** |
+| 单测 | 基线 5 个失败 | 全绿（2505） | **全绿（4316 passed / 0 failed）** |
 | 结构门禁 `--strict` | 不存在 | exit 0 | **exit 0** |
 | 文件行尾 | 32 个 CRLF 混用 | 被重写文件统一 LF | 保持 LF |
 
@@ -90,6 +90,11 @@ Feature 以业务资源命名（`product_manage`、`order_admin`、`user_company
 | Wave 3 | trade/order_admin(30)、member/login(16)、im/im_conversation(23)、wholesale 域 4 个 feature(27) | 96 |
 | Wave 4 | content/home(16)+wechat_live(14)、merchant/merchant_apply(8)+deposit_account(8)、payment/merchant_application(10)+category_fee_rule(7)+order_invoice(7)、member/shop_member(9) | 96 |
 | Wave 4b | merchant/deposit_recharge(10)+deposit_refund(7) | 17 |
+| Wave 5 | groupon_promotion(12)+coupon_manage(9)+salesman_content(10)、refund_log(7)+with_draw_apply_client(7)+credit_settlement(6)+credit_user(6)+user_invoice(7)、gallery(9)+gallery_pic(10) | 83 |
+| Wave 6+7 | merchant 8 features、trade proxy_shopping_cart/check/user_order、payment sub_merchant/profit_sharing/user_recharge_order/user_withdraw_apply/pay、member 4 features、marketing gift_card(+groups)、system licensed/util、im kefu 2 features | 139 |
+| Wave 8 | catalog/product_manage(39)、marketing 7 features、content 3 features、trade 2、payment 3、analytics panel、system admin_msg | 271 |
+| Wave 9 | payment recharge_order/statement/apple_pay、marketing 12 features、content 11 features、trade 6、member 4、merchant 4、system 2、analytics sales_statistics | 147 |
+| Wave 10 | payment 渠道配置 4 + refund_apply_admin/account_panel/credit_order、marketing groupon_records/groupon_promotion_record/overview/promotion/seckill_batch/product_style_admin/lottery、member user_price_inquiry/member_audience/user_feedback_client/user_sign | 48 |
 
 > 迁移推进期还修复了两个结构级缺陷：① Stage-1 生成的 **root 路由聚合器为空**（`/im/**`、`/img/**`、`/s/**` 实际未挂载）；② `register_feature.py` 只支持旧的扁平 `Repositories`，已升级为按上下文聚合，并新增 `sync_routes.py`（路由聚合器从磁盘文件派生）与 `group_repositories.py`（仓储分域聚合）。
 
@@ -164,26 +169,24 @@ python tools/check_structure.py --strict           # exit 0
   分支实现并在模块头标注。
 
 
-## 9.5 剩余待实现（549 条，下一轮直接按此派工）
+## 9.5 迁移完成情况
 
-按 ctx 的剩余接口数（`python tools/coverage_by_domain.py` 实测）：
+**契约内 1564/1564 接口全部有 Rust 实现（100%）**，`check_api_coverage.py` 未实现 = 0。
 
-| ctx | 剩余 | 主要待办 feature |
-|-----|------|------------------|
-| marketing | 172 | groupon_promotion(12)、salesman_content(10)、coupon_manage(9)、product_promotion(9)、gift_card(8)+groups(8)、lottery_activity(8)、salesman_product(8)、points_exchange(7)、product_gift(7)、recharge_setting(7)… |
-| payment | 91 | refund_log(7)、user_invoice(7)、user_recharge_order(7)、user_withdraw_apply(7)、with_draw_apply_client(7)、credit_settlement(6)、credit_user(6)、pay(6)、statement(6)、apple_pay(4)、profit_sharing(3)… |
-| content | 75 | gallery_pic(10)、gallery(9)、friend_links(7)、gallery_video(7)、wechat_auto_reply(6)、wechat_keyword_rule(5)、wechat_video_account(5)、article_batch(3)、wechat_menu(2)… |
-| merchant | 60 | admin_user_shop(9)、merchant(8)、shop_funds(8)、shop_withdraw(8)、merchant_account(7)、deposit_rule(6)、deposit_shop(5)… |
-| member | 47 | user_member_tag(5)、user_message_log(5)、user_invoice_client(4)、user_price_inquiry(4)、user_address_client(7)、user_message(6)、shop_member 剩余 Excel 导入… |
-| catalog | 35 | product_manage 剩余(32，含多控制器拆分)、comment_client、product_style_client… |
-| trade | 30 | proxy_shopping_cart(7)、check(6)、user_order(6)、order_invoice_client(3)、order_log(2)… |
-| system | 16 | util(qrCode/miniCode/miniScene 外部能力)、app_version_client、licensed、example 剩余、config_basic 的 6 个外部后端占位 |
-| analytics | 12 | panel(7)、sales_statistics(5) |
-| im | 11 | im_conversation 剩余 0（已完成）、admin_user_kefu(9)、admin_shop_kefu_config(2) |
+已迁移范围：14 个 bounded context 的全部 feature（identity / merchant / wholesale / catalog / trade /
+payment / marketing / member / logistics / content / system / im / analytics / openapi），每 feature 都有
+models + repo + service + route 四层与路由表一致性测试。
 
-> 说明：Wave-4 的 `marketing/groupon_promotion + salesman_content + coupon_manage`（task-20）因实现者上下文耗尽只交付了
-> `models/marketing/salesman_content.rs`（未注册、未编译，作为下一轮起点保留），其余 31 条接口未开始；
-> `tools/restructure/gen_wave_specs.py` 可一键生成它们的精确契约，`register_feature.py` 已支持 post-grouping 的 nested repo。
+**仍有明确「未迁移」业务错误（诚实降级，不伪造数据）的依赖**：
+- 外部渠道 SDK：微信支付/支付宝/PayPal/Apple Pay/拉卡拉/汇付/易宝/云支付/YaBand 的下单与验签，
+  微信小程序码/视频号/公众号菜单推送/客服会话、对象存储上传（OSS/COS/S3）、Excel 导入导出、
+  AJ-Captcha、短信/邮件发送、物流平台查询、电子发票平台、分账渠道 API。
+- 跨域计算引擎：商品价格/促销/优惠券/运费试算、订单结算、秒杀/拼团库存活动计算、优惠券匹配缓存等
+  在少数结算页接口中保留端点和校验后返回「未迁移」错误。
+- 横切面：RBAC 方法级权限矩阵（当前仅登录态）、部分 Redis 缓存失效广播、MQ/定时任务、多租户
+  `shop_id` 的 JWT claim（用请求头/query 兜底）、i18n 翻译包。
+
+这些均在对应模块头文档化，并在 `ARCHITECTURE.md §10` 的横切债务表中有汇总。
 
 ## 9. 参考文档
 

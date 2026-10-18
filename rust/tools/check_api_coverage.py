@@ -34,7 +34,7 @@ from collections import OrderedDict, defaultdict
 # ``.route("`` 起始标记；参数区用括号配平手工扫描，避免正则被嵌套括号打败。
 ROUTE_START_RE = re.compile(r"\.route\(\s*\"(?P<path>[^\"]*)\"")
 # 提取方法链：get(h) / post(h) / put(h) / delete(h) / get(h).post(h2)
-METHOD_CALL_RE = re.compile(r"\b(get|post|put|delete|patch|head|options)\s*\(\s*([A-Za-z_]\w*)\s*\)")
+METHOD_CALL_RE = re.compile(r"\b(any|get|post|put|delete|patch|head|options)\s*\(\s*([A-Za-z_]\w*)\s*\)")
 
 # crate 目录 -> 路径前缀（与 Java 控制器 base path 对齐）
 CRATE_PREFIX = {
@@ -236,7 +236,13 @@ def load_contract(path):
 
 
 def analyse(contract, rust_routes):
-    have = {(r["method"], r["path"]) for r in rust_routes}
+    have = set()
+    for r in rust_routes:
+        have.add((r["method"], r["path"]))
+        if r["method"] == "ANY":
+            # axum `any(handler)` 同时接受 GET/POST 等；契约按 ANY 或具体动词描述均可视为已实现。
+            have.add(("GET", r["path"]))
+            have.add(("POST", r["path"]))
     have_norm = {(m, p.rstrip("/") or "/") for m, p in have}
 
     implemented = []
@@ -244,19 +250,29 @@ def analyse(contract, rust_routes):
     for ep in contract["endpoints"]:
         key = (ep["method"].upper(), ep["path"])
         norm = (key[0], ep["path"].rstrip("/") or "/")
-        if key in have or norm in have_norm:
+        any_ok = key[0] == "ANY" and (
+            ("GET", ep["path"]) in have or ("POST", ep["path"]) in have
+        )
+        if key in have or norm in have_norm or any_ok:
             implemented.append(ep)
         else:
             missing.append(ep)
 
     contract_keys = {(e["method"].upper(), e["path"]) for e in contract["endpoints"]}
     contract_keys_norm = {(m, p.rstrip("/") or "/") for m, p in contract_keys}
-    extra = [
-        r
-        for r in rust_routes
-        if (r["method"], r["path"]) not in contract_keys
-        and (r["method"], r["path"].rstrip("/") or "/") not in contract_keys_norm
-    ]
+    def _covered(method, path):
+        if (method, path) in contract_keys:
+            return True
+        if (method, path.rstrip("/") or "/") in contract_keys_norm:
+            return True
+        if method == "ANY":
+            return any(
+                (m, path) in contract_keys or (m, path.rstrip("/") or "/") in contract_keys_norm
+                for m in ("GET", "POST")
+            )
+        return False
+
+    extra = [r for r in rust_routes if not _covered(r["method"], r["path"])]
 
     by_module = defaultdict(lambda: [0, 0])
     for ep in contract["endpoints"]:
