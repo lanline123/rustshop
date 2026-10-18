@@ -169,7 +169,8 @@ pub fn validate_upload_file(file_name: Option<&str>, bytes: &[u8]) -> Result<()>
 /// 绝不返回伪造的 URL。
 pub fn upload_app_file(file_name: Option<&str>, bytes: &[u8]) -> Result<String> {
     validate_upload_file(file_name, bytes)?;
-    Err(Error::biz(500, ERR_UPLOAD_NOT_MIGRATED))
+    let original = file_name.unwrap_or("app-release.apk");
+    tigshop_infrastructure::storage::save_local_upload_blocking("app", original, bytes)
 }
 
 // ——————————————————————————————————————————————————————————————
@@ -371,15 +372,10 @@ mod tests {
     }
 
     #[test]
-    fn upload_returns_not_migrated_business_error() {
-        let err = upload_app_file(Some("app.apk"), &[1, 2, 3]).unwrap_err();
-        match err {
-            Error::Biz { code, msg } => {
-                assert_eq!(code, 500);
-                assert_eq!(msg, ERR_UPLOAD_NOT_MIGRATED);
-            }
-            other => panic!("应为业务错误，实际: {other:?}"),
-        }
+    fn upload_app_file_persists_to_local_storage() {
+        let url = upload_app_file(Some("app.apk"), &[1, 2, 3]).expect("上传成功");
+        assert!(url.starts_with("/static/app/"), "返回 URL 应为本地静态路径: {url}");
+        assert!(url.ends_with(".apk"));
     }
 }
 

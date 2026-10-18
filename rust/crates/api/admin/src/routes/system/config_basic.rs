@@ -1,4 +1,4 @@
-﻿//! 管理端系统设置路由（system::config_basic）。
+//! 管理端系统设置路由（system::config_basic）。
 //!
 //! 对应原 Java `com.tigshop.adminapi.controller.setting.ConfigController`
 //! （`@RequestMapping("/adminapi/setting/config")`，共 **102** 个管理端端点）。
@@ -32,7 +32,7 @@
 //!   返回明确 1001 业务错误；详见 models 模块文档「与 Java 的差异」。
 
 use axum::{
-    extract::{Query, State},
+    extract::{Multipart, Query, State},
     routing::{get, post},
     Json, Router,
 };
@@ -41,7 +41,7 @@ use serde_json::Value;
 use tigshop_core::models::system::config_basic::{
     endpoints, EndpointKind, EndpointSpec, Verb, PUBLIC_PATHS,
 };
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AppError};
 
 use crate::AdminState;
 
@@ -163,10 +163,15 @@ struct CodeQuery {
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     let mut router = Router::new();
-    for ep in endpoints().iter().filter(|ep| !EndpointKind::is_public_path(ep.path)) {
+    for ep in endpoints()
+        .iter()
+        .filter(|ep| !EndpointKind::is_public_path(ep.path))
+        .filter(|ep| ep.path != "/setting/config/uploadFile")
+    {
         router = register(router, ep);
     }
-    router
+    // 证书上传（multipart）需要独立 handler，不能走 JSON/无体通用入口
+    router.route("/setting/config/uploadFile", post(upload_config_file))
 }
 
 /// 匿名白名单 3 条路由（Java `URL_WHITELIST`，外层不套 `require_auth`）。
@@ -242,6 +247,55 @@ async fn post_without_body(
         .post_without_body(ep, test_mail_address.as_deref())
         .await?)
 }
+/// `type` 查询参数（Java `@RequestParam("type") Integer`）。
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct UploadFileQuery {
+    #[serde(rename = "type")]
+    file_type: Option<i32>,
+}
+
+/// `POST /adminapi/setting/config/uploadFile`：支付证书/密钥文件上传（本地存储）。
+async fn upload_config_file(
+    State(_state): State<AdminState>,
+    Query(q): Query<UploadFileQuery>,
+    mut multipart: Multipart,
+) -> ApiResult<String> {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError(tigshop_core::Error::Validation(format!("解析上传表单失败: {e}"))))?
+    {
+        if field.name() != Some("file") {
+            continue;
+        }
+        let file_name = field.file_name().map(ToString::to_string);
+        let bytes = field
+            .bytes()
+            .await
+            .map_err(|e| AppError(tigshop_core::Error::Validation(format!("读取上传文件失败: {e}"))))?
+            .to_vec();
+        if bytes.is_empty() {
+            return Err(AppError(tigshop_core::Error::Validation("文件不能为空".into())));
+        }
+        let ext = std::path::Path::new(file_name.as_deref().unwrap_or("cert"))
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("pem");
+        let stored = format!(
+            "type{}_{}.{}",
+            q.file_type.unwrap_or(0),
+            tigshop_common::utils::now_millis(),
+            ext
+        );
+        let url = tigshop_infrastructure::storage::save_local_upload("config", &stored, &bytes)
+            .await
+            .map_err(AppError)?;
+        return ok(url);
+    }
+    Err(AppError(tigshop_core::Error::Validation("文件不能为空".into())))
+}
+
 /// 本域已实现路由（完整契约路径，供 `/openapi/coverage`）。
 #[must_use]
 pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {

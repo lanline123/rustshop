@@ -21,8 +21,29 @@ pub struct OrderCreateDTO {
     pub buyer_note: Option<String>,
     /// 支付方式：对应 pay_type_id
     pub pay_type_id: Option<i32>,
-    /// 是否使用余额支付
-    pub use_balance: Option<bool>,
+    /// 使用余额金额（0/缺省 = 不使用；`true` 兼容旧前端 = 尽可能全额抵扣）
+    #[serde(default, deserialize_with = "de_use_balance")]
+    pub use_balance: Option<Decimal>,
+}
+
+/// 兼容前端三种 `useBalance` 入参：数字（余额抵扣金额）、布尔、字符串数字。
+fn de_use_balance<'de, D>(deserializer: D) -> std::result::Result<Option<Decimal>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize;
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    match value {
+        serde_json::Value::Null => Ok(None),
+        serde_json::Value::Bool(true) => Ok(Some(Decimal::MAX)),
+        serde_json::Value::Bool(false) => Ok(None),
+        serde_json::Value::Number(n) => Ok(n.to_string().parse::<Decimal>().ok()),
+        serde_json::Value::String(s) => Ok(s.trim().parse::<Decimal>().ok()),
+        _ => Ok(None),
+    }
 }
 
 impl Default for OrderCreateDTO {
@@ -52,6 +73,16 @@ pub struct OrderCreateVO {
     pub online_amount: Decimal,
     /// 支付流水号（预支付用）
     pub out_trade_no: String,
+    /// 1=需继续支付（跳支付页）；2=无需支付（余额已全额抵扣，前端直接跳订单列表）
+    #[serde(default = "default_return_type")]
+    pub return_type: i32,
+    /// 拼团记录 ID（下单成功时回填）
+    #[serde(default)]
+    pub groupon_promotion_record_id: Option<i32>,
+}
+
+fn default_return_type() -> i32 {
+    1
 }
 
 /// 订单列表项 VO。

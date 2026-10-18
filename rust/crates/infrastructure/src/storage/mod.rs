@@ -93,3 +93,34 @@ pub async fn save_local_upload(kind: &str, original_name: &str, bytes: &[u8]) ->
     let storage = LocalStorage::new(upload_root());
     storage.put(&key, bytes.to_vec(), "").await
 }
+
+
+/// 同步版本的本地上传（供同步 service / handler 调用，内部 `std::fs`）。
+pub fn save_local_upload_blocking(kind: &str, original_name: &str, bytes: &[u8]) -> Result<String> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+
+    let ext = std::path::Path::new(original_name)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .filter(|e| !e.is_empty() && e.len() <= 8 && e.chars().all(|c| c.is_ascii_alphanumeric()))
+        .unwrap_or_else(|| "bin".to_string());
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let seq = SEQ.fetch_add(1, Ordering::Relaxed);
+    let safe_kind: String = kind
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
+        .collect();
+    let rel = format!("{safe_kind}/{stamp}_{seq}.{ext}");
+    let path = std::path::Path::new(&upload_root()).join(&rel);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| Error::Internal(format!("创建目录失败: {e}")))?;
+    }
+    std::fs::write(&path, bytes).map_err(|e| Error::Internal(format!("写入文件失败: {e}")))?;
+    Ok(format!("/static/{rel}"))
+}

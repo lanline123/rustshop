@@ -202,14 +202,113 @@ impl OrderService {
 
         tracing::info!("创建订单成功: order_id={order_id}, sn={order_sn}, user={user_id}");
 
+        // —— 余额抵扣（Java `OrderCheckServiceImpl#calcBalanceDeduction`）——
+        let mut online_amount = total;
+        let mut return_type = 1_i32;
+        if let Some(requested) = dto.use_balance {
+            if requested > Decimal::ZERO {
+                let available = self
+                    .repos
+                    .member
+                    .user
+                    .find_by_id(user_id)
+                    .await?
+                    .map(|u| u.available_balance())
+                    .unwrap_or(Decimal::ZERO);
+                let mut balance_used = requested.min(total).min(available);
+                if balance_used > Decimal::ZERO {
+                    let debited = self
+                        .repos
+                        .member
+                        .user
+                        .try_debit_balance(user_id, balance_used)
+                        .await?;
+                    if !debited {
+                        balance_used = Decimal::ZERO;
+                    }
+                }
+                if balance_used > Decimal::ZERO {
+                    let _ = self
+                        .repos
+                        .trade
+                        .order
+                        .set_balance_amount(order_id, balance_used)
+                        .await;
+                    let now = utils::now_seconds() as i32;
+                    if balance_used >= total {
+                        if self
+                            .repos
+                            .trade
+                            .order
+                            .mark_paid(order_id, now, total)
+                            .await?
+                        {
+                            online_amount = Decimal::ZERO;
+                            return_type = 2;
+                            self.write_balance_paylog(order_id, &order_sn, total, balance_used, now)
+                                .await;
+                        }
+                    } else {
+                        let _ = self
+                            .repos
+                            .trade
+                            .order
+                            .apply_partial_payment(order_id, balance_used)
+                            .await;
+                        online_amount = total - balance_used;
+                        self.write_balance_paylog(order_id, &order_sn, total, balance_used, now)
+                            .await;
+                    }
+                }
+            }
+        }
+
         let out_trade_no = format!("PAY{order_sn}");
         Ok(OrderCreateVO {
             order_id,
             order_sn,
             total_amount: total,
-            online_amount: total,
+            online_amount,
             out_trade_no,
+            return_type,
+            groupon_promotion_record_id: None,
         })
+    }
+
+    /// 余额抵扣流水（对应 Java `PaylogService#creatPayLog(payCode="balance")`）。
+    async fn write_balance_paylog(
+        &self,
+        order_id: i32,
+        order_sn: &str,
+        order_amount: Decimal,
+        pay_amount: Decimal,
+        now: i32,
+    ) {
+        use tigshop_core::entities::Paylog;
+        use tigshop_core::models::payment::paylog::{generate_pay_sn, PayOrderType};
+        use tigshop_infrastructure::db::repo::payment::paylog::PAYLOG_STATUS_PAID;
+        let paylog = Paylog {
+            paylog_id: 0,
+            pay_sn: generate_pay_sn(),
+            pay_name: format!("余额支付-订单{order_sn}"),
+            order_id,
+            order_sn: order_sn.to_string(),
+            order_amount,
+            order_type: PayOrderType::Product as i32,
+            pay_amount,
+            pay_status: PAYLOG_STATUS_PAID,
+            pay_code: "balance".to_string(),
+            profit_sharing_channel: None,
+            add_time: Some(now),
+            transaction_id: format!("BAL{}", utils::now_millis()),
+            notify_data: String::new(),
+            refund_amount: Decimal::ZERO,
+            token_code: String::new(),
+            appid: None,
+        };
+        if let Err(e) = self.repos.payment.paylog.insert(&paylog).await {
+            tracing::warn!("余额支付流水写入失败: order_id={order_id} {e}");
+        }
     }
 
     /// 订单详情。

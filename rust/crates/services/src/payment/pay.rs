@@ -294,7 +294,78 @@ impl PayService {
         user_id: Option<i32>,
     ) -> Result<PayCreateVO> {
         self.validate_create_target(q, user_id).await?;
+        let user_id = require_user(user_id)?;
+        let pay_type = q.r#type.as_deref().unwrap_or_default();
+
+        // —— 线下汇款：创建待支付 paylog，订单保持待付款，后台确认收款后置已付 ——
+        if pay_type == "offline" {
+            let order_id = q.id.unwrap_or(0);
+            let order = self
+                .repo()
+                .find_order_by_id(order_id)
+                .await?
+                .ok_or_else(|| Error::biz(500, MSG_ORDER_NOT_FOUND))?;
+            let pay_sn = self.create_pending_offline_paylog(&order).await?;
+            return Ok(PayCreateVO {
+                order_id: Some(order.order_id),
+                order_sn: Some(order.order_sn.clone()),
+                order_amount: Some(order.unpaid_amount),
+                pay_info: Some(serde_json::json!({ "paySn": pay_sn, "payType": "offline" })),
+                code: None,
+            });
+        }
+
+        // —— 余额支付：直接扣减并标记订单（与 /api/balance/pay 同一实现）——
+        if pay_type == "balance" {
+            let balance_pay =
+                crate::payment::balance_pay::BalancePayService::new(self.repos.clone());
+            let result = balance_pay
+                .pay_order(user_id, q.id.unwrap_or(0), None)
+                .await?;
+            return Ok(PayCreateVO {
+                order_id: q.id,
+                order_sn: None,
+                order_amount: Some(result.deducted),
+                pay_info: Some(serde_json::json!({
+                    "paySn": result.pay_sn,
+                    "payType": "balance",
+                    "deducted": result.deducted.to_string(),
+                    "orderFullyPaid": result.order_fully_paid,
+                })),
+                code: None,
+            });
+        }
+
         Err(Error::biz_msg(MSG_CHANNEL_UNMIGRATED))
+    }
+
+    /// 创建线下汇款待支付流水（Java `PaylogService#creatPayLog` 离线分支）。
+    async fn create_pending_offline_paylog(&self, order: &PayOrderRow) -> Result<String> {
+        use tigshop_core::entities::Paylog;
+        use tigshop_core::models::payment::paylog::{generate_pay_sn, PayOrderType};
+        use tigshop_infrastructure::db::repo::payment::paylog::PAYLOG_STATUS_UNPAID;
+        let pay_sn = generate_pay_sn();
+        let paylog = Paylog {
+            paylog_id: 0,
+            pay_sn: pay_sn.clone(),
+            pay_name: format!("线下汇款-订单{}", order.order_sn),
+            order_id: order.order_id,
+            order_sn: order.order_sn.clone(),
+            order_amount: order.total_amount,
+            order_type: PayOrderType::Product as i32,
+            pay_amount: order.unpaid_amount,
+            pay_status: PAYLOG_STATUS_UNPAID,
+            pay_code: "offline".to_string(),
+            profit_sharing_channel: None,
+            add_time: Some(tigshop_common::utils::now_seconds() as i32),
+            transaction_id: String::new(),
+            notify_data: String::new(),
+            refund_amount: rust_decimal::Decimal::ZERO,
+            token_code: String::new(),
+            appid: None,
+        };
+        self.repos.payment.paylog.insert(&paylog).await?;
+        Ok(pay_sn)
     }
 
     /// 预售定金支付创建（Java `createDepositPayment`）：本地校验后返回未迁移错误。
