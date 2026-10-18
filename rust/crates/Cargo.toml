@@ -95,6 +95,8 @@ dotenvy = "0.15"
 
 # Cryptography
 ring = "0.17"
+rsa = { version = "0.9", features = ["sha2", "pem"] }
+aes-gcm = "0.10"
 aes = "0.8"
 sha2 = "0.10"
 hmac = "0.12"

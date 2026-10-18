@@ -27,11 +27,11 @@ pub fn public_routes(_state: &AdminState) -> Router<AdminState> {
 
 /// 前端 `VerifySlide.vue` 使用 GET（axios wrapper 传 data 作 query）。
 async fn captcha_get() -> ApiResult<CaptchaVO> {
-    ok(tigshop_services::captcha::new_captcha()?)
+    ok(tigshop_services::system::captcha::new_captcha()?)
 }
 
 async fn captcha_post() -> ApiResult<CaptchaVO> {
-    ok(tigshop_services::captcha::new_captcha()?)
+    ok(tigshop_services::system::captcha::new_captcha()?)
 }
 
 /// 校验滑块坐标（`pointJson` 为 AES-ECB 密文）。
@@ -44,7 +44,7 @@ async fn check(Json(dto): Json<CaptchaDTO>) -> ApiResult<bool> {
     }
     let token = dto.token.as_deref().unwrap_or_default();
     let point_json = dto.point_json.as_deref().unwrap_or_default();
-    ok(tigshop_services::captcha::check_captcha(
+    ok(tigshop_services::system::captcha::check_captcha(
         token, point_json,
     )?)
 }

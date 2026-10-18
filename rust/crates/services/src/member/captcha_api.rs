@@ -21,12 +21,12 @@ impl CaptchaService {
 
     /// `POST/GET /api/common/verification/captcha`：生成滑块验证码。
     pub fn captcha(&self) -> Result<CaptchaVO> {
-        crate::captcha::new_captcha()
+        crate::system::captcha::new_captcha()
     }
 
     /// `POST /api/common/verification/get`（废弃端点，等价 captcha）。
     pub fn get(&self) -> Result<CaptchaVO> {
-        crate::captcha::new_captcha()
+        crate::system::captcha::new_captcha()
     }
 
     /// `POST /api/common/verification/check`：校验滑块坐标。
@@ -36,7 +36,7 @@ impl CaptchaService {
         }
         let token = dto.token.as_deref().unwrap_or_default();
         let point_json = dto.point_json.as_deref().unwrap_or_default();
-        crate::captcha::check_captcha(token, point_json)
+        crate::system::captcha::check_captcha(token, point_json)
     }
 }
 
@@ -44,7 +44,7 @@ impl CaptchaService {
 mod tests {
     #[test]
     fn captcha_generation_is_protocol_compatible() {
-        let vo = crate::captcha::new_captcha().expect("生成验证码");
+        let vo = crate::system::captcha::new_captcha().expect("生成验证码");
         assert_eq!(vo.captcha_type.as_deref(), Some("blockPuzzle"));
         assert_eq!(vo.secret_key.as_ref().map(String::len), Some(16));
         assert!(vo.token.as_deref().is_some_and(|t| !t.is_empty()));

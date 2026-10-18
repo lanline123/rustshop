@@ -18,7 +18,7 @@ use tigshop_core::error::ApiResponse;
 use tigshop_security::web::AuthUser;
 use tigshop_services::identity::permission::PermissionService;
 
-use crate::generated_permissions;
+use super::generated_permissions;
 
 /// 权限校验中间件。
 pub async fn enforce(

@@ -5,6 +5,7 @@ pub mod apple_pay;
 pub mod apple_pay_config;
 pub mod balance_pay;
 pub mod category_fee_rule;
+pub mod channels;
 pub mod credit_order;
 pub mod credit_settlement;
 pub mod credit_user;

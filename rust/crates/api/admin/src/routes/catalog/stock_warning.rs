@@ -317,7 +317,7 @@ async fn stock_warning_export(
         })
         .collect();
     let bytes = tigshop_services::system::excel::build_xlsx(&headers, &data, "库存预警")?;
-    Ok(crate::excel_response::xlsx_response(bytes, "stock_warning.xlsx"))
+    Ok(crate::support::excel_response::xlsx_response(bytes, "stock_warning.xlsx"))
 }
 
 // ——————————————————————————————————————————————
@@ -336,7 +336,7 @@ async fn stock_warning_download_template(
     let _ = &state;
     let headers = ["商品编码", "SKU编码", "下限", "上限"];
     let bytes = tigshop_services::system::excel::build_xlsx(&headers, &[], "库存预警导入模板")?;
-    Ok(crate::excel_response::xlsx_response(
+    Ok(crate::support::excel_response::xlsx_response(
         bytes,
         "stock_warning_template.xlsx",
     ))

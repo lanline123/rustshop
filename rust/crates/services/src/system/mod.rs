@@ -8,6 +8,7 @@ pub mod config_basic;
 pub mod config_client;
 pub mod csrf;
 pub mod example;
+pub mod captcha;
 pub mod excel;
 pub mod files;
 pub mod licensed;

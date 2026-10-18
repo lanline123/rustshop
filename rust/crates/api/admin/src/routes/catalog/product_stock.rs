@@ -620,7 +620,7 @@ async fn download_template() -> std::result::Result<axum::response::Response, Ap
     // 对应 Java `ProductStockOutExcelDTO` 的列：商品名称 / 商品编码 / 商品规格名称 / 商品出入库数量 / 备注
     let headers = ["商品名称", "商品编码", "商品规格名称", "商品出入库数量", "备注"];
     let bytes = tigshop_services::system::excel::build_xlsx(&headers, &[], "商品出入库模板")?;
-    Ok(crate::excel_response::xlsx_response(
+    Ok(crate::support::excel_response::xlsx_response(
         bytes,
         "product_stock_template.xlsx",
     ))

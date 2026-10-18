@@ -9,9 +9,7 @@
 //! | `GET /adminapi/order/list` | `OrderController.list` |
 //! | `POST /adminapi/order/ship` | `OrderController.ship` |
 
-mod excel_response;
-mod generated_permissions;
-mod permissions;
+mod support;
 
 use tower_http::services::ServeDir;
 
@@ -175,7 +173,7 @@ pub fn router(state: AdminState) -> Router {
         // 方法级权限（对应 Java `@PreAuthorize("@pms.hasPermission(...)")`）
         .layer(middleware::from_fn_with_state(
             state.identity.permission.clone(),
-            permissions::enforce,
+            support::permissions::enforce,
         ))
         // 登录态（必须最外层：先认证再鉴权）
         .layer(middleware::from_fn_with_state(

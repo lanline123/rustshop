@@ -147,6 +147,10 @@ common ← (所有)
 | infrastructure | `db/repo/<ctx>/<feature>.rs` | SQLx 查询、行映射、`Result<T>` |
 | services | `<ctx>/<feature>.rs` | 用例编排、事务边界（`pool.begin()`）、领域校验 |
 | api/* | `routes/<ctx>/<feature>.rs` | `ROUTE_TABLE`、`routes(&State)`、`implemented_routes()`、handler |
+| api/*（辅助） | `support/<feature>.rs` | 非路由辅助模块（权限中间件/权限表/Excel 响应等），不注册路由、不参与空壳检查 |
+
+> 布局门禁：`tools/check_structure.py` 允许 api 侧 `support/` 目录存放非路由辅助模块；
+> `services/` 侧辅助能力需按上下文落位（如 AJ-Captcha 位于 `services/src/system/captcha.rs`）。
 
 - **HTTP 层约定**（沿用既有已验证约定）：query/body DTO 必须 `#[serde(rename_all = "camelCase")]`；`ROUTE_TABLE` 与 `routes()` 一一对应，并由单测断言；路径逐字符对齐 `docs/api-contract.json`。
 

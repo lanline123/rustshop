@@ -28,7 +28,7 @@ impl AuthService {
             .map_err(|e| Error::Validation(e.to_string()))?;
 
         // 失败次数达到阈值时要求滑块验证码（Java `CaptchaHandler` + `ERROR_THRESHOLD`）
-        crate::captcha::validate_login_captcha(
+        crate::system::captcha::validate_login_captcha(
             &dto.username,
             dto.captcha_verification.as_deref(),
         )?;
@@ -45,7 +45,7 @@ impl AuthService {
 
         let hash = user.password.as_str();
         if !verify_password(&dto.password, hash)? {
-            let count = crate::captcha::increment_login_error(&dto.username);
+            let count = crate::system::captcha::increment_login_error(&dto.username);
             tracing::warn!(
                 "登录失败: username={}, ip={}, fail_count={}",
                 dto.username,
@@ -54,7 +54,7 @@ impl AuthService {
             );
             return Err(Error::biz(400, "用户名或密码错误"));
         }
-        crate::captcha::reset_login_error(&dto.username);
+        crate::system::captcha::reset_login_error(&dto.username);
 
         let (access, refresh, expires_in) = self.jwt.issue_pair(
             user.admin_id.to_string(),

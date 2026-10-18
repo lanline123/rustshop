@@ -10,19 +10,24 @@
 //! | `POST /api/pay/prepare` | Rust 版新增（原系统由 `/api/order/pay/create` 承担） |
 //! | `GET  /api/pay/refunds` | Rust 版新增（原系统无退款记录查询端点） |
 //!
-//! **安全说明**：`notify` 系列接口虽为公开，但必须由渠道签名校验
-//! 通过后才可信。当前实现仅落库与状态流转，**签名校验待各渠道
-//! 实现接入**（见 `services/payment.rs` 的 `PayChannel` trait）。
+//! **安全说明**：`notify` 系列接口为公开接口，但**必须通过渠道签名校验**
+//! 后才落库：微信支付 v3（SHA256-RSA 验签 + AES-256-GCM 解密 `resource`）、
+//! 支付宝（RSA2 验签 + `trade_status` 判定）。其它渠道在拿到凭据前返回明确
+//! 「待联调」错误，不信任裸 JSON 回调。
 
 use axum::{
-    extract::{Query, State},
+    body::Bytes,
+    extract::{Path, Query, State},
+    http::{HeaderMap, StatusCode},
+    response::{IntoResponse, Response},
     routing::{get, post},
     Extension, Json, Router,
 };
 use rust_decimal::Decimal;
 use serde::Deserialize;
+use std::collections::BTreeMap;
 use tigshop_core::models::payment::paylog::{PayOrderType, PaylogRefundVO, RefundStatus};
-use tigshop_security::web::{ok, ApiResult, AuthUser};
+use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 use tigshop_services::payment::paylog::PaylogOrderRef;
 
 use crate::PublicState;
@@ -134,49 +139,140 @@ async fn prepare(
     }))
 }
 
-/// 支付回调载荷（各渠道字段不同，此处取通用字段）。
-#[derive(Debug, Deserialize, Default)]
-#[serde(rename_all = "camelCase", default)]
-struct NotifyDTO {
-    /// 商户支付单号
-    out_trade_no: Option<String>,
-    /// 渠道交易号
-    transaction_id: Option<String>,
-    /// 实付金额
-    pay_amount: Option<Decimal>,
-    /// 原始报文（留痕）
-    raw: Option<String>,
-}
-
-/// `POST /api/pay/notify`：渠道支付回调。
+/// 渠道支付回调（按 `payType` 分发验签）。
 ///
-/// 按商户支付单号标记支付成功（幂等：已支付的行不会被重复更新）。
-///
-/// **注意**：当前**未做渠道签名校验** —— 生产环境必须在各渠道实现
-/// 中验签后再调用，否则可被伪造回调。参见 `services/payment.rs`。
+/// - 微信支付 v3：`Wechatpay-Signature`（SHA256-RSA）+ APIv3 密钥解密 `resource`；
+/// - 支付宝：RSA2 验签 + `trade_status`（`TRADE_SUCCESS`/`TRADE_FINISHED`）；
+/// - 其它渠道：明确报「待凭据联调」，不信任未验签回调。
 async fn notify(
     State(state): State<PublicState>,
-    Json(dto): Json<NotifyDTO>,
-) -> ApiResult<serde_json::Value> {
-    let pay_sn = dto
-        .out_trade_no
-        .as_deref()
-        .filter(|s| !s.trim().is_empty())
-        .ok_or_else(|| tigshop_core::Error::Validation("缺少商户支付单号".into()))?;
+    Path(pay_type): Path<String>,
+    axum::extract::OriginalUri(uri): axum::extract::OriginalUri,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Response, AppError> {
+    let configs = state.payment.pay.channel_configs().await?;
+    let body_str = String::from_utf8_lossy(&body).to_string();
+    match pay_type.as_str() {
+        // —— 微信支付 v3 ——
+        "wechat" | "wechatPartner" | "wechatCombine" | "wechatH5" => {
+            let public_key = configs
+                .wechat
+                .public_key_pem
+                .clone()
+                .filter(|v| !v.trim().is_empty())
+                .ok_or_else(|| AppError(tigshop_core::Error::biz(1001, "微信支付未配置：缺少 wechatPayPublicKey")))?;
+            let api_v3_key = configs
+                .wechat
+                .api_v3_key
+                .clone()
+                .filter(|v| !v.trim().is_empty())
+                .ok_or_else(|| AppError(tigshop_core::Error::biz(1001, "微信支付未配置：缺少 wechatPayKey（APIv3 密钥）")))?;
+            let timestamp = header_str(&headers, "wechatpay-timestamp")
+                .ok_or_else(|| AppError(tigshop_core::Error::biz(1001, "微信回调缺少 Wechatpay-Timestamp")))?;
+            let nonce = header_str(&headers, "wechatpay-nonce")
+                .ok_or_else(|| AppError(tigshop_core::Error::biz(1001, "微信回调缺少 Wechatpay-Nonce")))?;
+            let signature = header_str(&headers, "wechatpay-signature")
+                .ok_or_else(|| AppError(tigshop_core::Error::biz(1001, "微信回调缺少 Wechatpay-Signature")))?;
+            let message = tigshop_services::payment::channels::wechat_sign_message(
+                "POST",
+                uri.path(),
+                &timestamp,
+                &nonce,
+                &body_str,
+            );
+            tigshop_services::payment::channels::wechat_verify(&public_key, &message, &signature)?;
 
-    let transaction_id = dto.transaction_id.as_deref().unwrap_or_default();
-    let raw = dto.raw.as_deref().unwrap_or_default();
+            let json: serde_json::Value = serde_json::from_str(&body_str)
+                .map_err(|e| AppError(tigshop_core::Error::Validation(format!("微信回调报文非法: {e}"))))?;
+            let resource = json
+                .get("resource")
+                .ok_or_else(|| AppError(tigshop_core::Error::Validation("微信回调缺少 resource".into())))?;
+            let ciphertext = resource
+                .get("ciphertext")
+                .and_then(serde_json::Value::as_str)
+                .ok_or_else(|| AppError(tigshop_core::Error::Validation("微信回调缺少 ciphertext".into())))?;
+            let resource_nonce = resource
+                .get("nonce")
+                .and_then(serde_json::Value::as_str)
+                .ok_or_else(|| AppError(tigshop_core::Error::Validation("微信回调缺少 nonce".into())))?;
+            let associated_data = resource
+                .get("associated_data")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default();
+            let plain = tigshop_services::payment::channels::wechat_decrypt_resource(
+                &api_v3_key,
+                associated_data,
+                resource_nonce,
+                ciphertext,
+            )?;
+            let data: serde_json::Value = serde_json::from_str(&plain)
+                .map_err(|e| AppError(tigshop_core::Error::Validation(format!("微信回调解密报文非法: {e}"))))?;
+            let pay_sn = data
+                .get("out_trade_no")
+                .and_then(serde_json::Value::as_str)
+                .filter(|v| !v.trim().is_empty())
+                .ok_or_else(|| AppError(tigshop_core::Error::Validation("微信回调缺少 out_trade_no".into())))?;
+            let transaction_id = data
+                .get("transaction_id")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default();
+            state
+                .payment
+                .paylog
+                .mark_paid_by_pay_sn(pay_sn, transaction_id, &body_str)
+                .await?;
+            Ok((
+                StatusCode::OK,
+                Json(serde_json::json!({ "code": "SUCCESS", "message": "成功" })),
+            )
+                .into_response())
+        }
+        // —— 支付宝 ——
+        "ali" | "alipay" => {
+            let public_key = configs
+                .alipay
+                .alipay_public_key_pem
+                .clone()
+                .filter(|v| !v.trim().is_empty())
+                .ok_or_else(|| AppError(tigshop_core::Error::biz(1001, "支付宝未配置：缺少 alipayRsaPublicKey")))?;
+            let form: Vec<(String, String)> = serde_urlencoded::from_bytes(&body)
+                .map_err(|e| AppError(tigshop_core::Error::Validation(format!("支付宝回调报文非法: {e}"))))?;
+            let params: BTreeMap<String, String> = form.into_iter().collect();
+            tigshop_services::payment::channels::alipay_verify_notify(&public_key, &params)?;
+            let trade_status = params
+                .get("trade_status")
+                .map(String::as_str)
+                .unwrap_or_default();
+            if !matches!(trade_status, "TRADE_SUCCESS" | "TRADE_FINISHED") {
+                return Ok((StatusCode::OK, "failure").into_response());
+            }
+            let pay_sn = params
+                .get("out_trade_no")
+                .map(String::as_str)
+                .filter(|v| !v.trim().is_empty())
+                .ok_or_else(|| AppError(tigshop_core::Error::Validation("支付宝回调缺少 out_trade_no".into())))?;
+            let transaction_id = params.get("trade_no").map(String::as_str).unwrap_or_default();
+            state
+                .payment
+                .paylog
+                .mark_paid_by_pay_sn(pay_sn, transaction_id, &body_str)
+                .await?;
+            Ok((StatusCode::OK, "success").into_response())
+        }
+        // —— PayPal / 其它渠道 ——
+        other => Err(AppError(tigshop_core::Error::biz(
+            1001,
+            format!("支付渠道 {other} 回调验签待凭据联调（协议骨架已就绪）"),
+        ))),
+    }
+}
 
-    let affected = state.payment.paylog
-        .mark_paid_by_pay_sn(pay_sn, transaction_id, raw)
-        .await?;
-
-    ok(serde_json::json!({
-        "paySn": pay_sn,
-        "updatedRows": affected,
-        // 渠道要求返回的确认标识（微信/支付宝约定为 SUCCESS）
-        "reply": "SUCCESS",
-    }))
+fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
+    headers
+        .get(name)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string)
 }
 
 /// 退款回调载荷。

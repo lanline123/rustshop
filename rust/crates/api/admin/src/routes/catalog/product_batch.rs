@@ -112,7 +112,7 @@ async fn product_batch_deal(
         })
         .collect();
     let bytes = tigshop_services::system::excel::build_xlsx(&headers, &data, "商品导出")?;
-    Ok(crate::excel_response::xlsx_response(bytes, "products.xlsx"))
+    Ok(crate::support::excel_response::xlsx_response(bytes, "products.xlsx"))
 }
 
 /// `GET /adminapi/product/productBatch/productService/list`：商品服务分页。

@@ -360,11 +360,20 @@ def layout_check(crate, rel):
         if rel == "lib.rs":
             return ("ok", None)
         root = parts[0]
+        # `support/` 用于非路由辅助模块（权限中间件/权限表/Excel 响应等），
+        # 不注册路由，因此不参与「空壳路由模块」检查。
+        if root == "support":
+            if len(parts) == 2 and (parts[1] == "mod.rs" or parts[1].endswith(".rs")):
+                return ("ok", None)
+            return (
+                "violation",
+                "api/%s/src/support 只允许 support/mod.rs 与 support/<feature>.rs" % side,
+            )
         if root not in ("routes", "root"):
             return (
                 "violation",
                 "api/%s 只允许 src/lib.rs、src/routes/<ctx>/<feature>.rs、"
-                "src/root/<ctx>/<feature>.rs" % side,
+                "src/root/<ctx>/<feature>.rs、src/support/<feature>.rs" % side,
             )
         if len(parts) == 2 and parts[1] == "mod.rs":
             return ("ok", None)

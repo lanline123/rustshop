@@ -336,7 +336,68 @@ impl PayService {
             });
         }
 
-        Err(Error::biz_msg(MSG_CHANNEL_UNMIGRATED))
+        // —— 在线渠道：协议骨架已就绪，配置缺失时给出可操作错误 ——
+        let configs = crate::payment::channels::load_channel_configs(&self.repos).await?;
+        match pay_type {
+            "wechat" | "wechatH5" | "wechatApp" | "wechatMini" | "wechatPartner"
+            | "wechatCombine" => {
+                if !configs.wechat.is_configured() {
+                    return Err(Error::biz(
+                        1001,
+                        format!(
+                            "微信支付未配置：缺少 {}（设置-支付设置）",
+                            configs.wechat.missing().join("/")
+                        ),
+                    ));
+                }
+                // 签名/验签/回调解密已实现（channels::wechat_*），下单接口待沙箱联调
+                Err(Error::biz(
+                    1001,
+                    "微信支付协议骨架已就绪（RSA 签名 / 回调验签 / AES-GCM 解密），下单接口待商户凭据沙箱联调",
+                ))
+            }
+            "alipay" | "ali" => {
+                if !configs.alipay.is_configured() {
+                    return Err(Error::biz(
+                        1001,
+                        format!(
+                            "支付宝未配置：缺少 {}（设置-支付设置）",
+                            configs.alipay.missing().join("/")
+                        ),
+                    ));
+                }
+                Err(Error::biz(
+                    1001,
+                    "支付宝协议骨架已就绪（RSA2 签名 / 异步通知验签），下单接口待沙箱联调",
+                ))
+            }
+            "paypal" => {
+                if !configs.paypal.is_configured() {
+                    return Err(Error::biz(
+                        1001,
+                        format!(
+                            "PayPal 未配置：缺少 {}（设置-支付设置）",
+                            configs.paypal.missing().join("/")
+                        ),
+                    ));
+                }
+                Err(Error::biz(
+                    1001,
+                    "PayPal 配置与网关已就绪（sandbox/production），OAuth2 下单待沙箱联调",
+                ))
+            }
+            _ => Err(Error::biz_msg(MSG_CHANNEL_UNMIGRATED)),
+        }
+    }
+
+    /// 读取微信/支付宝/PayPal 渠道配置（供回调验签与下单使用）。
+    ///
+    /// # Errors
+    /// 数据库读取失败。
+    pub async fn channel_configs(
+        &self,
+    ) -> Result<crate::payment::channels::ChannelConfigs> {
+        crate::payment::channels::load_channel_configs(&self.repos).await
     }
 
     /// 创建线下汇款待支付流水（Java `PaylogService#creatPayLog` 离线分支）。

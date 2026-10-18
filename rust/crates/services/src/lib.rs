@@ -1,7 +1,9 @@
 //! 用例服务层（按限界上下文分组）。
 
-pub mod captcha;
 pub mod identity;
+
+/// 行为验证码（AJ-Captcha）实现，位于 system 上下文。
+pub use system::captcha;
 pub mod merchant;
 pub mod wholesale;
 pub mod catalog;
