@@ -9,6 +9,9 @@
 //! | `GET /adminapi/order/list` | `OrderController.list` |
 //! | `POST /adminapi/order/ship` | `OrderController.ship` |
 
+mod generated_permissions;
+mod permissions;
+
 use tower_http::services::ServeDir;
 
 use axum::{
@@ -168,6 +171,12 @@ pub fn router(state: AdminState) -> Router {
         .route("/system/profile/password", post(change_password))
         // —— 各业务域（routes/ 子模块，按域并行开发）——
         .merge(routes::merge_all(&state))
+        // 方法级权限（对应 Java `@PreAuthorize("@pms.hasPermission(...)")`）
+        .layer(middleware::from_fn_with_state(
+            state.identity.permission.clone(),
+            permissions::enforce,
+        ))
+        // 登录态（必须最外层：先认证再鉴权）
         .layer(middleware::from_fn_with_state(
             state.jwt.clone(),
             require_auth,

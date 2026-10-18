@@ -6,6 +6,7 @@ pub mod admin_role;
 pub mod admin_user;
 pub mod auth;
 pub mod authority;
+pub mod permission;
 
 use std::sync::Arc;
 
@@ -18,4 +19,5 @@ pub struct Services {
     pub authority: Arc<authority::AuthorityService>,
     pub admin_role: Arc<admin_role::AdminRoleService>,
     pub admin_account: Arc<admin_account::AdminAccountService>,
+    pub permission: Arc<permission::PermissionService>,
 }

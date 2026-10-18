@@ -398,6 +398,9 @@ async fn main() -> anyhow::Result<()> {
     let admin_role = Arc::new(AdminRoleService::new(repos.clone()));
     let admin_account = Arc::new(AdminAccountService::new(repos.clone()));
     // ---- identity 域 ----
+    let permission = Arc::new(tigshop_services::identity::permission::PermissionService::new(
+        repos.clone(),
+    ));
     let identity = Arc::new(tigshop_services::identity::Services {
         admin_log: admin_log.clone(),
         admin_user: admin_user.clone(),
@@ -405,6 +408,7 @@ async fn main() -> anyhow::Result<()> {
         authority: authority.clone(),
             admin_role: admin_role.clone(),
         admin_account: admin_account.clone(),
+        permission: permission.clone(),
 });
     let merchant_apply = Arc::new(MerchantApplyService::new(repos.clone()));
     let deposit_account = Arc::new(DepositAccountService::new(repos.clone()));
