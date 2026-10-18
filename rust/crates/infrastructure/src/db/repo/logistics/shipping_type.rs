@@ -137,6 +137,19 @@ impl ShippingTypeRepository {
     }
 
     /// 按主键查询（对应 Java `getById`）。
+    /// 全部配送方式（前台结算用，按排序号升序）。
+    ///
+    /// # Errors
+    /// 数据库错误。
+    pub async fn list_all(&self) -> Result<Vec<ShippingType>> {
+        sqlx::query_as::<_, ShippingType>(
+            "SELECT * FROM shipping_type ORDER BY sort_order ASC, shipping_type_id ASC",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
     pub async fn find_by_id(&self, id: i32) -> Result<Option<ShippingType>> {
         sqlx::query_as::<_, ShippingType>(&format!(
             "{SHIPPING_TYPE_SELECT} WHERE shipping_type_id = ? LIMIT 1"

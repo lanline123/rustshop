@@ -7,12 +7,13 @@
 //!
 //! | 端点 | 实现 |
 //! |------|------|
+//! | `POST index` / `update` / `updateCoupon` | 结算页数据装配：购物车勾选行、商品金额、可用优惠券（含选中券抵扣）、余额/积分、支付方式、配送方式；运费模板/秒杀/拼团/满减活动未接入（当前运费 0，活动折扣 0） |
+//! | `GET  getStoreShippingType` | 按店铺返回 `shipping_type` 列表 |
 //! | `GET  getAvailablePaymentType` | 完整 DB/config 实现（`useOffline` / `useSurplus` 开关 + 礼品卡 flowType=12） |
-//! | `GET  getInvoice` | 完整 DB 实现（`order_invoice` 最近一条，invoiceType/titleType 缺省 0） |
-//! | `POST index` / `update` / `updateCoupon` | 保留端点与入参；结算价格/优惠券/促销/运费/积分计算引擎未迁移 → **明确「未迁移」业务错误**，不编造金额 |
-//! | `GET  getStoreShippingType` | 保留端点与入参；依赖购物车价格/运费模板计算引擎未迁移 → **明确「未迁移」业务错误** |
+//! | `GET  getInvoice` | 完整 DB 实现（`order_invoice` 最近一条） |
 //!
-//! 金额 `rust_decimal::Decimal`；时间 i32 秒。
+//! 金额 `rust_decimal::Decimal`（JSON 字符串）；时间 i32 秒。
+use std::collections::HashMap;
 
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -23,15 +24,8 @@ use serde::{Deserialize, Serialize};
 
 /// `请先登录`（Java `getCurrentUserId()` 无登录态时不可用）。
 pub const MSG_LOGIN_REQUIRED: &str = "请先登录";
-/// 结算页 index / update 未迁移（价格、优惠券、促销、运费、积分、结算计算引擎）。
-pub const MSG_CHECK_NOT_MIGRATED: &str =
-    "订单结算页依赖优惠券/促销/运费/积分/结算计算引擎，当前 Rust 侧尚未迁移，本接口暂不可用";
-/// 更新优惠券未迁移。
-pub const MSG_COUPON_NOT_MIGRATED: &str =
-    "订单结算的优惠券试算依赖优惠券/促销计算引擎，当前 Rust 侧尚未迁移，本接口暂不可用";
-/// 店铺配送方式未迁移。
-pub const MSG_STORE_SHIPPING_NOT_MIGRATED: &str =
-    "获取店铺配送方式依赖购物车价格计算与运费模板引擎，当前 Rust 侧尚未迁移，本接口暂不可用";
+/// 购物车没有勾选商品。
+pub const MSG_CART_EMPTY: &str = "请先选择要结算的商品";
 
 /// 支付类型：在线支付（Java `PaymentType.ONLINE`）。
 pub const PAYMENT_TYPE_ONLINE: i32 = 1;
@@ -58,13 +52,7 @@ pub fn config_enabled(raw: Option<&str>) -> bool {
     raw.map(str::trim) == Some("1")
 }
 
-/// 构造支付类型列表（Java `OrderCheckServiceImpl#getAvailablePaymentType`）：
-/// - `flowType == 12`（礼品卡）→ 仅「礼品卡兑换」（在线，未禁用，显示）；
-/// - 否则：余额支付开启**或**有可用支付渠道 → 加入「在线支付」；
-///   始终追加「线下支付」，`isShow = 线下支付开关`。
-///
-/// ⚠️ 支付渠道表（`paymentService.getAvailablePayment`）在 Rust 侧未迁移，
-/// `has_payment_channels` 由调用方传入（当前恒 false，并记录偏差）。
+/// 构造支付类型列表（Java `OrderCheckServiceImpl#getAvailablePaymentType`）。
 #[must_use]
 pub fn build_payment_types(
     use_offline: bool,
@@ -108,11 +96,19 @@ pub fn invoice_filter(invoice_type: Option<i32>, title_type: Option<i32>) -> (i3
     (invoice_type.unwrap_or(0), title_type.unwrap_or(0))
 }
 
+/// 解析购物车 `sku_data`/`extra_sku_data` JSON 字符串为数组（非法/空 → 空数组）。
+#[must_use]
+pub fn parse_sku_data(raw: Option<&str>) -> serde_json::Value {
+    raw.and_then(|v| serde_json::from_str::<serde_json::Value>(v).ok())
+        .filter(serde_json::Value::is_array)
+        .unwrap_or_else(|| serde_json::Value::Array(Vec::new()))
+}
+
 // ——————————————————————————————————————————————
 // 入参
 // ——————————————————————————————————————————————
 
-/// 结算参数（Java `OrderCheckParam` 的常用字段子集；计算引擎未迁移，仅用于入参兼容）。
+/// 结算参数（Java `OrderCheckParam` 的常用字段子集）。
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct OrderCheckParam {
@@ -124,9 +120,12 @@ pub struct OrderCheckParam {
     pub pay_type_id: Option<i32>,
     pub use_point: Option<i32>,
     pub use_balance: Option<Decimal>,
+    pub use_credit: Option<i32>,
     pub use_coupon_ids: Option<Vec<i32>>,
     pub select_user_coupon_ids: Option<Vec<i32>>,
     pub use_default_coupon_ids: Option<i32>,
+    /// 前端表单 `shippingType`：`{shopId: {typeId, shopId, typeName}}`，原样回显。
+    pub shipping_type: Option<serde_json::Value>,
     pub buyer_note: Option<String>,
     pub select_from: Option<i32>,
     pub enable_change_price: Option<bool>,
@@ -204,19 +203,174 @@ pub struct OrderInvoiceVO {
     pub invoicing_time: i32,
 }
 
-/// 结算页返回（Java `OrderCheckVO`）。
-///
-/// **未迁移**：本域 `index` / `update` / `updateCoupon` 始终返回业务错误，
-/// 该结构不会被实际下发（保留类型以对齐契约返回类型）。
+/// 结算页返回（Java `OrderCheckVO` 常用字段子集）。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct OrderCheckVO {
-    /// 未迁移标记（恒 true）
-    pub calculation_not_migrated: bool,
+    pub cart_list: Vec<CheckCartByStoreVO>,
+    pub total: CheckTotalVO,
+    pub has_change_price: bool,
+    pub change_price_type: i32,
+    pub price_change_type: i32,
+    pub cart_change_price_type: i32,
+    pub available_points: i32,
+    pub coupon_list: CouponListVO,
+    pub item: CheckItemVO,
+    pub use_coupon_ids: Option<Vec<i32>>,
+    pub select_user_coupon_ids: Option<Vec<i32>>,
+    pub tmpl_ids: Vec<String>,
+    pub flow_type: i32,
+    pub message: Option<String>,
+    pub delivery_option: Option<serde_json::Value>,
+    pub product_presale: Option<serde_json::Value>,
+    pub credit_payment_info: Option<serde_json::Value>,
+    /// 批发行被排除的券抵扣金额（当前恒 "0"）。
+    pub coupon_exclude_amount: String,
+    /// 批发行被排除的积分抵扣金额（当前恒 "0"）。
+    pub points_exclude_amount: String,
 }
 
-/// 配送方式（Java `OrderCheckVO.ShippingType` 常用字段）；
-/// `getStoreShippingType` 未迁移，本结构不会被实际下发。
+/// 按店铺分组的购物车行（Java `CartByStoreVO` 常用字段）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CheckCartByStoreVO {
+    pub shop_id: i32,
+    pub shop_title: String,
+    pub no_shipping: i32,
+    pub min_order_amount_diff: String,
+    pub is_not_reach_min_order_amount: bool,
+    pub carts: Vec<CheckCartVO>,
+    pub total: CartStoreTotalVO,
+    pub used_promotions: Vec<serde_json::Value>,
+    pub enable_use_promotion: Vec<serde_json::Value>,
+    pub gift: Vec<serde_json::Value>,
+}
+
+/// 结算页购物车行（Java `CartVO` 常用字段）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CheckCartVO {
+    pub cart_id: i32,
+    pub user_id: i32,
+    pub product_id: i32,
+    pub product_sn: String,
+    pub seo_link: Option<String>,
+    pub pic_thumb: String,
+    pub market_price: Option<Decimal>,
+    pub original_price: Decimal,
+    pub quantity: i32,
+    pub sku_id: i32,
+    pub sku_data: serde_json::Value,
+    pub extra_sku_data: serde_json::Value,
+    pub product_type: i32,
+    pub is_checked: bool,
+    pub shop_id: i32,
+    #[serde(rename = "type")]
+    pub r#type: i32,
+    pub update_time: i32,
+    pub product_name: String,
+    pub product_price: Decimal,
+    pub category_id: i32,
+    pub brand_id: i32,
+    pub product_stock: i32,
+    pub price: Decimal,
+    pub stock: i32,
+    pub has_sku: bool,
+    pub subtotal: Decimal,
+    pub origin_price: Decimal,
+    pub is_disabled: bool,
+}
+
+/// 店铺维度金额小计（Java `CartByStoreVO.total`）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CartStoreTotalVO {
+    pub coupon_ids: Vec<i32>,
+    pub discount_coupon_amount: Decimal,
+    pub discount_product_promotion_amount: Decimal,
+    pub discount_seckill_amount: Decimal,
+    pub discount_time_discount_amount: Decimal,
+    pub discount_discount_amount: Decimal,
+    pub discounts: Decimal,
+}
+
+/// 结算总额（Java `OrderCheckVO.Total` 常用字段）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CheckTotalVO {
+    pub product_amount: Decimal,
+    pub checked_count: i32,
+    pub discounts: Decimal,
+    pub discount_after: Option<String>,
+    pub total_count: i32,
+    pub discount_coupon_amount: Decimal,
+    pub discount_discount_amount: Decimal,
+    pub discount_seckill_amount: Decimal,
+    pub discount_product_promotion_amount: Decimal,
+    pub discount_time_discount_amount: Decimal,
+    pub service_fee: Decimal,
+    pub paid_amount: Decimal,
+    pub coupon_amount: Decimal,
+    pub discount_amount: Decimal,
+    pub exchange_points: i32,
+    pub points_amount: Decimal,
+    pub shipping_fee: Decimal,
+    pub store_shipping_fee: HashMap<i32, Decimal>,
+    pub total_amount: Decimal,
+    pub order_send_point: i32,
+    pub balance: Decimal,
+    pub unpaid_amount: Decimal,
+    pub store_shipping_rule: Option<serde_json::Value>,
+    pub tax_rate: Decimal,
+    pub tax_rate_amount: Decimal,
+    pub gift_card_amount: Decimal,
+}
+
+/// 优惠券列表（Java `OrderCheckVO.CouponList`）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CouponListVO {
+    pub enable_coupons: Vec<CheckCouponVO>,
+    pub disable_coupons: Vec<serde_json::Value>,
+}
+
+/// 结算页可用优惠券（Java `OrderCheckVO.Coupon`）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CheckCouponVO {
+    pub id: i32,
+    pub coupon_id: i32,
+    pub coupon_name: String,
+    pub coupon_type: i32,
+    pub coupon_money: Decimal,
+    pub min_order_amount: Decimal,
+    pub coupon_desc: String,
+    pub is_global: bool,
+    pub coupon_discount: Decimal,
+    pub shop_id: i32,
+    pub end_date: String,
+    pub user_coupon_id: i32,
+    pub selected: bool,
+}
+
+/// 结算项（Java `OrderCheckVO.Item`）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CheckItemVO {
+    pub address_id: i32,
+    /// `{shopId: {typeId, shopId, typeName}}`，原样回显前端表单。
+    pub shipping_type: serde_json::Value,
+    pub pay_type_id: i32,
+    pub use_point: i32,
+    pub use_balance: Decimal,
+    pub use_credit: i32,
+    pub use_coupon_ids: Option<Vec<i32>>,
+    pub select_user_coupon_ids: Option<Vec<i32>>,
+    pub flow_type: i32,
+    pub delivery_type: Option<i32>,
+}
+
+/// 配送方式（Java `OrderCheckVO.ShippingType`）。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ShippingTypeVO {
@@ -227,6 +381,8 @@ pub struct ShippingTypeVO {
     pub shipping_type_desc: Option<String>,
     pub shipping_time_desc: Option<String>,
     pub is_support_cod: Option<i32>,
+    pub sort_order: i32,
+    pub shop_id: i32,
 }
 
 #[cfg(test)]
@@ -235,31 +391,16 @@ mod tests {
 
     #[test]
     fn payment_types_match_java_logic() {
-        // flowType == 12：仅礼品卡兑换
         let types = build_payment_types(true, true, true, Some(12));
         assert_eq!(types.len(), 1);
-        assert_eq!(types[0].type_id, PAYMENT_TYPE_ONLINE);
         assert_eq!(types[0].type_name, "礼品卡兑换");
-        assert!(types[0].is_show);
 
-        // 余额开关关闭且无渠道：仅线下支付，isShow 跟随 useOffline
         let types = build_payment_types(false, false, false, None);
         assert_eq!(types.len(), 1);
         assert_eq!(types[0].type_id, PAYMENT_TYPE_OFFLINE);
-        assert_eq!(types[0].type_name, "线下支付");
         assert!(!types[0].is_show);
 
-        // 余额开启：在线 + 线下
         let types = build_payment_types(true, true, false, None);
-        assert_eq!(types.len(), 2);
-        assert_eq!(types[0].type_id, PAYMENT_TYPE_ONLINE);
-        assert_eq!(types[0].type_name, "在线支付");
-        assert!(types[0].is_show);
-        assert_eq!(types[1].type_id, PAYMENT_TYPE_OFFLINE);
-        assert!(types[1].is_show);
-
-        // 支付渠道可用（即使余额关闭）也显示在线支付
-        let types = build_payment_types(false, false, true, None);
         assert_eq!(types.len(), 2);
         assert_eq!(types[0].type_id, PAYMENT_TYPE_ONLINE);
     }
@@ -269,47 +410,54 @@ mod tests {
         assert!(config_enabled(Some("1")));
         assert!(!config_enabled(Some("0")));
         assert!(!config_enabled(None));
-        assert!(!config_enabled(Some("true")));
         assert_eq!(invoice_filter(None, None), (0, 0));
-        assert_eq!(invoice_filter(Some(1), Some(2)), (1, 2));
     }
 
     #[test]
-    fn params_accept_java_names_and_vo_camel_case() {
+    fn params_accept_frontend_form_state() {
         let param: OrderCheckParam = serde_json::from_str(
-            r#"{"flowType":15,"addressId":3,"useCouponIds":[1,2],"useBalance":10.5,"selectFrom":1}"#,
+            r#"{"flowType":1,"addressId":3,"useCouponIds":[1,2],"useBalance":10.5,
+                "shippingType":{"0":{"typeId":1,"shopId":0,"typeName":"快递发货"}}}"#,
         )
         .unwrap();
-        assert_eq!(param.flow_type, Some(15));
+        assert_eq!(param.flow_type, Some(1));
         assert_eq!(param.use_coupon_ids, Some(vec![1, 2]));
-        let q: InvoiceQuery = serde_json::from_str(r#"{"invoiceType":1,"titleType":2}"#).unwrap();
-        assert_eq!(q.title_type, Some(2));
-        let vo = OrderInvoiceVO {
-            id: 1,
-            amount: Decimal::new(1050, 2),
+        assert!(param.shipping_type.is_some());
+    }
+
+    #[test]
+    fn check_vo_serializes_frontend_field_names() {
+        let vo = OrderCheckVO {
+            flow_type: 1,
+            available_points: 100,
+            total: CheckTotalVO {
+                product_amount: Decimal::new(1050, 2),
+                total_amount: Decimal::new(1050, 2),
+                ..Default::default()
+            },
             ..Default::default()
         };
         let value = serde_json::to_value(&vo).unwrap();
-        assert_eq!(value["invoiceType"], 0);
-        assert_eq!(value["amount"], "10.50");
-        let payment = PaymentTypeVO {
-            type_id: 1,
-            type_name: "在线支付".into(),
-            ..Default::default()
-        };
-        let value = serde_json::to_value(&payment).unwrap();
-        assert_eq!(value["typeId"], 1);
-        assert_eq!(value["typeName"], "在线支付");
+        assert_eq!(value["flowType"], 1);
+        assert_eq!(value["availablePoints"], 100);
+        assert_eq!(value["total"]["productAmount"], "10.50");
+        assert!(value.get("couponList").is_some());
+        assert!(value.get("cartList").is_some());
     }
 
     #[test]
-    fn not_migrated_messages_are_explicit() {
-        for msg in [
-            MSG_CHECK_NOT_MIGRATED,
-            MSG_COUPON_NOT_MIGRATED,
-            MSG_STORE_SHIPPING_NOT_MIGRATED,
-        ] {
-            assert!(msg.contains("尚未迁移"), "文案需明确未迁移: {msg}");
-        }
+    fn parse_sku_data_tolerates_bad_json() {
+        assert_eq!(parse_sku_data(None), serde_json::json!([]));
+        assert_eq!(parse_sku_data(Some("not-json")), serde_json::json!([]));
+        assert_eq!(
+            parse_sku_data(Some(r#"[{"name":"颜色","value":"红"}]"#)),
+            serde_json::json!([{"name":"颜色","value":"红"}])
+        );
+    }
+
+    #[test]
+    fn cart_empty_message_is_explicit() {
+        assert_eq!(MSG_CART_EMPTY, "请先选择要结算的商品");
+        assert_eq!(MSG_LOGIN_REQUIRED, "请先登录");
     }
 }

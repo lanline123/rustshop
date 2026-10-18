@@ -106,9 +106,10 @@ impl OrderRepository {
               add_time, consignee, address, region_ids, region_names, mobile,
               buyer_note, shipping_method, pay_type_id, shop_id, is_valid, is_del,
               total_amount, paid_amount, unpaid_amount, product_amount, coupon_amount,
-              shipping_fee, referrer_user_id, order_source, vendor_id, order_extension)
+              shipping_fee, referrer_user_id, order_source, vendor_id, order_extension,
+              email, use_points)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(order.order_type.unwrap_or(0))
         .bind(&order.order_sn)
@@ -138,6 +139,8 @@ impl OrderRepository {
         .bind(&order.order_source)
         .bind(order.vendor_id)
         .bind(&order.order_extension)
+        .bind(&order.email)
+        .bind(order.use_points)
         .execute(&mut **tx)
         .await
         .map_err(map_err)?;

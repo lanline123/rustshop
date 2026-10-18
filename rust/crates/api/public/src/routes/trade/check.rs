@@ -5,12 +5,12 @@
 //!
 //! | 本模块路由（挂载于 `/api`） | 原 Java 方法 | 实现 |
 //! |------------------------------|--------------|------|
-//! | `POST /order/check/index` | `index` | 未迁移 → 明确业务错误 |
+//! | `POST /order/check/index` | `index` | 结算页数据装配（商品/优惠券/余额/支付/配送） |
 //! | `GET  /order/check/getAvailablePaymentType` | `getAvailablePaymentType` | 完整实现 |
-//! | `POST /order/check/update` | `update` | 未迁移 → 明确业务错误 |
-//! | `POST /order/check/updateCoupon` | `updateCoupon` | 未迁移 → 明确业务错误 |
+//! | `POST /order/check/update` | `update` | 同上（地址/配送/券变化后重算） |
+//! | `POST /order/check/updateCoupon` | `updateCoupon` | 同上（优惠券试算） |
 //! | `GET  /order/check/getInvoice` | `getInvoice` | 完整 DB 实现 |
-//! | `GET  /order/check/getStoreShippingType` | `getStoreShippingType` | 未迁移 → 明确业务错误 |
+//! | `GET  /order/check/getStoreShippingType` | `getStoreShippingType` | 按店铺返回配送方式 |
 //!
 //! > 契约 auth=optional：与 `content/seo.rs` 一致，本文件自带 [`optional_auth`]。
 //! > 需要会员上下文的端点（index/update/updateCoupon/getInvoice/getStoreShippingType）
@@ -26,9 +26,11 @@ use axum::{
     routing::{get, post},
     Extension, Json, Router,
 };
+use std::collections::HashMap;
+
 use tigshop_core::models::trade::check::{
     InvoiceQuery, OrderCheckParam, OrderCheckVO, OrderInvoiceVO, PaymentTypeQuery, PaymentTypeVO,
-    StoreShippingTypeQuery, MSG_LOGIN_REQUIRED,
+    ShippingTypeVO, StoreShippingTypeQuery, MSG_LOGIN_REQUIRED,
 };
 use tigshop_core::Error;
 use tigshop_openapi::RouteDoc;
@@ -119,14 +121,14 @@ fn current_user_id(auth: Option<Extension<AuthUser>>) -> std::result::Result<i32
         .ok_or_else(|| AppError(Error::Unauthorized(MSG_LOGIN_REQUIRED.into())))
 }
 
-/// `POST /api/order/check/index`：结算页（价格/优惠引擎未迁移，明确报错）。
+/// `POST /api/order/check/index`：结算页数据装配。
 async fn index(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
     Json(param): Json<OrderCheckParam>,
 ) -> ApiResult<OrderCheckVO> {
-    let _user_id = current_user_id(auth)?;
-    ok(state.trade.check.order_check_index(&param).await?)
+    let user_id = current_user_id(auth)?;
+    ok(state.trade.check.order_check_index(user_id, &param).await?)
 }
 
 /// `GET /api/order/check/getAvailablePaymentType`：可用支付方式（游客可访问）。
@@ -141,27 +143,27 @@ async fn get_available_payment_type(
         .await?)
 }
 
-/// `POST /api/order/check/update`：结算页更新（未迁移，明确报错）。
+/// `POST /api/order/check/update`：结算页更新（地址/配送/券变化后重算）。
 async fn update(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
     Json(param): Json<OrderCheckParam>,
 ) -> ApiResult<OrderCheckVO> {
-    let _user_id = current_user_id(auth)?;
-    ok(state.trade.check.order_check_update(&param).await?)
+    let user_id = current_user_id(auth)?;
+    ok(state.trade.check.order_check_update(user_id, &param).await?)
 }
 
-/// `POST /api/order/check/updateCoupon`：结算页更新优惠券（未迁移，明确报错）。
+/// `POST /api/order/check/updateCoupon`：结算页优惠券试算。
 async fn update_coupon(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
     Json(param): Json<OrderCheckParam>,
 ) -> ApiResult<OrderCheckVO> {
-    let _user_id = current_user_id(auth)?;
+    let user_id = current_user_id(auth)?;
     ok(state
         .trade
         .check
-        .order_check_update_coupon(&param)
+        .order_check_update_coupon(user_id, &param)
         .await?)
 }
 
@@ -179,15 +181,15 @@ async fn get_invoice(
         .await?)
 }
 
-/// `GET /api/order/check/getStoreShippingType`：店铺配送方式（未迁移，明确报错）。
+/// `GET /api/order/check/getStoreShippingType`：店铺配送方式。
 async fn get_store_shipping_type(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
-    Query(q): Query<StoreShippingTypeQuery>,
-) -> ApiResult<Vec<(i32, Vec<serde_json::Value>)>> {
+    Query(mut q): Query<StoreShippingTypeQuery>,
+) -> ApiResult<HashMap<i32, Vec<ShippingTypeVO>>> {
     // Java：query.userId 非空时用它（代客/后台），否则取当前会员
     if q.user_id.unwrap_or(0) <= 0 {
-        let _user_id = current_user_id(auth)?;
+        q.user_id = Some(current_user_id(auth)?);
     }
     ok(state.trade.check.store_shipping_types(&q).await?)
 }

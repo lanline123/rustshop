@@ -101,9 +101,55 @@ impl OrderService {
             });
         }
 
-        // 组装订单（先计算运费：包邮商品 0，其余暂取 0，运费模板接入后补全）
+        // —— 优惠券抵扣（与结算页一致：按用户券 + 商品金额试算）——
+        // 前端结算表单提交 `useCouponIds`；兼容旧字段 `couponId`。
+        let coupon_used: Vec<i32> = dto
+            .use_coupon_ids
+            .clone()
+            .filter(|ids| !ids.is_empty())
+            .or_else(|| dto.coupon_id.filter(|id| *id > 0).map(|id| vec![id]))
+            .unwrap_or_default();
+        let coupon_amount = if coupon_used.is_empty() {
+            Decimal::ZERO
+        } else {
+            crate::marketing::coupon::CouponService::new(self.repos.clone())
+                .calc_discount(user_id, &coupon_used, product_amount)
+                .await?
+        };
+        // 运费：运费模板引擎未接入，暂取 0（与结算页一致）
         let shipping_fee = Decimal::ZERO;
-        let total = product_amount + shipping_fee;
+        let total = (product_amount - coupon_amount).max(Decimal::ZERO) + shipping_fee;
+
+        // —— 收货地址快照 ——
+        let addr = match dto.address_id.filter(|id| *id > 0) {
+            Some(address_id) => {
+                self.repos
+                    .member
+                    .user_address_client
+                    .find_by_id(address_id)
+                    .await?
+            }
+            None => None,
+        };
+        let (consignee, mobile, email, address, region_ids, region_names) = match addr {
+            Some(a) => (
+                a.consignee,
+                a.mobile,
+                a.email.unwrap_or_default(),
+                a.address,
+                a.region_ids,
+                a.region_names,
+            ),
+            None => (
+                String::new(),
+                String::new(),
+                String::new(),
+                String::new(),
+                "[]".to_string(),
+                "[]".to_string(),
+            ),
+        };
+
         let order = Order {
             order_type: Some(0),
             order_sn: order_sn.clone(),
@@ -115,12 +161,20 @@ impl OrderService {
             buyer_note: dto.buyer_note.clone().unwrap_or_default(),
             shipping_method: dto.shipping_method.unwrap_or(1),
             pay_type_id: dto.pay_type_id.unwrap_or(0),
+            consignee,
+            mobile,
+            email,
+            address,
+            region_ids,
+            region_names,
+            use_points: dto.use_points.unwrap_or(0),
             is_valid: 1,
             is_del: 0,
             total_amount: total,
             paid_amount: Decimal::ZERO,
             unpaid_amount: total,
             product_amount,
+            coupon_amount,
             shipping_fee,
             order_source: "web".into(),
             ..Default::default()
@@ -196,6 +250,16 @@ impl OrderService {
         let cart_ids: Vec<i32> = lines.iter().map(|l| l.cart_id).collect();
         if let Err(e) = self.cart.remove(user_id, &cart_ids).await {
             tracing::warn!("清理购物车失败: {e}");
+        }
+
+        // 占用优惠券（尽力而为；失败仅告警，避免订单已建但接口失败）
+        if !coupon_used.is_empty() {
+            if let Err(e) = crate::marketing::coupon::CouponService::new(self.repos.clone())
+                .use_coupons(user_id, &coupon_used, order_id)
+                .await
+            {
+                tracing::warn!("订单 {order_id} 优惠券占用失败: {e}");
+            }
         }
 
         // 扣减成功，失效商品详情缓存

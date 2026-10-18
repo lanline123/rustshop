@@ -102,6 +102,23 @@ impl ProductRepository {
         Ok((total.0 as u64, rows))
     }
 
+    /// 按主键批量查询商品（结算页/导入等场景的 N+1 优化）。
+    ///
+    /// # Errors
+    /// 数据库错误。
+    pub async fn find_by_ids(&self, ids: &[i32]) -> Result<Vec<Product>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let placeholders = vec!["?"; ids.len()].join(", ");
+        let sql = format!("SELECT * FROM product WHERE product_id IN ({placeholders})");
+        let mut q = sqlx::query_as::<_, Product>(&sql);
+        for id in ids {
+            q = q.bind(id);
+        }
+        q.fetch_all(&self.pool).await.map_err(map_err)
+    }
+
     /// 查询商品 SKU 列表。
     pub async fn find_skus(&self, product_id: i32) -> Result<Vec<ProductSku>> {
         sqlx::query_as::<_, ProductSku>(

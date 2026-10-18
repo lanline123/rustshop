@@ -15,7 +15,8 @@ pub struct OrderCreateDTO {
     pub shipping_method: Option<i32>,
     /// 使用优惠券ID
     pub coupon_id: Option<i32>,
-    /// 使用积分
+    /// 使用积分（前端结算表单字段名为 `usePoint`）
+    #[serde(default, alias = "usePoint")]
     pub use_points: Option<i32>,
     /// 买家备注
     pub buyer_note: Option<String>,
@@ -24,6 +25,9 @@ pub struct OrderCreateDTO {
     /// 使用余额金额（0/缺省 = 不使用；`true` 兼容旧前端 = 尽可能全额抵扣）
     #[serde(default, deserialize_with = "de_use_balance")]
     pub use_balance: Option<Decimal>,
+    /// 前端结算表单里的用户优惠券 ID 列表（`useCouponIds`）
+    #[serde(default)]
+    pub use_coupon_ids: Option<Vec<i32>>,
 }
 
 /// 兼容前端三种 `useBalance` 入参：数字（余额抵扣金额）、布尔、字符串数字。
@@ -57,6 +61,7 @@ impl Default for OrderCreateDTO {
             buyer_note: None,
             pay_type_id: None,
             use_balance: None,
+            use_coupon_ids: None,
         }
     }
 }

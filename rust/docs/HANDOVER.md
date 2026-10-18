@@ -70,14 +70,17 @@ $env:RUST_LOG="info,tigshop=info,sqlx=warn"
 
 ## 3. 其他需要处理（按优先级）
 
-### P0 — 结算页价格/优惠引擎（当前前端“购物车→结算”页不可用）
+### ✅ 已完成（2026-10-19）— 结算页价格/优惠引擎 v1
 
-- 前端 PC 结算页首屏调用 `POST /api/order/check/index`、`update`、`updateCoupon`、`GET /api/order/check/getStoreShippingType`；
-  Rust 这些端点全部返回「未迁移」错误（`services/src/trade/check.rs`）。
-- `POST /api/order/check/submit` 本身可用，但 `OrderService::create` 只算「商品金额 + 运费 0」，
-  **未计算**优惠券、积分、满减/活动、运费模板、地址/发票，`coupon_id/use_points` 被忽略。
-- 要做：结算页数据装配（地址/配送/支付方式/可用优惠券/金额明细）、价格引擎（优惠券+积分+运费模板）、
-  下单事务与结算页口径对齐；这是让「前端真能下单」的最关键缺口。
+- `POST /api/order/check/index`、`update`、`updateCoupon` 已实现：勾选购物车行、商品金额、
+  可用优惠券（选中券抵扣）、余额/积分展示、支付方式/配送方式回显；
+  `GET /getStoreShippingType` 按店铺返回配送方式；`submit` 已应用优惠券抵扣并快照收货地址。
+- 实测：`updateCoupon`（满 100 减 10）→ `couponAmount=10 / total=140.80`；
+  下单 → `order.total_amount=140.80 / coupon_amount=10.00`、券标记已用、购物车清空；
+  带地址下单 → `consignee/mobile/email/address` 正确落库。
+- 种子：`tools/compat/seed_coupon.sql`（满 100 减 10，用户 1）。
+- **v1 未覆盖（后续按需补）**：运费模板（当前运费 0）、秒杀/拼团/满减活动、积分抵扣金额
+  （`pointsAmount=0`，仅展示可用积分）、账期/发票/改价/O2O 自提/预售、优惠券店铺范围过滤与多店分摊。
 
 ### P0 — 微信生态链路（依赖凭据，但可先写客户端骨架）
 
@@ -137,9 +140,9 @@ python tools/check_structure.py --strict          # 结构 PASS
 
 ## 6. 建议接手顺序
 
-1. **结算页价格/优惠引擎（P0）**——先让前端下单闭环真正可用（无需外部凭据）。
-2. 微信支付/支付宝/PayPal 沙箱联调（拿到凭据后，按 `PAYMENT-CHANNELS.md` 补下单/退款）。
-3. 对象存储 / ES / 翻译 / 物流轨迹（按业务是否需要云能力）。
-4. 微信生态链路（凭据 + HTTP 客户端骨架）。
+1. 微信支付/支付宝/PayPal 沙箱联调（拿到凭据后，按 `PAYMENT-CHANNELS.md` 补下单/退款）。
+2. 对象存储 / ES / 翻译 / 物流轨迹（按业务是否需要云能力）。
+3. 微信生态链路（凭据 + HTTP 客户端骨架）。
+4. 结算页 v2：运费模板、活动/秒杀/拼团、积分抵扣金额、账期/发票/改价/O2O/预售。
 5. MQ/定时任务扩展、Excel 余量、审计日志、多租户。
 6. Docker/nginx/监控/CI 与集成测试，完成可部署交付。
