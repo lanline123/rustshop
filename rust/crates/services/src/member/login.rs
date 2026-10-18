@@ -110,7 +110,9 @@ impl LoginService {
         self.cache()?
             .set_json(&key, &code, CODE_TTL_SECS)
             .await?;
-        tracing::debug!("短信验证码已生成并缓存（通道未迁移，未实际发送）: key={key}");
+        // 真实通道：阿里云短信（未配置 → 明确业务错误；TIG_SMS__MOCK=1 时仅日志）
+        crate::system::notify::send_sms_code(&self.repos, mobile, &code).await?;
+        tracing::info!("短信验证码已发送: mobile={mobile} event={:?}", dto.event);
         Ok(())
     }
 
@@ -134,7 +136,9 @@ impl LoginService {
         self.cache()?
             .set_json(&key, &code, CODE_TTL_SECS)
             .await?;
-        tracing::debug!("邮箱验证码已生成并缓存（通道未迁移，未实际发送）: key={key}");
+        // 真实通道：SMTP（未配置 → 明确业务错误）
+        crate::system::notify::send_email_code(&self.repos, &email, "验证码", &code).await?;
+        tracing::info!("邮箱验证码已发送: email={email}");
         Ok(())
     }
 

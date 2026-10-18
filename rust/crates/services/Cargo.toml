@@ -29,6 +29,10 @@ calamine.workspace = true
 md-5.workspace = true
 hex.workspace = true
 tokio.workspace = true
+reqwest.workspace = true
+lettre.workspace = true
+sha1.workspace = true
+hmac.workspace = true
 
 [lints]
 workspace = true
