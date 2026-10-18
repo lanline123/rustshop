@@ -25,6 +25,15 @@ impl UserRepository {
     }
 
     /// 按手机号查询。
+    /// 按用户名查询（前端「账号」登录兼容）。
+    pub async fn find_by_username(&self, username: &str) -> Result<Option<User>> {
+        sqlx::query_as::<_, User>("SELECT * FROM user WHERE username = ? LIMIT 1")
+            .bind(username)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(map_err)
+    }
+
     pub async fn find_by_mobile(&self, mobile: &str) -> Result<Option<User>> {
         sqlx::query_as::<_, User>("SELECT * FROM user WHERE mobile = ? LIMIT 1")
             .bind(mobile)

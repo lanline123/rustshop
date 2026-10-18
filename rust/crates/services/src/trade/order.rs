@@ -138,15 +138,18 @@ impl OrderService {
             let mut deducted: Vec<(i32, Option<i32>, i32)> = Vec::with_capacity(items.len());
             let mut result: Result<i32> = Ok(0);
 
-            for item in &items {
+            for (idx, item) in items.iter().enumerate() {
                 let pid = item.product_id;
                 let qty = item.quantity;
+                // 无 SKU 商品（sku_id 缺省）必须按 product_stock 扣减：
+                // 传 Some(0) 会 UPDATE product_sku WHERE sku_id=0 → 0 行 → 误报库存不足。
+                let sku = lines.get(idx).and_then(|l| l.sku_id);
                 match self
                     .repos.catalog.product
-                    .deduct_stock_in_tx(&mut tx, pid, Some(item.sku_id), qty)
+                    .deduct_stock_in_tx(&mut tx, pid, sku, qty)
                     .await
                 {
-                    Ok(true) => deducted.push((pid, Some(item.sku_id), qty)),
+                    Ok(true) => deducted.push((pid, sku, qty)),
                     Ok(false) => {
                         result = Err(Error::InsufficientStock {
                             product_id: pid.to_string(),

@@ -53,11 +53,12 @@ impl UserService {
 
     /// 手机号+密码登录。
     pub async fn login(&self, mobile: &str, password: &str) -> Result<User> {
-        let user = self
-            .repos.member.user
-            .find_by_mobile(mobile)
-            .await?
-            .ok_or_else(|| Error::biz(400, "手机号或密码错误"))?;
+        // 前端登录框既可能是手机号也可能是用户名：先按手机号，再按用户名兜底。
+        let user = match self.repos.member.user.find_by_mobile(mobile).await? {
+            Some(user) => Some(user),
+            None => self.repos.member.user.find_by_username(mobile).await?,
+        }
+        .ok_or_else(|| Error::biz(400, "手机号或密码错误"))?;
         if !user.can_login() {
             return Err(Error::biz(403, "账号已被禁用"));
         }
