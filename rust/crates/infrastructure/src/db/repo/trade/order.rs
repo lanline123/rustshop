@@ -173,6 +173,63 @@ impl OrderRepository {
         Ok(order_id)
     }
 
+    /// 待付款且下单时间早于 cutoff 的订单 ID（定时取消用）。
+    pub async fn find_unpaid_before(
+        &self,
+        cutoff: i32,
+        limit: u64,
+    ) -> Result<Vec<i32>> {
+        let rows: Vec<(i32,)> = sqlx::query_as(
+            "SELECT order_id FROM `order`
+             WHERE is_del = 0 AND pay_status = 1 AND order_status = 0
+               AND add_time > 0 AND add_time <= ?
+             ORDER BY order_id ASC
+             LIMIT ?",
+        )
+        .bind(cutoff)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(rows.into_iter().map(|r| r.0).collect())
+    }
+
+    /// 已发货且发货时间早于 cutoff 的订单 ID（自动收货用）。
+    pub async fn find_shipped_before(
+        &self,
+        cutoff: i32,
+        limit: u64,
+    ) -> Result<Vec<i32>> {
+        let rows: Vec<(i32,)> = sqlx::query_as(
+            "SELECT order_id FROM `order`
+             WHERE is_del = 0 AND order_status = 2
+               AND shipping_time > 0 AND shipping_time <= ?
+             ORDER BY order_id ASC
+             LIMIT ?",
+        )
+        .bind(cutoff)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(rows.into_iter().map(|r| r.0).collect())
+    }
+
+    /// 自动确认收货：已发货 → 已完成（条件更新，幂等）。
+    pub async fn mark_received(&self, order_id: i32, received_time: i32) -> Result<bool> {
+        let affected = sqlx::query(
+            "UPDATE `order` SET order_status = 5, received_time = ?
+             WHERE order_id = ? AND order_status = 2",
+        )
+        .bind(received_time)
+        .bind(order_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?
+        .rows_affected();
+        Ok(affected > 0)
+    }
+
     /// 用户订单分页（状态过滤 + 关键词）。
     pub async fn paginate(
         &self,

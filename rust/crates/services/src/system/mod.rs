@@ -16,6 +16,7 @@ pub mod message_type;
 pub mod pc;
 pub mod recommend;
 pub mod region;
+pub mod scheduler;
 pub mod region_client;
 pub mod tips_manage;
 pub mod util;

@@ -807,6 +807,12 @@ async fn main() -> anyhow::Result<()> {
         workbuddy: workbuddy.clone(),
     });
 
+    // ---- 定时任务（替代 Java RabbitMQ 延迟队列 / Spring @Scheduled）----
+    if std::env::var("TIG_SCHEDULER__ENABLED").map_or(true, |v| v != "false" && v != "0") {
+        tigshop_services::system::scheduler::spawn_all(repos.clone(), (*order).clone());
+        tracing::info!("定时任务已启动：订单超时取消（每分钟）/ 自动收货（每 5 分钟）");
+    }
+
     let admin_state = AdminState {
         identity: identity.clone(),
         merchant: merchant.clone(),
