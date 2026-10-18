@@ -136,6 +136,8 @@ pub fn router(state: PublicState) -> Router {
     Router::new()
         // 裸根健康检查（负载均衡探活用，不属于契约）
         .route("/health", get(health))
+        // WebSocket：`/ws?token=...&platform=...`（对齐 Java API 模块 `/ws`）
+        .route("/ws", get(ws_handler))
         .nest("/api", authorized.merge(public_api).merge(public_root))
         .merge(root_public)
         .merge(root_protected)
@@ -452,6 +454,15 @@ async fn order_cancel(
 ) -> ApiResult<&'static str> {
     state.trade.order.cancel(dto.order_id, Some(auth.id)).await?;
     ok("订单已取消")
+}
+
+/// `/ws`：WebSocket 握手（token 走 query，对齐 Java `WebSocketServerHandler`）。
+async fn ws_handler(
+    ws: axum::extract::ws::WebSocketUpgrade,
+    State(state): State<PublicState>,
+    Query(q): Query<tigshop_security::ws::WsQuery>,
+) -> axum::response::Response {
+    tigshop_security::ws::handle_upgrade(ws, state.jwt.clone(), q).await
 }
 
 /// 路由 404 兜底。

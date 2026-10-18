@@ -1,0 +1,142 @@
+//! 进程内 WebSocket 会话注册表（对应 Java `WebSocketServerHandler.USER_SESSIONS`）。
+//!
+//! Java 侧用 `ConcurrentHashMap<String, Set<WebSocketSession>>` 维护 `userId` 维度的
+//! 多端连接（PC + 移动端）。Rust 侧用 `mpsc::UnboundedSender<String>` 表示一个连接，
+//! 由连接任务把消息写入 axum WebSocket sink。
+//!
+//! 注意：进程内状态，仅适用于单实例部署；多实例需换 Redis pub/sub（接口保持不变）。
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, OnceLock};
+
+use tokio::sync::mpsc::UnboundedSender;
+
+static NEXT_ID: AtomicU64 = AtomicU64::new(1);
+static SESSIONS: OnceLock<Mutex<HashMap<String, Vec<Session>>>> = OnceLock::new();
+
+struct Session {
+    id: u64,
+    tx: UnboundedSender<String>,
+}
+
+fn sessions() -> &'static Mutex<HashMap<String, Vec<Session>>> {
+    SESSIONS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// 用户键：与 Java `{isAdmin}::{userId}` 完全一致。
+#[must_use]
+pub fn user_key(is_admin: bool, user_id: &str) -> String {
+    format!("{is_admin}::{user_id}")
+}
+
+/// 注册一个连接，返回会话 ID（用于断开时精确移除）。
+pub fn register(key: String, tx: UnboundedSender<String>) -> u64 {
+    let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+    if let Ok(mut map) = sessions().lock() {
+        map.entry(key).or_default().push(Session { id, tx });
+    }
+    id
+}
+
+/// 移除连接；该用户无剩余连接时删除 key。
+pub fn unregister(key: &str, session_id: u64) {
+    if let Ok(mut map) = sessions().lock() {
+        let empty = if let Some(list) = map.get_mut(key) {
+            list.retain(|s| s.id != session_id);
+            list.is_empty()
+        } else {
+            false
+        };
+        if empty {
+            map.remove(key);
+        }
+    }
+}
+
+/// 向指定用户的全部在线连接推送文本消息，返回成功投递的连接数。
+///
+/// 与 Java 一致：用户不在线时返回 0（调用方不报错）。
+pub fn send_to_user(key: &str, message: &str) -> usize {
+    let Ok(mut map) = sessions().lock() else {
+        return 0;
+    };
+    let Some(list) = map.get_mut(key) else {
+        return 0;
+    };
+    list.retain(|s| !s.tx.is_closed());
+    let mut sent = 0;
+    for session in list.iter() {
+        if session.tx.send(message.to_string()).is_ok() {
+            sent += 1;
+        }
+    }
+    if list.is_empty() {
+        map.remove(key);
+    }
+    sent
+}
+
+/// 指定用户在线连接数。
+#[must_use]
+pub fn online_session_count(key: &str) -> usize {
+    sessions()
+        .lock()
+        .ok()
+        .and_then(|map| map.get(key).map(Vec::len))
+        .unwrap_or(0)
+}
+
+/// 当前在线用户数（去重后的 key 数量）。
+#[must_use]
+pub fn online_user_count() -> usize {
+    sessions().lock().map(|m| m.len()).unwrap_or(0)
+}
+
+/// 当前在线连接总数。
+#[must_use]
+pub fn online_total_sessions() -> usize {
+    sessions()
+        .lock()
+        .map(|m| m.values().map(Vec::len).sum())
+        .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn register_send_unregister_flow() {
+        let key = user_key(false, "900001");
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+        let id = register(key.clone(), tx);
+        assert_eq!(online_session_count(&key), 1);
+        assert_eq!(send_to_user(&key, "{\"type\":\"heartBeat\"}"), 1);
+        assert_eq!(rx.try_recv().unwrap(), "{\"type\":\"heartBeat\"}");
+        unregister(&key, id);
+        assert_eq!(online_session_count(&key), 0);
+        assert_eq!(send_to_user(&key, "x"), 0);
+    }
+
+    #[test]
+    fn multi_device_delivery() {
+        let key = user_key(true, "1");
+        let (tx1, mut rx1) = tokio::sync::mpsc::unbounded_channel::<String>();
+        let (tx2, mut rx2) = tokio::sync::mpsc::unbounded_channel::<String>();
+        let id1 = register(key.clone(), tx1);
+        let id2 = register(key.clone(), tx2);
+        assert_eq!(online_session_count(&key), 2);
+        assert_eq!(send_to_user(&key, "msg"), 2);
+        assert_eq!(rx1.try_recv().unwrap(), "msg");
+        assert_eq!(rx2.try_recv().unwrap(), "msg");
+        unregister(&key, id1);
+        unregister(&key, id2);
+        assert_eq!(online_session_count(&key), 0);
+    }
+
+    #[test]
+    fn user_key_matches_java_format() {
+        assert_eq!(user_key(false, "123"), "false::123");
+        assert_eq!(user_key(true, "1"), "true::1");
+    }
+}

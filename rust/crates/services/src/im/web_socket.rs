@@ -74,12 +74,12 @@ impl WebSocketService {
     /// ⚠ 推送本身未迁移，见模块头「WebSocket 推送通道**未迁移**」。
     pub fn send_message(&self, q: &SocketSendQuery) -> Result<String> {
         let (target_user_id, message) = validate_query(q)?;
-        // Java: USER_SESSIONS.get(userId) → 本构建无会话表，等价于「用户未在线」分支
-        tracing::warn!(
-            target_user_id = %target_user_id,
-            message_len = message.chars().count(),
-            "WebSocket 推送通道未迁移（无会话注册表），本次调用未真正送达任何客户端"
-        );
+        let sent = tigshop_security::ws_registry::send_to_user(&target_user_id, &message);
+        if sent == 0 {
+            tracing::warn!(target_user_id = %target_user_id, "WebSocket 推送：用户不在线（Java 同样只记日志）");
+        } else {
+            tracing::info!(target_user_id = %target_user_id, sent, "WebSocket 推送成功");
+        }
         Ok(success_text(&target_user_id))
     }
 }
@@ -88,8 +88,8 @@ impl WebSocketService {
 /// 本构建始终视为不在线——保留该纯函数以便单测锁定文案，将来接上会话表时
 /// 只需让它返回真实的在线会话数。
 #[must_use]
-pub fn online_session_count(_target_user_id: &str) -> usize {
-    0
+pub fn online_session_count(target_user_id: &str) -> usize {
+    tigshop_security::ws_registry::online_session_count(target_user_id)
 }
 
 /// 成功应答文案（对应 Java `"已发送消息给用户：" + targetUserId`，`:69`）。

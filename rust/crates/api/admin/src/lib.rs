@@ -185,6 +185,8 @@ pub fn router(state: AdminState) -> Router {
 
     Router::new()
         .route("/health", get(health))
+        // WebSocket（管理端客服工作台）：`/ws?token=...&platform=admin`
+        .route("/ws", get(ws_handler))
         .nest("/adminapi", protected)
         .nest("/adminapi", admin_public)
         .merge(root_public)
@@ -277,6 +279,15 @@ async fn change_password(
         .change_password(auth.id, &dto.old_password, &dto.new_password)
         .await?;
     ok("密码修改成功")
+}
+
+/// `/ws`：WebSocket 握手（管理端 token 同样适用；对齐 Java `/ws`）。
+async fn ws_handler(
+    ws: axum::extract::ws::WebSocketUpgrade,
+    State(state): State<AdminState>,
+    Query(q): Query<tigshop_security::ws::WsQuery>,
+) -> axum::response::Response {
+    tigshop_security::ws::handle_upgrade(ws, state.jwt.clone(), q).await
 }
 
 /// 路由 404 兜底。
