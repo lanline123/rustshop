@@ -6,6 +6,8 @@ pub mod buyer_show_comment;
 pub mod buyer_show_group;
 pub mod coupon;
 pub mod coupon_manage;
+pub mod gift_card;
+pub mod gift_card_groups;
 pub mod groupon_promotion;
 pub mod product_style_admin;
 pub mod salesman;
@@ -32,4 +34,6 @@ pub struct Services {
     pub groupon_promotion: Arc<groupon_promotion::GrouponPromotionService>,
     pub coupon_manage: Arc<coupon_manage::CouponManageService>,
     pub salesman_content: Arc<salesman_content::SalesmanContentService>,
+    pub gift_card: Arc<gift_card::GiftCardService>,
+    pub gift_card_groups: Arc<gift_card_groups::GiftCardGroupsService>,
 }

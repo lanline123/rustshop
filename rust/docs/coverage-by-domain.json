@@ -8,9 +8,9 @@
   "status": "已加载"
  },
  "total": 1564,
- "implemented": 1015,
- "pending": 549,
- "percent": 64.9,
+ "implemented": 1237,
+ "pending": 327,
+ "percent": 79.1,
  "unmapped_endpoints": 0,
  "ctx_order": [
   "identity",
@@ -41,11 +41,11 @@
   "merchant": {
    "ctx": "merchant",
    "features": 22,
-   "pending_features": 11,
+   "pending_features": 4,
    "total": 156,
-   "implemented": 96,
-   "pending": 60,
-   "percent": 61.5
+   "implemented": 147,
+   "pending": 9,
+   "percent": 94.2
   },
   "wholesale": {
    "ctx": "wholesale",
@@ -68,38 +68,38 @@
   "trade": {
    "ctx": "trade",
    "features": 17,
-   "pending_features": 8,
+   "pending_features": 7,
    "total": 120,
-   "implemented": 90,
-   "pending": 30,
-   "percent": 75.0
+   "implemented": 96,
+   "pending": 24,
+   "percent": 80.0
   },
   "payment": {
    "ctx": "payment",
    "features": 27,
-   "pending_features": 21,
+   "pending_features": 13,
    "total": 140,
-   "implemented": 49,
-   "pending": 91,
-   "percent": 35.0
+   "implemented": 102,
+   "pending": 38,
+   "percent": 72.9
   },
   "marketing": {
    "ctx": "marketing",
    "features": 37,
-   "pending_features": 30,
+   "pending_features": 24,
    "total": 247,
-   "implemented": 75,
-   "pending": 172,
-   "percent": 30.4
+   "implemented": 128,
+   "pending": 119,
+   "percent": 51.8
   },
   "member": {
    "ctx": "member",
    "features": 23,
-   "pending_features": 13,
+   "pending_features": 9,
    "total": 142,
-   "implemented": 95,
-   "pending": 47,
-   "percent": 66.9
+   "implemented": 118,
+   "pending": 24,
+   "percent": 83.1
   },
   "logistics": {
    "ctx": "logistics",
@@ -113,29 +113,29 @@
   "content": {
    "ctx": "content",
    "features": 30,
-   "pending_features": 17,
+   "pending_features": 15,
    "total": 189,
-   "implemented": 114,
-   "pending": 75,
-   "percent": 60.3
+   "implemented": 133,
+   "pending": 56,
+   "percent": 70.4
   },
   "system": {
    "ctx": "system",
    "features": 20,
-   "pending_features": 5,
+   "pending_features": 3,
    "total": 178,
-   "implemented": 162,
-   "pending": 16,
-   "percent": 91.0
+   "implemented": 168,
+   "pending": 10,
+   "percent": 94.4
   },
   "im": {
    "ctx": "im",
    "features": 7,
-   "pending_features": 2,
+   "pending_features": 0,
    "total": 48,
-   "implemented": 37,
-   "pending": 11,
-   "percent": 77.1
+   "implemented": 48,
+   "pending": 0,
+   "percent": 100.0
   },
   "analytics": {
    "ctx": "analytics",
@@ -249,475 +249,6 @@
     "adminapi"
    ],
    "pending_endpoints": []
-  },
-  {
-   "ctx": "merchant",
-   "feature": "admin_user_shop",
-   "total": 9,
-   "implemented": 0,
-   "pending": 9,
-   "percent": 0.0,
-   "controllers": [
-    "AdminUserShopController"
-   ],
-   "modules": [
-    "adminapi"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/adminapi/merchant/adminUserShop/list",
-     "controller": "AdminUserShopController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\AdminUserShopController.java:35"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/merchant/adminUserShop/detail",
-     "controller": "AdminUserShopController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\AdminUserShopController.java:41"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/merchant/adminUserShop/info",
-     "controller": "AdminUserShopController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\AdminUserShopController.java:47"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/merchant/adminUserShop/checkIsAdmin",
-     "controller": "AdminUserShopController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\AdminUserShopController.java:54"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/adminUserShop/create",
-     "controller": "AdminUserShopController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\AdminUserShopController.java:68"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/adminUserShop/update",
-     "controller": "AdminUserShopController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\AdminUserShopController.java:78"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/adminUserShop/del",
-     "controller": "AdminUserShopController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\AdminUserShopController.java:87"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/adminUserShop/batch",
-     "controller": "AdminUserShopController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\AdminUserShopController.java:95"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/adminUserShop/modifyUser",
-     "controller": "AdminUserShopController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\AdminUserShopController.java:102"
-    }
-   ]
-  },
-  {
-   "ctx": "merchant",
-   "feature": "merchant",
-   "total": 8,
-   "implemented": 0,
-   "pending": 8,
-   "percent": 0.0,
-   "controllers": [
-    "MerchantController"
-   ],
-   "modules": [
-    "adminapi"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/merchant/uploadLicense",
-     "controller": "MerchantController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\merchant\\MerchantController.java:51"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/merchant/merchant/list",
-     "controller": "MerchantController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\merchant\\MerchantController.java:57"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/merchant/merchant/detail",
-     "controller": "MerchantController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\merchant\\MerchantController.java:63"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/merchant/create",
-     "controller": "MerchantController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\merchant\\MerchantController.java:70"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/merchant/update",
-     "controller": "MerchantController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\merchant\\MerchantController.java:77"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/merchant/del",
-     "controller": "MerchantController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\merchant\\MerchantController.java:84"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/merchant/updateField",
-     "controller": "MerchantController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\merchant\\MerchantController.java:91"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/merchant/batch",
-     "controller": "MerchantController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\merchant\\MerchantController.java:98"
-    }
-   ]
-  },
-  {
-   "ctx": "merchant",
-   "feature": "shop_funds",
-   "total": 8,
-   "implemented": 0,
-   "pending": 8,
-   "percent": 0.0,
-   "controllers": [
-    "ShopFundsController"
-   ],
-   "modules": [
-    "adminapi"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/adminapi/merchant/shopAccount/list",
-     "controller": "ShopFundsController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\ShopFundsController.java:53"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/merchant/shopAccount/detail",
-     "controller": "ShopFundsController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\ShopFundsController.java:59"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/shopAccount/create",
-     "controller": "ShopFundsController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\ShopFundsController.java:65"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/shopAccount/update",
-     "controller": "ShopFundsController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\ShopFundsController.java:71"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/shopAccount/del",
-     "controller": "ShopFundsController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\ShopFundsController.java:77"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/shopAccount/updateField",
-     "controller": "ShopFundsController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\ShopFundsController.java:83"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/shopAccount/batch",
-     "controller": "ShopFundsController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\ShopFundsController.java:89"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/merchant/shopAccount/applyShopAgreement",
-     "controller": "ShopFundsController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\ShopFundsController.java:95"
-    }
-   ]
-  },
-  {
-   "ctx": "merchant",
-   "feature": "shop_withdraw",
-   "total": 12,
-   "implemented": 4,
-   "pending": 8,
-   "percent": 33.3,
-   "controllers": [
-    "ShopWithdrawController"
-   ],
-   "modules": [
-    "adminapi"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/shopWithdraw/create",
-     "controller": "ShopWithdrawController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\ShopWithdrawController.java:64"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/shopWithdraw/update",
-     "controller": "ShopWithdrawController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\ShopWithdrawController.java:71"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/shopWithdraw/del",
-     "controller": "ShopWithdrawController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\ShopWithdrawController.java:77"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/shopWithdraw/updateField",
-     "controller": "ShopWithdrawController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\ShopWithdrawController.java:83"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/shopWithdraw/batch",
-     "controller": "ShopWithdrawController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\ShopWithdrawController.java:89"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/shopWithdraw/uploadPayVoucher",
-     "controller": "ShopWithdrawController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\ShopWithdrawController.java:109"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/merchant/shopWithdraw/summaryList",
-     "controller": "ShopWithdrawController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\ShopWithdrawController.java:115"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/merchant/shopWithdraw/dualBalance",
-     "controller": "ShopWithdrawController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\shop\\ShopWithdrawController.java:121"
-    }
-   ]
-  },
-  {
-   "ctx": "merchant",
-   "feature": "merchant_account",
-   "total": 7,
-   "implemented": 0,
-   "pending": 7,
-   "percent": 0.0,
-   "controllers": [
-    "MerchantAccountController"
-   ],
-   "modules": [
-    "adminapi"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/adminapi/merchant/account/list",
-     "controller": "MerchantAccountController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\merchant\\MerchantAccountController.java:41"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/merchant/account/config",
-     "controller": "MerchantAccountController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\merchant\\MerchantAccountController.java:47"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/merchant/account/detail",
-     "controller": "MerchantAccountController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\merchant\\MerchantAccountController.java:62"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/account/create",
-     "controller": "MerchantAccountController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\merchant\\MerchantAccountController.java:72"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/account/update",
-     "controller": "MerchantAccountController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\merchant\\MerchantAccountController.java:84"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/account/del",
-     "controller": "MerchantAccountController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\merchant\\MerchantAccountController.java:91"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/merchant/account/batch",
-     "controller": "MerchantAccountController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\merchant\\MerchantAccountController.java:98"
-    }
-   ]
-  },
-  {
-   "ctx": "merchant",
-   "feature": "deposit_rule",
-   "total": 6,
-   "implemented": 0,
-   "pending": 6,
-   "percent": 0.0,
-   "controllers": [
-    "DepositRuleController"
-   ],
-   "modules": [
-    "adminapi"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/adminapi/deposit/rule/list",
-     "controller": "DepositRuleController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\deposit\\DepositRuleController.java:32"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/deposit/rule/detail",
-     "controller": "DepositRuleController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\deposit\\DepositRuleController.java:38"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/deposit/rule/create",
-     "controller": "DepositRuleController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\deposit\\DepositRuleController.java:45"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/deposit/rule/update",
-     "controller": "DepositRuleController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\deposit\\DepositRuleController.java:52"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/deposit/rule/del",
-     "controller": "DepositRuleController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\deposit\\DepositRuleController.java:59"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/deposit/rule/status",
-     "controller": "DepositRuleController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\deposit\\DepositRuleController.java:66"
-    }
-   ]
-  },
-  {
-   "ctx": "merchant",
-   "feature": "deposit_shop",
-   "total": 5,
-   "implemented": 0,
-   "pending": 5,
-   "percent": 0.0,
-   "controllers": [
-    "DepositShopController"
-   ],
-   "modules": [
-    "adminapi"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/adminapi/deposit/shop/overview",
-     "controller": "DepositShopController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\deposit\\DepositShopController.java:32"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/deposit/shop/logList",
-     "controller": "DepositShopController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\deposit\\DepositShopController.java:38"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/deposit/shop/frozenDetailList",
-     "controller": "DepositShopController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\deposit\\DepositShopController.java:44"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/deposit/shop/warning",
-     "controller": "DepositShopController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\deposit\\DepositShopController.java:50"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/deposit/shop/protocol",
-     "controller": "DepositShopController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\deposit\\DepositShopController.java:56"
-    }
-   ]
   },
   {
    "ctx": "merchant",
@@ -848,6 +379,21 @@
   },
   {
    "ctx": "merchant",
+   "feature": "admin_user_shop",
+   "total": 9,
+   "implemented": 9,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "AdminUserShopController"
+   ],
+   "modules": [
+    "adminapi"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "merchant",
    "feature": "deposit_account",
    "total": 8,
    "implemented": 8,
@@ -885,6 +431,66 @@
    "percent": 100.0,
    "controllers": [
     "DepositRefundController"
+   ],
+   "modules": [
+    "adminapi"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "merchant",
+   "feature": "deposit_rule",
+   "total": 6,
+   "implemented": 6,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "DepositRuleController"
+   ],
+   "modules": [
+    "adminapi"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "merchant",
+   "feature": "deposit_shop",
+   "total": 5,
+   "implemented": 5,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "DepositShopController"
+   ],
+   "modules": [
+    "adminapi"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "merchant",
+   "feature": "merchant",
+   "total": 8,
+   "implemented": 8,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "MerchantController"
+   ],
+   "modules": [
+    "adminapi"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "merchant",
+   "feature": "merchant_account",
+   "total": 7,
+   "implemented": 7,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "MerchantAccountController"
    ],
    "modules": [
     "adminapi"
@@ -968,6 +574,21 @@
   },
   {
    "ctx": "merchant",
+   "feature": "shop_funds",
+   "total": 8,
+   "implemented": 8,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "ShopFundsController"
+   ],
+   "modules": [
+    "adminapi"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "merchant",
    "feature": "shop_manage",
    "total": 20,
    "implemented": 20,
@@ -990,6 +611,21 @@
    "percent": 100.0,
    "controllers": [
     "ShopProductCategoryController"
+   ],
+   "modules": [
+    "adminapi"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "merchant",
+   "feature": "shop_withdraw",
+   "total": 12,
+   "implemented": 12,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "ShopWithdrawController"
    ],
    "modules": [
     "adminapi"
@@ -1761,64 +1397,6 @@
   },
   {
    "ctx": "trade",
-   "feature": "user_order",
-   "total": 9,
-   "implemented": 3,
-   "pending": 6,
-   "percent": 33.3,
-   "controllers": [
-    "UserOrderController"
-   ],
-   "modules": [
-    "api"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/api/user/order/orderNum",
-     "controller": "UserOrderController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\UserOrderController.java:58"
-    },
-    {
-     "method": "GET",
-     "path": "/api/user/order/reasonConfig",
-     "controller": "UserOrderController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\UserOrderController.java:71"
-    },
-    {
-     "method": "POST",
-     "path": "/api/user/order/delOrder",
-     "controller": "UserOrderController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\UserOrderController.java:83"
-    },
-    {
-     "method": "POST",
-     "path": "/api/user/order/confirmReceipt",
-     "controller": "UserOrderController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\UserOrderController.java:90"
-    },
-    {
-     "method": "GET",
-     "path": "/api/user/order/shippingInfo",
-     "controller": "UserOrderController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\UserOrderController.java:102"
-    },
-    {
-     "method": "POST",
-     "path": "/api/user/order/buyAgain",
-     "controller": "UserOrderController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\UserOrderController.java:109"
-    }
-   ]
-  },
-  {
-   "ctx": "trade",
    "feature": "order_invoice_client",
    "total": 3,
    "implemented": 0,
@@ -2110,6 +1688,21 @@
    "pending_endpoints": []
   },
   {
+   "ctx": "trade",
+   "feature": "user_order",
+   "total": 9,
+   "implemented": 9,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "UserOrderController"
+   ],
+   "modules": [
+    "api"
+   ],
+   "pending_endpoints": []
+  },
+  {
    "ctx": "payment",
    "feature": "recharge_order",
    "total": 7,
@@ -2171,505 +1764,6 @@
      "controller": "RechargeOrderController",
      "module": "api",
      "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\RechargeOrderController.java:87"
-    }
-   ]
-  },
-  {
-   "ctx": "payment",
-   "feature": "refund_log",
-   "total": 7,
-   "implemented": 0,
-   "pending": 7,
-   "percent": 0.0,
-   "controllers": [
-    "RefundLogController"
-   ],
-   "modules": [
-    "adminapi"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/adminapi/finance/refundLog/list",
-     "controller": "RefundLogController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\RefundLogController.java:48"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/finance/refundLog/detail",
-     "controller": "RefundLogController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\RefundLogController.java:54"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/finance/refundLog/create",
-     "controller": "RefundLogController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\RefundLogController.java:60"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/finance/refundLog/update",
-     "controller": "RefundLogController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\RefundLogController.java:66"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/finance/refundLog/del",
-     "controller": "RefundLogController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\RefundLogController.java:72"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/finance/refundLog/updateField",
-     "controller": "RefundLogController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\RefundLogController.java:78"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/finance/refundLog/batch",
-     "controller": "RefundLogController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\RefundLogController.java:84"
-    }
-   ]
-  },
-  {
-   "ctx": "payment",
-   "feature": "user_invoice",
-   "total": 7,
-   "implemented": 0,
-   "pending": 7,
-   "percent": 0.0,
-   "controllers": [
-    "UserInvoiceController"
-   ],
-   "modules": [
-    "adminapi"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/adminapi/finance/userInvoice/list",
-     "controller": "UserInvoiceController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserInvoiceController.java:39"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/finance/userInvoice/detail",
-     "controller": "UserInvoiceController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserInvoiceController.java:45"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/finance/userInvoice/create",
-     "controller": "UserInvoiceController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserInvoiceController.java:51"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/finance/userInvoice/update",
-     "controller": "UserInvoiceController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserInvoiceController.java:58"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/finance/userInvoice/del",
-     "controller": "UserInvoiceController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserInvoiceController.java:65"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/finance/userInvoice/updateField",
-     "controller": "UserInvoiceController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserInvoiceController.java:71"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/finance/userInvoice/batch",
-     "controller": "UserInvoiceController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserInvoiceController.java:78"
-    }
-   ]
-  },
-  {
-   "ctx": "payment",
-   "feature": "user_recharge_order",
-   "total": 7,
-   "implemented": 0,
-   "pending": 7,
-   "percent": 0.0,
-   "controllers": [
-    "UserRechargeOrderController"
-   ],
-   "modules": [
-    "adminapi"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/adminapi/finance/userRechargeOrder/list",
-     "controller": "UserRechargeOrderController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserRechargeOrderController.java:49"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/finance/userRechargeOrder/detail",
-     "controller": "UserRechargeOrderController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserRechargeOrderController.java:55"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/finance/userRechargeOrder/create",
-     "controller": "UserRechargeOrderController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserRechargeOrderController.java:62"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/finance/userRechargeOrder/update",
-     "controller": "UserRechargeOrderController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserRechargeOrderController.java:69"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/finance/userRechargeOrder/del",
-     "controller": "UserRechargeOrderController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserRechargeOrderController.java:76"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/finance/userRechargeOrder/updateField",
-     "controller": "UserRechargeOrderController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserRechargeOrderController.java:82"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/finance/userRechargeOrder/batch",
-     "controller": "UserRechargeOrderController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserRechargeOrderController.java:89"
-    }
-   ]
-  },
-  {
-   "ctx": "payment",
-   "feature": "user_withdraw_apply",
-   "total": 7,
-   "implemented": 0,
-   "pending": 7,
-   "percent": 0.0,
-   "controllers": [
-    "UserWithdrawApplyController"
-   ],
-   "modules": [
-    "adminapi"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/adminapi/finance/userWithdrawApply/list",
-     "controller": "UserWithdrawApplyController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserWithdrawApplyController.java:50"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/finance/userWithdrawApply/detail",
-     "controller": "UserWithdrawApplyController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserWithdrawApplyController.java:56"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/finance/userWithdrawApply/create",
-     "controller": "UserWithdrawApplyController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserWithdrawApplyController.java:63"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/finance/userWithdrawApply/update",
-     "controller": "UserWithdrawApplyController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserWithdrawApplyController.java:70"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/finance/userWithdrawApply/del",
-     "controller": "UserWithdrawApplyController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserWithdrawApplyController.java:77"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/finance/userWithdrawApply/updateField",
-     "controller": "UserWithdrawApplyController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserWithdrawApplyController.java:84"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/finance/userWithdrawApply/batch",
-     "controller": "UserWithdrawApplyController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\UserWithdrawApplyController.java:91"
-    }
-   ]
-  },
-  {
-   "ctx": "payment",
-   "feature": "with_draw_apply_client",
-   "total": 7,
-   "implemented": 0,
-   "pending": 7,
-   "percent": 0.0,
-   "controllers": [
-    "WithDrawApplyClientController"
-   ],
-   "modules": [
-    "api"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/api/user/withdrawApply/list",
-     "controller": "WithDrawApplyClientController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\WithDrawApplyClientController.java:30"
-    },
-    {
-     "method": "POST",
-     "path": "/api/user/withdrawApply/createAccount",
-     "controller": "WithDrawApplyClientController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\WithDrawApplyClientController.java:36"
-    },
-    {
-     "method": "POST",
-     "path": "/api/user/withdrawApply/updateAccount",
-     "controller": "WithDrawApplyClientController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\WithDrawApplyClientController.java:42"
-    },
-    {
-     "method": "GET",
-     "path": "/api/user/withdrawApply/accountDetail",
-     "controller": "WithDrawApplyClientController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\WithDrawApplyClientController.java:48"
-    },
-    {
-     "method": "POST",
-     "path": "/api/user/withdrawApply/delAccount",
-     "controller": "WithDrawApplyClientController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\WithDrawApplyClientController.java:54"
-    },
-    {
-     "method": "POST",
-     "path": "/api/user/withdrawApply/apply",
-     "controller": "WithDrawApplyClientController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\WithDrawApplyClientController.java:60"
-    },
-    {
-     "method": "POST",
-     "path": "/api/user/withdrawApply/applyCommission",
-     "controller": "WithDrawApplyClientController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\WithDrawApplyClientController.java:66"
-    }
-   ]
-  },
-  {
-   "ctx": "payment",
-   "feature": "credit_settlement",
-   "total": 6,
-   "implemented": 0,
-   "pending": 6,
-   "percent": 0.0,
-   "controllers": [
-    "CreditSettlementController"
-   ],
-   "modules": [
-    "adminapi"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/adminapi/credit/settlement/userList",
-     "controller": "CreditSettlementController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\CreditSettlementController.java:43"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/credit/settlement/pendingOrders",
-     "controller": "CreditSettlementController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\CreditSettlementController.java:50"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/credit/settlement/submit",
-     "controller": "CreditSettlementController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\CreditSettlementController.java:62"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/credit/settlement/history",
-     "controller": "CreditSettlementController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\CreditSettlementController.java:69"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/credit/settlement/historyOrders",
-     "controller": "CreditSettlementController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\CreditSettlementController.java:76"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/credit/settlement/cancel",
-     "controller": "CreditSettlementController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\CreditSettlementController.java:87"
-    }
-   ]
-  },
-  {
-   "ctx": "payment",
-   "feature": "credit_user",
-   "total": 6,
-   "implemented": 0,
-   "pending": 6,
-   "percent": 0.0,
-   "controllers": [
-    "CreditUserController"
-   ],
-   "modules": [
-    "adminapi"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/adminapi/credit/user/list",
-     "controller": "CreditUserController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\CreditUserController.java:36"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/credit/user/detail",
-     "controller": "CreditUserController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\CreditUserController.java:43"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/credit/user/create",
-     "controller": "CreditUserController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\CreditUserController.java:50"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/credit/user/update",
-     "controller": "CreditUserController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\CreditUserController.java:57"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/credit/user/delete",
-     "controller": "CreditUserController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\CreditUserController.java:64"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/credit/user/updateField",
-     "controller": "CreditUserController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\finance\\CreditUserController.java:71"
-    }
-   ]
-  },
-  {
-   "ctx": "payment",
-   "feature": "pay",
-   "total": 11,
-   "implemented": 5,
-   "pending": 6,
-   "percent": 45.5,
-   "controllers": [
-    "PayController"
-   ],
-   "modules": [
-    "api"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/api/order/pay/index",
-     "controller": "PayController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\order\\PayController.java:84"
-    },
-    {
-     "method": "GET",
-     "path": "/api/order/pay/paymentList",
-     "controller": "PayController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\order\\PayController.java:92"
-    },
-    {
-     "method": "GET",
-     "path": "/api/order/pay/getPayLog",
-     "controller": "PayController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\order\\PayController.java:99"
-    },
-    {
-     "method": "GET",
-     "path": "/api/order/pay/checkStatus",
-     "controller": "PayController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\order\\PayController.java:183"
-    },
-    {
-     "method": "GET",
-     "path": "/api/order/pay/create",
-     "controller": "PayController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\order\\PayController.java:192"
-    },
-    {
-     "method": "GET",
-     "path": "/api/order/pay/createDepositPayment",
-     "controller": "PayController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\order\\PayController.java:202"
     }
    ]
   },
@@ -3099,6 +2193,36 @@
   },
   {
    "ctx": "payment",
+   "feature": "credit_settlement",
+   "total": 6,
+   "implemented": 6,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "CreditSettlementController"
+   ],
+   "modules": [
+    "adminapi"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "payment",
+   "feature": "credit_user",
+   "total": 6,
+   "implemented": 6,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "CreditUserController"
+   ],
+   "modules": [
+    "adminapi"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "payment",
    "feature": "merchant_application",
    "total": 10,
    "implemented": 10,
@@ -3129,6 +2253,21 @@
   },
   {
    "ctx": "payment",
+   "feature": "pay",
+   "total": 11,
+   "implemented": 11,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "PayController"
+   ],
+   "modules": [
+    "api"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "payment",
    "feature": "paylog_batch",
    "total": 7,
    "implemented": 7,
@@ -3136,6 +2275,21 @@
    "percent": 100.0,
    "controllers": [
     "PaylogController"
+   ],
+   "modules": [
+    "adminapi"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "payment",
+   "feature": "refund_log",
+   "total": 7,
+   "implemented": 7,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "RefundLogController"
    ],
    "modules": [
     "adminapi"
@@ -3173,271 +2327,64 @@
    "pending_endpoints": []
   },
   {
-   "ctx": "marketing",
-   "feature": "groupon_promotion",
-   "total": 12,
-   "implemented": 0,
-   "pending": 12,
-   "percent": 0.0,
+   "ctx": "payment",
+   "feature": "user_invoice",
+   "total": 7,
+   "implemented": 7,
+   "pending": 0,
+   "percent": 100.0,
    "controllers": [
-    "GrouponPromotionController"
-   ],
-   "modules": [
-    "adminapi",
-    "api"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "POST",
-     "path": "/adminapi/promotion/groupon/create",
-     "controller": "GrouponPromotionController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GrouponPromotionController.java:34"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/promotion/groupon/update",
-     "controller": "GrouponPromotionController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GrouponPromotionController.java:41"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/promotion/groupon/finish",
-     "controller": "GrouponPromotionController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GrouponPromotionController.java:48"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/promotion/groupon/del",
-     "controller": "GrouponPromotionController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GrouponPromotionController.java:55"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/promotion/groupon/detail",
-     "controller": "GrouponPromotionController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GrouponPromotionController.java:61"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/promotion/groupon/list",
-     "controller": "GrouponPromotionController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GrouponPromotionController.java:67"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/promotion/groupon/promotionPromote",
-     "controller": "GrouponPromotionController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GrouponPromotionController.java:74"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/promotion/groupon/clientList",
-     "controller": "GrouponPromotionController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GrouponPromotionController.java:80"
-    },
-    {
-     "method": "GET",
-     "path": "/api/promotion/groupon/detail",
-     "controller": "GrouponPromotionController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\promotion\\GrouponPromotionController.java:30"
-    },
-    {
-     "method": "GET",
-     "path": "/api/promotion/groupon/itemList",
-     "controller": "GrouponPromotionController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\promotion\\GrouponPromotionController.java:36"
-    },
-    {
-     "method": "GET",
-     "path": "/api/promotion/groupon/imageList",
-     "controller": "GrouponPromotionController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\promotion\\GrouponPromotionController.java:42"
-    },
-    {
-     "method": "GET",
-     "path": "/api/promotion/groupon/getGrouponInfo",
-     "controller": "GrouponPromotionController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\promotion\\GrouponPromotionController.java:48"
-    }
-   ]
-  },
-  {
-   "ctx": "marketing",
-   "feature": "salesman_content",
-   "total": 10,
-   "implemented": 0,
-   "pending": 10,
-   "percent": 0.0,
-   "controllers": [
-    "SalesmanContentController"
-   ],
-   "modules": [
-    "adminapi",
-    "api"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/adminapi/salesman/content/list",
-     "controller": "SalesmanContentController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\salesman\\SalesmanContentController.java:58"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/salesman/content/config",
-     "controller": "SalesmanContentController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\salesman\\SalesmanContentController.java:64"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/salesman/content/detail",
-     "controller": "SalesmanContentController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\salesman\\SalesmanContentController.java:75"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/salesman/content/create",
-     "controller": "SalesmanContentController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\salesman\\SalesmanContentController.java:82"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/salesman/content/update",
-     "controller": "SalesmanContentController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\salesman\\SalesmanContentController.java:89"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/salesman/content/del",
-     "controller": "SalesmanContentController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\salesman\\SalesmanContentController.java:96"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/salesman/content/updateField",
-     "controller": "SalesmanContentController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\salesman\\SalesmanContentController.java:103"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/salesman/content/batch",
-     "controller": "SalesmanContentController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\salesman\\SalesmanContentController.java:115"
-    },
-    {
-     "method": "GET",
-     "path": "/api/salesman/content/list",
-     "controller": "SalesmanContentController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\salesman\\SalesmanContentController.java:44"
-    },
-    {
-     "method": "GET",
-     "path": "/api/salesman/content/detail",
-     "controller": "SalesmanContentController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\salesman\\SalesmanContentController.java:52"
-    }
-   ]
-  },
-  {
-   "ctx": "marketing",
-   "feature": "coupon_manage",
-   "total": 15,
-   "implemented": 6,
-   "pending": 9,
-   "percent": 40.0,
-   "controllers": [
-    "CouponController"
+    "UserInvoiceController"
    ],
    "modules": [
     "adminapi"
    ],
-   "pending_endpoints": [
-    {
-     "method": "POST",
-     "path": "/adminapi/promotion/coupon/create",
-     "controller": "CouponController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\CouponController.java:97"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/promotion/coupon/update",
-     "controller": "CouponController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\CouponController.java:104"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/promotion/coupon/del",
-     "controller": "CouponController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\CouponController.java:111"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/promotion/coupon/updateField",
-     "controller": "CouponController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\CouponController.java:118"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/promotion/coupon/batch",
-     "controller": "CouponController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\CouponController.java:125"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/promotion/coupon/config",
-     "controller": "CouponController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\CouponController.java:131"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/promotion/coupon/issue/preview",
-     "controller": "CouponController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\CouponController.java:151"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/promotion/coupon/issue/log",
-     "controller": "CouponController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\CouponController.java:164"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/promotion/coupon/issue/batch",
-     "controller": "CouponController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\CouponController.java:170"
-    }
-   ]
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "payment",
+   "feature": "user_recharge_order",
+   "total": 7,
+   "implemented": 7,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "UserRechargeOrderController"
+   ],
+   "modules": [
+    "adminapi"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "payment",
+   "feature": "user_withdraw_apply",
+   "total": 7,
+   "implemented": 7,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "UserWithdrawApplyController"
+   ],
+   "modules": [
+    "adminapi"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "payment",
+   "feature": "with_draw_apply_client",
+   "total": 7,
+   "implemented": 7,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "WithDrawApplyClientController"
+   ],
+   "modules": [
+    "api"
+   ],
+   "pending_endpoints": []
   },
   {
    "ctx": "marketing",
@@ -3515,150 +2462,6 @@
      "controller": "ProductPromotionController",
      "module": "adminapi",
      "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\ProductPromotionController.java:113"
-    }
-   ]
-  },
-  {
-   "ctx": "marketing",
-   "feature": "gift_card",
-   "total": 8,
-   "implemented": 0,
-   "pending": 8,
-   "percent": 0.0,
-   "controllers": [
-    "GiftCardController"
-   ],
-   "modules": [
-    "adminapi"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/adminapi/promotion/giftCards/list",
-     "controller": "GiftCardController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GiftCardController.java:33"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/promotion/giftCards/detail",
-     "controller": "GiftCardController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GiftCardController.java:39"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/promotion/giftCards/importTemplate",
-     "controller": "GiftCardController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GiftCardController.java:48"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/promotion/giftCards/exportList",
-     "controller": "GiftCardController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GiftCardController.java:55"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/promotion/giftCards/importList",
-     "controller": "GiftCardController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GiftCardController.java:63"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/promotion/giftCards/delete",
-     "controller": "GiftCardController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GiftCardController.java:71"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/promotion/giftCards/giftCardExchangeDetail",
-     "controller": "GiftCardController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GiftCardController.java:102"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/promotion/giftCards/updateCardStatus",
-     "controller": "GiftCardController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GiftCardController.java:108"
-    }
-   ]
-  },
-  {
-   "ctx": "marketing",
-   "feature": "gift_card_groups",
-   "total": 8,
-   "implemented": 0,
-   "pending": 8,
-   "percent": 0.0,
-   "controllers": [
-    "GiftCardGroupsController"
-   ],
-   "modules": [
-    "adminapi"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/adminapi/promotion/giftCardGroups/list",
-     "controller": "GiftCardGroupsController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GiftCardGroupsController.java:30"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/promotion/giftCardGroups/updateStatus",
-     "controller": "GiftCardGroupsController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GiftCardGroupsController.java:37"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/promotion/giftCardGroups/create",
-     "controller": "GiftCardGroupsController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GiftCardGroupsController.java:44"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/promotion/giftCardGroups/update",
-     "controller": "GiftCardGroupsController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GiftCardGroupsController.java:51"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/promotion/giftCardGroups/detail",
-     "controller": "GiftCardGroupsController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GiftCardGroupsController.java:57"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/promotion/giftCardGroups/getGiftCardGroups",
-     "controller": "GiftCardGroupsController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GiftCardGroupsController.java:63"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/promotion/giftCardGroups/delete",
-     "controller": "GiftCardGroupsController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GiftCardGroupsController.java:71"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/promotion/giftCardGroups/giftCardGroupProductsUpdate",
-     "controller": "GiftCardGroupsController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\promotion\\GiftCardGroupsController.java:78"
     }
    ]
   },
@@ -4278,64 +3081,6 @@
   },
   {
    "ctx": "marketing",
-   "feature": "gift_card_client",
-   "total": 6,
-   "implemented": 0,
-   "pending": 6,
-   "percent": 0.0,
-   "controllers": [
-    "GiftCardGroupsController"
-   ],
-   "modules": [
-    "api"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/api/promotion/giftCardGroups/detail",
-     "controller": "GiftCardGroupsController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\promotion\\GiftCardGroupsController.java:34"
-    },
-    {
-     "method": "POST",
-     "path": "/api/promotion/giftCardGroups/claim",
-     "controller": "GiftCardGroupsController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\promotion\\GiftCardGroupsController.java:46"
-    },
-    {
-     "method": "POST",
-     "path": "/api/promotion/giftCardGroups/transfer",
-     "controller": "GiftCardGroupsController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\promotion\\GiftCardGroupsController.java:53"
-    },
-    {
-     "method": "GET",
-     "path": "/api/promotion/giftCardGroups/isGiftCardExpired",
-     "controller": "GiftCardGroupsController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\promotion\\GiftCardGroupsController.java:60"
-    },
-    {
-     "method": "POST",
-     "path": "/api/promotion/giftCardGroups/exchange",
-     "controller": "GiftCardGroupsController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\promotion\\GiftCardGroupsController.java:68"
-    },
-    {
-     "method": "GET",
-     "path": "/api/promotion/giftCardGroups/getTransferLink",
-     "controller": "GiftCardGroupsController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\promotion\\GiftCardGroupsController.java:74"
-    }
-   ]
-  },
-  {
-   "ctx": "marketing",
    "feature": "groupon_promotion_record",
    "total": 5,
    "implemented": 0,
@@ -4938,6 +3683,82 @@
   },
   {
    "ctx": "marketing",
+   "feature": "coupon_manage",
+   "total": 15,
+   "implemented": 15,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "CouponController"
+   ],
+   "modules": [
+    "adminapi"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "marketing",
+   "feature": "gift_card",
+   "total": 8,
+   "implemented": 8,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "GiftCardController"
+   ],
+   "modules": [
+    "adminapi"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "marketing",
+   "feature": "gift_card_client",
+   "total": 6,
+   "implemented": 6,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "GiftCardGroupsController"
+   ],
+   "modules": [
+    "api"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "marketing",
+   "feature": "gift_card_groups",
+   "total": 8,
+   "implemented": 8,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "GiftCardGroupsController"
+   ],
+   "modules": [
+    "adminapi"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "marketing",
+   "feature": "groupon_promotion",
+   "total": 12,
+   "implemented": 12,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "GrouponPromotionController"
+   ],
+   "modules": [
+    "adminapi",
+    "api"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "marketing",
    "feature": "product_style_admin",
    "total": 10,
    "implemented": 10,
@@ -4948,6 +3769,22 @@
    ],
    "modules": [
     "adminapi"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "marketing",
+   "feature": "salesman_content",
+   "total": 10,
+   "implemented": 10,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "SalesmanContentController"
+   ],
+   "modules": [
+    "adminapi",
+    "api"
    ],
    "pending_endpoints": []
   },
@@ -4965,231 +3802,6 @@
     "adminapi"
    ],
    "pending_endpoints": []
-  },
-  {
-   "ctx": "member",
-   "feature": "user_address_client",
-   "total": 7,
-   "implemented": 0,
-   "pending": 7,
-   "percent": 0.0,
-   "controllers": [
-    "UserAddressClientController"
-   ],
-   "modules": [
-    "api"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/api/user/address/tagList",
-     "controller": "UserAddressClientController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\UserAddressClientController.java:39"
-    },
-    {
-     "method": "GET",
-     "path": "/api/user/address/list",
-     "controller": "UserAddressClientController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\UserAddressClientController.java:45"
-    },
-    {
-     "method": "GET",
-     "path": "/api/user/address/detail",
-     "controller": "UserAddressClientController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\UserAddressClientController.java:59"
-    },
-    {
-     "method": "POST",
-     "path": "/api/user/address/del",
-     "controller": "UserAddressClientController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\UserAddressClientController.java:69"
-    },
-    {
-     "method": "POST",
-     "path": "/api/user/address/create",
-     "controller": "UserAddressClientController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\UserAddressClientController.java:83"
-    },
-    {
-     "method": "POST",
-     "path": "/api/user/address/update",
-     "controller": "UserAddressClientController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\UserAddressClientController.java:90"
-    },
-    {
-     "method": "POST",
-     "path": "/api/user/address/setSelected",
-     "controller": "UserAddressClientController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\UserAddressClientController.java:106"
-    }
-   ]
-  },
-  {
-   "ctx": "member",
-   "feature": "user_message",
-   "total": 6,
-   "implemented": 0,
-   "pending": 6,
-   "percent": 0.0,
-   "controllers": [
-    "UserMessageController"
-   ],
-   "modules": [
-    "api"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/api/user/message/list",
-     "controller": "UserMessageController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\UserMessageController.java:36"
-    },
-    {
-     "method": "POST",
-     "path": "/api/user/message/updateAllRead",
-     "controller": "UserMessageController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\UserMessageController.java:42"
-    },
-    {
-     "method": "POST",
-     "path": "/api/user/message/updateOrderMessageRead",
-     "controller": "UserMessageController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\UserMessageController.java:55"
-    },
-    {
-     "method": "POST",
-     "path": "/api/user/message/updateMessageRead",
-     "controller": "UserMessageController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\UserMessageController.java:65"
-    },
-    {
-     "method": "POST",
-     "path": "/api/user/message/del",
-     "controller": "UserMessageController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\UserMessageController.java:71"
-    },
-    {
-     "method": "GET",
-     "path": "/api/user/message/unreadCount",
-     "controller": "UserMessageController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\user\\UserMessageController.java:77"
-    }
-   ]
-  },
-  {
-   "ctx": "member",
-   "feature": "user_member_tag",
-   "total": 5,
-   "implemented": 0,
-   "pending": 5,
-   "percent": 0.0,
-   "controllers": [
-    "UserMemberTagController"
-   ],
-   "modules": [
-    "adminapi"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/adminapi/user/userMemberTag/listByUser",
-     "controller": "UserMemberTagController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\user\\UserMemberTagController.java:30"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/user/userMemberTag/bindTags",
-     "controller": "UserMemberTagController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\user\\UserMemberTagController.java:38"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/user/userMemberTag/unbindTags",
-     "controller": "UserMemberTagController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\user\\UserMemberTagController.java:46"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/user/userMemberTag/batchBindTags",
-     "controller": "UserMemberTagController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\user\\UserMemberTagController.java:54"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/user/userMemberTag/batchUnbindTags",
-     "controller": "UserMemberTagController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\user\\UserMemberTagController.java:62"
-    }
-   ]
-  },
-  {
-   "ctx": "member",
-   "feature": "user_message_log",
-   "total": 5,
-   "implemented": 0,
-   "pending": 5,
-   "percent": 0.0,
-   "controllers": [
-    "UserMessageLogController"
-   ],
-   "modules": [
-    "adminapi"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/adminapi/user/userMessageLog/list",
-     "controller": "UserMessageLogController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\user\\UserMessageLogController.java:40"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/user/userMessageLog/create",
-     "controller": "UserMessageLogController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\user\\UserMessageLogController.java:47"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/user/userMessageLog/del",
-     "controller": "UserMessageLogController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\user\\UserMessageLogController.java:54"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/user/userMessageLog/batch",
-     "controller": "UserMessageLogController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\user\\UserMessageLogController.java:61"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/user/userMessageLog/recall",
-     "controller": "UserMessageLogController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\user\\UserMessageLogController.java:68"
-    }
-   ]
   },
   {
    "ctx": "member",
@@ -5581,6 +4193,21 @@
   },
   {
    "ctx": "member",
+   "feature": "user_address_client",
+   "total": 7,
+   "implemented": 7,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "UserAddressClientController"
+   ],
+   "modules": [
+    "api"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "member",
    "feature": "user_center",
    "total": 25,
    "implemented": 25,
@@ -5618,6 +4245,51 @@
    "percent": 100.0,
    "controllers": [
     "UserController"
+   ],
+   "modules": [
+    "adminapi"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "member",
+   "feature": "user_member_tag",
+   "total": 5,
+   "implemented": 5,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "UserMemberTagController"
+   ],
+   "modules": [
+    "adminapi"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "member",
+   "feature": "user_message",
+   "total": 6,
+   "implemented": 6,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "UserMessageController"
+   ],
+   "modules": [
+    "api"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "member",
+   "feature": "user_message_log",
+   "total": 5,
+   "implemented": 5,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "UserMessageLogController"
    ],
    "modules": [
     "adminapi"
@@ -5773,171 +4445,6 @@
     "api"
    ],
    "pending_endpoints": []
-  },
-  {
-   "ctx": "content",
-   "feature": "gallery_pic",
-   "total": 10,
-   "implemented": 0,
-   "pending": 10,
-   "percent": 0.0,
-   "controllers": [
-    "GalleryPicController"
-   ],
-   "modules": [
-    "adminapi"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/adminapi/setting/galleryPic/list",
-     "controller": "GalleryPicController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryPicController.java:50"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/setting/galleryPic/del",
-     "controller": "GalleryPicController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryPicController.java:57"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/setting/galleryPic/uploadImg",
-     "controller": "GalleryPicController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryPicController.java:63"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/setting/galleryPic/updateField",
-     "controller": "GalleryPicController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryPicController.java:72"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/setting/galleryPic/detail",
-     "controller": "GalleryPicController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryPicController.java:78"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/setting/galleryPic/sort",
-     "controller": "GalleryPicController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryPicController.java:85"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/setting/galleryPic/transfer",
-     "controller": "GalleryPicController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryPicController.java:92"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/setting/galleryPic/batchDel",
-     "controller": "GalleryPicController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryPicController.java:99"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/setting/galleryPic/batchDownload",
-     "controller": "GalleryPicController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryPicController.java:106"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/setting/galleryPic/createFromExternal",
-     "controller": "GalleryPicController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryPicController.java:112"
-    }
-   ]
-  },
-  {
-   "ctx": "content",
-   "feature": "gallery",
-   "total": 9,
-   "implemented": 0,
-   "pending": 9,
-   "percent": 0.0,
-   "controllers": [
-    "GalleryController"
-   ],
-   "modules": [
-    "adminapi"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/adminapi/setting/gallery/list",
-     "controller": "GalleryController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryController.java:47"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/setting/gallery/detail",
-     "controller": "GalleryController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryController.java:53"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/setting/gallery/del",
-     "controller": "GalleryController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryController.java:60"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/setting/gallery/create",
-     "controller": "GalleryController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryController.java:72"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/setting/gallery/update",
-     "controller": "GalleryController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryController.java:79"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/setting/gallery/batch",
-     "controller": "GalleryController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryController.java:86"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/setting/gallery/tree",
-     "controller": "GalleryController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryController.java:93"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/setting/gallery/sort",
-     "controller": "GalleryController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryController.java:108"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/setting/gallery/move",
-     "controller": "GalleryController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\GalleryController.java:119"
-    }
-   ]
   },
   {
    "ctx": "content",
@@ -6649,6 +5156,36 @@
   },
   {
    "ctx": "content",
+   "feature": "gallery",
+   "total": 9,
+   "implemented": 9,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "GalleryController"
+   ],
+   "modules": [
+    "adminapi"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "content",
+   "feature": "gallery_pic",
+   "total": 10,
+   "implemented": 10,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "GalleryPicController"
+   ],
+   "modules": [
+    "adminapi"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "content",
    "feature": "home",
    "total": 18,
    "implemented": 18,
@@ -6835,80 +5372,6 @@
   },
   {
    "ctx": "system",
-   "feature": "licensed",
-   "total": 3,
-   "implemented": 0,
-   "pending": 3,
-   "percent": 0.0,
-   "controllers": [
-    "LicensedController"
-   ],
-   "modules": [
-    "adminapi"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/adminapi/setting/licensed/index",
-     "controller": "LicensedController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\LicensedController.java:34"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/setting/licensed/update",
-     "controller": "LicensedController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\LicensedController.java:41"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/setting/licensed/saveLicensed",
-     "controller": "LicensedController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\LicensedController.java:48"
-    }
-   ]
-  },
-  {
-   "ctx": "system",
-   "feature": "util",
-   "total": 3,
-   "implemented": 0,
-   "pending": 3,
-   "percent": 0.0,
-   "controllers": [
-    "UtilController"
-   ],
-   "modules": [
-    "api"
-   ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/api/common/util/qrCode",
-     "controller": "UtilController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\common\\UtilController.java:36"
-    },
-    {
-     "method": "GET",
-     "path": "/api/common/util/miniCode",
-     "controller": "UtilController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\common\\UtilController.java:44"
-    },
-    {
-     "method": "GET",
-     "path": "/api/common/util/miniScene",
-     "controller": "UtilController",
-     "module": "api",
-     "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\common\\UtilController.java:53"
-    }
-   ]
-  },
-  {
-   "ctx": "system",
    "feature": "recommend",
    "total": 2,
    "implemented": 0,
@@ -7083,6 +5546,21 @@
   },
   {
    "ctx": "system",
+   "feature": "licensed",
+   "total": 3,
+   "implemented": 3,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "LicensedController"
+   ],
+   "modules": [
+    "adminapi"
+   ],
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "system",
    "feature": "log",
    "total": 1,
    "implemented": 1,
@@ -7187,113 +5665,49 @@
    "pending_endpoints": []
   },
   {
-   "ctx": "im",
-   "feature": "admin_user_kefu",
-   "total": 9,
-   "implemented": 0,
-   "pending": 9,
-   "percent": 0.0,
+   "ctx": "system",
+   "feature": "util",
+   "total": 3,
+   "implemented": 3,
+   "pending": 0,
+   "percent": 100.0,
    "controllers": [
-    "AdminUserKefuController"
+    "UtilController"
    ],
    "modules": [
-    "adminapi"
+    "api"
    ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/adminapi/im/adminUserKefu/list",
-     "controller": "AdminUserKefuController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\im\\AdminUserKefuController.java:38"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/im/adminUserKefu/detail",
-     "controller": "AdminUserKefuController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\im\\AdminUserKefuController.java:44"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/im/adminUserKefu/info",
-     "controller": "AdminUserKefuController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\im\\AdminUserKefuController.java:50"
-    },
-    {
-     "method": "GET",
-     "path": "/adminapi/im/adminUserKefu/roles",
-     "controller": "AdminUserKefuController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\im\\AdminUserKefuController.java:57"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/im/adminUserKefu/create",
-     "controller": "AdminUserKefuController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\im\\AdminUserKefuController.java:65"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/im/adminUserKefu/update",
-     "controller": "AdminUserKefuController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\im\\AdminUserKefuController.java:75"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/im/adminUserKefu/del",
-     "controller": "AdminUserKefuController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\im\\AdminUserKefuController.java:85"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/im/adminUserKefu/batch",
-     "controller": "AdminUserKefuController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\im\\AdminUserKefuController.java:93"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/im/adminUserKefu/updateField",
-     "controller": "AdminUserKefuController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\im\\AdminUserKefuController.java:100"
-    }
-   ]
+   "pending_endpoints": []
   },
   {
    "ctx": "im",
    "feature": "admin_shop_kefu_config",
    "total": 2,
-   "implemented": 0,
-   "pending": 2,
-   "percent": 0.0,
+   "implemented": 2,
+   "pending": 0,
+   "percent": 100.0,
    "controllers": [
     "AdminShopKefuConfigController"
    ],
    "modules": [
     "adminapi"
    ],
-   "pending_endpoints": [
-    {
-     "method": "GET",
-     "path": "/adminapi/im/shopKefuConfig/accessConfig/detail",
-     "controller": "AdminShopKefuConfigController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\im\\AdminShopKefuConfigController.java:29"
-    },
-    {
-     "method": "POST",
-     "path": "/adminapi/im/shopKefuConfig/accessConfig/save",
-     "controller": "AdminShopKefuConfigController",
-     "module": "adminapi",
-     "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\im\\AdminShopKefuConfigController.java:35"
-    }
-   ]
+   "pending_endpoints": []
+  },
+  {
+   "ctx": "im",
+   "feature": "admin_user_kefu",
+   "total": 9,
+   "implemented": 9,
+   "pending": 0,
+   "percent": 100.0,
+   "controllers": [
+    "AdminUserKefuController"
+   ],
+   "modules": [
+    "adminapi"
+   ],
+   "pending_endpoints": []
   },
   {
    "ctx": "im",

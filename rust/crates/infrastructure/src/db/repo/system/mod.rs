@@ -7,6 +7,7 @@ pub mod config_basic;
 pub mod config_client;
 pub mod example;
 pub mod files;
+pub mod licensed;
 pub mod log;
 pub mod mail_templates;
 pub mod message_type;
@@ -14,6 +15,7 @@ pub mod pc;
 pub mod region;
 pub mod region_client;
 pub mod tips_manage;
+pub mod util;
 
 use crate::db::DbPool;
 
@@ -33,6 +35,8 @@ pub struct Repositories {
     pub region: region::RegionRepository,
     pub region_client: region_client::RegionClientRepository,
     pub tips_manage: tips_manage::TipsManageRepository,
+    pub licensed: licensed::LicensedRepository,
+    pub util: util::UtilRepository,
 }
 
 impl Repositories {
@@ -53,6 +57,8 @@ impl Repositories {
             region: region::RegionRepository::new(pool.clone()),
             region_client: region_client::RegionClientRepository::new(pool.clone()),
             tips_manage: tips_manage::TipsManageRepository::new(pool.clone()),
+            licensed: licensed::LicensedRepository::new(pool.clone()),
+            util: util::UtilRepository::new(pool.clone()),
         }
     }
 }

@@ -7,9 +7,13 @@ pub mod member_tag;
 pub mod member_tag_group;
 pub mod shop_member;
 pub mod user;
+pub mod user_address_client;
 pub mod user_center;
 pub mod user_company;
 pub mod user_manage;
+pub mod user_member_tag;
+pub mod user_message;
+pub mod user_message_log;
 pub mod user_points_log;
 pub mod user_rank;
 
@@ -30,4 +34,8 @@ pub struct Services {
     pub user_rank: Arc<user_rank::UserRankService>,
     pub login: Arc<login::LoginService>,
     pub shop_member: Arc<shop_member::ShopMemberService>,
+    pub user_address_client: Arc<user_address_client::UserAddressClientService>,
+    pub user_message: Arc<user_message::UserMessageService>,
+    pub user_member_tag: Arc<user_member_tag::UserMemberTagService>,
+    pub user_message_log: Arc<user_message_log::UserMessageLogService>,
 }

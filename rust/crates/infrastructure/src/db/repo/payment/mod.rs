@@ -5,6 +5,7 @@ pub mod credit_settlement;
 pub mod credit_user;
 pub mod merchant_application;
 pub mod order_invoice;
+pub mod pay;
 pub mod paylog;
 pub mod paylog_batch;
 pub mod refund_apply;
@@ -12,6 +13,8 @@ pub mod refund_log;
 pub mod tax_rate;
 pub mod user_balance_log;
 pub mod user_invoice;
+pub mod user_recharge_order;
+pub mod user_withdraw_apply;
 pub mod with_draw_apply_client;
 
 use crate::db::DbPool;
@@ -31,6 +34,9 @@ pub struct Repositories {
     pub credit_settlement: credit_settlement::CreditSettlementRepository,
     pub user_invoice: user_invoice::UserInvoiceRepository,
     pub credit_user: credit_user::CreditUserRepository,
+    pub user_recharge_order: user_recharge_order::UserRechargeOrderRepository,
+    pub user_withdraw_apply: user_withdraw_apply::UserWithdrawApplyRepository,
+    pub pay: pay::PayRepository,
 }
 
 impl Repositories {
@@ -50,6 +56,9 @@ impl Repositories {
             credit_settlement: credit_settlement::CreditSettlementRepository::new(pool.clone()),
             user_invoice: user_invoice::UserInvoiceRepository::new(pool.clone()),
             credit_user: credit_user::CreditUserRepository::new(pool.clone()),
+            user_recharge_order: user_recharge_order::UserRechargeOrderRepository::new(pool.clone()),
+            user_withdraw_apply: user_withdraw_apply::UserWithdrawApplyRepository::new(pool.clone()),
+            pay: pay::PayRepository::new(pool.clone()),
         }
     }
 }

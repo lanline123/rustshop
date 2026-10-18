@@ -8,3 +8,4 @@ pub mod proxy_shopping_order_check;
 pub mod proxy_shopping_pickup_contact;
 pub mod proxy_shopping_product;
 pub mod proxy_shopping_user_address;
+pub mod user_order;

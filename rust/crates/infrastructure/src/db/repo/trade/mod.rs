@@ -11,6 +11,7 @@ pub mod proxy_shopping_product;
 pub mod proxy_shopping_user;
 pub mod proxy_shopping_user_address;
 pub mod proxy_shopping_user_coupon;
+pub mod user_order;
 
 use crate::db::DbPool;
 
@@ -27,6 +28,7 @@ pub struct Repositories {
     pub proxy_shopping_user: proxy_shopping_user::ProxyShoppingUserRepository,
     pub proxy_shopping_user_address: proxy_shopping_user_address::ProxyShoppingUserAddressRepository,
     pub proxy_shopping_user_coupon: proxy_shopping_user_coupon::ProxyShoppingUserCouponRepository,
+    pub user_order: user_order::UserOrderRepository,
 }
 
 impl Repositories {
@@ -44,6 +46,7 @@ impl Repositories {
             proxy_shopping_user: proxy_shopping_user::ProxyShoppingUserRepository::new(pool.clone()),
             proxy_shopping_user_address: proxy_shopping_user_address::ProxyShoppingUserAddressRepository::new(pool.clone()),
             proxy_shopping_user_coupon: proxy_shopping_user_coupon::ProxyShoppingUserCouponRepository::new(pool.clone()),
+            user_order: user_order::UserOrderRepository::new(pool.clone()),
         }
     }
 }

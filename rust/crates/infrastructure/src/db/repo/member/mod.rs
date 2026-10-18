@@ -7,9 +7,13 @@ pub mod member_tag;
 pub mod member_tag_group;
 pub mod shop_member;
 pub mod user;
+pub mod user_address_client;
 pub mod user_center;
 pub mod user_company;
 pub mod user_manage;
+pub mod user_member_tag;
+pub mod user_message;
+pub mod user_message_log;
 pub mod user_points_log;
 pub mod user_rank;
 
@@ -29,6 +33,10 @@ pub struct Repositories {
     pub user_points_log: user_points_log::UserPointsLogRepository,
     pub user_rank: user_rank::UserRankRepository,
     pub shop_member: shop_member::ShopMemberRepository,
+    pub user_address_client: user_address_client::UserAddressRepository,
+    pub user_message: user_message::UserMessageRepository,
+    pub user_member_tag: user_member_tag::UserMemberTagRepository,
+    pub user_message_log: user_message_log::UserMessageLogRepository,
 }
 
 impl Repositories {
@@ -47,6 +55,10 @@ impl Repositories {
             user_points_log: user_points_log::UserPointsLogRepository::new(pool.clone()),
             user_rank: user_rank::UserRankRepository::new(pool.clone()),
             shop_member: shop_member::ShopMemberRepository::new(pool.clone()),
+            user_address_client: user_address_client::UserAddressRepository::new(pool.clone()),
+            user_message: user_message::UserMessageRepository::new(pool.clone()),
+            user_member_tag: user_member_tag::UserMemberTagRepository::new(pool.clone()),
+            user_message_log: user_message_log::UserMessageLogRepository::new(pool.clone()),
         }
     }
 }

@@ -7,6 +7,8 @@ pub mod member_tag_group;
 pub mod shop_member;
 pub mod user_company;
 pub mod user_manage;
+pub mod user_member_tag;
+pub mod user_message_log;
 pub mod user_points_log;
 pub mod user_rank;
 
@@ -25,6 +27,8 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(shop_member::routes(state))
         .merge(user_company::routes(state))
         .merge(user_manage::routes(state))
+        .merge(user_member_tag::routes(state))
+        .merge(user_message_log::routes(state))
         .merge(user_points_log::routes(state))
         .merge(user_rank::routes(state))
 }
@@ -47,6 +51,8 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(shop_member::implemented_routes());
     out.extend(user_company::implemented_routes());
     out.extend(user_manage::implemented_routes());
+    out.extend(user_member_tag::implemented_routes());
+    out.extend(user_message_log::implemented_routes());
     out.extend(user_points_log::implemented_routes());
     out.extend(user_rank::implemented_routes());
     out

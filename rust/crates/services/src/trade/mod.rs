@@ -11,6 +11,7 @@ pub mod proxy_shopping_product;
 pub mod proxy_shopping_user;
 pub mod proxy_shopping_user_address;
 pub mod proxy_shopping_user_coupon;
+pub mod user_order;
 
 use std::sync::Arc;
 
@@ -28,4 +29,5 @@ pub struct Services {
     pub proxy_shopping_user: Arc<proxy_shopping_user::ProxyShoppingUserService>,
     pub proxy_shopping_user_address: Arc<proxy_shopping_user_address::ProxyShoppingUserAddressService>,
     pub proxy_shopping_user_coupon: Arc<proxy_shopping_user_coupon::ProxyShoppingUserCouponService>,
+    pub user_order: Arc<user_order::UserOrderService>,
 }

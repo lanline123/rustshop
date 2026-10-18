@@ -8,6 +8,7 @@ pub mod config_client;
 pub mod csrf;
 pub mod example;
 pub mod files;
+pub mod licensed;
 pub mod log;
 pub mod mail_templates;
 pub mod message_type;
@@ -15,6 +16,7 @@ pub mod pc;
 pub mod region;
 pub mod region_client;
 pub mod tips_manage;
+pub mod util;
 
 use std::sync::Arc;
 
@@ -36,4 +38,6 @@ pub struct Services {
     pub config_basic: Arc<config_basic::ConfigBasicService>,
     pub tips_manage: Arc<tips_manage::TipsManageService>,
     pub log: Arc<log::LogService>,
+    pub licensed: Arc<licensed::LicensedService>,
+    pub util: Arc<util::UtilService>,
 }

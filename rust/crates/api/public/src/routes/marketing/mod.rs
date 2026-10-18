@@ -2,6 +2,7 @@
 
 pub mod buyer_show_client;
 pub mod coupon;
+pub mod gift_card_groups;
 pub mod groupon_promotion;
 pub mod salesman_content;
 pub mod seckill;
@@ -16,6 +17,7 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
         .merge(buyer_show_client::routes(state))
+        .merge(gift_card_groups::routes(state))
         .merge(groupon_promotion::routes(state))
         .merge(salesman_content::routes(state))
 }
@@ -48,6 +50,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     let mut out = Vec::new();
     out.extend(buyer_show_client::implemented_routes());
     out.extend(coupon::implemented_routes());
+    out.extend(gift_card_groups::implemented_routes());
     out.extend(groupon_promotion::implemented_routes());
     out.extend(salesman_content::implemented_routes());
     out.extend(seckill::implemented_routes());

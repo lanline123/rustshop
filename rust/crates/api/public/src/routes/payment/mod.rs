@@ -1,6 +1,7 @@
 //! 商城端 payment 路由。
 
 pub mod balance_pay;
+pub mod pay;
 pub mod paylog;
 pub mod with_draw_apply_client;
 
@@ -12,6 +13,7 @@ use super::super::PublicState;
 pub fn routes(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
+        .merge(pay::routes(state))
         .merge(with_draw_apply_client::routes(state))
 }
 
@@ -39,6 +41,7 @@ pub fn authorized_routes() -> Router<PublicState> {
 pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     let mut out = Vec::new();
     out.extend(balance_pay::implemented_routes());
+    out.extend(pay::implemented_routes());
     out.extend(paylog::implemented_routes());
     out.extend(with_draw_apply_client::implemented_routes());
     out

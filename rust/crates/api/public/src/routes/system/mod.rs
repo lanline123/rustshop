@@ -5,6 +5,7 @@ pub mod csrf;
 pub mod log;
 pub mod pc;
 pub mod region_client;
+pub mod util;
 
 use axum::Router;
 
@@ -17,6 +18,7 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .merge(config_client::routes(state))
         .merge(pc::routes(state))
         .merge(region_client::routes(state))
+        .merge(util::routes(state))
 }
 
 /// 匿名可访问路由（无状态）。
@@ -46,5 +48,6 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(log::implemented_routes());
     out.extend(pc::implemented_routes());
     out.extend(region_client::implemented_routes());
+    out.extend(util::implemented_routes());
     out
 }

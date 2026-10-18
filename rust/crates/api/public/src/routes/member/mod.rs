@@ -2,7 +2,9 @@
 
 pub mod login;
 pub mod member_lists;
+pub mod user_address_client;
 pub mod user_center;
+pub mod user_message;
 
 use axum::Router;
 
@@ -13,7 +15,9 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
         .merge(login::routes(state))
+        .merge(user_address_client::routes(state))
         .merge(user_center::routes(state))
+        .merge(user_message::routes(state))
 }
 
 /// 匿名可访问路由（无状态）。
@@ -41,6 +45,8 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     let mut out = Vec::new();
     out.extend(login::implemented_routes());
     out.extend(member_lists::implemented_routes());
+    out.extend(user_address_client::implemented_routes());
     out.extend(user_center::implemented_routes());
+    out.extend(user_message::implemented_routes());
     out
 }

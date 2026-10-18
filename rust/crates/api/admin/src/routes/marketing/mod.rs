@@ -5,6 +5,8 @@ pub mod buyer_show_comment;
 pub mod buyer_show_group;
 pub mod coupon;
 pub mod coupon_manage;
+pub mod gift_card;
+pub mod gift_card_groups;
 pub mod groupon_promotion;
 pub mod product_style_admin;
 pub mod salesman;
@@ -26,6 +28,8 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(buyer_show_group::routes(state))
         .merge(coupon::routes(state))
         .merge(coupon_manage::routes(state))
+        .merge(gift_card::routes(state))
+        .merge(gift_card_groups::routes(state))
         .merge(groupon_promotion::routes(state))
         .merge(product_style_admin::routes(state))
         .merge(salesman::routes(state))
@@ -50,6 +54,8 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(buyer_show_group::implemented_routes());
     out.extend(coupon::implemented_routes());
     out.extend(coupon_manage::implemented_routes());
+    out.extend(gift_card::implemented_routes());
+    out.extend(gift_card_groups::implemented_routes());
     out.extend(groupon_promotion::implemented_routes());
     out.extend(product_style_admin::implemented_routes());
     out.extend(salesman::implemented_routes());

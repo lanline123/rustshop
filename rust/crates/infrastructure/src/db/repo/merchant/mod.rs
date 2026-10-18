@@ -1,16 +1,23 @@
 //! merchant 领域仓储。
 
+pub mod admin_user_shop;
 pub mod deposit_account;
 pub mod deposit_recharge;
 pub mod deposit_refund;
+pub mod deposit_rule;
+pub mod deposit_shop;
+pub mod merchant;
+pub mod merchant_account;
 pub mod merchant_apply;
 pub mod merchant_client;
 pub mod order_config;
 pub mod shop;
 pub mod shop_client;
 pub mod shop_client_category;
+pub mod shop_funds;
 pub mod shop_manage;
 pub mod shop_product_category;
+pub mod shop_withdraw;
 pub mod vendor_deposit_shop;
 
 use crate::db::DbPool;
@@ -29,6 +36,13 @@ pub struct Repositories {
     pub deposit_account: deposit_account::DepositAccountRepository,
     pub deposit_recharge: deposit_recharge::DepositRechargeRepository,
     pub deposit_refund: deposit_refund::DepositRefundRepository,
+    pub merchant: merchant::MerchantRepository,
+    pub shop_funds: shop_funds::ShopFundsRepository,
+    pub admin_user_shop: admin_user_shop::AdminUserShopRepository,
+    pub merchant_account: merchant_account::MerchantAccountRepository,
+    pub shop_withdraw: shop_withdraw::ShopWithdrawRepository,
+    pub deposit_rule: deposit_rule::DepositRuleRepository,
+    pub deposit_shop: deposit_shop::DepositShopRepository,
 }
 
 impl Repositories {
@@ -47,6 +61,13 @@ impl Repositories {
             deposit_account: deposit_account::DepositAccountRepository::new(pool.clone()),
             deposit_recharge: deposit_recharge::DepositRechargeRepository::new(pool.clone()),
             deposit_refund: deposit_refund::DepositRefundRepository::new(pool.clone()),
+            merchant: merchant::MerchantRepository::new(pool.clone()),
+            shop_funds: shop_funds::ShopFundsRepository::new(pool.clone()),
+            admin_user_shop: admin_user_shop::AdminUserShopRepository::new(pool.clone()),
+            merchant_account: merchant_account::MerchantAccountRepository::new(pool.clone()),
+            shop_withdraw: shop_withdraw::ShopWithdrawRepository::new(pool.clone()),
+            deposit_rule: deposit_rule::DepositRuleRepository::new(pool.clone()),
+            deposit_shop: deposit_shop::DepositShopRepository::new(pool.clone()),
         }
     }
 }

@@ -11,6 +11,7 @@ pub mod member;
 pub mod logistics;
 pub mod content;
 pub mod system;
+pub mod im;
 pub mod analytics;
 pub mod openapi;
 
@@ -33,6 +34,7 @@ pub fn merge_all(state: &AdminState) -> Router<AdminState> {
         .merge(logistics::routes(state))
         .merge(content::routes(state))
         .merge(system::routes(state))
+        .merge(im::routes(state))
         .merge(analytics::routes(state))
         .merge(openapi::routes(state))
 }
@@ -52,6 +54,7 @@ pub fn merge_public(state: &AdminState) -> Router<AdminState> {
         .merge(logistics::public_routes(state))
         .merge(content::public_routes(state))
         .merge(system::public_routes(state))
+        .merge(im::public_routes(state))
         .merge(analytics::public_routes(state))
         .merge(openapi::public_routes(state))
 }
@@ -71,6 +74,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(logistics::implemented_routes());
     out.extend(content::implemented_routes());
     out.extend(system::implemented_routes());
+    out.extend(im::implemented_routes());
     out.extend(analytics::implemented_routes());
     out.extend(openapi::implemented_routes());
     out

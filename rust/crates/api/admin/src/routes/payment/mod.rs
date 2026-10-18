@@ -12,6 +12,8 @@ pub mod refund_log;
 pub mod tax_rate;
 pub mod user_balance_log;
 pub mod user_invoice;
+pub mod user_recharge_order;
+pub mod user_withdraw_apply;
 
 use axum::Router;
 
@@ -33,6 +35,8 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(tax_rate::routes(state))
         .merge(user_balance_log::routes(state))
         .merge(user_invoice::routes(state))
+        .merge(user_recharge_order::routes(state))
+        .merge(user_withdraw_apply::routes(state))
 }
 
 /// 免登录的域路由（对应 Java `URL_WHITELIST`，外层不套 require_auth）。
@@ -57,5 +61,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(tax_rate::implemented_routes());
     out.extend(user_balance_log::implemented_routes());
     out.extend(user_invoice::implemented_routes());
+    out.extend(user_recharge_order::implemented_routes());
+    out.extend(user_withdraw_apply::implemented_routes());
     out
 }

@@ -7,6 +7,7 @@ pub mod credit_user;
 pub mod gateway;
 pub mod merchant_application;
 pub mod order_invoice;
+pub mod pay;
 pub mod paylog;
 pub mod paylog_batch;
 pub mod refund_apply;
@@ -14,6 +15,8 @@ pub mod refund_log;
 pub mod tax_rate;
 pub mod user_balance_log;
 pub mod user_invoice;
+pub mod user_recharge_order;
+pub mod user_withdraw_apply;
 pub mod with_draw_apply_client;
 
 use std::sync::Arc;
@@ -35,4 +38,7 @@ pub struct Services {
     pub credit_settlement: Arc<credit_settlement::CreditSettlementService>,
     pub user_invoice: Arc<user_invoice::UserInvoiceService>,
     pub credit_user: Arc<credit_user::CreditUserService>,
+    pub user_recharge_order: Arc<user_recharge_order::UserRechargeOrderService>,
+    pub user_withdraw_apply: Arc<user_withdraw_apply::UserWithdrawApplyService>,
+    pub pay: Arc<pay::PayService>,
 }

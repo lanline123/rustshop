@@ -6,6 +6,8 @@ pub mod buyer_show_comment;
 pub mod buyer_show_group;
 pub mod coupon;
 pub mod coupon_manage;
+pub mod gift_card;
+pub mod gift_card_groups;
 pub mod groupon_promotion;
 pub mod product_style_admin;
 pub mod salesman;
@@ -31,6 +33,8 @@ pub struct Repositories {
     pub groupon_promotion: groupon_promotion::GrouponPromotionRepository,
     pub coupon_manage: coupon_manage::CouponManageRepository,
     pub salesman_content: salesman_content::SalesmanContentRepository,
+    pub gift_card: gift_card::GiftCardRepository,
+    pub gift_card_groups: gift_card_groups::GiftCardGroupsRepository,
 }
 
 impl Repositories {
@@ -50,6 +54,8 @@ impl Repositories {
             groupon_promotion: groupon_promotion::GrouponPromotionRepository::new(pool.clone()),
             coupon_manage: coupon_manage::CouponManageRepository::new(pool.clone()),
             salesman_content: salesman_content::SalesmanContentRepository::new(pool.clone()),
+            gift_card: gift_card::GiftCardRepository::new(pool.clone()),
+            gift_card_groups: gift_card_groups::GiftCardGroupsRepository::new(pool.clone()),
         }
     }
 }
