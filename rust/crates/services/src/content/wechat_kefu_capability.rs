@@ -15,9 +15,9 @@
 use std::sync::Arc;
 
 use tigshop_core::models::content::wechat_kefu_capability::{
-    WechatKefuCapabilityVO, MSG_PROBE_NOT_MIGRATED,
+    WechatKefuCapabilityVO,
 };
-use tigshop_core::{Error, Result};
+use tigshop_core::Result;
 use tigshop_infrastructure::db::Repositories;
 
 /// 客服消息能力探测服务。
@@ -43,13 +43,23 @@ impl WechatKefuCapabilityService {
     /// 探测客服消息能力（Java `isEnabled()`）。
     ///
     /// # Errors
-    /// 公众号已配置（需微信 RPC 探测）→ 业务错误「未迁移」。
+    /// 配置读取失败；微信接口异常时降级为 `kefuEnabled=false`（同 Java 探测语义）。
     pub async fn capability(&self) -> Result<WechatKefuCapabilityVO> {
         if !self.repo().is_wechat_configured().await? {
             // Java：WxMpServiceHolder.get() == null → enabled = false
             return Ok(WechatKefuCapabilityVO::disabled());
         }
-        Err(Error::biz_msg(MSG_PROBE_NOT_MIGRATED))
+        // 配置齐全：调用微信客服列表探测（网络/接口异常按 Java 探测语义降级为 false）
+        let client = crate::content::wechat_client::WechatClient::from_repos(&self.repos).await?;
+        match client.kf_list().await {
+            Ok(list) => Ok(WechatKefuCapabilityVO {
+                kefu_enabled: !list.is_empty(),
+            }),
+            Err(e) => {
+                tracing::warn!("微信客服能力探测失败，降级 kefuEnabled=false: {e}");
+                Ok(WechatKefuCapabilityVO::disabled())
+            }
+        }
     }
 }
 
@@ -85,7 +95,14 @@ mod tests {
     }
 
     #[test]
-    fn not_migrated_message_branch() {
-        assert!(MSG_PROBE_NOT_MIGRATED.contains("尚未迁移"));
+    fn configured_client_requires_app_id_and_secret() {
+        // 4 个配置项齐全但 appId/secret 为空时，探测分支会返回明确错误（不再返回「未迁移」）
+        let cfg = crate::content::wechat_client::WechatMpConfig {
+            server_token: "t".into(),
+            server_secret: "s".into(),
+            ..Default::default()
+        };
+        assert!(!cfg.is_configured());
+        assert_eq!(cfg.missing(), vec!["wechatAppId", "wechatAppSecret"]);
     }
 }

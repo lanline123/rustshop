@@ -82,11 +82,14 @@ $env:RUST_LOG="info,tigshop=info,sqlx=warn"
 - **v1 未覆盖（后续按需补）**：运费模板（当前运费 0）、秒杀/拼团/满减活动、积分抵扣金额
   （`pointsAmount=0`，仅展示可用积分）、账期/发票/改价/O2O 自提/预售、优惠券店铺范围过滤与多店分摊。
 
-### P0 — 微信生态链路（依赖凭据，但可先写客户端骨架）
+### 🟡 进行中 — 微信生态链路（客户端基础已完成，业务端点待凭据）
 
-视频号直播（房间/推流地址/直播记录）、直播商品库、微信菜单发布、客服能力探测、微信回调解密与自动建单、
-小程序码/公众号授权等，均在 Rust 侧返回「未迁移」（`content/wechat_*`、`api_wechat_live` 等）。
-建议按 `PAYMENT-CHANNELS.md` 的协议骨架方式先补齐 HTTP 客户端 + 签名，凭据到位后联调。
+已完成：`services/src/content/wechat_client.rs`（access_token 缓存、客服列表/客服文本消息、
+小程序 code2session、统一 errcode 处理），客服能力探测已接线
+（`GET /adminapi/wechat/keywordRule/capability` 实测未配置 → `kefuEnabled:false`），见 `WECHAT-CLIENT.md`。
+
+待凭据后接：公众号 OAuth/JSAPI 支付/菜单发布/模板消息/服务器消息验签解密；小程序登录/小程序码/订阅消息；
+视频号直播房间/推流地址/直播记录/直播商品库/订单同步回调解密与自动建单。
 
 ### P1 — 数据与基础设施
 
