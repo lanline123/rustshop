@@ -12,6 +12,7 @@ pub mod mail_templates;
 pub mod message_type;
 pub mod region;
 pub mod tips_manage;
+pub mod verification;
 
 use axum::Router;
 
@@ -40,6 +41,7 @@ pub fn public_routes(state: &AdminState) -> Router<AdminState> {
     Router::new()
         .merge(config_basic::public_routes(state))
         .merge(csrf::public_routes(state))
+        .merge(verification::public_routes(state))
 }
 
 /// 本域已实现路由（覆盖率统计用）。

@@ -1,5 +1,6 @@
 //! 用例服务层（按限界上下文分组）。
 
+pub mod captcha;
 pub mod identity;
 pub mod merchant;
 pub mod wholesale;

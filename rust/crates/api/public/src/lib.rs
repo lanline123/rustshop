@@ -242,7 +242,21 @@ async fn user_login(
     State(state): State<PublicState>,
     Json(dto): Json<LoginDTO>,
 ) -> Result<Json<ApiResponse<LoginVO>>, AppError> {
-    let user = state.member.user.login(&dto.username, &dto.password).await?;
+    // C 端登录与 Java `ClientLoginFilter` 一致：失败次数达到阈值后要求滑块验证码。
+    tigshop_services::captcha::validate_login_captcha(
+        &dto.username,
+        dto.captcha_verification.as_deref(),
+    )?;
+    let user = match state.member.user.login(&dto.username, &dto.password).await {
+        Ok(user) => {
+            tigshop_services::captcha::reset_login_error(&dto.username);
+            user
+        }
+        Err(e) => {
+            tigshop_services::captcha::increment_login_error(&dto.username);
+            return Err(AppError(e));
+        }
+    };
     let user_id = user.user_id;
     let username = user.display_name();
     let (access, refresh, expires_in) =

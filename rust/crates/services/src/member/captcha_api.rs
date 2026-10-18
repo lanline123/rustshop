@@ -1,9 +1,8 @@
-//! 行为验证码服务（member::captcha_api）。AJ-Captcha 未迁移，统一明确 1001 错误。
-
+//! 行为验证码服务（member::captcha_api）：委托 `tigshop_services::captcha` 实现。
 use std::sync::Arc;
 
 use tigshop_core::models::member::captcha_api::{
-    CaptchaDTO, CaptchaVO, CAPTCHA_NOT_MIGRATED, SERVICE_DATA_ERROR, VERIFY_TOKEN_REQUIRED,
+    validate_check_params, CaptchaDTO, CaptchaVO, VERIFY_TOKEN_REQUIRED,
 };
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::Repositories;
@@ -20,38 +19,42 @@ impl CaptchaService {
         Self { repos }
     }
 
-    /// `POST /api/common/verification/captcha`（未迁移）。
+    /// `POST/GET /api/common/verification/captcha`：生成滑块验证码。
     pub fn captcha(&self) -> Result<CaptchaVO> {
-        Err(Error::biz(SERVICE_DATA_ERROR, CAPTCHA_NOT_MIGRATED))
+        crate::captcha::new_captcha()
     }
 
-    /// `POST /api/common/verification/get`（废弃端点，未迁移）。
+    /// `POST /api/common/verification/get`（废弃端点，等价 captcha）。
     pub fn get(&self) -> Result<CaptchaVO> {
-        Err(Error::biz(SERVICE_DATA_ERROR, CAPTCHA_NOT_MIGRATED))
+        crate::captcha::new_captcha()
     }
 
-    /// `POST /api/common/verification/check`：本地校验后明确未迁移。
+    /// `POST /api/common/verification/check`：校验滑块坐标。
     pub fn check(&self, dto: &CaptchaDTO) -> Result<bool> {
-        if !tigshop_core::models::member::captcha_api::validate_verify_token(dto) {
-            return Err(Error::biz(SERVICE_DATA_ERROR, VERIFY_TOKEN_REQUIRED));
+        if !validate_check_params(dto) {
+            return Err(Error::biz(1001, VERIFY_TOKEN_REQUIRED));
         }
-        Err(Error::biz(SERVICE_DATA_ERROR, CAPTCHA_NOT_MIGRATED))
+        let token = dto.token.as_deref().unwrap_or_default();
+        let point_json = dto.point_json.as_deref().unwrap_or_default();
+        crate::captcha::check_captcha(token, point_json)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use tigshop_core::models::member::captcha_api::CaptchaDTO;
-    use tigshop_core::Error;
-
     #[test]
-    fn check_requires_token_before_not_migrated() {
-        // 通过构造一个空 repos 不可行（无 DB）；这里仅校验常量语义。
-        assert_eq!(VERIFY_TOKEN_REQUIRED, "验证码不能为空");
-        let dto = CaptchaDTO::default();
-        assert!(!tigshop_core::models::member::captcha_api::validate_verify_token(&dto));
-        let err = Error::biz(SERVICE_DATA_ERROR, CAPTCHA_NOT_MIGRATED);
-        assert!(err.to_string().contains("未迁移"));
+    fn captcha_generation_is_protocol_compatible() {
+        let vo = crate::captcha::new_captcha().expect("生成验证码");
+        assert_eq!(vo.captcha_type.as_deref(), Some("blockPuzzle"));
+        assert_eq!(vo.secret_key.as_ref().map(String::len), Some(16));
+        assert!(vo.token.as_deref().is_some_and(|t| !t.is_empty()));
+        assert!(vo
+            .original_image_base64
+            .as_deref()
+            .is_some_and(|s| !s.is_empty()));
+        assert!(vo
+            .jigsaw_image_base64
+            .as_deref()
+            .is_some_and(|s| !s.is_empty()));
     }
 }

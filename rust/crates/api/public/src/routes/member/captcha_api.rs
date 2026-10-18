@@ -1,10 +1,9 @@
 //! 商城前台行为验证码路由（member::captcha_api）。
 //! Java `com.tigshop.api.controller.user.CaptchaApiController`（3 匿名端点）。
 //! 匿名白名单：注册在 `anonymous_routes`（需要 state，但不套 require_auth）。
-
 use axum::{
     extract::State,
-    routing::post,
+    routing::{get, post},
     Json, Router,
 };
 use tigshop_core::models::member::captcha_api::{CaptchaDTO, CaptchaVO};
@@ -22,8 +21,11 @@ const ROUTE_TABLE: [(&str, &str, &str); 3] = [
 pub fn anonymous_routes(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
-        .route("/common/verification/captcha", post(captcha))
-        .route("/common/verification/get", post(get))
+        .route(
+            "/common/verification/captcha",
+            get(captcha_get).post(captcha),
+        )
+        .route("/common/verification/get", get(captcha_get).post(get_compat))
         .route("/common/verification/check", post(check))
 }
 
@@ -39,7 +41,12 @@ async fn captcha(State(state): State<PublicState>) -> ApiResult<CaptchaVO> {
     ok(state.member.captcha_api.captcha()?)
 }
 
-async fn get(State(state): State<PublicState>) -> ApiResult<CaptchaVO> {
+/// 前端滑块组件使用 GET 获取验证码（契约只登记 POST，此处两种方法都支持）。
+async fn captcha_get(State(state): State<PublicState>) -> ApiResult<CaptchaVO> {
+    ok(state.member.captcha_api.get()?)
+}
+
+async fn get_compat(State(state): State<PublicState>) -> ApiResult<CaptchaVO> {
     ok(state.member.captcha_api.get()?)
 }
 

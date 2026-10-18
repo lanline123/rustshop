@@ -10,8 +10,9 @@ pub struct LoginDTO {
     pub username: String,
     #[validate(length(min = 6, max = 64, message = "密码长度须在6-64之间"))]
     pub password: String,
-    /// 滑块验证码 token（AJ-Captcha）
-    #[serde(rename = "captchaVerification", default)]
+    /// 滑块验证码校验串（AJ-Captcha）。
+    /// 前端登录失败后会带 `verifyToken`（部分页面用 `captchaVerification`）。
+    #[serde(rename = "captchaVerification", alias = "verifyToken", default)]
     pub captcha_verification: Option<String>,
 }
 
