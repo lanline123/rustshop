@@ -1,5 +1,6 @@
 //! system 领域仓储。
 
+pub mod admin_msg;
 pub mod app_version_admin;
 pub mod area_code;
 pub mod cache_manage;
@@ -37,6 +38,7 @@ pub struct Repositories {
     pub tips_manage: tips_manage::TipsManageRepository,
     pub licensed: licensed::LicensedRepository,
     pub util: util::UtilRepository,
+    pub admin_msg: admin_msg::AdminMsgRepository,
 }
 
 impl Repositories {
@@ -59,6 +61,7 @@ impl Repositories {
             tips_manage: tips_manage::TipsManageRepository::new(pool.clone()),
             licensed: licensed::LicensedRepository::new(pool.clone()),
             util: util::UtilRepository::new(pool.clone()),
+            admin_msg: admin_msg::AdminMsgRepository::new(pool.clone()),
         }
     }
 }

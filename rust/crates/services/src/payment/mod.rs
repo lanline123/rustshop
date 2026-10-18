@@ -10,8 +10,10 @@ pub mod order_invoice;
 pub mod pay;
 pub mod paylog;
 pub mod paylog_batch;
+pub mod profit_sharing;
 pub mod refund_apply;
 pub mod refund_log;
+pub mod sub_merchant;
 pub mod tax_rate;
 pub mod user_balance_log;
 pub mod user_invoice;
@@ -41,4 +43,6 @@ pub struct Services {
     pub user_recharge_order: Arc<user_recharge_order::UserRechargeOrderService>,
     pub user_withdraw_apply: Arc<user_withdraw_apply::UserWithdrawApplyService>,
     pub pay: Arc<pay::PayService>,
+    pub sub_merchant: Arc<sub_merchant::SubMerchantService>,
+    pub profit_sharing: Arc<profit_sharing::ProfitSharingService>,
 }

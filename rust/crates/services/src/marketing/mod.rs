@@ -9,10 +9,15 @@ pub mod coupon_manage;
 pub mod gift_card;
 pub mod gift_card_groups;
 pub mod groupon_promotion;
+pub mod groupon_promotion_item;
+pub mod lottery_activity;
+pub mod product_promotion;
 pub mod product_style_admin;
 pub mod salesman;
+pub mod salesman_admin;
 pub mod salesman_content;
 pub mod salesman_material_category;
+pub mod salesman_product;
 pub mod seckill;
 pub mod time_discount;
 
@@ -36,4 +41,9 @@ pub struct Services {
     pub salesman_content: Arc<salesman_content::SalesmanContentService>,
     pub gift_card: Arc<gift_card::GiftCardService>,
     pub gift_card_groups: Arc<gift_card_groups::GiftCardGroupsService>,
+    pub salesman_admin: Arc<salesman_admin::SalesmanAdminService>,
+    pub lottery_activity: Arc<lottery_activity::LotteryActivityService>,
+    pub salesman_product: Arc<salesman_product::SalesmanProductService>,
+    pub product_promotion: Arc<product_promotion::ProductPromotionService>,
+    pub groupon_promotion_item: Arc<groupon_promotion_item::GrouponPromotionItemService>,
 }

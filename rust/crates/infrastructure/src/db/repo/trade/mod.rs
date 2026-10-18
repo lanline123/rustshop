@@ -3,8 +3,10 @@
 pub mod aftersales;
 pub mod aftersales_client;
 pub mod cart;
+pub mod check;
 pub mod order;
 pub mod order_admin;
+pub mod proxy_shopping_cart;
 pub mod proxy_shopping_order_check;
 pub mod proxy_shopping_pickup_contact;
 pub mod proxy_shopping_product;
@@ -29,6 +31,8 @@ pub struct Repositories {
     pub proxy_shopping_user_address: proxy_shopping_user_address::ProxyShoppingUserAddressRepository,
     pub proxy_shopping_user_coupon: proxy_shopping_user_coupon::ProxyShoppingUserCouponRepository,
     pub user_order: user_order::UserOrderRepository,
+    pub proxy_shopping_cart: proxy_shopping_cart::ProxyShoppingCartRepository,
+    pub check: check::CheckRepository,
 }
 
 impl Repositories {
@@ -47,6 +51,8 @@ impl Repositories {
             proxy_shopping_user_address: proxy_shopping_user_address::ProxyShoppingUserAddressRepository::new(pool.clone()),
             proxy_shopping_user_coupon: proxy_shopping_user_coupon::ProxyShoppingUserCouponRepository::new(pool.clone()),
             user_order: user_order::UserOrderRepository::new(pool.clone()),
+            proxy_shopping_cart: proxy_shopping_cart::ProxyShoppingCartRepository::new(pool.clone()),
+            check: check::CheckRepository::new(pool.clone()),
         }
     }
 }

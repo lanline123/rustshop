@@ -3,8 +3,10 @@
 pub mod aftersales;
 pub mod aftersales_client;
 pub mod cart;
+pub mod check;
 pub mod order;
 pub mod order_admin;
+pub mod proxy_shopping_cart;
 pub mod proxy_shopping_order_check;
 pub mod proxy_shopping_pickup_contact;
 pub mod proxy_shopping_product;
@@ -30,4 +32,6 @@ pub struct Services {
     pub proxy_shopping_user_address: Arc<proxy_shopping_user_address::ProxyShoppingUserAddressService>,
     pub proxy_shopping_user_coupon: Arc<proxy_shopping_user_coupon::ProxyShoppingUserCouponService>,
     pub user_order: Arc<user_order::UserOrderService>,
+    pub proxy_shopping_cart: Arc<proxy_shopping_cart::ProxyShoppingCartService>,
+    pub check: Arc<check::CheckService>,
 }

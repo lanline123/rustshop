@@ -2,6 +2,7 @@
 
 pub mod aftersales;
 pub mod order_admin;
+pub mod proxy_shopping_cart;
 pub mod proxy_shopping_order_check;
 pub mod proxy_shopping_pickup_contact;
 pub mod proxy_shopping_product;
@@ -19,6 +20,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
     Router::new()
         .merge(aftersales::routes(state))
         .merge(order_admin::routes(state))
+        .merge(proxy_shopping_cart::routes(state))
         .merge(proxy_shopping_order_check::routes(state))
         .merge(proxy_shopping_pickup_contact::routes(state))
         .merge(proxy_shopping_product::routes(state))
@@ -39,6 +41,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     let mut out = Vec::new();
     out.extend(aftersales::implemented_routes());
     out.extend(order_admin::implemented_routes());
+    out.extend(proxy_shopping_cart::implemented_routes());
     out.extend(proxy_shopping_order_check::implemented_routes());
     out.extend(proxy_shopping_pickup_contact::implemented_routes());
     out.extend(proxy_shopping_product::implemented_routes());

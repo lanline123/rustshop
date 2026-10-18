@@ -1,5 +1,6 @@
 //! system 领域服务。
 
+pub mod admin_msg;
 pub mod app_version_admin;
 pub mod area_code;
 pub mod cache_manage;
@@ -40,4 +41,5 @@ pub struct Services {
     pub log: Arc<log::LogService>,
     pub licensed: Arc<licensed::LicensedService>,
     pub util: Arc<util::UtilService>,
+    pub admin_msg: Arc<admin_msg::AdminMsgService>,
 }

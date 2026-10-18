@@ -1,5 +1,6 @@
 //! 管理端 system 路由。
 
+pub mod admin_msg;
 pub mod app_version_admin;
 pub mod area_code;
 pub mod cache_manage;
@@ -20,6 +21,7 @@ use super::super::AdminState;
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new()
+        .merge(admin_msg::routes(state))
         .merge(app_version_admin::routes(state))
         .merge(area_code::routes(state))
         .merge(cache_manage::routes(state))
@@ -44,6 +46,7 @@ pub fn public_routes(state: &AdminState) -> Router<AdminState> {
 #[must_use]
 pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     let mut out = Vec::new();
+    out.extend(admin_msg::implemented_routes());
     out.extend(app_version_admin::implemented_routes());
     out.extend(area_code::implemented_routes());
     out.extend(cache_manage::implemented_routes());

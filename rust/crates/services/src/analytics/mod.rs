@@ -1,5 +1,6 @@
 //! analytics 领域服务。
 
+pub mod panel;
 pub mod statistics;
 
 use std::sync::Arc;
@@ -8,4 +9,5 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct Services {
     pub statistics: Arc<statistics::StatisticsService>,
+    pub panel: Arc<panel::PanelService>,
 }

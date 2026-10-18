@@ -8,8 +8,10 @@ pub mod order_invoice;
 pub mod pay;
 pub mod paylog;
 pub mod paylog_batch;
+pub mod profit_sharing;
 pub mod refund_apply;
 pub mod refund_log;
+pub mod sub_merchant;
 pub mod tax_rate;
 pub mod user_balance_log;
 pub mod user_invoice;
@@ -37,6 +39,8 @@ pub struct Repositories {
     pub user_recharge_order: user_recharge_order::UserRechargeOrderRepository,
     pub user_withdraw_apply: user_withdraw_apply::UserWithdrawApplyRepository,
     pub pay: pay::PayRepository,
+    pub sub_merchant: sub_merchant::SubMerchantRepository,
+    pub profit_sharing: profit_sharing::ProfitSharingRepository,
 }
 
 impl Repositories {
@@ -59,6 +63,8 @@ impl Repositories {
             user_recharge_order: user_recharge_order::UserRechargeOrderRepository::new(pool.clone()),
             user_withdraw_apply: user_withdraw_apply::UserWithdrawApplyRepository::new(pool.clone()),
             pay: pay::PayRepository::new(pool.clone()),
+            sub_merchant: sub_merchant::SubMerchantRepository::new(pool.clone()),
+            profit_sharing: profit_sharing::ProfitSharingRepository::new(pool.clone()),
         }
     }
 }

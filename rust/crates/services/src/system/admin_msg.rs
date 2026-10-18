@@ -1,0 +1,192 @@
+//! 后台消息域服务（system::admin_msg）。
+//!
+//! 构造 `pub fn new(repos: Arc<Repositories>) -> Self`；仓储访问为**嵌套**命名：
+//! `self.repos.system.admin_msg.<method>()`。对应 Java `AdminMsgServiceImpl`。
+//!
+//! # 已实现
+//! `list`（身份可见性 + msgType + title LIKE + 排序）、`msgTypeArr`（分类树 + 未读累加）、
+//! `homeSummary`（未读总数 + 最新一条）、`setReaded`、`setAllReaded`。
+//!
+//! # 未迁移 / 简化
+//! - `msgCount`：Java 为 SSE 长连接实时推送角标；Rust 未接入 SSE → 明确 1001 业务错误。
+//! - `broadcastList`：复用 `list` 的可见性与分页口径；订单/商品摘要聚合
+//!   （`BroadcastProductVO`/金额汇总）未迁移，返回基础字段 + 空 products / 0 金额。
+//! - `related_data` 的默认 route 补全（`applyDefaultRoute`）未迁移：仅透传已存在 route。
+//! - 身份可见性来自 JWT `admin_type` + 查询参数 `shopId`/`vendorId` 兜底。
+
+use std::sync::Arc;
+
+use tigshop_core::models::system::admin_msg::{
+    build_type_tree, format_time, AdminMsgBroadcastVO, AdminMsgListQuery, AdminMsgTypeListVO,
+    AdminMsgVO, HomeMsgLatestVO, HomeMsgSummaryVO, MsgScope, SERVICE_DATA_ERROR,
+};
+use tigshop_core::types::{PageQuery, PageResult};
+use tigshop_core::{Error, Result};
+use tigshop_infrastructure::db::repo::system::admin_msg::{AdminMsgRepository, AdminMsgRow};
+use tigshop_infrastructure::db::Repositories;
+
+/// 后台消息域服务。
+pub struct AdminMsgService {
+    repos: Arc<Repositories>,
+}
+
+impl AdminMsgService {
+    #[must_use]
+    pub fn new(repos: Arc<Repositories>) -> Self {
+        Self { repos }
+    }
+
+    #[must_use]
+    pub fn repo(&self) -> &AdminMsgRepository {
+        &self.repos.system.admin_msg
+    }
+
+    /// `GET /adminapi/msg/adminMsg/msgCount`（**未迁移**：Java SSE 实时推送）。
+    pub fn msg_count(&self) -> Result<()> {
+        Err(Error::biz(
+            SERVICE_DATA_ERROR,
+            "消息角标实时推送（SSE）未迁移：Java AdminMsgController#getMsgCount 为 SseEmitter 长连接",
+        ))
+    }
+
+    /// `GET /adminapi/msg/adminMsg/msgTypeArr`：分类树 + 未读数。
+    pub async fn msg_type_arr(&self, scope: MsgScope) -> Result<Vec<AdminMsgTypeListVO>> {
+        let rows = self.repo().unread_by_type(scope).await?;
+        let unread: std::collections::HashMap<i32, i32> = rows
+            .into_iter()
+            .map(|(t, n)| (t, i32::try_from(n).unwrap_or(0)))
+            .collect();
+        Ok(build_type_tree(scope.is_vendor(), &unread))
+    }
+
+    /// `GET /adminapi/msg/adminMsg/list`：消息分页。
+    pub async fn list(
+        &self,
+        scope: MsgScope,
+        q: &AdminMsgListQuery,
+    ) -> Result<PageResult<AdminMsgVO>> {
+        let (total, rows) = self.repo().paginate(scope, q).await?;
+        let (page, size) = q.page_params();
+        let list = rows.iter().map(to_vo).collect();
+        Ok(PageResult::new(
+            total,
+            list,
+            &PageQuery {
+                page,
+                page_size: size,
+            },
+        ))
+    }
+
+    /// `GET /adminapi/msg/adminMsg/broadcastList`（商品摘要未迁移）。
+    pub async fn broadcast_list(
+        &self,
+        scope: MsgScope,
+        q: &AdminMsgListQuery,
+    ) -> Result<PageResult<AdminMsgBroadcastVO>> {
+        let (total, rows) = self.repo().paginate(scope, q).await?;
+        let (page, size) = q.page_params();
+        let list = rows
+            .iter()
+            .map(|r| AdminMsgBroadcastVO {
+                msg_id: r.msg_id,
+                msg_type: r.msg_type,
+                msg_type_name: tigshop_core::models::system::admin_msg::msg_type_name(r.msg_type)
+                    .to_string(),
+                send_time: format_time(Some(r.send_time)),
+                title: r.title.clone(),
+                content: r.content.clone(),
+                msg_link: r.msg_link.clone(),
+                products: Vec::new(),
+                total_amount: "0".to_string(),
+                refund_amount: "0".to_string(),
+            })
+            .collect();
+        Ok(PageResult::new(
+            total,
+            list,
+            &PageQuery {
+                page,
+                page_size: size,
+            },
+        ))
+    }
+
+    /// `GET /adminapi/msg/adminMsg/homeSummary`：未读总数 + 最新一条。
+    pub async fn home_summary(&self, scope: MsgScope) -> Result<HomeMsgSummaryVO> {
+        let tree = self.msg_type_arr(scope).await?;
+        let unread_count = tree.iter().map(|t| t.unread_count).sum();
+        let latest = self.repo().latest(scope).await?.map(|r| HomeMsgLatestVO {
+            msg_id: r.msg_id,
+            msg_type: r.msg_type,
+            type_name: tigshop_core::models::system::admin_msg::msg_type_name(r.msg_type)
+                .to_string(),
+            title: r.title.clone(),
+            send_time: Some(format_time(Some(r.send_time))),
+        });
+        Ok(HomeMsgSummaryVO {
+            unread_count,
+            latest_message: latest,
+        })
+    }
+
+    /// `POST /adminapi/msg/adminMsg/setReaded`：单条已读。
+    pub async fn set_readed(&self, msg_id: Option<i32>) -> Result<bool> {
+        let msg_id = msg_id.ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "msgId不能为空"))?;
+        self.repo().set_readed(msg_id).await
+    }
+
+    /// `POST /adminapi/msg/adminMsg/setAllReaded`：全部已读。
+    pub async fn set_all_readed(&self, scope: MsgScope) -> Result<u64> {
+        self.repo().set_all_readed(scope).await
+    }
+}
+
+/// 行 → 列表 VO（Java `BeanUtils.copyProperties` + 类型名/route/时间）。
+fn to_vo(row: &AdminMsgRow) -> AdminMsgVO {
+    let related_data: Option<serde_json::Value> = row
+        .related_data
+        .as_deref()
+        .and_then(|s| serde_json::from_str(s).ok());
+    let route = related_data
+        .as_ref()
+        .and_then(|v| v.get("route"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string);
+    AdminMsgVO {
+        msg_id: row.msg_id,
+        msg_type: row.msg_type,
+        msg_type_name: tigshop_core::models::system::admin_msg::msg_type_name(row.msg_type)
+            .to_string(),
+        route,
+        send_time: format_time(Some(row.send_time)),
+        is_readed: row.is_readed,
+        shop_id: row.shop_id,
+        admin_id: row.admin_id,
+        order_id: row.order_id,
+        product_id: row.product_id,
+        title: row.title.clone(),
+        content: row.content.clone(),
+        msg_link: row.msg_link.clone(),
+        related_data,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tigshop_core::models::system::admin_msg::{msg_type_name, MsgScope};
+
+    #[test]
+    fn scope_flags_match_identity_model() {
+        assert!(MsgScope::Shop { shop_id: 0, platform: true }.is_platform());
+        assert!(MsgScope::Vendor { vendor_id: 1 }.is_vendor());
+        assert!(!MsgScope::Shop { shop_id: 1, platform: false }.is_vendor());
+    }
+
+    #[test]
+    fn msg_type_names_are_java_verbatim() {
+        assert_eq!(msg_type_name(11), "新订单");
+        assert_eq!(msg_type_name(44), "保证金预警");
+    }
+}

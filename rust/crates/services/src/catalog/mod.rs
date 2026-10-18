@@ -14,6 +14,8 @@ pub mod product_batch;
 pub mod product_group;
 pub mod product_inventory_log;
 pub mod product_manage;
+pub mod product_manage_client;
+pub mod product_manage_extra;
 pub mod product_search;
 pub mod product_stock;
 pub mod search_admin;
@@ -46,4 +48,6 @@ pub struct Services {
     pub product_search: Arc<product_search::ProductSearchService>,
     pub services: Arc<services::ServicesService>,
     pub exchange: Arc<exchange::ExchangeService>,
+    pub product_manage_extra: Arc<product_manage_extra::ProductManageExtraService>,
+    pub product_manage_client: Arc<product_manage_client::ProductManageClientService>,
 }

@@ -9,10 +9,15 @@ pub mod coupon_manage;
 pub mod gift_card;
 pub mod gift_card_groups;
 pub mod groupon_promotion;
+pub mod groupon_promotion_item;
+pub mod lottery_activity;
+pub mod product_promotion;
 pub mod product_style_admin;
 pub mod salesman;
+pub mod salesman_admin;
 pub mod salesman_content;
 pub mod salesman_material_category;
+pub mod salesman_product;
 pub mod seckill;
 pub mod time_discount;
 
@@ -35,6 +40,11 @@ pub struct Repositories {
     pub salesman_content: salesman_content::SalesmanContentRepository,
     pub gift_card: gift_card::GiftCardRepository,
     pub gift_card_groups: gift_card_groups::GiftCardGroupsRepository,
+    pub salesman_admin: salesman_admin::SalesmanAdminRepository,
+    pub lottery_activity: lottery_activity::LotteryActivityRepository,
+    pub salesman_product: salesman_product::SalesmanProductRepository,
+    pub product_promotion: product_promotion::ProductPromotionRepository,
+    pub groupon_promotion_item: groupon_promotion_item::GrouponPromotionItemRepository,
 }
 
 impl Repositories {
@@ -56,6 +66,11 @@ impl Repositories {
             salesman_content: salesman_content::SalesmanContentRepository::new(pool.clone()),
             gift_card: gift_card::GiftCardRepository::new(pool.clone()),
             gift_card_groups: gift_card_groups::GiftCardGroupsRepository::new(pool.clone()),
+            salesman_admin: salesman_admin::SalesmanAdminRepository::new(pool.clone()),
+            lottery_activity: lottery_activity::LotteryActivityRepository::new(pool.clone()),
+            salesman_product: salesman_product::SalesmanProductRepository::new(pool.clone()),
+            product_promotion: product_promotion::ProductPromotionRepository::new(pool.clone()),
+            groupon_promotion_item: groupon_promotion_item::GrouponPromotionItemRepository::new(pool.clone()),
         }
     }
 }

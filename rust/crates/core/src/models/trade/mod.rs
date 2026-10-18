@@ -2,8 +2,10 @@
 
 pub mod aftersales;
 pub mod aftersales_client;
+pub mod check;
 pub mod order;
 pub mod order_admin;
+pub mod proxy_shopping_cart;
 pub mod proxy_shopping_order_check;
 pub mod proxy_shopping_pickup_contact;
 pub mod proxy_shopping_product;

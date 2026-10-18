@@ -2,14 +2,17 @@
 
 pub mod article;
 pub mod decorate;
+pub mod friend_links;
 pub mod gallery;
 pub mod gallery_pic;
+pub mod gallery_video;
 pub mod home;
 pub mod mobile_cat_nav;
 pub mod pc_cat_floor;
 pub mod pc_navigation;
 pub mod seo;
 pub mod share;
+pub mod wechat_auto_reply;
 pub mod wechat_live;
 pub mod wechat_live_sync_callback;
 
@@ -29,6 +32,9 @@ pub struct Repositories {
     pub wechat_live: wechat_live::WechatLiveRepository,
     pub gallery: gallery::GalleryRepository,
     pub gallery_pic: gallery_pic::GalleryPicRepository,
+    pub friend_links: friend_links::FriendLinksRepository,
+    pub gallery_video: gallery_video::GalleryVideoRepository,
+    pub wechat_auto_reply: wechat_auto_reply::WechatAutoReplyRepository,
 }
 
 impl Repositories {
@@ -47,6 +53,9 @@ impl Repositories {
             wechat_live: wechat_live::WechatLiveRepository::new(pool.clone()),
             gallery: gallery::GalleryRepository::new(pool.clone()),
             gallery_pic: gallery_pic::GalleryPicRepository::new(pool.clone()),
+            friend_links: friend_links::FriendLinksRepository::new(pool.clone()),
+            gallery_video: gallery_video::GalleryVideoRepository::new(pool.clone()),
+            wechat_auto_reply: wechat_auto_reply::WechatAutoReplyRepository::new(pool.clone()),
         }
     }
 }

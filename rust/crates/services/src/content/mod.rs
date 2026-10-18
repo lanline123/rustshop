@@ -2,14 +2,17 @@
 
 pub mod article;
 pub mod decorate;
+pub mod friend_links;
 pub mod gallery;
 pub mod gallery_pic;
+pub mod gallery_video;
 pub mod home;
 pub mod mobile_cat_nav;
 pub mod pc_cat_floor;
 pub mod pc_navigation;
 pub mod seo;
 pub mod share;
+pub mod wechat_auto_reply;
 pub mod wechat_live;
 pub mod wechat_live_sync_callback;
 
@@ -30,4 +33,7 @@ pub struct Services {
     pub wechat_live: Arc<wechat_live::WechatLiveService>,
     pub gallery: Arc<gallery::GalleryService>,
     pub gallery_pic: Arc<gallery_pic::GalleryPicService>,
+    pub friend_links: Arc<friend_links::FriendLinksService>,
+    pub gallery_video: Arc<gallery_video::GalleryVideoService>,
+    pub wechat_auto_reply: Arc<wechat_auto_reply::WechatAutoReplyService>,
 }

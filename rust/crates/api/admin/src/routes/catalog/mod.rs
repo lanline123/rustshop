@@ -12,6 +12,8 @@ pub mod product_batch;
 pub mod product_group;
 pub mod product_inventory_log;
 pub mod product_manage;
+pub mod product_manage_client;
+pub mod product_manage_extra;
 pub mod product_stock;
 pub mod search_admin;
 pub mod services;
@@ -37,6 +39,8 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(product_group::routes(state))
         .merge(product_inventory_log::routes(state))
         .merge(product_manage::routes(state))
+        .merge(product_manage_client::routes(state))
+        .merge(product_manage_extra::routes(state))
         .merge(product_stock::routes(state))
         .merge(search_admin::routes(state))
         .merge(services::routes(state))
@@ -65,6 +69,8 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(product_group::implemented_routes());
     out.extend(product_inventory_log::implemented_routes());
     out.extend(product_manage::implemented_routes());
+    out.extend(product_manage_client::implemented_routes());
+    out.extend(product_manage_extra::implemented_routes());
     out.extend(product_stock::implemented_routes());
     out.extend(search_admin::implemented_routes());
     out.extend(services::implemented_routes());
