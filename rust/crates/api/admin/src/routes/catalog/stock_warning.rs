@@ -47,15 +47,10 @@ use axum::{
     Extension, Json, Router,
 };
 use serde::Deserialize;
-use tigshop_core::models::catalog::stock_warning::{
-    StockWarningBatchResultVO, StockWarningBatchSaveDTO, StockWarningExcelVO,
-    StockWarningExportQuery, StockWarningImportErrorRow, StockWarningImportResultVO,
-    StockWarningListQuery, StockWarningPageVO, StockWarningSaveDTO, StockWarningSettingSaveDTO,
-    StockWarningSettingVO,
-};
+use tigshop_core::models::catalog::stock_warning::{StockWarningBatchResultVO, StockWarningBatchSaveDTO, StockWarningExcelVO, StockWarningExportQuery, StockWarningImportErrorRow, StockWarningImportResultVO, StockWarningImportRow, StockWarningListQuery, StockWarningPageVO, StockWarningSaveDTO, StockWarningSettingSaveDTO, StockWarningSettingVO};
 use tigshop_core::types::PageResult;
 use tigshop_core::{Error, Result};
-use tigshop_security::web::{ok, ApiResult, AuthUser};
+use tigshop_security::web::{ApiResult, AppError, AuthUser, ok};
 use tigshop_services::catalog::stock_warning::{resolve_shop_id, ImportFile};
 
 use crate::AdminState;
@@ -295,9 +290,34 @@ async fn stock_warning_export(
     Extension(auth): Extension<AuthUser>,
     headers: HeaderMap,
     Query(mut query): Query<StockWarningExportQuery>,
-) -> ApiResult<Vec<StockWarningExcelVO>> {
+) -> std::result::Result<axum::response::Response, AppError> {
     query.shop_id = Some(resolve_request_shop(&headers, &auth, query.shop_id)?);
-    ok(state.catalog.stock_warning.export(&query).await?)
+    let rows = state.catalog.stock_warning.export(&query).await?;
+    let headers = [
+        "商品名称", "规格", "商品编码", "SKU编码", "仓库", "实时库存", "在途库存",
+        "库存下限", "库存上限", "库存状态", "库存预警", "相关商品数",
+    ];
+    let data: Vec<Vec<String>> = rows
+        .iter()
+        .map(|r| {
+            vec![
+                r.product_name.clone(),
+                r.product_sku_name.clone(),
+                r.product_sn.clone().unwrap_or_default(),
+                r.sku_sn.clone().unwrap_or_default(),
+                r.shop_name.clone(),
+                r.current_stock.to_string(),
+                r.transit_stock.to_string(),
+                r.lower_limit.clone(),
+                r.upper_limit.clone(),
+                r.stock_status_name.clone().unwrap_or_default(),
+                r.warn_enabled_name.clone(),
+                r.related_product_count.to_string(),
+            ]
+        })
+        .collect();
+    let bytes = tigshop_services::system::excel::build_xlsx(&headers, &data, "库存预警")?;
+    Ok(crate::excel_response::xlsx_response(bytes, "stock_warning.xlsx"))
 }
 
 // ——————————————————————————————————————————————
@@ -312,8 +332,14 @@ async fn stock_warning_export(
 /// 改为返回列定义 JSON，供前端或运维据此生成模板。
 async fn stock_warning_download_template(
     State(state): State<AdminState>,
-) -> ApiResult<serde_json::Value> {
-    ok(state.catalog.stock_warning.download_template())
+) -> std::result::Result<axum::response::Response, AppError> {
+    let _ = &state;
+    let headers = ["商品编码", "SKU编码", "下限", "上限"];
+    let bytes = tigshop_services::system::excel::build_xlsx(&headers, &[], "库存预警导入模板")?;
+    Ok(crate::excel_response::xlsx_response(
+        bytes,
+        "stock_warning_template.xlsx",
+    ))
 }
 
 /// `POST /adminapi/product/stockWarning/import`：导入库存预警配置。
@@ -331,12 +357,49 @@ async fn stock_warning_import(
     mut multipart: Multipart,
 ) -> ApiResult<StockWarningImportResultVO> {
     let (file, form_shop_id) = read_upload(&mut multipart).await?;
+    let Some((_, bytes)) = file.as_ref() else {
+        return Err(AppError(tigshop_core::Error::Validation("文件不能为空".into())));
+    };
     // Java `@RequestParam("shopId")` 同时接受表单字段与查询串参数
     let owner_shop_id =
         resolve_request_shop(&headers, &auth, form_shop_id.or(query.shop_id))?;
+    let rows = parse_stock_warning_rows(bytes)?;
     ok(state.catalog.stock_warning
-        .import_excel(as_import_file(&file), Some(owner_shop_id))
+        .import_rows(&rows, Some(owner_shop_id))
         .await?)
+}
+
+/// 解析库存预警导入 xlsx（列：商品编码 / SKU编码 / 下限 / 上限，首行为表头）。
+fn parse_stock_warning_rows(
+    bytes: &[u8],
+) -> std::result::Result<Vec<StockWarningImportRow>, AppError> {
+    let sheet = tigshop_services::system::excel::read_xlsx(bytes)?;
+    let mut rows = Vec::new();
+    for row in sheet.iter().skip(1) {
+        let cell = |idx: usize| -> Option<String> {
+            row.get(idx)
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty())
+        };
+        let product_sn = cell(0);
+        let sku_sn = cell(1);
+        let lower_limit = cell(2);
+        let upper_limit = cell(3);
+        if product_sn.is_none() && sku_sn.is_none() && lower_limit.is_none() && upper_limit.is_none()
+        {
+            continue;
+        }
+        rows.push(StockWarningImportRow {
+            product_sn,
+            sku_sn,
+            lower_limit,
+            upper_limit,
+        });
+    }
+    if rows.is_empty() {
+        return Err(AppError(tigshop_core::Error::Validation("表格数据为空".into())));
+    }
+    Ok(rows)
 }
 
 /// `POST /adminapi/product/stockWarning/getImportErrorData` 与

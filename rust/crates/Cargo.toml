@@ -142,6 +142,7 @@ image = "0.25"
 
 # Excel processing
 calamine = "0.27"
+rust_xlsxwriter = "0.77"
 
 # IP Location
 ipnetwork = "0.21"

@@ -29,7 +29,7 @@ use tigshop_core::models::catalog::product_batch::{
 };
 use tigshop_core::types::PageResult;
 use tigshop_openapi::RouteDoc;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ApiResult, AppError, ok};
 
 use crate::AdminState;
 
@@ -77,8 +77,42 @@ pub fn implemented_routes() -> Vec<RouteDoc> {
 async fn product_batch_deal(
     State(state): State<AdminState>,
     Query(q): Query<ProductBatchDealQuery>,
-) -> ApiResult<Vec<ProductImportExcelVO>> {
-    ok(state.catalog.product_batch.product_batch_deal(&q).await?)
+) -> std::result::Result<axum::response::Response, AppError> {
+    let rows = state.catalog.product_batch.product_batch_deal(&q).await?;
+    let headers = [
+        "商品编码", "商品名称", "商品图片", "商品分类", "配送方式", "快递运费模板",
+        "是否上架（默认1）", "商品规格", "商品规格图", "规格编码", "规格条码",
+        "商品详情图", "商品售价", "库存", "市场价", "商品条码", "搜索关键词",
+        "商品描述", "成本价",
+    ];
+    let data: Vec<Vec<String>> = rows
+        .iter()
+        .map(|r| {
+            vec![
+                r.product_sn.clone(),
+                r.product_name.clone(),
+                r.pic_url.clone(),
+                r.category_name.clone(),
+                r.shipping_type.clone(),
+                r.shipping_tpl.clone(),
+                r.product_status.clone(),
+                r.spec_name.clone(),
+                r.spec_pic_url.clone(),
+                r.sku_sn.clone(),
+                r.sku_tsn.clone(),
+                r.desc_pic_url.clone(),
+                r.product_price.clone(),
+                r.product_stock.clone(),
+                r.market_price.clone(),
+                r.product_tsn.clone(),
+                r.keywords.clone(),
+                r.product_brief.clone(),
+                r.cost_price.clone(),
+            ]
+        })
+        .collect();
+    let bytes = tigshop_services::system::excel::build_xlsx(&headers, &data, "商品导出")?;
+    Ok(crate::excel_response::xlsx_response(bytes, "products.xlsx"))
 }
 
 /// `GET /adminapi/product/productBatch/productService/list`：商品服务分页。

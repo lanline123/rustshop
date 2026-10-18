@@ -9,6 +9,7 @@
 //! | `GET /adminapi/order/list` | `OrderController.list` |
 //! | `POST /adminapi/order/ship` | `OrderController.ship` |
 
+mod excel_response;
 mod generated_permissions;
 mod permissions;
 
