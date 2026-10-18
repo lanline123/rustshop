@@ -43,7 +43,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use tigshop_core::models::system::app_version_admin::{AppVersionDetailVO, AppVersionEditParam};
+use tigshop_core::models::system::app_version_admin::{
+    AppVersionDetailVO, AppVersionEditParam, AppVersionParam,
+};
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::Repositories;
 
@@ -378,5 +380,76 @@ mod tests {
             }
             other => panic!("应为业务错误，实际: {other:?}"),
         }
+    }
+}
+
+// ————————————————— 客户端版本检查（wave9，追加） —————————————————
+
+impl AppVersionAdminService {
+    /// 客户端版本检查（Java `AppVersionController.getAppUpdate`）：
+    /// 平台匹配且客户端版本落后 → 返回对应下载链接，否则返回空串。
+    pub async fn get_app_update(&self, param: &AppVersionParam) -> Result<String> {
+        let detail = self.detail().await?;
+        let platform = param.r#type.as_deref().unwrap_or_default();
+        let client = param.version.as_deref();
+        if platform == "ios" && is_old_version(detail.ios_version.as_deref(), client) {
+            return Ok(detail.ios_link.unwrap_or_default());
+        }
+        if platform == "android" && is_old_version(detail.android_version.as_deref(), client) {
+            return Ok(detail.android_link.unwrap_or_default());
+        }
+        Ok(String::new())
+    }
+}
+
+/// 客户端版本是否落后（Java `AppVersionServiceImpl.isOldVersion`）。
+///
+/// 语义：`current` 为服务端最新版本，`client` 为客户端版本；
+/// 客户端版本 < 最新版本 → true（需要更新）。解析失败/缺省 → false。
+#[must_use]
+pub fn is_old_version(current: Option<&str>, client: Option<&str>) -> bool {
+    parse_version(current) > parse_version(client) && parse_version(client).is_some()
+}
+
+fn parse_version(raw: Option<&str>) -> Option<Vec<u64>> {
+    let s = raw?.trim();
+    if s.is_empty() {
+        return None;
+    }
+    let mut out = Vec::new();
+    for part in s.split('.') {
+        let digits: String = part.chars().take_while(char::is_ascii_digit).collect();
+        if digits.is_empty() {
+            return None;
+        }
+        out.push(digits.parse().ok()?);
+    }
+    Some(out)
+}
+
+#[cfg(test)]
+mod client_tests {
+    use super::*;
+
+    #[test]
+    fn older_client_is_detected() {
+        assert!(is_old_version(Some("1.2.3"), Some("1.2.2")));
+        assert!(is_old_version(Some("2.0.0"), Some("1.9.9")));
+        assert!(!is_old_version(Some("1.2.3"), Some("1.2.3")));
+        assert!(!is_old_version(Some("1.2.3"), Some("1.2.4")));
+    }
+
+    #[test]
+    fn missing_or_bad_versions_never_flag_update() {
+        assert!(!is_old_version(None, Some("1.0.0")));
+        assert!(!is_old_version(Some("1.0.0"), None));
+        assert!(!is_old_version(Some("abc"), Some("1.0.0")));
+    }
+
+    #[test]
+    fn version_parser_handles_numeric_parts() {
+        assert_eq!(parse_version(Some(" 1.2.3 ")), Some(vec![1, 2, 3]));
+        assert_eq!(parse_version(Some("1.2.3-beta")), Some(vec![1, 2, 3]));
+        assert_eq!(parse_version(Some("")), None);
     }
 }

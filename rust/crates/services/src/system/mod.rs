@@ -14,6 +14,7 @@ pub mod log;
 pub mod mail_templates;
 pub mod message_type;
 pub mod pc;
+pub mod recommend;
 pub mod region;
 pub mod region_client;
 pub mod tips_manage;
@@ -42,4 +43,5 @@ pub struct Services {
     pub licensed: Arc<licensed::LicensedService>,
     pub util: Arc<util::UtilService>,
     pub admin_msg: Arc<admin_msg::AdminMsgService>,
+    pub recommend: Arc<recommend::RecommendService>,
 }

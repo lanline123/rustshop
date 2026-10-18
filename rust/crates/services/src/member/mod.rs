@@ -1,5 +1,7 @@
 //! member 领域服务。
 
+pub mod captcha_api;
+pub mod collect_product;
 pub mod feedback;
 pub mod login;
 pub mod member_lists;
@@ -10,6 +12,8 @@ pub mod user;
 pub mod user_address_client;
 pub mod user_center;
 pub mod user_company;
+pub mod user_company_client;
+pub mod user_invoice_client;
 pub mod user_manage;
 pub mod user_member_tag;
 pub mod user_message;
@@ -38,4 +42,8 @@ pub struct Services {
     pub user_message: Arc<user_message::UserMessageService>,
     pub user_member_tag: Arc<user_member_tag::UserMemberTagService>,
     pub user_message_log: Arc<user_message_log::UserMessageLogService>,
+    pub captcha_api: Arc<captcha_api::CaptchaService>,
+    pub collect_product: Arc<collect_product::CollectProductService>,
+    pub user_company_client: Arc<user_company_client::UserCompanyClientService>,
+    pub user_invoice_client: Arc<user_invoice_client::UserInvoiceClientService>,
 }

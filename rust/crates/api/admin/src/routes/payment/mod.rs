@@ -10,6 +10,7 @@ pub mod paylog_batch;
 pub mod profit_sharing;
 pub mod refund_apply;
 pub mod refund_log;
+pub mod statement;
 pub mod sub_merchant;
 pub mod tax_rate;
 pub mod user_balance_log;
@@ -35,6 +36,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(profit_sharing::routes(state))
         .merge(refund_apply::routes(state))
         .merge(refund_log::routes(state))
+        .merge(statement::routes(state))
         .merge(sub_merchant::routes(state))
         .merge(tax_rate::routes(state))
         .merge(user_balance_log::routes(state))
@@ -63,6 +65,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(profit_sharing::implemented_routes());
     out.extend(refund_apply::implemented_routes());
     out.extend(refund_log::implemented_routes());
+    out.extend(statement::implemented_routes());
     out.extend(sub_merchant::implemented_routes());
     out.extend(tax_rate::implemented_routes());
     out.extend(user_balance_log::implemented_routes());

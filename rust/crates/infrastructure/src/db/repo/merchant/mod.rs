@@ -2,9 +2,12 @@
 
 pub mod admin_user_shop;
 pub mod deposit_account;
+pub mod deposit_log;
+pub mod deposit_payee_account;
 pub mod deposit_recharge;
 pub mod deposit_refund;
 pub mod deposit_rule;
+pub mod deposit_setting;
 pub mod deposit_shop;
 pub mod merchant;
 pub mod merchant_account;
@@ -12,6 +15,7 @@ pub mod merchant_apply;
 pub mod merchant_client;
 pub mod order_config;
 pub mod shop;
+pub mod shop_account_log;
 pub mod shop_client;
 pub mod shop_client_category;
 pub mod shop_funds;
@@ -43,6 +47,10 @@ pub struct Repositories {
     pub shop_withdraw: shop_withdraw::ShopWithdrawRepository,
     pub deposit_rule: deposit_rule::DepositRuleRepository,
     pub deposit_shop: deposit_shop::DepositShopRepository,
+    pub deposit_log: deposit_log::DepositLogRepository,
+    pub deposit_payee_account: deposit_payee_account::DepositPayeeAccountRepository,
+    pub deposit_setting: deposit_setting::DepositSettingRepository,
+    pub shop_account_log: shop_account_log::ShopAccountLogRepository,
 }
 
 impl Repositories {
@@ -68,6 +76,10 @@ impl Repositories {
             shop_withdraw: shop_withdraw::ShopWithdrawRepository::new(pool.clone()),
             deposit_rule: deposit_rule::DepositRuleRepository::new(pool.clone()),
             deposit_shop: deposit_shop::DepositShopRepository::new(pool.clone()),
+            deposit_log: deposit_log::DepositLogRepository::new(pool.clone()),
+            deposit_payee_account: deposit_payee_account::DepositPayeeAccountRepository::new(pool.clone()),
+            deposit_setting: deposit_setting::DepositSettingRepository::new(pool.clone()),
+            shop_account_log: shop_account_log::ShopAccountLogRepository::new(pool.clone()),
         }
     }
 }

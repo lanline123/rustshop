@@ -1,8 +1,10 @@
 //! 商城端 payment 路由。
 
+pub mod apple_pay;
 pub mod balance_pay;
 pub mod pay;
 pub mod paylog;
+pub mod recharge_order;
 pub mod with_draw_apply_client;
 
 use axum::Router;
@@ -13,7 +15,9 @@ use super::super::PublicState;
 pub fn routes(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
+        .merge(apple_pay::routes(state))
         .merge(pay::routes(state))
+        .merge(recharge_order::routes(state))
         .merge(with_draw_apply_client::routes(state))
 }
 
@@ -40,9 +44,11 @@ pub fn authorized_routes() -> Router<PublicState> {
 #[must_use]
 pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     let mut out = Vec::new();
+    out.extend(apple_pay::implemented_routes());
     out.extend(balance_pay::implemented_routes());
     out.extend(pay::implemented_routes());
     out.extend(paylog::implemented_routes());
+    out.extend(recharge_order::implemented_routes());
     out.extend(with_draw_apply_client::implemented_routes());
     out
 }

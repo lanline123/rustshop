@@ -1,5 +1,6 @@
 //! payment 领域仓储。
 
+pub mod apple_pay;
 pub mod category_fee_rule;
 pub mod credit_settlement;
 pub mod credit_user;
@@ -9,8 +10,10 @@ pub mod pay;
 pub mod paylog;
 pub mod paylog_batch;
 pub mod profit_sharing;
+pub mod recharge_order;
 pub mod refund_apply;
 pub mod refund_log;
+pub mod statement;
 pub mod sub_merchant;
 pub mod tax_rate;
 pub mod user_balance_log;
@@ -41,6 +44,9 @@ pub struct Repositories {
     pub pay: pay::PayRepository,
     pub sub_merchant: sub_merchant::SubMerchantRepository,
     pub profit_sharing: profit_sharing::ProfitSharingRepository,
+    pub recharge_order: recharge_order::RechargeOrderRepository,
+    pub statement: statement::StatementRepository,
+    pub apple_pay: apple_pay::ApplePayRepository,
 }
 
 impl Repositories {
@@ -65,6 +71,9 @@ impl Repositories {
             pay: pay::PayRepository::new(pool.clone()),
             sub_merchant: sub_merchant::SubMerchantRepository::new(pool.clone()),
             profit_sharing: profit_sharing::ProfitSharingRepository::new(pool.clone()),
+            recharge_order: recharge_order::RechargeOrderRepository::new(pool.clone()),
+            statement: statement::StatementRepository::new(pool.clone()),
+            apple_pay: apple_pay::ApplePayRepository::new(pool.clone()),
         }
     }
 }

@@ -13,6 +13,7 @@ pub mod log;
 pub mod mail_templates;
 pub mod message_type;
 pub mod pc;
+pub mod recommend;
 pub mod region;
 pub mod region_client;
 pub mod tips_manage;

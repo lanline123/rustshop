@@ -1,6 +1,7 @@
 //! 管理端 analytics 路由。
 
 pub mod panel;
+pub mod sales_statistics;
 pub mod statistics;
 
 use axum::Router;
@@ -12,6 +13,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new()
         .merge(panel::routes(state))
+        .merge(sales_statistics::routes(state))
         .merge(statistics::routes(state))
 }
 
@@ -26,6 +28,7 @@ pub fn public_routes(state: &AdminState) -> Router<AdminState> {
 pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     let mut out = Vec::new();
     out.extend(panel::implemented_routes());
+    out.extend(sales_statistics::implemented_routes());
     out.extend(statistics::implemented_routes());
     out
 }

@@ -1,6 +1,7 @@
 //! 商城端 merchant 路由。
 
 pub mod merchant_client;
+pub mod shop_account_log;
 pub mod shop_client;
 pub mod shop_client_category;
 
@@ -13,6 +14,7 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
         .merge(merchant_client::routes(state))
+        .merge(shop_account_log::routes(state))
         .merge(shop_client::routes(state))
         .merge(shop_client_category::routes(state))
 }
@@ -38,6 +40,7 @@ pub fn authorized_routes() -> Router<PublicState> {
 pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     let mut out = Vec::new();
     out.extend(merchant_client::implemented_routes());
+    out.extend(shop_account_log::implemented_routes());
     out.extend(shop_client::implemented_routes());
     out.extend(shop_client_category::implemented_routes());
     out

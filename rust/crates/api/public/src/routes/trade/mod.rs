@@ -1,7 +1,9 @@
 //! 商城端 trade 路由。
 
 pub mod aftersales_client;
+pub mod cart_summary;
 pub mod check;
+pub mod order_invoice_client;
 pub mod user_order;
 
 use axum::Router;
@@ -13,7 +15,9 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
         .merge(aftersales_client::routes(state))
+        .merge(cart_summary::routes(state))
         .merge(check::routes(state))
+        .merge(order_invoice_client::routes(state))
         .merge(user_order::routes(state))
 }
 
@@ -38,7 +42,9 @@ pub fn authorized_routes() -> Router<PublicState> {
 pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     let mut out = Vec::new();
     out.extend(aftersales_client::implemented_routes());
+    out.extend(cart_summary::implemented_routes());
     out.extend(check::implemented_routes());
+    out.extend(order_invoice_client::implemented_routes());
     out.extend(user_order::implemented_routes());
     out
 }

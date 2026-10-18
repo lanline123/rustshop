@@ -3,16 +3,21 @@
 pub mod aftersales;
 pub mod aftersales_client;
 pub mod cart;
+pub mod cart_summary;
 pub mod check;
 pub mod order;
 pub mod order_admin;
+pub mod order_invoice_client;
+pub mod order_log;
 pub mod proxy_shopping_cart;
+pub mod proxy_shopping_delivery;
 pub mod proxy_shopping_order_check;
 pub mod proxy_shopping_pickup_contact;
 pub mod proxy_shopping_product;
 pub mod proxy_shopping_user;
 pub mod proxy_shopping_user_address;
 pub mod proxy_shopping_user_coupon;
+pub mod shop_order_config;
 pub mod user_order;
 
 use std::sync::Arc;
@@ -34,4 +39,9 @@ pub struct Services {
     pub user_order: Arc<user_order::UserOrderService>,
     pub proxy_shopping_cart: Arc<proxy_shopping_cart::ProxyShoppingCartService>,
     pub check: Arc<check::CheckService>,
+    pub order_log: Arc<order_log::OrderLogService>,
+    pub order_invoice_client: Arc<order_invoice_client::OrderInvoiceClientService>,
+    pub cart_summary: Arc<cart_summary::CartSummaryService>,
+    pub proxy_shopping_delivery: Arc<proxy_shopping_delivery::ProxyShoppingDeliveryService>,
+    pub shop_order_config: Arc<shop_order_config::ShopOrderConfigService>,
 }

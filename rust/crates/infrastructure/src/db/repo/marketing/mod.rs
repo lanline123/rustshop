@@ -11,15 +11,25 @@ pub mod gift_card_groups;
 pub mod groupon_promotion;
 pub mod groupon_promotion_item;
 pub mod lottery_activity;
+pub mod points_exchange;
+pub mod product_gift;
 pub mod product_promotion;
 pub mod product_style_admin;
+pub mod recharge_setting;
 pub mod salesman;
 pub mod salesman_admin;
+pub mod salesman_config;
 pub mod salesman_content;
+pub mod salesman_customer_transaction;
+pub mod salesman_group;
+pub mod salesman_material;
 pub mod salesman_material_category;
+pub mod salesman_order;
 pub mod salesman_product;
 pub mod seckill;
+pub mod sign_in_setting;
 pub mod time_discount;
+pub mod time_discount_batch;
 
 use crate::db::DbPool;
 
@@ -45,6 +55,16 @@ pub struct Repositories {
     pub salesman_product: salesman_product::SalesmanProductRepository,
     pub product_promotion: product_promotion::ProductPromotionRepository,
     pub groupon_promotion_item: groupon_promotion_item::GrouponPromotionItemRepository,
+    pub time_discount_batch: time_discount_batch::TimeDiscountBatchRepository,
+    pub points_exchange: points_exchange::PointsExchangeRepository,
+    pub product_gift: product_gift::ProductGiftRepository,
+    pub recharge_setting: recharge_setting::RechargeSettingRepository,
+    pub sign_in_setting: sign_in_setting::SignInSettingRepository,
+    pub salesman_material: salesman_material::SalesmanMaterialRepository,
+    pub salesman_group: salesman_group::SalesmanGroupRepository,
+    pub salesman_config: salesman_config::SalesmanConfigRepository,
+    pub salesman_order: salesman_order::SalesmanOrderRepository,
+    pub salesman_customer_transaction: salesman_customer_transaction::SalesmanCustomerTransactionRepository,
 }
 
 impl Repositories {
@@ -71,6 +91,16 @@ impl Repositories {
             salesman_product: salesman_product::SalesmanProductRepository::new(pool.clone()),
             product_promotion: product_promotion::ProductPromotionRepository::new(pool.clone()),
             groupon_promotion_item: groupon_promotion_item::GrouponPromotionItemRepository::new(pool.clone()),
+            time_discount_batch: time_discount_batch::TimeDiscountBatchRepository::new(pool.clone()),
+            points_exchange: points_exchange::PointsExchangeRepository::new(pool.clone()),
+            product_gift: product_gift::ProductGiftRepository::new(pool.clone()),
+            recharge_setting: recharge_setting::RechargeSettingRepository::new(pool.clone()),
+            sign_in_setting: sign_in_setting::SignInSettingRepository::new(pool.clone()),
+            salesman_material: salesman_material::SalesmanMaterialRepository::new(pool.clone()),
+            salesman_group: salesman_group::SalesmanGroupRepository::new(pool.clone()),
+            salesman_config: salesman_config::SalesmanConfigRepository::new(pool.clone()),
+            salesman_order: salesman_order::SalesmanOrderRepository::new(pool.clone()),
+            salesman_customer_transaction: salesman_customer_transaction::SalesmanCustomerTransactionRepository::new(pool.clone()),
         }
     }
 }

@@ -1,6 +1,8 @@
 //! 商城端 content 路由。
 
+pub mod api_wechat_live;
 pub mod article;
+pub mod article_batch;
 pub mod decorate;
 pub mod home;
 pub mod seo;
@@ -15,6 +17,8 @@ use super::super::PublicState;
 pub fn routes(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
+        .merge(api_wechat_live::routes(state))
+        .merge(article_batch::routes(state))
         .merge(home::routes(state))
         .merge(seo::routes(state))
         .merge(share::routes(state))
@@ -46,7 +50,9 @@ pub fn authorized_routes() -> Router<PublicState> {
 #[must_use]
 pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     let mut out = Vec::new();
+    out.extend(api_wechat_live::implemented_routes());
     out.extend(article::implemented_routes());
+    out.extend(article_batch::implemented_routes());
     out.extend(decorate::implemented_routes());
     out.extend(home::implemented_routes());
     out.extend(seo::implemented_routes());

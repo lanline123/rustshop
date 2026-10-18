@@ -2,9 +2,12 @@
 
 pub mod admin_user_shop;
 pub mod deposit_account;
+pub mod deposit_log;
+pub mod deposit_payee_account;
 pub mod deposit_recharge;
 pub mod deposit_refund;
 pub mod deposit_rule;
+pub mod deposit_setting;
 pub mod deposit_shop;
 pub mod merchant;
 pub mod merchant_account;
@@ -12,6 +15,7 @@ pub mod merchant_apply;
 pub mod merchant_client;
 pub mod order_config;
 pub mod shop;
+pub mod shop_account_log;
 pub mod shop_client;
 pub mod shop_client_category;
 pub mod shop_funds;
@@ -44,4 +48,8 @@ pub struct Services {
     pub shop_withdraw: Arc<shop_withdraw::ShopWithdrawService>,
     pub deposit_rule: Arc<deposit_rule::DepositRuleService>,
     pub deposit_shop: Arc<deposit_shop::DepositShopService>,
+    pub deposit_log: Arc<deposit_log::DepositLogService>,
+    pub deposit_payee_account: Arc<deposit_payee_account::DepositPayeeAccountService>,
+    pub deposit_setting: Arc<deposit_setting::DepositSettingService>,
+    pub shop_account_log: Arc<shop_account_log::ShopAccountLogService>,
 }

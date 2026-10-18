@@ -11,15 +11,25 @@ pub mod gift_card_groups;
 pub mod groupon_promotion;
 pub mod groupon_promotion_item;
 pub mod lottery_activity;
+pub mod points_exchange;
+pub mod product_gift;
 pub mod product_promotion;
 pub mod product_style_admin;
+pub mod recharge_setting;
 pub mod salesman;
 pub mod salesman_admin;
+pub mod salesman_config;
 pub mod salesman_content;
+pub mod salesman_customer_transaction;
+pub mod salesman_group;
+pub mod salesman_material;
 pub mod salesman_material_category;
+pub mod salesman_order;
 pub mod salesman_product;
 pub mod seckill;
+pub mod sign_in_setting;
 pub mod time_discount;
+pub mod time_discount_batch;
 
 use std::sync::Arc;
 
@@ -46,4 +56,14 @@ pub struct Services {
     pub salesman_product: Arc<salesman_product::SalesmanProductService>,
     pub product_promotion: Arc<product_promotion::ProductPromotionService>,
     pub groupon_promotion_item: Arc<groupon_promotion_item::GrouponPromotionItemService>,
+    pub time_discount_batch: Arc<time_discount_batch::TimeDiscountBatchService>,
+    pub points_exchange: Arc<points_exchange::PointsExchangeService>,
+    pub product_gift: Arc<product_gift::ProductGiftService>,
+    pub recharge_setting: Arc<recharge_setting::RechargeSettingService>,
+    pub sign_in_setting: Arc<sign_in_setting::SignInSettingService>,
+    pub salesman_material: Arc<salesman_material::SalesmanMaterialService>,
+    pub salesman_group: Arc<salesman_group::SalesmanGroupService>,
+    pub salesman_config: Arc<salesman_config::SalesmanConfigService>,
+    pub salesman_order: Arc<salesman_order::SalesmanOrderService>,
+    pub salesman_customer_transaction: Arc<salesman_customer_transaction::SalesmanCustomerTransactionService>,
 }

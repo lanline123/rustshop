@@ -1,5 +1,6 @@
 //! payment 领域服务。
 
+pub mod apple_pay;
 pub mod balance_pay;
 pub mod category_fee_rule;
 pub mod credit_settlement;
@@ -11,8 +12,10 @@ pub mod pay;
 pub mod paylog;
 pub mod paylog_batch;
 pub mod profit_sharing;
+pub mod recharge_order;
 pub mod refund_apply;
 pub mod refund_log;
+pub mod statement;
 pub mod sub_merchant;
 pub mod tax_rate;
 pub mod user_balance_log;
@@ -45,4 +48,7 @@ pub struct Services {
     pub pay: Arc<pay::PayService>,
     pub sub_merchant: Arc<sub_merchant::SubMerchantService>,
     pub profit_sharing: Arc<profit_sharing::ProfitSharingService>,
+    pub recharge_order: Arc<recharge_order::RechargeOrderService>,
+    pub statement: Arc<statement::StatementService>,
+    pub apple_pay: Arc<apple_pay::ApplePayService>,
 }

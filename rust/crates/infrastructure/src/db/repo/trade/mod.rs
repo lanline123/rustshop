@@ -3,16 +3,21 @@
 pub mod aftersales;
 pub mod aftersales_client;
 pub mod cart;
+pub mod cart_summary;
 pub mod check;
 pub mod order;
 pub mod order_admin;
+pub mod order_invoice_client;
+pub mod order_log;
 pub mod proxy_shopping_cart;
+pub mod proxy_shopping_delivery;
 pub mod proxy_shopping_order_check;
 pub mod proxy_shopping_pickup_contact;
 pub mod proxy_shopping_product;
 pub mod proxy_shopping_user;
 pub mod proxy_shopping_user_address;
 pub mod proxy_shopping_user_coupon;
+pub mod shop_order_config;
 pub mod user_order;
 
 use crate::db::DbPool;
@@ -33,6 +38,11 @@ pub struct Repositories {
     pub user_order: user_order::UserOrderRepository,
     pub proxy_shopping_cart: proxy_shopping_cart::ProxyShoppingCartRepository,
     pub check: check::CheckRepository,
+    pub order_log: order_log::OrderLogRepository,
+    pub order_invoice_client: order_invoice_client::OrderInvoiceClientRepository,
+    pub cart_summary: cart_summary::CartSummaryRepository,
+    pub proxy_shopping_delivery: proxy_shopping_delivery::ProxyShoppingDeliveryRepository,
+    pub shop_order_config: shop_order_config::ShopOrderConfigRepository,
 }
 
 impl Repositories {
@@ -53,6 +63,11 @@ impl Repositories {
             user_order: user_order::UserOrderRepository::new(pool.clone()),
             proxy_shopping_cart: proxy_shopping_cart::ProxyShoppingCartRepository::new(pool.clone()),
             check: check::CheckRepository::new(pool.clone()),
+            order_log: order_log::OrderLogRepository::new(pool.clone()),
+            order_invoice_client: order_invoice_client::OrderInvoiceClientRepository::new(pool.clone()),
+            cart_summary: cart_summary::CartSummaryRepository::new(pool.clone()),
+            proxy_shopping_delivery: proxy_shopping_delivery::ProxyShoppingDeliveryRepository::new(pool.clone()),
+            shop_order_config: shop_order_config::ShopOrderConfigRepository::new(pool.clone()),
         }
     }
 }

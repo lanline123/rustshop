@@ -1,5 +1,6 @@
 //! member 领域仓储。
 
+pub mod collect_product;
 pub mod feedback;
 pub mod login;
 pub mod member_lists;
@@ -10,6 +11,8 @@ pub mod user;
 pub mod user_address_client;
 pub mod user_center;
 pub mod user_company;
+pub mod user_company_client;
+pub mod user_invoice_client;
 pub mod user_manage;
 pub mod user_member_tag;
 pub mod user_message;
@@ -37,6 +40,9 @@ pub struct Repositories {
     pub user_message: user_message::UserMessageRepository,
     pub user_member_tag: user_member_tag::UserMemberTagRepository,
     pub user_message_log: user_message_log::UserMessageLogRepository,
+    pub collect_product: collect_product::CollectProductRepository,
+    pub user_company_client: user_company_client::UserCompanyClientRepository,
+    pub user_invoice_client: user_invoice_client::UserInvoiceClientRepository,
 }
 
 impl Repositories {
@@ -59,6 +65,9 @@ impl Repositories {
             user_message: user_message::UserMessageRepository::new(pool.clone()),
             user_member_tag: user_member_tag::UserMemberTagRepository::new(pool.clone()),
             user_message_log: user_message_log::UserMessageLogRepository::new(pool.clone()),
+            collect_product: collect_product::CollectProductRepository::new(pool.clone()),
+            user_company_client: user_company_client::UserCompanyClientRepository::new(pool.clone()),
+            user_invoice_client: user_invoice_client::UserInvoiceClientRepository::new(pool.clone()),
         }
     }
 }

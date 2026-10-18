@@ -41,3 +41,13 @@ pub struct AppVersionDetailVO {
     /// Android 下载链接。
     pub android_link: Option<String>,
 }
+
+/// 客户端版本检查参数（Java `AppVersionParam`）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AppVersionParam {
+    /// 平台：`ios` / `android`
+    pub r#type: Option<String>,
+    /// 客户端当前版本号（x.y.z）
+    pub version: Option<String>,
+}

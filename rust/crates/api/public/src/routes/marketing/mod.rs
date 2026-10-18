@@ -6,6 +6,8 @@ pub mod gift_card_groups;
 pub mod groupon_promotion;
 pub mod salesman_admin;
 pub mod salesman_content;
+pub mod salesman_material;
+pub mod salesman_order;
 pub mod salesman_product;
 pub mod seckill;
 pub mod time_discount;
@@ -23,6 +25,8 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .merge(groupon_promotion::routes(state))
         .merge(salesman_admin::routes(state))
         .merge(salesman_content::routes(state))
+        .merge(salesman_material::routes(state))
+        .merge(salesman_order::routes(state))
         .merge(salesman_product::routes(state))
 }
 
@@ -58,6 +62,8 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(groupon_promotion::implemented_routes());
     out.extend(salesman_admin::implemented_routes());
     out.extend(salesman_content::implemented_routes());
+    out.extend(salesman_material::implemented_routes());
+    out.extend(salesman_order::implemented_routes());
     out.extend(salesman_product::implemented_routes());
     out.extend(seckill::implemented_routes());
     out.extend(time_discount::implemented_routes());

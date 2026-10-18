@@ -13,6 +13,7 @@ pub mod log;
 pub mod mail_templates;
 pub mod message_type;
 pub mod pc;
+pub mod recommend;
 pub mod region;
 pub mod region_client;
 pub mod tips_manage;
@@ -39,6 +40,7 @@ pub struct Repositories {
     pub licensed: licensed::LicensedRepository,
     pub util: util::UtilRepository,
     pub admin_msg: admin_msg::AdminMsgRepository,
+    pub recommend: recommend::RecommendRepository,
 }
 
 impl Repositories {
@@ -62,6 +64,7 @@ impl Repositories {
             licensed: licensed::LicensedRepository::new(pool.clone()),
             util: util::UtilRepository::new(pool.clone()),
             admin_msg: admin_msg::AdminMsgRepository::new(pool.clone()),
+            recommend: recommend::RecommendRepository::new(pool.clone()),
         }
     }
 }
