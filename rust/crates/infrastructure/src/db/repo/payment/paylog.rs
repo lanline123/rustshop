@@ -147,6 +147,23 @@ impl PaylogRepository {
     }
 
     /// 新增支付日志，返回 `paylog_id`。
+    /// 后台确认收款：把该订单未支付的 paylog 置为已支付（线下汇款确认）。
+    ///
+    /// # Errors
+    /// 数据库错误。
+    pub async fn mark_order_paylogs_paid(&self, order_id: i32) -> Result<u64> {
+        let affected = sqlx::query(
+            "UPDATE paylog SET pay_status = ? WHERE order_id = ? AND pay_status = 0",
+        )
+        .bind(PAYLOG_STATUS_PAID)
+        .bind(order_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?
+        .rows_affected();
+        Ok(affected)
+    }
+
     pub async fn insert(&self, p: &Paylog) -> Result<i32> {
         let r = sqlx::query(
             "INSERT INTO paylog

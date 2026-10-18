@@ -1256,6 +1256,19 @@ impl OrderAdminService {
             .order_admin
             .quick_order_log(id, &order.order_sn, desc)
             .await?;
+        // 线下汇款确认收款：同步把待支付 paylog 置为已支付，保证资金流水一致
+        if offline {
+            match self
+                .repos
+                .payment
+                .paylog
+                .mark_order_paylogs_paid(id)
+                .await
+            {
+                Ok(n) => tracing::info!("后台确认收款：订单 {id} 同步 {n} 条 paylog 为已支付"),
+                Err(e) => tracing::warn!("后台确认收款：订单 {id} 同步 paylog 失败: {e}"),
+            }
+        }
         // Java 末尾无条件调用 splitStoreOrder；多店铺返回明确错误，这里降级为告警
         if let Err(e) = self.split_store_order(id).await {
             tracing::warn!("设置已支付后自动拆单未执行: order_id={id}, err={e}");

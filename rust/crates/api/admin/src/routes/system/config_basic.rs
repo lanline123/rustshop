@@ -167,11 +167,14 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .iter()
         .filter(|ep| !EndpointKind::is_public_path(ep.path))
         .filter(|ep| ep.path != "/setting/config/uploadFile")
+        .filter(|ep| ep.path != "/setting/config/sendTestEmail")
     {
         router = register(router, ep);
     }
-    // 证书上传（multipart）需要独立 handler，不能走 JSON/无体通用入口
-    router.route("/setting/config/uploadFile", post(upload_config_file))
+    // 证书上传（multipart）与测试邮件需要独立 handler，不能走 JSON/无体通用入口
+    router
+        .route("/setting/config/uploadFile", post(upload_config_file))
+        .route("/setting/config/sendTestEmail", post(send_test_email))
 }
 
 /// 匿名白名单 3 条路由（Java `URL_WHITELIST`，外层不套 `require_auth`）。
@@ -294,6 +297,19 @@ async fn upload_config_file(
         return ok(url);
     }
     Err(AppError(tigshop_core::Error::Validation("文件不能为空".into())))
+}
+
+/// `POST /adminapi/setting/config/sendTestEmail?testMailAddress=`：发送测试邮件。
+async fn send_test_email(
+    State(state): State<AdminState>,
+    Query(q): Query<CodeQuery>,
+) -> ApiResult<()> {
+    state
+        .system
+        .config_basic
+        .send_test_email(q.test_mail_address.as_deref())
+        .await?;
+    ok(())
 }
 
 /// 本域已实现路由（完整契约路径，供 `/openapi/coverage`）。

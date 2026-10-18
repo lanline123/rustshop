@@ -23,7 +23,8 @@
 | 结算页（订单确认） | ✅ | `order/check/index|update|updateCoupon|getStoreShippingType` 已实现；实测优惠券抵扣（140.80=150.80-10）、下单落库、券占用、地址快照；运费/活动/积分抵扣为 v1 限制 |
 | 下单（含地址/运费占位） | ✅ | 修复无 SKU 商品库存扣减、`order_extension` 缺列；地址快照、优惠券抵扣已接入 |
 | 余额支付（全额/部分抵扣） | ✅ | 实测：`returnType=2` 全额已付、部分抵扣 `onlineAmount` |
-| 线下汇款 + 后台确认收款 | ✅ | `pay/create?type=offline` + `order/order/setPaid` 实测 |
+| 线下汇款 + 后台确认收款 | ✅ | `pay/create?type=offline` + `order/order/setPaid` 实测；确认收款同步待支付 paylog → 已支付（0→1） |
+| 管理端测试邮件 | ✅ | `setting/config/sendTestEmail` 已接线，实测 SMTP 链路执行（demo 凭据 535，需真实账号） |
 | 微信支付 v3 协议 | 🟡 骨架 | RSA 签名/验签/AES-GCM 解密单测通过；下单/退款待商户凭据 |
 | 支付宝协议 | 🟡 骨架 | RSA2 签名/验签单测通过；下单待沙箱凭据 |
 | PayPal | 🟡 骨架 | 配置/网关/OAuth2 URL 就绪；下单/webhook 待凭据 |

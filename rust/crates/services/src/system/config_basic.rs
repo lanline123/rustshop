@@ -153,6 +153,21 @@ impl ConfigBasicService {
         }
     }
 
+    /// `POST /adminapi/setting/config/sendTestEmail`：发送测试邮件（SMTP）。
+    ///
+    /// # Errors
+    /// 邮箱为空/非法、SMTP 未配置、发送失败。
+    pub async fn send_test_email(&self, test_mail_address: Option<&str>) -> Result<()> {
+        let to = test_mail_address
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| Error::biz(1001, "测试邮箱不能为空"))?;
+        if !to.contains('@') || to.starts_with('@') || to.ends_with('@') {
+            return Err(Error::biz(1001, "邮箱地址不正确"));
+        }
+        crate::system::notify::send_test_email(&self.repos, to).await
+    }
+
     /// 无 JSON 请求体的 POST（Java 方法没有 `@RequestBody`）：
     /// `createPlatformCertificate` / `uploadFile` / `sendTestEmail`。
     ///

@@ -35,7 +35,8 @@ INFO tigshop_services::member::login: 短信验证码已发送: mobile=138000000
 - 实测：demo 库中 SMTP 配置指向不可用服务器 → 返回 `邮件发送失败: ... 535 authentication failed`，
   说明链路已真实执行；填入可用 SMTP 账号即可发送。
 - 未配置时返回：`邮件服务未配置：请填写 smtpHost/smtpPort/smtpUser/smtpPass/smtpMail`。
-- 管理端「发送测试邮件」`setting/config/sendTestEmail` 仍为占位（可复用 `notify::send_email_code` 的同款 SMTP 构建逻辑，下一步接）。
+- 管理端「发送测试邮件」`POST /adminapi/setting/config/sendTestEmail?testMailAddress=` 已接线并实测
+  （demo SMTP 凭据返回 `535 authentication failed`，说明真实发信链路已执行）。
 
 ## 3. 配套：Redis 缺失自动降级为内存缓存
 

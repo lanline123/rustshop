@@ -188,11 +188,43 @@ pub async fn send_sms_code(repos: &Repositories, mobile: &str, code: &str) -> Re
 ///
 /// # Errors
 /// SMTP 未配置 / 发送失败。
-pub async fn send_email_code(
+/// 发送测试邮件（管理端「发送测试邮件」按钮）。
+///
+/// # Errors
+/// SMTP 未配置 / 发送失败。
+pub async fn send_test_email(repos: &Repositories, to: &str) -> Result<()> {
+    send_email(
+        repos,
+        to,
+        "TigShop 测试邮件",
+        "<p>这是一封测试邮件，收到说明 SMTP 配置可用。</p>",
+    )
+    .await
+}
+
+/// 发送邮件验证码（SMTP）。
+///
+/// # Errors
+/// SMTP 未配置 / 发送失败。
+pub async fn send_email_code(repos: &Repositories, to: &str, subject: &str, code: &str) -> Result<()> {
+    send_email(
+        repos,
+        to,
+        subject,
+        &format!("<p>您的验证码是：<b>{code}</b>，5 分钟内有效。</p>"),
+    )
+    .await
+}
+
+/// 通用 SMTP 发信（HTML 正文）。
+///
+/// # Errors
+/// SMTP 未配置 / 发送失败。
+pub async fn send_email(
     repos: &Repositories,
     to: &str,
     subject: &str,
-    code: &str,
+    html_body: &str,
 ) -> Result<()> {
     let cfg = load(repos, &MAIL_KEYS).await?;
     let host = cfg.get(CFG_SMTP_HOST).cloned().unwrap_or_default();
@@ -229,9 +261,7 @@ pub async fn send_email_code(
             .map_err(|_| Error::Validation("邮箱地址不正确".into()))?)
         .subject(subject)
         .header(ContentType::TEXT_HTML)
-        .body(format!(
-            "<p>您的验证码是：<b>{code}</b>，5 分钟内有效。</p>"
-        ))
+        .body(html_body.to_string())
         .map_err(|e| Error::Internal(format!("邮件构建失败: {e}")))?;
 
     let builder = if ssl {

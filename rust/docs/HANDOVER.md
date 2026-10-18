@@ -106,7 +106,9 @@ $env:RUST_LOG="info,tigshop=info,sqlx=warn"
 - 管理操作审计日志：`adminLogService.createByLogInfo(...)` 未迁移（品牌/评论/卡密等修改无审计记录）。
 - 定金预售支付状态机（`order_admin.set_paid` 直接拒绝定金预售订单）。
 - IM：REST 收发已实现；`send_as_user`/`set_read_*` 未接 WS 推送（`ws_registry` 已就绪，接线即可）、自动回复/MQ 未迁移。
-- 管理端「发送测试邮件」`setting/config/sendTestEmail` 仍为占位（SMTP 能力已具备，接线即可）。
+
+> ✅ 已完成（2026-10-19）：管理端「发送测试邮件」已接线（实测 SMTP 535，真实链路）；
+> 线下汇款后台确认收款已同步把待支付 `paylog` 置为已支付（实测 paylog `pay_status` 0→1）。
 
 ### P2 — 平台能力
 
