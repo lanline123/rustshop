@@ -58,4 +58,6 @@ location /ws {
 ## 5. 已知限制
 
 - 会话表为进程内状态：单实例可用；多实例需换 Redis pub/sub（`ws_registry` 接口不变）。
-- 客服消息的完整业务链路（会话/消息 REST 接口）沿用现有 IM 域实现；本切片完成的是长连接与推送基础设施。
+- 客服消息的完整业务链路（会话/消息 REST 接口）沿用现有 IM 域实现；IM 消息收发已接 WS 推送
+  （`send_as_user` → 管理员、`send_as_admin` → 会员，实测双向；`tools/compat/im_push_smoke.ps1`）。
+  已读回执推送与 RabbitMQ 自动回复仍未迁移。

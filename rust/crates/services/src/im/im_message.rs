@@ -422,7 +422,58 @@ impl ImMessageService {
             .await?
             .ok_or_else(|| Error::biz_msg("消息发送失败"))?;
 
-        self.build_send_vo(&row).await
+        let vo = self.build_send_vo(&row).await?;
+        self.push_message_ws(&vo, &row);
+        Ok(vo)
+    }
+
+    /// 消息落库后按 Java `sentMessage` 语义推送 WebSocket。
+    ///
+    /// - 客服发（`msg_type=2`）→ 推送给会话会员 `false::{userId}`；
+    /// - 会员发（`msg_type=1`）→ 有客服则推给该客服 `true::{servantId}`，
+    ///   否则广播给所有在线管理员（等价 Java 未分配客服时的兜底）。
+    fn push_message_ws(
+        &self,
+        vo: &tigshop_core::models::im::im_message::ImMessageSendVO,
+        row: &tigshop_core::entities::ImMessage,
+    ) {
+        use tigshop_security::ws_registry;
+        let payload = match serde_json::to_string(&serde_json::json!({
+            "type": "message",
+            "data": [vo],
+        })) {
+            Ok(payload) => payload,
+            Err(e) => {
+                tracing::warn!("IM WS 推送序列化失败: {e}");
+                return;
+            }
+        };
+        let sent = if row.r#type.unwrap_or(0) == 2 {
+            row.user_id
+                .map(|uid| {
+                    ws_registry::send_to_user(
+                        &ws_registry::user_key(false, &uid.to_string()),
+                        &payload,
+                    )
+                })
+                .unwrap_or(0)
+        } else {
+            let servant_id = row.servant_id.unwrap_or(0);
+            if servant_id > 0 {
+                ws_registry::send_to_user(
+                    &ws_registry::user_key(true, &servant_id.to_string()),
+                    &payload,
+                )
+            } else {
+                ws_registry::send_to_admins(&payload)
+            }
+        };
+        tracing::info!(
+            sent,
+            conversation_id = row.conversation_id,
+            msg_type = row.r#type.unwrap_or(0),
+            "IM 消息 WebSocket 推送"
+        );
     }
 
     /// 组装发送 VO（Java `sendMessageVO`：消息字段 + 用户 + 客服）。

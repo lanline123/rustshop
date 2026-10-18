@@ -76,6 +76,35 @@ pub fn send_to_user(key: &str, message: &str) -> usize {
     sent
 }
 
+/// 向所有在线管理员连接广播（IM 用户发消息、未分配客服时的兜底投递）。
+pub fn send_to_admins(message: &str) -> usize {
+    let Ok(mut map) = sessions().lock() else {
+        return 0;
+    };
+    let keys: Vec<String> = map
+        .keys()
+        .filter(|key| key.starts_with("true::"))
+        .cloned()
+        .collect();
+    let mut sent = 0;
+    for key in keys {
+        let mut remove = false;
+        if let Some(list) = map.get_mut(&key) {
+            list.retain(|s| !s.tx.is_closed());
+            for session in list.iter() {
+                if session.tx.send(message.to_string()).is_ok() {
+                    sent += 1;
+                }
+            }
+            remove = list.is_empty();
+        }
+        if remove {
+            map.remove(&key);
+        }
+    }
+    sent
+}
+
 /// 指定用户在线连接数。
 #[must_use]
 pub fn online_session_count(key: &str) -> usize {
@@ -132,6 +161,21 @@ mod tests {
         unregister(&key, id1);
         unregister(&key, id2);
         assert_eq!(online_session_count(&key), 0);
+    }
+
+    #[test]
+    fn broadcast_to_admins_only() {
+        let admin_key = user_key(true, "42");
+        let member_key = user_key(false, "7");
+        let (tx_admin, mut rx_admin) = tokio::sync::mpsc::unbounded_channel::<String>();
+        let (tx_member, mut rx_member) = tokio::sync::mpsc::unbounded_channel::<String>();
+        let id_a = register(admin_key.clone(), tx_admin);
+        let id_m = register(member_key.clone(), tx_member);
+        assert_eq!(send_to_admins("hello"), 1);
+        assert_eq!(rx_admin.try_recv().unwrap(), "hello");
+        assert!(rx_member.try_recv().is_err());
+        unregister(&admin_key, id_a);
+        unregister(&member_key, id_m);
     }
 
     #[test]
