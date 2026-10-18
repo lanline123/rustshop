@@ -60,6 +60,7 @@
 ## 6. 文档索引
 
 - 运行/前端部署：`docs/RUN-RUST-FRONTEND.md`
+- 交接（凭据/评审/其它待办）：`docs/HANDOVER.md`
 - 兼容层与验证：`docs/PAYMENT-UPLOAD-VERIFY.md`、`docs/CAPTCHA-VERIFY.md`
 - 基础设施：`docs/IM-WEBSOCKET.md`、`docs/SCHEDULER.md`、`docs/RBAC.md`、`docs/EXCEL.md`、`docs/SMS-EMAIL.md`
 - 支付渠道：`docs/PAYMENT-CHANNELS.md`
