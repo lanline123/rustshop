@@ -1,4 +1,4 @@
-﻿//! 前台订单发票域仓储（trade::order_invoice_client）。
+//! 前台订单发票域仓储（trade::order_invoice_client）。
 //!
 //! 表：`order_invoice`（21 列）+ `order`（订单快照回填）。
 //! 查询统一使用运行时 `sqlx::query_as`（`order` 为保留字，全部加反引号）。
@@ -175,6 +175,56 @@ impl OrderInvoiceClientRepository {
         .bind(email.unwrap_or(""))
         .bind(add_time)
         .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(i32::try_from(res.last_insert_id()).unwrap_or(i32::MAX))
+    }
+
+    /// 在已有事务内插入发票申请（随单落库使用）。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn insert_invoice_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::MySql>,
+        user_id: i32,
+        order_id: i32,
+        invoice_type: i32,
+        title_type: i32,
+        company_name: &str,
+        company_code: Option<&str>,
+        company_address: Option<&str>,
+        company_phone: Option<&str>,
+        company_bank: Option<&str>,
+        company_account: Option<&str>,
+        invoice_content: Option<&str>,
+        amount: Decimal,
+        mobile: Option<&str>,
+        email: Option<&str>,
+        add_time: i32,
+    ) -> Result<i32> {
+        let res = sqlx::query(
+            "INSERT INTO order_invoice
+               (user_id, order_id, invoice_type, status, apply_reply, title_type, company_code,
+                company_name, company_address, company_phone, company_bank, company_account,
+                invoice_content, invoice_no, amount, mobile, email, add_time, invoicing_time)
+             VALUES (?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, 0)",
+        )
+        .bind(user_id)
+        .bind(order_id)
+        .bind(invoice_type)
+        .bind(INVOICE_STATUS_PENDING)
+        .bind(title_type)
+        .bind(company_code.unwrap_or(""))
+        .bind(company_name)
+        .bind(company_address.unwrap_or(""))
+        .bind(company_phone.unwrap_or(""))
+        .bind(company_bank.unwrap_or(""))
+        .bind(company_account.unwrap_or(""))
+        .bind(invoice_content.unwrap_or(""))
+        .bind(amount)
+        .bind(mobile.unwrap_or(""))
+        .bind(email.unwrap_or(""))
+        .bind(add_time)
+        .execute(&mut **tx)
         .await
         .map_err(map_err)?;
         Ok(i32::try_from(res.last_insert_id()).unwrap_or(i32::MAX))

@@ -108,9 +108,9 @@ impl OrderRepository {
               total_amount, paid_amount, unpaid_amount, product_amount, coupon_amount,
               shipping_fee, referrer_user_id, order_source, vendor_id, order_extension,
               email, use_points, points_amount, balance, is_presale, presale_type,
-              discount_amount)
+              discount_amount, tax_rate, tax_rate_amount)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(order.order_type.unwrap_or(0))
         .bind(&order.order_sn)
@@ -147,6 +147,8 @@ impl OrderRepository {
         .bind(order.is_presale)
         .bind(order.presale_type)
         .bind(order.discount_amount)
+        .bind(order.tax_rate)
+        .bind(order.tax_rate_amount)
         .execute(&mut **tx)
         .await
         .map_err(map_err)?;
@@ -182,6 +184,22 @@ impl OrderRepository {
         }
 
         Ok(order_id)
+    }
+
+    /// 更新订单发票快照数据（随单申请发票后回写）
+    pub async fn update_invoice_data_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::MySql>,
+        order_id: i32,
+        invoice_data: &str,
+    ) -> Result<()> {
+        sqlx::query("UPDATE `order` SET invoice_data = ? WHERE order_id = ?")
+            .bind(invoice_data)
+            .bind(order_id)
+            .execute(&mut **tx)
+            .await
+            .map_err(map_err)?;
+        Ok(())
     }
 
     /// 待付款且下单时间早于 cutoff 的订单 ID（定时取消用）。

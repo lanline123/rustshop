@@ -3,6 +3,30 @@
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
+/// 随单发票提交数据。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct InvoiceDataDTO {
+    /// 发票类型：1-普通发票 2-增值税专用发票
+    pub invoice_type: Option<i32>,
+    /// 抬头类型：1-个人 2-单位
+    pub title_type: Option<i32>,
+    /// 发票抬头
+    pub title: Option<String>,
+    /// 纳税人识别号
+    pub tax_no: Option<String>,
+    /// 发票内容
+    pub content: Option<String>,
+    /// 单位电话
+    pub tax_phone: Option<String>,
+    /// 个人或单位名称
+    pub company_name: Option<String>,
+    /// 收票人邮箱
+    pub email: Option<String>,
+    /// 收票人手机号
+    pub mobile: Option<String>,
+}
+
 /// 创建订单请求（提交结算页数据）。
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -13,6 +37,18 @@ pub struct OrderCreateDTO {
     pub address_id: Option<i32>,
     /// 配送方式：1-快递 2-自提 3-同城配送
     pub shipping_method: Option<i32>,
+    /// 兼容前端配送类型字段名
+    #[serde(default, alias = "deliveryType")]
+    pub delivery_type: Option<i32>,
+    /// 自提点ID（自提时有效）
+    #[serde(default)]
+    pub pickup_id: Option<i32>,
+    /// 自提联系人姓名
+    #[serde(default)]
+    pub pickup_contact_name: Option<String>,
+    /// 自提联系人手机号
+    #[serde(default)]
+    pub pickup_contact_mobile: Option<String>,
     /// 使用优惠券ID
     pub coupon_id: Option<i32>,
     /// 使用积分（前端结算表单字段名为 `usePoint`）
@@ -28,6 +64,9 @@ pub struct OrderCreateDTO {
     /// 前端结算表单里的用户优惠券 ID 列表（`useCouponIds`）
     #[serde(default)]
     pub use_coupon_ids: Option<Vec<i32>>,
+    /// 随单发票申请信息
+    #[serde(default)]
+    pub invoice_data: Option<InvoiceDataDTO>,
 }
 
 /// 兼容前端三种 `useBalance` 入参：数字（余额抵扣金额）、布尔、字符串数字。
@@ -56,12 +95,17 @@ impl Default for OrderCreateDTO {
             cart_ids: Vec::new(),
             address_id: None,
             shipping_method: Some(1),
+            delivery_type: None,
+            pickup_id: None,
+            pickup_contact_name: None,
+            pickup_contact_mobile: None,
             coupon_id: None,
             use_points: None,
             buyer_note: None,
             pay_type_id: None,
             use_balance: None,
             use_coupon_ids: None,
+            invoice_data: None,
         }
     }
 }

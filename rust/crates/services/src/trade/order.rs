@@ -224,6 +224,7 @@ impl OrderService {
         }
 
         // —— 收货地址快照（同时取地区用于运费模板匹配）——
+        let effective_shipping_method = dto.shipping_method.or(dto.delivery_type).unwrap_or(1);
         let addr = match dto.address_id.filter(|id| *id > 0) {
             Some(address_id) => {
                 self.repos
@@ -249,15 +250,41 @@ impl OrderService {
                         ids,
                     )
                 }
-                None => (
-                    String::new(),
-                    String::new(),
-                    String::new(),
-                    String::new(),
-                    "[]".to_string(),
-                    "[]".to_string(),
-                    Vec::new(),
-                ),
+                None => {
+                    if effective_shipping_method == 2 {
+                        let contact_name = dto
+                            .pickup_contact_name
+                            .as_deref()
+                            .unwrap_or("自提客户")
+                            .to_string();
+                        let contact_mobile = dto
+                            .pickup_contact_mobile
+                            .as_deref()
+                            .unwrap_or_default()
+                            .to_string();
+                        let pickup_addr =
+                            format!("门店自提 (自提点ID: {})", dto.pickup_id.unwrap_or(0));
+                        (
+                            contact_name,
+                            contact_mobile,
+                            String::new(),
+                            pickup_addr,
+                            "[]".to_string(),
+                            "[]".to_string(),
+                            Vec::new(),
+                        )
+                    } else {
+                        (
+                            String::new(),
+                            String::new(),
+                            String::new(),
+                            String::new(),
+                            "[]".to_string(),
+                            "[]".to_string(),
+                            Vec::new(),
+                        )
+                    }
+                }
             };
 
         // —— 优惠券抵扣（店铺范围 + 门槛校验，与结算页同口径）——
@@ -314,7 +341,7 @@ impl OrderService {
             &lines,
             &products,
             &region_id_list,
-            if dto.shipping_method == Some(2) {
+            if effective_shipping_method == 2 {
                 Some(2)
             } else {
                 None
@@ -364,9 +391,15 @@ impl OrderService {
         };
         let points_amount = points.points_amount;
 
-        // 应付金额 = 商品 - 优惠券 + 运费 - 积分抵扣（与结算页 totalAmount 一致）
-        let total =
-            (product_amount - coupon_amount + shipping_fee - points_amount).max(Decimal::ZERO);
+        // —— 地区税率（与结算页同一函数）——
+        let (tax_rate, _) =
+            crate::trade::check::resolve_tax_rate(&self.repos, &region_id_list).await;
+        let taxable_base = (product_amount - coupon_amount - seckill_discount).max(Decimal::ZERO);
+        let tax_rate_amount = crate::trade::check::calc_tax_amount(taxable_base, tax_rate);
+
+        // 应付金额 = 商品 - 优惠券 + 运费 + 税额 - 积分抵扣（与结算页 totalAmount 一致）
+        let total = (product_amount - coupon_amount + shipping_fee + tax_rate_amount - points_amount)
+            .max(Decimal::ZERO);
 
         // —— 定金预售：单商品 + product_presale.sale_mode = 2 ——
         let now_ts = utils::now_seconds() as i32;
@@ -434,7 +467,7 @@ impl OrderService {
             pay_status: 1, // 1=未支付
             add_time: utils::now_seconds() as i32,
             buyer_note: dto.buyer_note.clone().unwrap_or_default(),
-            shipping_method: dto.shipping_method.unwrap_or(1),
+            shipping_method: effective_shipping_method,
             pay_type_id: dto.pay_type_id.unwrap_or(0),
             consignee,
             mobile,
@@ -453,6 +486,8 @@ impl OrderService {
             coupon_amount,
             shipping_fee,
             discount_amount: seckill_discount,
+            tax_rate: Some(tax_rate),
+            tax_rate_amount: Some(tax_rate_amount),
             order_source: "web".into(),
             ..Default::default()
         };
@@ -569,6 +604,81 @@ impl OrderService {
                             .insert_presale_in_tx(&mut tx, &row)
                             .await
                             .map(|_| row.order_id);
+                    }
+                }
+            }
+
+            // 随单发票申请与订单同事务写入（order_invoice + order.invoice_data）
+            if result.is_ok() {
+                if let (Some(order_id), Some(ref inv)) =
+                    (result.as_ref().ok().copied(), &dto.invoice_data)
+                {
+                    if let Some(inv_type) = inv.invoice_type {
+                        if inv_type > 0 {
+                            let company_name = inv
+                                .company_name
+                                .as_deref()
+                                .or(inv.title.as_deref())
+                                .unwrap_or("个人");
+                            let company_code = inv.tax_no.as_deref();
+                            let title_type = if inv_type == 2 {
+                                2
+                            } else {
+                                inv.title_type.unwrap_or(1)
+                            };
+                            match self
+                                .repos
+                                .trade
+                                .order_invoice_client
+                                .insert_invoice_in_tx(
+                                    &mut tx,
+                                    user_id,
+                                    order_id,
+                                    inv_type,
+                                    title_type,
+                                    company_name,
+                                    company_code,
+                                    None,
+                                    inv.tax_phone.as_deref(),
+                                    None,
+                                    None,
+                                    inv.content.as_deref(),
+                                    total,
+                                    inv.mobile.as_deref(),
+                                    inv.email.as_deref(),
+                                    now_ts,
+                                )
+                                .await
+                            {
+                                Ok(inv_id) => {
+                                    let invoice_json = serde_json::json!({
+                                        "id": inv_id,
+                                        "orderId": order_id,
+                                        "userId": user_id,
+                                        "invoiceType": inv_type,
+                                        "titleType": title_type,
+                                        "companyName": company_name,
+                                        "companyCode": company_code.unwrap_or(""),
+                                        "amount": total.to_string(),
+                                        "status": 0,
+                                        "addTime": now_ts.to_string(),
+                                    })
+                                    .to_string();
+                                    if let Err(e) = self
+                                        .repos
+                                        .trade
+                                        .order
+                                        .update_invoice_data_in_tx(&mut tx, order_id, &invoice_json)
+                                        .await
+                                    {
+                                        result = Err(e);
+                                    }
+                                }
+                                Err(e) => {
+                                    result = Err(e);
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -879,5 +989,61 @@ fn to_vo(o: &Order, item_count: i32) -> OrderVO {
         mobile: o.mobile.clone(),
         add_time: o.add_time,
         item_count,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_order_create_dto_deserialization_with_invoice_and_o2o() {
+        let json_str = r#"{
+            "cartIds": [1, 2],
+            "deliveryType": 2,
+            "pickupId": 105,
+            "pickupContactName": "王五",
+            "pickupContactMobile": "13800138000",
+            "invoiceData": {
+                "invoiceType": 2,
+                "titleType": 2,
+                "companyName": "佰商科技",
+                "taxNo": "91360100MA35XXXXXX",
+                "content": "技术服务费",
+                "email": "finance@tigshop.com"
+            }
+        }"#;
+
+        let dto: OrderCreateDTO =
+            serde_json::from_str(json_str).expect("deserialize OrderCreateDTO");
+        assert_eq!(dto.cart_ids, vec![1, 2]);
+        assert_eq!(dto.delivery_type, Some(2));
+        assert_eq!(dto.pickup_id, Some(105));
+        assert_eq!(dto.pickup_contact_name.as_deref(), Some("王五"));
+        assert_eq!(dto.pickup_contact_mobile.as_deref(), Some("13800138000"));
+
+        let inv = dto.invoice_data.expect("invoice_data present");
+        assert_eq!(inv.invoice_type, Some(2));
+        assert_eq!(inv.title_type, Some(2));
+        assert_eq!(inv.company_name.as_deref(), Some("佰商科技"));
+        assert_eq!(inv.tax_no.as_deref(), Some("91360100MA35XXXXXX"));
+        assert_eq!(inv.content.as_deref(), Some("技术服务费"));
+        assert_eq!(inv.email.as_deref(), Some("finance@tigshop.com"));
+    }
+
+    #[test]
+    fn test_tax_amount_calculation_and_ceiling() {
+        use crate::trade::check::calc_tax_amount;
+
+        // 100 元，10% 税率 -> 10.00
+        assert_eq!(calc_tax_amount(Decimal::new(10000, 2), Decimal::new(100, 1)), Decimal::new(1000, 2));
+
+        // 0 元或 0 税率 -> 0
+        assert_eq!(calc_tax_amount(Decimal::ZERO, Decimal::new(100, 1)), Decimal::ZERO);
+        assert_eq!(calc_tax_amount(Decimal::new(10000, 2), Decimal::ZERO), Decimal::ZERO);
+
+        // 向上取整 (CEILING)：10.55 元 * 6.5% = 0.68575 -> 0.69
+        let res = calc_tax_amount(Decimal::new(1055, 2), Decimal::new(65, 1));
+        assert_eq!(res, Decimal::new(69, 2));
     }
 }

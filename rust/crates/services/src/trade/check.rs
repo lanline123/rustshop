@@ -50,6 +50,41 @@ const CFG_INTEGRAL_PERCENT_BASE: &str = "integralPercentBaseAmount";
 const CFG_USE_POINTS: &str = "usePoints";
 const CFG_USE_CREDIT: &str = "useCredit";
 
+/// 按地区匹配适用税率（Java `OrderCheckServiceImpl#resolveOrderTaxRate`）。
+///
+/// 从末级区域到宏观区域依次查询启用的税率记录。
+pub async fn resolve_tax_rate(
+    repos: &Repositories,
+    region_ids: &[i32],
+) -> (Decimal, Option<tigshop_core::entities::setting::TaxRate>) {
+    for &rid in region_ids.iter().rev() {
+        if rid > 0 {
+            if let Ok(Some(tr)) = repos.payment.tax_rate.find_active_by_region_id(rid).await {
+                return (tr.rate, Some(tr));
+            }
+        }
+    }
+    for &rid in region_ids {
+        if rid > 0 {
+            if let Ok(Some(tr)) = repos.payment.tax_rate.find_active_by_region_id(rid).await {
+                return (tr.rate, Some(tr));
+            }
+        }
+    }
+    (Decimal::ZERO, None)
+}
+
+/// 计算税率金额（Java `OrderCheckServiceImpl`:
+/// `taxRateAmount = taxBaseAmount.multiply(taxRate / 100).setScale(2, RoundingMode.CEILING)`）。
+pub fn calc_tax_amount(taxable_base: Decimal, tax_rate_percent: Decimal) -> Decimal {
+    if tax_rate_percent <= Decimal::ZERO || taxable_base <= Decimal::ZERO {
+        return Decimal::ZERO;
+    }
+    let rate = tax_rate_percent / Decimal::from(100);
+    let raw = taxable_base * rate;
+    raw.round_dp_with_strategy(2, rust_decimal::RoundingStrategy::AwayFromZero)
+}
+
 /// 订单结算域服务。
 pub struct CheckService {
     repos: Arc<Repositories>,
@@ -346,9 +381,14 @@ impl CheckService {
             Default::default()
         };
 
+        // —— 地区税率计算（Java OrderCheckServiceImpl#resolveOrderTaxRate）——
+        let (tax_rate, _) = resolve_tax_rate(&self.repos, &region_ids).await;
+        let taxable_base = (product_amount - coupons.total - seckill_total - groupon_total - full_reduce_total).max(Decimal::ZERO);
+        let tax_rate_amount = calc_tax_amount(taxable_base, tax_rate);
+
         // —— 应付 / 余额 / 账期 ——
         let total_before_balance =
-            (product_amount + shipping.total - coupons.total - points.points_amount)
+            (product_amount + shipping.total + tax_rate_amount - coupons.total - points.points_amount)
                 .max(Decimal::ZERO);
         let balance_used = if param.use_balance.unwrap_or_default() > Decimal::ZERO {
             balance.min(total_before_balance).max(Decimal::ZERO)
@@ -507,6 +547,8 @@ impl CheckService {
             shipping_fee: shipping.total,
             store_shipping_fee: shipping.per_store,
             total_amount,
+            tax_rate,
+            tax_rate_amount,
             balance: balance_used,
             unpaid_amount,
             credit_amount,
