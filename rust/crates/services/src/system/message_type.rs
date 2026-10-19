@@ -755,12 +755,16 @@ impl MessageTypeService {
             .map_err(|e| Error::Database(e.to_string()))?;
 
         // Java 末尾 `adminLogService.createByLogInfo("更新消息类型:{name}")`。
-        // 日志域尚未迁移，这里退化为 tracing，保持可观测性。
         let name = self
             .repo()
             .find_name_by_id(message_id)
             .await?
             .unwrap_or_default();
+        let log_info = format!("更新消息类型:{name}");
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log("admin", 0, &log_info).await {
+            tracing::warn!("写管理操作日志失败（消息类型）: {e}");
+        }
         tracing::info!("更新消息类型:{name}（messageId={message_id}）");
         Ok(())
     }

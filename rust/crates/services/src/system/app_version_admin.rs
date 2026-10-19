@@ -221,20 +221,10 @@ impl AppVersionAdminService {
             .replace_configs(&entries, admin_id, &name)
             .await?;
 
-        let _ = self
-            .repos
-            .identity
-            .admin_log
-            .insert_log(
-                tigshop_common::utils::now_seconds() as i32,
-                admin_id.unwrap_or(0) as i32,
-                "admin",
-                0,
-                "更新APP版本配置",
-                "127.0.0.1",
-                None,
-            )
-            .await;
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log("admin", 0, "更新APP版本管理").await {
+            tracing::warn!("写管理操作日志失败（APP 版本）: {e}");
+        }
         Ok(())
     }
 

@@ -350,6 +350,16 @@ impl ProductManageService {
             self.repos.catalog.product_manage.insert_inventory_log(&log).await?;
         }
 
+        let log_info = format!("创建商品:{}", product.product_name);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        let sid = product.shop_id;
+        if let Err(e) = admin_log
+            .record_current_log(if sid > 0 { "shop" } else { "admin" }, sid, &log_info)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败（创建商品）: {e}");
+        }
+
         tracing::info!("创建商品成功: product_id={product_id}, sn={:?}", product.product_sn);
         Ok(MSG_CREATED.to_string())
     }
@@ -442,6 +452,19 @@ impl ProductManageService {
                 };
                 self.repos.catalog.product_manage.insert_inventory_log(&log).await?;
             }
+        }
+
+        let log_info = format!("更新商品:{}", db.product_name);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log
+            .record_current_log(
+                if db.shop_id > 0 { "shop" } else { "admin" },
+                db.shop_id,
+                &log_info,
+            )
+            .await
+        {
+            tracing::warn!("写管理操作日志失败（更新商品）: {e}");
         }
 
         tracing::info!("更新商品成功: product_id={product_id}");

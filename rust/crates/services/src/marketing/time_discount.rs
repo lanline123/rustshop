@@ -103,6 +103,16 @@ impl TimeDiscountService {
             self.repos.marketing.time_discount.insert_item(&row).await?;
         }
 
+        let log_info = format!("新增限时折扣活动:{}", activity.promotion_name);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        let sid = activity.shop_id;
+        if let Err(e) = admin_log
+            .record_current_log(if sid > 0 { "shop" } else { "admin" }, sid, &log_info)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败（新增限时折扣活动）: {e}");
+        }
+
         tracing::info!(
             "创建限时折扣活动成功: id={discount_id}, 明细 {} 条",
             dto.item.len()
@@ -139,6 +149,16 @@ impl TimeDiscountService {
         for item in &dto.base.item {
             let row = build_item(dto.discount_id, item, start, end);
             self.repos.marketing.time_discount.insert_item(&row).await?;
+        }
+
+        let log_info = format!("更新限时折扣活动:{}", activity.promotion_name);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        let sid = activity.shop_id;
+        if let Err(e) = admin_log
+            .record_current_log(if sid > 0 { "shop" } else { "admin" }, sid, &log_info)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败（更新限时折扣活动）: {e}");
         }
 
         tracing::info!("更新限时折扣活动成功: id={}", dto.discount_id);

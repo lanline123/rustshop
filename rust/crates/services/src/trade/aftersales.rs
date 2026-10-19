@@ -995,6 +995,11 @@ impl AftersalesService {
                      aftersale_id={aftersale_id}"
                 );
             }
+            let log_info = format!("更新退换货:{aftersale_id}");
+            let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+            if let Err(e) = admin_log.record_current_log(if aftersales.shop_id > 0 { "shop" } else { "admin" }, aftersales.shop_id, &log_info).await {
+                tracing::warn!("写管理操作日志失败（售后）: {e}");
+            }
             return Ok(());
         }
 
@@ -1030,6 +1035,11 @@ impl AftersalesService {
                     None,
                 ))
                 .await?;
+            let admin_log_text = format!("更新退换货:{aftersale_id}");
+            let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+            if let Err(e) = admin_log.record_current_log(if aftersales.shop_id > 0 { "shop" } else { "admin" }, aftersales.shop_id, &admin_log_text).await {
+                tracing::warn!("写管理操作日志失败（售后）: {e}");
+            }
             return Ok(());
         }
 
@@ -1190,6 +1200,22 @@ impl AftersalesService {
             ))
             .await?;
 
+        // Java：`if (!systemAuto) adminLogService.createByLogInfo("完成退换货:" + id)`
+        if !system_auto {
+            let log_info = format!("完成退换货:{aftersale_id}");
+            let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+            if let Err(e) = admin_log
+                .record_current_log(
+                    if aftersales.shop_id > 0 { "shop" } else { "admin" },
+                    aftersales.shop_id,
+                    &log_info,
+                )
+                .await
+            {
+                tracing::warn!("写管理操作日志失败（售后）: {e}");
+            }
+        }
+
         tracing::info!(
             "售后确认收货完成: aftersale_id={aftersale_id}, refund_amount={final_refund_amount}, \
              system_auto={system_auto}（退款申请/退款结算单未迁移，需财务域处理）"
@@ -1266,6 +1292,11 @@ impl AftersalesService {
                 None,
             ))
             .await?;
+        let log_info = format!("拒收退货:{aftersale_id}");
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log(if aftersales.shop_id > 0 { "shop" } else { "admin" }, aftersales.shop_id, &log_info).await {
+            tracing::warn!("写管理操作日志失败（售后）: {e}");
+        }
         Ok(())
     }
 

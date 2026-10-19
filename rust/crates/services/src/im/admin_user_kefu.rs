@@ -233,6 +233,14 @@ impl AdminUserKefuService {
             return Err(Error::Forbidden(MSG_NOT_DELETE_SELF.into()));
         }
         self.repo().delete_binding(id, shop_id).await?;
+        let log_info = format!("删除客服人员信息：{}", binding.username);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log
+            .record_current_log(if shop_id > 0 { "shop" } else { "admin" }, shop_id, &log_info)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败（删除客服）: {e}");
+        }
         Ok(())
     }
 

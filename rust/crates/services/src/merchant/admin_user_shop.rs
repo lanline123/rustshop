@@ -372,6 +372,15 @@ impl AdminUserShopService {
             return Err(biz(ADMIN_USER_SHOP_NOT_DELETE_SELF));
         }
         self.repo().delete(binding.id).await?;
+        let log_info = format!("删除员工信息：{}", binding.username);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        let sid = binding.shop_id;
+        if let Err(e) = admin_log
+            .record_current_log(if sid > 0 { "shop" } else { "admin" }, sid, &log_info)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败（删除员工）: {e}");
+        }
         Ok(())
     }
 
@@ -389,6 +398,7 @@ impl AdminUserShopService {
         let ids = ids.unwrap_or(&[]);
         let shop_id = shop_id.ok_or_else(|| biz(ADMIN_USER_SHOP_NOT_EXIST))?;
         let mut targets = Vec::with_capacity(ids.len());
+        let mut target_names = Vec::with_capacity(ids.len());
         for id in ids {
             let binding = self.repo().find_scoped(*id, shop_id).await?;
             let binding = binding.ok_or_else(|| biz(ADMIN_USER_SHOP_NOT_EXIST))?;
@@ -396,8 +406,19 @@ impl AdminUserShopService {
                 return Err(biz(ADMIN_USER_SHOP_NOT_DELETE_SELF));
             }
             targets.push(binding.id);
+            target_names.push(binding.username);
         }
         self.repo().delete_many(&targets).await?;
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        for name in target_names {
+            let log_info = format!("删除员工信息：{name}");
+            if let Err(e) = admin_log
+                .record_current_log("shop", shop_id, &log_info)
+                .await
+            {
+                tracing::warn!("写管理操作日志失败（批量删除员工）: {e}");
+            }
+        }
         Ok(())
     }
 

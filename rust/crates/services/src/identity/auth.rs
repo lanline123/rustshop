@@ -70,6 +70,17 @@ impl AuthService {
             scoped_shop_id,
         )?;
 
+        let log_info = format!("管理员登录:{}", user.username);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        let (scope_type, scope_id) = if user.admin_type == "shop" && user.shop_id > 0 {
+            ("shop", user.shop_id)
+        } else {
+            ("admin", 0)
+        };
+        let _ = admin_log
+            .record_log(user.admin_id, scope_type, scope_id, &log_info, None, None)
+            .await;
+
         tracing::info!(
             "管理员登录成功: {} ({}, shop_id={:?})",
             user.username,

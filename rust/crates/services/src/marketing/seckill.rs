@@ -100,6 +100,19 @@ impl SeckillService {
             self.repos.marketing.seckill.insert_item(&row).await?;
         }
 
+        let log_info = format!(
+            "新增秒杀活动:{}",
+            seckill.seckill_name.as_deref().unwrap_or("")
+        );
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        let sid = seckill.shop_id;
+        if let Err(e) = admin_log
+            .record_current_log(if sid > 0 { "shop" } else { "admin" }, sid, &log_info)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败（新增秒杀活动）: {e}");
+        }
+
         tracing::info!("创建秒杀活动成功: id={seckill_id}, 明细 {} 条", dto.seckill_item.len());
         Ok(seckill_id)
     }
@@ -138,6 +151,19 @@ impl SeckillService {
             self.check_item_conflict(item, Some(dto.seckill_id)).await?;
             let row = self.build_item(dto.seckill_id, item, start, end)?;
             self.repos.marketing.seckill.insert_item(&row).await?;
+        }
+
+        let log_info = format!(
+            "更新秒杀活动:{}",
+            seckill.seckill_name.as_deref().unwrap_or("")
+        );
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        let sid = seckill.shop_id;
+        if let Err(e) = admin_log
+            .record_current_log(if sid > 0 { "shop" } else { "admin" }, sid, &log_info)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败（更新秒杀活动）: {e}");
         }
 
         tracing::info!("更新秒杀活动成功: id={}", dto.seckill_id);

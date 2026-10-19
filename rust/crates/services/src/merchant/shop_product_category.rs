@@ -234,7 +234,7 @@ impl ShopProductCategoryService {
         let id = self
             .repos.merchant.shop_product_category
             .insert(&CategoryInsert {
-                category_name,
+                category_name: category_name.clone(),
                 shop_id,
                 parent_id: dto.parent_id,
                 sort_order: dto.sort_order,
@@ -243,6 +243,12 @@ impl ShopProductCategoryService {
                 category_pic,
             })
             .await?;
+
+        let log_info = format!("新增分类：{category_name}");
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log(if shop_id.unwrap_or(0) > 0 { "shop" } else { "admin" }, shop_id.unwrap_or(0), &log_info).await {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
 
         tracing::info!("创建店铺商品分类成功: id={id}, shop_id={shop_id:?}");
         Ok(id)
@@ -299,7 +305,7 @@ impl ShopProductCategoryService {
         }
 
         let patch = CategoryPatch {
-            category_name: category_name.map(Some),
+            category_name: category_name.clone().map(Some),
             // Java 控制器把 DTO 的 shopId 覆盖为请求头值后 updateById 会写这一列
             shop_id: shop_id.map(Some),
             parent_id: dto.parent_id.map(Some),
@@ -308,6 +314,14 @@ impl ShopProductCategoryService {
             category_pic: category_pic.map(Some),
         };
         let affected = self.repos.merchant.shop_product_category.update(id, &patch).await?;
+
+        let name_str = category_name.as_deref().unwrap_or("");
+        let log_info = format!("修改分类：{name_str}");
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log(if shop_id.unwrap_or(0) > 0 { "shop" } else { "admin" }, shop_id.unwrap_or(0), &log_info).await {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
+
         tracing::info!("更新店铺商品分类: id={id}, 影响 {affected} 行");
         Ok(affected > 0)
     }
