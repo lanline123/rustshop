@@ -614,6 +614,19 @@ impl BuyerShowRepository {
 
     // ————————————————————— virtual_user_info / user —————————————————————
 
+    /// 写入虚拟用户（Java `VirtualUserInfoService#save`）。
+    pub async fn insert_virtual_user(&self, photo: &str, nickname: &str) -> Result<i32> {
+        let res = sqlx::query(
+            "INSERT INTO `virtual_user_info` (photo, nickname) VALUES (?, ?)",
+        )
+        .bind(photo)
+        .bind(nickname)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(res.last_insert_id() as i32)
+    }
+
     /// 随机取一个虚拟用户（对应 Java `getBuyerInfo` 的
     /// `lambdaQuery().last("ORDER BY RAND() LIMIT 1").one()`）。
     ///

@@ -24,11 +24,8 @@
 //!
 //! # 与 Java 的行为差异（逐条，均已在返回值的 `uncertain_points` 中列明）
 //!
-//! 1. **`info` 未迁移**：Java 的 `info()` 是「生成 100 个虚拟用户」的一次性运维脚本 ——
-//!    每轮都去第三方接口（`http://101.35.2.25/api/...`，硬编码 key）取随机昵称与头像、
-//!    下载图片、再走 `galleryPicService.uploadImg` 上传到对象存储，且**每轮 `Thread.sleep(10_000)`**
-//!    （100 轮 ≈ 16 分 40 秒）。本仓无 HTTP 客户端依赖、无图片上传/对象存储服务、
-//!    无 `tigshop-beans` 的随机资料源，故本方法**直接返回明确业务错误**，绝不伪造实现。
+//! 1. **`info` 已本地化**：Java 的 `info()` 逐轮请求外部随机资料接口并上传头像；
+//!    本实现改为确定性生成 100 条虚拟用户（昵称 + 内联 SVG 头像），不依赖外部网络。
 //! 2. **业务错误码**：Java 的 `GlobalException(String)` 默认 code 为
 //!    `SERVICE_DATA_ERROR = 1001`；本文件用同一 code + 同一文案
 //!    （`买家秀不存在` / `待审核买家秀不允许删除` / `field 的值有误`）。
@@ -141,9 +138,6 @@ const MSG_COMMENT_CONTENT_REQUIRED: &str = "评论内容不能为空";
 /// Java `Assert.notNull(buyerShow, "买家秀不存在")` / `deleteAll` 的行数校验
 /// （级联删除时由 `repo::tigshop_core::models::marketing::buyer_show::delete_buyer_shows_cascade` 使用同一文案）。
 const MSG_BUYER_SHOW_NOT_FOUND: &str = "买家秀不存在";
-/// `BuyerShowServiceImpl#info` 未迁移（见模块头第 1 条）
-const MSG_INFO_NOT_MIGRATED: &str =
-    "生成虚拟用户信息依赖外部接口与图片上传服务（未迁移），本接口不可用";
 /// `getBuyerInfo` 查不到虚拟用户时（Java 会 NPE；这里给明确错误）
 const MSG_VIRTUAL_USER_NOT_FOUND: &str = "虚拟用户信息不存在";
 /// `create` 的 `last_insert_id` 异常（理论不可达，防御性）
@@ -357,6 +351,23 @@ pub fn display_buyer_name(buyer: &BuyerShow, username: Option<&str>) -> String {
 /// if (user != null) { vo.setBuyerName(user.getName()); vo.setBuyerPhoto(user.getAvatar()); }
 /// ```
 /// 用户查不到时保持库里的 `buyer_name` / `buyer_photo`。
+/// 确定性虚拟用户资料：昵称 + 内联 SVG 头像（<255 字符，适配 `varchar(255)`）。
+fn virtual_user_profile(index: i32) -> (String, String) {
+    const NAMES: [&str; 10] = [
+        "小鹿", "阿柚", "青柠", "小满", "拾光", "山茶", "北岛", "南风", "一禾", "木木",
+    ];
+    let name = NAMES[index as usize % NAMES.len()];
+    let nickname = format!("虚拟用户{name}{:03}", index + 1);
+    let colors = [
+        "%23f97316", "%23ef4444", "%238b5cf6", "%230ea5e9", "%2310b981", "%23eab308",
+    ];
+    let color = colors[index as usize % colors.len()];
+    let photo = format!(
+        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect width='80' height='80' fill='{color}'/%3E%3C/svg%3E"
+    );
+    (nickname, photo)
+}
+
 fn detail_owner(buyer: &BuyerShow, user: Option<&(String, String)>) -> (String, String) {
     if buyer.user_id > VIRTUAL_USER_ID {
         if let Some((name, avatar)) = user {
@@ -412,11 +423,20 @@ impl BuyerShowService {
     ///
     /// 对应 Java `BuyerShowController.info()` → `BuyerShowServiceImpl#info`。
     ///
-    /// ⚠️ **明确未迁移**（见模块头第 1 条）：Java 逐轮调用第三方随机资料接口 +
-    /// 下载图片 + 上传对象存储，且每轮 `Thread.sleep(10_000)`。
-    /// 本方法**不伪造实现**，直接返回明确业务错误。
-    pub fn info(&self) -> Result<()> {
-        Err(Error::biz(SERVICE_DATA_ERROR, MSG_INFO_NOT_MIGRATED))
+    /// Java 逐轮请求外部随机资料接口 + 下载/上传头像，并 `sleep(10s)`；
+    /// 本实现改为本地确定性生成 100 条虚拟用户（昵称 + 内联 SVG 头像），
+    /// 不依赖外部网络，也不再阻塞请求 16 分钟。
+    pub async fn info(&self) -> Result<()> {
+        for i in 0..100 {
+            let (nickname, photo) = virtual_user_profile(i);
+            self.repos
+                .marketing
+                .buyer_show
+                .insert_virtual_user(&photo, &nickname)
+                .await?;
+        }
+        tracing::info!("生成虚拟用户信息完成: 100 条");
+        Ok(())
     }
 
     /// `GET /adminapi/promotion/buyerShow/getBuyerInfo`：随机取一个虚拟买家。
@@ -1150,19 +1170,17 @@ mod tests {
         );
     }
 
-    // ————————————————————— info 未迁移 —————————————————————
+    // ————————————————————— 虚拟用户资料 —————————————————————
 
     #[test]
-    fn info_returns_explicit_business_error() {
-        // 无法构造 service（需要 DB 池），用同一常量直接验证错误契约
-        let e = Error::biz(SERVICE_DATA_ERROR, MSG_INFO_NOT_MIGRATED);
-        match e {
-            Error::Biz { code, msg } => {
-                assert_eq!(code, SERVICE_DATA_ERROR);
-                assert!(msg.contains("未迁移"));
-            }
-            other => panic!("应为 Biz 错误，实际 {other:?}"),
-        }
+    fn virtual_user_profile_is_local_and_fits_column() {
+        let (nickname, photo) = virtual_user_profile(0);
+        assert!(nickname.starts_with("虚拟用户"));
+        assert!(photo.starts_with("data:image/svg+xml"));
+        assert!(photo.len() < 255);
+        let (nickname2, photo2) = virtual_user_profile(1);
+        assert_ne!(nickname, nickname2);
+        assert_ne!(photo, photo2);
     }
 
     // ————————————————————— 列表查询语义回归 —————————————————————

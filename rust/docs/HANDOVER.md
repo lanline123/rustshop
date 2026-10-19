@@ -120,7 +120,7 @@ $env:RUST_LOG="info,tigshop=info,sqlx=warn"
   （`tigshop_security::audit` + `require_auth` 注入 actor/IP）；
   Java 已实现调用点均已接入（商品/秒杀/限时折扣/品牌/评论/卡券/物流/优惠券/售后/登录/员工/消息类型/APP 版本等，约 30 个写点）；
   `merchant_apply` 的「新增管理员/员工」链路本身未实现，功能落地时一并补审计。
-- IM：已读回执 WS 推送、视频上传已完成；自动回复/MQ 仍待接。
+- IM：已读回执 WS 推送、视频上传、自动回复（本地即时）已完成；RabbitMQ 化可选。
 
 ### P2 — 平台能力
 

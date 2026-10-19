@@ -36,10 +36,7 @@
 //! > 本模块按项目内既有约定回传简短结果（新建返回 `buyerShowId`，
 //! > 评论返回 `buyerShowCommentId`，其余返回提示文案或 `bool`）。
 //!
-//! > **未迁移端点**：`GET /promotion/buyerShow/info` 的 Java 实现是
-//! > 一次性运维脚本（第三方随机资料接口 + 图片下载 + 对象存储上传，
-//! > 且每轮 `Thread.sleep(10_000)`），依赖均未迁移，
-//! > 调用会返回明确业务错误（详见 `crates/services/src/buyer_show.rs` 模块头第 1 条）。
+//! > `GET /promotion/buyerShow/info` 本地确定性生成 100 条虚拟用户（昵称+内联头像），不依赖外部接口。
 //!
 //! > **⚠️ 合并注意（路由冲突）**：`crates/api/admin/src/routes/mod.rs` 现有的
 //! > `sliceNNN` 列表里**没有** buyerShow 相关注册，本模块的 13 条路径在
@@ -208,7 +205,7 @@ impl DeletePayload {
 /// 上传对象存储，且每轮 `Thread.sleep(10_000)`（100 轮 ≈ 16 分 40 秒）。
 /// 本接口返回明确业务错误，不伪造实现。
 async fn buyer_show_info(State(state): State<AdminState>) -> ApiResult<&'static str> {
-    state.marketing.buyer_show.info()?;
+    state.marketing.buyer_show.info().await?;
     ok("生成成功")
 }
 

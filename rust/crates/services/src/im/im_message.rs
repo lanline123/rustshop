@@ -23,7 +23,7 @@
 //!    向 `false::{userId}` / `true::{servantId}` 实时推送消息，
 //!    `setRead` 通过 `sendReadToClient` 推送已读事件。Rust 侧无 WS 通道，
 //!    故只保证「落库正确 + 返回体形状正确」，推送环节跳过。
-//! 2. **自动回复（RabbitMQ 延迟队列）**：Java `send` 首接 / 重新激活 /
+//! 2. **自动回复**：Java `send` 首接 / 重新激活触发 RabbitMQ 延迟 2s；本实现即时写入并 WS 推送，
 //!    无在线客服时投递 `autoWelcome` / `autoWaiting` / `autoOffWork`
 //!    自动消息（`sendAutoMessage` → RabbitMQ）。Rust 侧无 MQ，故会话接入的
 //!    **库表写入**（客服分配、状态、接待数）照常执行，但**不投递**自动回复。
@@ -239,6 +239,7 @@ impl ImMessageService {
         // shop_id：前台由请求体带入；NOT NULL，缺失回退 0（见 uncertain_points）
         let shop_id = dto.shop_id.unwrap_or(0);
 
+        let mut auto_reply = false;
         let (conversation_id, servant_id, user_from) = match dto.conversation_id {
             Some(cid) if cid > 0 => {
                 let conv = self
@@ -246,7 +247,11 @@ impl ImMessageService {
                     .find_conversation(cid)
                     .await?
                     .ok_or_else(|| Error::biz_msg("会话不存在"))?;
+                let was_active = conv.status == Some(1);
                 let conv = self.activate_conversation_if_needed(conv, shop_id).await?;
+                if !was_active {
+                    auto_reply = true;
+                }
                 (conv.id, conv.last_servant_id.unwrap_or(0), conv.user_from)
             }
             _ => {
@@ -256,27 +261,148 @@ impl ImMessageService {
                     .await?;
                 match existing {
                     Some(conv) => {
+                        let was_active = conv.status == Some(1);
                         let conv = self.activate_conversation_if_needed(conv, shop_id).await?;
+                        if !was_active {
+                            auto_reply = true;
+                        }
                         (conv.id, conv.last_servant_id.unwrap_or(0), conv.user_from)
                     }
                     None => {
-                        self.create_conversation(user_id, shop_id, user_from_header.as_deref())
-                            .await?
+                        let created = self
+                            .create_conversation(user_id, shop_id, user_from_header.as_deref())
+                            .await?;
+                        auto_reply = true;
+                        created
                     }
                 }
             }
         };
 
-        self.persist_message(
-            dto,
-            conversation_id,
-            Some(user_id),
-            Some(servant_id),
-            1, // type = 1（用户发）
-            shop_id,
-            user_from.as_deref(),
-        )
-        .await
+        let vo = self
+            .persist_message(
+                dto,
+                conversation_id,
+                Some(user_id),
+                Some(servant_id),
+                1, // type = 1（用户发）
+                shop_id,
+                user_from.as_deref(),
+            )
+            .await?;
+
+        if auto_reply {
+            if let Err(e) = self
+                .send_auto_reply(conversation_id, user_id, shop_id, servant_id, user_from.as_deref())
+                .await
+            {
+                tracing::warn!("IM 自动回复失败: {e}");
+            }
+        }
+        Ok(vo)
+    }
+
+    /// 自动回复（替代 Java RabbitMQ 延迟队列，立即写入并 WS 推送）。
+    ///
+    /// 规则对齐 Java：
+    /// - 已分配客服 → `welcome`
+    /// - 无客服且存在忙碌客服 → `waiting`
+    /// - 其余 → `off_work`
+    async fn send_auto_reply(
+        &self,
+        conversation_id: i32,
+        user_id: i32,
+        shop_id: i32,
+        servant_id: i32,
+        user_from: Option<&str>,
+    ) -> Result<()> {
+        use tigshop_core::models::im::im_config::ConfigDataDTO;
+        let code = if servant_id > 0 {
+            "welcome"
+        } else if self
+            .repo()
+            .shop_has_servant_status(shop_id, 2)
+            .await?
+        {
+            "waiting"
+        } else {
+            "off_work"
+        };
+        let Some(row) = self
+            .repos
+            .im
+            .im_config
+            .find_by_code(code, Some(shop_id))
+            .await?
+        else {
+            return Ok(());
+        };
+        let Some(data) = ConfigDataDTO::from_json_str(row.data.as_deref()) else {
+            return Ok(());
+        };
+        if !data.activate {
+            return Ok(());
+        }
+        let now = now_seconds();
+        let mut sent_any = false;
+        if data.send_text {
+            if let Some(content) = data.reply_content.as_deref().filter(|s| !s.trim().is_empty()) {
+                let json = serde_json::json!({
+                    "messageType": "text",
+                    "content": content,
+                });
+                let msg = NewMessage {
+                    conversation_id: Some(conversation_id),
+                    content: Some(json.to_string()),
+                    message_type: "text".to_string(),
+                    msg_type: 2,
+                    user_id: Some(user_id),
+                    servant_id: Some(servant_id),
+                    send_time: now,
+                    shop_id,
+                    user_from: user_from.map(ToString::to_string),
+                };
+                let id = self.repo().insert_message(&msg).await?;
+                sent_any = true;
+                if let Ok(Some(row)) = self.repo().find_message(id).await {
+                    let vo = self.build_send_vo(&row).await?;
+                    let payload = serde_json::json!({"type":"message","data":[vo]}).to_string();
+                    tigshop_security::ws_registry::send_to_user(
+                        &tigshop_security::ws_registry::user_key(false, &user_id.to_string()),
+                        &payload,
+                    );
+                    if servant_id > 0 {
+                        tigshop_security::ws_registry::send_to_user(
+                            &tigshop_security::ws_registry::user_key(true, &servant_id.to_string()),
+                            &payload,
+                        );
+                    }
+                }
+            }
+        }
+        if data.send_wechat {
+            if let Some(pic) = data.wechat_image.filter(|s| !s.trim().is_empty()) {
+                let json = serde_json::json!({"messageType":"image","pic":pic});
+                let msg = NewMessage {
+                    conversation_id: Some(conversation_id),
+                    content: Some(json.to_string()),
+                    message_type: "image".to_string(),
+                    msg_type: 2,
+                    user_id: Some(user_id),
+                    servant_id: Some(servant_id),
+                    send_time: now,
+                    shop_id,
+                    user_from: user_from.map(ToString::to_string),
+                };
+                self.repo().insert_message(&msg).await?;
+                sent_any = true;
+            }
+        }
+        if sent_any {
+            let _ = self.repo().touch_conversation(conversation_id, now).await;
+            tracing::info!("IM 自动回复已发送: code={code}, conversation_id={conversation_id}");
+        }
+        Ok(())
     }
 
     /// 会话重新接入（复刻 Java `status != 1` 重激活 / 进行中客服离线改派分支；
