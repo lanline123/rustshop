@@ -41,7 +41,7 @@
      活动会员人群/满赠、限时折扣（`time_discount`）接入结算。
   5. IM 自动回复/MQ；物流平台第三方轨迹（本地兜底轨迹已实现）。
   6. 多租户/权限：会员与营销维度继续贯穿；RBAC `all` scope、权限缓存主动失效。
-  7. 工程化：nginx + 前端 dist、DB 集成/E2E、生产密钥/CORS/Redis 多实例；Docker 初始化需在有 Docker 环境实测。
+  7. 工程化：前端 dist、DB 集成/E2E、生产密钥/CORS/Redis 多实例；Docker 初始化与 nginx 参考配置已提供，需在有 Docker 环境实测。
 - **任务板**：pending/in_progress 已清零（历史 Wave 任务按 feature 覆盖率 100% 关闭）。
 - **外部凭据**（微信支付/支付宝/PayPal/微信生态/短信厂商/对象存储/ES/翻译）仍按 §5 表 A 处理。
 ---
