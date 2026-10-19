@@ -120,7 +120,7 @@ $env:RUST_LOG="info,tigshop=info,sqlx=warn"
   （`tigshop_security::audit` + `require_auth` 注入 actor/IP）；
   已接邮件模板/电子卡/运费模板/品牌/评论/电子卡密/物流公司/物流配置/配送类型/优惠券共 10 个模块、17 个写点；
   剩余 APP 版本/消息类型/店铺管理/IM 客服/售后等约 5 个模块待接。
-- IM：已读回执 `set_read_*` 的 WS 推送、自动回复/MQ 未迁移。
+- IM：已读回执 `set_read_*` 已接 WS 推送（`{"type":"read",...}`，会员↔客服双向）；自动回复/MQ 仍待接。
 
 ### P2 — 平台能力
 

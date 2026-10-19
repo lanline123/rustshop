@@ -32,7 +32,7 @@
   1. 行为占位 66 处：内容域 35（`gallery*` 视频/上传/zip、`decorate_template`、`wechat_menu` 发布、
      `wechat_live*`/`api_wechat_live`）、会员 9（`login` 微信 OAuth/服务号/手机号快捷登录 7、`user_message_log` 2）、
      系统 5（`util` 小程序码/二维码 4、`app_version_admin` 1）、商品 4（ES 分词/全量同步）、
-     商户 4（`shop_funds` 入驻流程）、交易 4（物流轨迹、代客配送 O2O）、营销 3（虚拟用户）、IM 2（已读回执/视频上传）。
+     商户 4（`shop_funds` 入驻流程）、交易 4（物流轨迹、代客配送 O2O）、营销 3（虚拟用户）、IM 1（视频上传；已读回执已完成）。
   2. 审计日志：`admin_log` 写入服务已完成，新增请求级审计上下文
      （`tigshop_security::audit`，`require_auth` 注入 actor/IP），已接 10 个模块/17 个写点；
      剩余 APP 版本/消息类型/店铺管理/IM 客服/售后等约 5 个模块待接。
@@ -41,7 +41,7 @@
   4. Excel 余量：订单导出、对账单导出、库存批量导入/调拨等；电子卡密导入、商品批量导入、批量发货导入已完成。
   5. 结算/活动残留：代客整单改价金额、定金尾款超时/取消、拼团退款/虚拟成团/限购、
      活动会员人群/满赠、限时折扣（`time_discount`）接入结算。
-  6. IM 已读回执/自动回复；物流平台第三方轨迹。
+  6. IM 视频上传/自动回复；物流平台第三方轨迹。
   7. 多租户/权限：会员与营销维度继续贯穿；RBAC `all` scope、权限缓存主动失效。
   8. 工程化：`/metrics`、Docker compose 初始化修正、nginx + 前端 dist、DB 集成/E2E、生产密钥/CORS/Redis 多实例。
 - **任务板**：仍有 6 个 `pending`（task-18/20/34/42/46/54），对应 feature 文件均已存在并已提交，
@@ -308,7 +308,7 @@ Get-ChildItem -Recurse services/src,api -Include *.rs |
 | 商品 | `catalog/product_manage_extra.rs`(6)、`product_stock.rs`、`stock_warning.rs`、`search_admin.rs` | ES 同步/搜索、库存预警联动、Redis 锁 |
 | 商户 | `merchant/shop_funds.rs`(4) | 店铺资金总览/流水 |
 | 营销 | `marketing/gift_card.rs`(3) | 礼品卡兑换/状态 |
-| IM | `im/im_message.rs`(2) | 已读回执 WS 推送、自动回复/MQ |
+| IM | `im/im_message.rs`(1) | 视频上传；自动回复/MQ（已读回执已完成） |
 
 验收：模块头删除“未迁移”声明；实现真实行为；有单测；相关冒烟或 SQL 断言；更新 `CAPABILITY-MATRIX` 行。
 
@@ -335,7 +335,7 @@ Get-ChildItem -Recurse services/src,api -Include *.rs |
 | 对账单导出 | `finance/statement/exportStatement`、`exportStatementStatistics` | 财务口径确认 |
 | 客户/会员导出、微信直播商品导入 | 见 `EXCEL.md` §4 | 后续 |
 | 审计日志 | `services/identity/admin_log.rs` | 在品牌/评论/卡密/商品等修改处调用 `createByLogInfo` 等价实现 |
-| IM 已读回执 | `services/im/im_message.rs` + `security/ws_registry.rs` | `set_read_*` 推 `{"type":"read","data":[{shopId}]}`；自动回复需 MQ/轮询 |
+| IM 已读回执 | `services/im/im_message.rs` + `security/ws_registry.rs` | ✅ 已实现：`set_read_*` 推 `{"type":"read","data":[{shopId}]}`（双向）；自动回复需 MQ/轮询 |
 
 验收：xlsx 内容/列头人工校验；导入失败明细与 Java 一致；审计记录可查；IM 双端实测（参考 `tools/compat/im_push_smoke.ps1`）。
 

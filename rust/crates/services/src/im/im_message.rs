@@ -537,6 +537,12 @@ impl ImMessageService {
         // shop_id 为空时 Java 生成 `shop_id = NULL` 匹配不到任何行 → 直接返回成功
         if let (Some(shop_id), Some(user_id)) = (shop_id, dto.user_id) {
             self.repo().mark_read_for_admin(shop_id, user_id).await?;
+            // Java `sendReadToClient`：通知会员「客服已读」
+            let payload = read_receipt_payload(Some(shop_id), dto.conversation_id, user_id);
+            tigshop_security::ws_registry::send_to_user(
+                &tigshop_security::ws_registry::user_key(false, &user_id.to_string()),
+                &payload,
+            );
         }
         Ok(true)
     }
@@ -544,13 +550,37 @@ impl ImMessageService {
     /// 前台设置已读（对应 api `ImMessageController.setRead` 的 `!isAdmin` 分支）。
     ///
     /// Java：`userId` 取登录态，为 0 抛 `error.user.not.login`；命中行
-    /// `is_read=1`（`type=2`、按 `shop_id`）。`sendReadToClient`（WS）未迁移。
+    /// `is_read=1`（`type=2`、按 `shop_id`），并向客服端推送 `type=read` 已读回执。
     pub async fn set_read_as_user(&self, dto: &ImSetReadDTO, user_id: i32) -> Result<bool> {
         if user_id == 0 {
             return Err(Error::Unauthorized("error.user.not.login".into()));
         }
         if let Some(shop_id) = dto.shop_id {
             self.repo().mark_read_for_user(user_id, shop_id).await?;
+            // Java `sendReadToClient`：通知客服「会员已读」
+            let payload = read_receipt_payload(Some(shop_id), dto.conversation_id, user_id);
+            let servant_id = match dto.conversation_id {
+                Some(cid) => self
+                    .repos
+                    .im
+                    .im_conversation
+                    .find_by_id(cid)
+                    .await?
+                    .and_then(|c| c.last_servant_id)
+                    .filter(|id| *id > 0),
+                None => None,
+            };
+            match servant_id {
+                Some(id) => {
+                    tigshop_security::ws_registry::send_to_user(
+                        &tigshop_security::ws_registry::user_key(true, &id.to_string()),
+                        &payload,
+                    );
+                }
+                None => {
+                    tigshop_security::ws_registry::send_to_admins(&payload);
+                }
+            }
         }
         Ok(true)
     }
@@ -582,6 +612,24 @@ impl ImMessageService {
     async fn default_avatar(&self) -> Result<String> {
         Ok(self.repo().default_avatar_config().await?.unwrap_or_default())
     }
+}
+
+/// 已读回执 WS 载荷（与前端 `onMessage` 的 `type=read` 协议一致）。
+#[must_use]
+pub fn read_receipt_payload(
+    shop_id: Option<i32>,
+    conversation_id: Option<i32>,
+    user_id: i32,
+) -> String {
+    serde_json::json!({
+        "type": "read",
+        "data": [{
+            "shopId": shop_id,
+            "conversationId": conversation_id,
+            "userId": user_id,
+        }],
+    })
+    .to_string()
 }
 
 // ————————————————————— 纯逻辑辅助（可单测） —————————————————————
@@ -804,5 +852,15 @@ mod tests {
         assert_eq!(p.page, 2);
         assert_eq!(p.page_size, 10);
         assert_eq!(p.total_page, 4);
+    }
+
+    #[test]
+    fn read_receipt_payload_matches_frontend_protocol() {
+        let payload = read_receipt_payload(Some(3), Some(9), 7);
+        let value: serde_json::Value = serde_json::from_str(&payload).unwrap();
+        assert_eq!(value["type"], "read");
+        assert_eq!(value["data"][0]["shopId"], 3);
+        assert_eq!(value["data"][0]["conversationId"], 9);
+        assert_eq!(value["data"][0]["userId"], 7);
     }
 }
