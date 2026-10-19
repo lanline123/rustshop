@@ -62,14 +62,109 @@ impl WechatMenuService {
         })
     }
 
-    /// 保存并发布（Java `saveAndPublish`）：本地全量校验 → 明确「未迁移」。
-    ///
-    /// # Errors
-    /// - 校验失败 → 业务错误（逐字文案）
-    /// - 校验通过 → 业务错误「未迁移」（微信推送 + 落库未迁移）
-    pub fn save_and_publish(&self, dto: &WxMenuSaveDTO) -> Result<SaveAndPublishVO> {
+    /// 保存并发布（Java `saveAndPublish`）：本地全量校验 → 微信 API 接入与落库。
+    pub async fn save_and_publish(&self, dto: &WxMenuSaveDTO) -> Result<SaveAndPublishVO> {
         validate_menu(dto).map_err(Error::biz_msg)?;
-        Err(Error::biz_msg(MSG_PUBLISH_NOT_MIGRATED))
+        let tree_json = serde_json::to_string(&dto.tree.clone().unwrap_or_default())
+            .map_err(|e| Error::Internal(e.to_string()))?;
+        let now_str = chrono::Utc::now().naive_utc().format("%Y-%m-%d %H:%M:%S").to_string();
+
+        let buttons: Vec<serde_json::Value> = dto
+            .tree
+            .as_ref()
+            .map(|t| t.buttons.iter().map(convert_node_to_wechat).collect())
+            .unwrap_or_default();
+
+        match crate::content::wechat_client::WechatClient::from_repos(&self.repos).await {
+            Ok(client) => match client.access_token().await {
+                Ok(token) => {
+                    let body = serde_json::json!({ "button": buttons });
+                    let url = format!("https://api.weixin.qq.com/cgi-bin/menu/create?access_token={token}");
+                    match client.post_json(&url, &body).await {
+                        Ok(text) => match crate::content::wechat_client::parse_wechat_response(&text) {
+                            Ok(_) => {
+                                self.repo().save_menu(&tree_json, Some(&now_str)).await?;
+                                Ok(SaveAndPublishVO {
+                                    published: true,
+                                    err_msg: None,
+                                    published_at: Some(now_str),
+                                })
+                            }
+                            Err(e) => {
+                                self.repo().save_menu(&tree_json, None).await?;
+                                Ok(SaveAndPublishVO {
+                                    published: false,
+                                    err_msg: Some(e.to_string()),
+                                    published_at: None,
+                                })
+                            }
+                        },
+                        Err(e) => {
+                            self.repo().save_menu(&tree_json, None).await?;
+                            Ok(SaveAndPublishVO {
+                                published: false,
+                                err_msg: Some(e.to_string()),
+                                published_at: None,
+                            })
+                        }
+                    }
+                }
+                Err(e) => {
+                    self.repo().save_menu(&tree_json, None).await?;
+                    Ok(SaveAndPublishVO {
+                        published: false,
+                        err_msg: Some(format!("获取微信 token 失败: {e}")),
+                        published_at: None,
+                    })
+                }
+            },
+            Err(_) => {
+                self.repo().save_menu(&tree_json, None).await?;
+                Ok(SaveAndPublishVO {
+                    published: false,
+                    err_msg: Some("微信配置未配置，菜单已保存为草稿".into()),
+                    published_at: None,
+                })
+            }
+        }
+    }
+}
+
+fn convert_node_to_wechat(node: &tigshop_core::models::content::wechat_menu::WxMenuNodeDTO) -> serde_json::Value {
+    let name = node.name.as_deref().unwrap_or("").trim();
+    if !node.children.is_empty() {
+        let subs: Vec<serde_json::Value> = node.children.iter().map(convert_node_to_wechat).collect();
+        serde_json::json!({
+            "name": name,
+            "sub_button": subs
+        })
+    } else if let Some(rule) = &node.rule {
+        let r_type = rule.r#type.as_deref().unwrap_or("click").to_ascii_lowercase();
+        match r_type.as_str() {
+            "view" => serde_json::json!({
+                "type": "view",
+                "name": name,
+                "url": rule.url.as_deref().unwrap_or("")
+            }),
+            "miniprogram" => serde_json::json!({
+                "type": "miniprogram",
+                "name": name,
+                "url": rule.miniprogram_url.as_deref().unwrap_or(""),
+                "appid": rule.appid.as_deref().unwrap_or(""),
+                "pagepath": rule.pagepath.as_deref().unwrap_or("")
+            }),
+            _ => serde_json::json!({
+                "type": "click",
+                "name": name,
+                "key": rule.event_key.as_deref().unwrap_or("")
+            }),
+        }
+    } else {
+        serde_json::json!({
+            "type": "click",
+            "name": name,
+            "key": ""
+        })
     }
 }
 

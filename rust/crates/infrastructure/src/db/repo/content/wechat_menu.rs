@@ -37,6 +37,32 @@ impl WechatMenuRepository {
         .await
         .map_err(map_err)
     }
+
+    /// 保存菜单配置（Java `doSave(tree, publishedAt)`）。
+    pub async fn save_menu(&self, menu_json: &str, published_at: Option<&str>) -> Result<()> {
+        let first = self.find_first().await?;
+        if let Some(entity) = first {
+            sqlx::query(
+                "UPDATE wechat_menu SET menu_json = ?, published_at = ?, updated_at = NOW() WHERE id = ?",
+            )
+            .bind(menu_json)
+            .bind(published_at)
+            .bind(entity.id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        } else {
+            sqlx::query(
+                "INSERT INTO wechat_menu (menu_json, published_at, created_at, updated_at) VALUES (?, ?, NOW(), NOW())",
+            )
+            .bind(menu_json)
+            .bind(published_at)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        }
+        Ok(())
+    }
 }
 
 fn map_err(e: sqlx::Error) -> Error {

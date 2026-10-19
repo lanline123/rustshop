@@ -254,7 +254,7 @@ impl WechatClient {
         parse_wechat_response(&raw).map(|_| ())
     }
 
-    async fn get_text(&self, url: &str) -> Result<String> {
+    pub async fn get_text(&self, url: &str) -> Result<String> {
         let resp = self
             .http
             .get(url)
@@ -275,7 +275,7 @@ impl WechatClient {
         Ok(body)
     }
 
-    async fn post_json(&self, url: &str, body: &Value) -> Result<String> {
+    pub async fn post_json(&self, url: &str, body: &Value) -> Result<String> {
         let resp = self
             .http
             .post(url)
@@ -327,7 +327,7 @@ pub async fn code2session(
 }
 
 /// 极简 percent-encoding（仅用于 query 参数值；微信 token/appid 均为 ASCII）。
-fn urlencode(input: &str) -> String {
+pub fn urlencode(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
     for byte in input.as_bytes() {
         match byte {

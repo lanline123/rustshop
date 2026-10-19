@@ -50,13 +50,22 @@ impl UtilService {
         &self.repos.system.util
     }
 
-    /// 二维码（Java `QrCodeUtil.generateAsBase64` 未迁移）。
+    /// 二维码（Java `QrCodeUtil.generateAsBase64`）。
     pub async fn qr_code(&self, url: Option<&str>) -> Result<String> {
         let url = url.map(str::trim).filter(|s| !s.is_empty());
-        let Some(_url) = url else {
+        let Some(url) = url else {
             return Err(Error::Validation(MSG_URL_REQUIRED.into()));
         };
-        Err(Error::biz(SERVICE_DATA_ERROR, MSG_QRCODE_NOT_MIGRATED))
+        let code = qrcode::QrCode::new(url.as_bytes())
+            .map_err(|e| Error::biz(SERVICE_DATA_ERROR, e.to_string()))?;
+        let image = code.render::<image::Luma<u8>>().build();
+        let mut png_bytes = std::io::Cursor::new(Vec::new());
+        image
+            .write_to(&mut png_bytes, image::ImageFormat::Png)
+            .map_err(|e| Error::biz(SERVICE_DATA_ERROR, e.to_string()))?;
+        use base64::Engine;
+        let b64 = base64::engine::general_purpose::STANDARD.encode(png_bytes.into_inner());
+        Ok(format!("data:image/png;base64,{b64}"))
     }
 
     /// 小程序码（Java `WechatOAuthService.getMiniCode` 未迁移）。
@@ -76,12 +85,17 @@ impl UtilService {
         Err(Error::biz(SERVICE_DATA_ERROR, MSG_MINI_CODE_NOT_MIGRATED))
     }
 
-    /// 小程序码 scene 解析（Java `WechatOAuthService.resolveMiniScene` 未迁移）。
+    /// 小程序码 scene 解析（Java `WechatOAuthService.resolveMiniScene`）。
     pub async fn mini_scene(&self, scene: Option<&str>) -> Result<serde_json::Value> {
-        if scene.map(str::trim).filter(|s| !s.is_empty()).is_none() {
+        let Some(scene) = scene.map(str::trim).filter(|s| !s.is_empty()) else {
             return Err(Error::Validation(MSG_SCENE_REQUIRED.into()));
+        };
+        let key = format!("RUNNING:MINISCENE:CODE:{scene}");
+        let cache = tigshop_infrastructure::cache::get_cache();
+        if let Ok(Some(json)) = cache.get_json::<serde_json::Value>(&key).await {
+            return Ok(json);
         }
-        Err(Error::biz(SERVICE_DATA_ERROR, MSG_MINI_SCENE_NOT_MIGRATED))
+        Ok(serde_json::Value::Null)
     }
 }
 
@@ -95,19 +109,28 @@ mod tests {
     }
 
     #[test]
-    fn qr_code_requires_url_before_not_migrated() {
-        // 与 `qr_code` 内部判定同构的纯逻辑校验。
+    fn qr_code_generates_valid_png_base64() {
         for empty in ["", "   "] {
             assert!(empty.trim().is_empty());
         }
         assert!(!MSG_URL_REQUIRED.is_empty());
-        assert!(MSG_QRCODE_NOT_MIGRATED.contains("未迁移"));
+
+        let url = "https://www.tigshop.com";
+        let code = qrcode::QrCode::new(url.as_bytes()).unwrap();
+        let image = code.render::<image::Luma<u8>>().build();
+        let mut png_bytes = std::io::Cursor::new(Vec::new());
+        image
+            .write_to(&mut png_bytes, image::ImageFormat::Png)
+            .unwrap();
+        use base64::Engine;
+        let b64 = base64::engine::general_purpose::STANDARD.encode(png_bytes.into_inner());
+        assert!(!b64.is_empty());
+        let res = format!("data:image/png;base64,{b64}");
+        assert!(res.starts_with("data:image/png;base64,"));
     }
 
     #[test]
     fn mini_scene_requires_scene() {
         assert!(MSG_SCENE_REQUIRED.contains("scene"));
-        assert!(MSG_MINI_SCENE_NOT_MIGRATED.contains("未迁移"));
     }
-
 }

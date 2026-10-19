@@ -57,7 +57,7 @@ async fn save_and_publish(
     State(state): State<AdminState>,
     Json(dto): Json<WxMenuSaveDTO>,
 ) -> ApiResult<SaveAndPublishVO> {
-    ok(state.content.wechat_menu.save_and_publish(&dto)?)
+    ok(state.content.wechat_menu.save_and_publish(&dto).await?)
 }
 
 #[cfg(test)]

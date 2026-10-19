@@ -514,13 +514,54 @@ impl LoginService {
     }
 
     /// `POST /api/user/login/updateUserOpenid`（需登录）：小程序 code2Session 绑定 openid。
-    ///
-    /// **未迁移**：依赖微信 `code2Session` API。
-    ///
-    /// # Errors
-    /// 恒返回 1001 业务错误。
-    pub async fn update_user_openid(&self, _dto: &CodeParamDTO, _user_id: i32) -> Result<()> {
-        Err(Error::biz(SERVICE_DATA_ERROR, WECHAT_NOT_MIGRATED))
+    pub async fn update_user_openid(&self, dto: &CodeParamDTO, user_id: i32) -> Result<()> {
+        let code = dto
+            .code
+            .as_deref()
+            .map(str::trim)
+            .filter(|c| !c.is_empty())
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "缺少微信授权 code"))?;
+        let app_id = self
+            .repo()
+            .config_value("wechatMiniProgramAppId")
+            .await?
+            .filter(|v| !v.trim().is_empty())
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "微信小程序 APPID 未配置"))?;
+        let app_secret = self
+            .repo()
+            .config_value("wechatMiniProgramSecret")
+            .await?
+            .filter(|v| !v.trim().is_empty())
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "微信小程序 Secret 未配置"))?;
+
+        let res = crate::content::wechat_client::code2session(&app_id, &app_secret, code).await?;
+        let openid = res.get("openid").and_then(|v| v.as_str()).unwrap_or("");
+        if openid.is_empty() {
+            let errmsg = res.get("errmsg").and_then(|v| v.as_str()).unwrap_or("微信换取 openid 失败");
+            return Err(Error::biz(SERVICE_DATA_ERROR, errmsg));
+        }
+
+        let authorize_type = 2; // MINI_PROGRAM
+        if let Some((auth_id, _)) = self.repo().find_authorize_by_open(openid, authorize_type).await? {
+            self.repo()
+                .update_authorize_user(auth_id, user_id, None, Some(&res.to_string()))
+                .await?;
+        } else {
+            let now = now_seconds() as i32;
+            self.repo()
+                .insert_authorize(
+                    authorize_type,
+                    user_id,
+                    openid,
+                    Some(&res.to_string()),
+                    "",
+                    "",
+                    None,
+                    now,
+                )
+                .await?;
+        }
+        Ok(())
     }
 
     /// `GET /api/user/login/getWxLoginInfoByCode`：公众号 OAuth code 换用户信息。
@@ -534,17 +575,78 @@ impl LoginService {
     }
 
     /// `POST /api/user/login/bindWechat`（需登录）：公众号授权绑定。
-    ///
-    /// **未迁移**：openid 需由微信 OAuth code 换取。
-    ///
-    /// # Errors
-    /// 恒返回 1001 业务错误。
     pub async fn bind_wechat(
         &self,
-        _dto: &tigshop_core::models::member::login::BindWechatParam,
-        _user_id: i32,
+        dto: &tigshop_core::models::member::login::BindWechatParam,
+        user_id: i32,
     ) -> Result<()> {
-        Err(Error::biz(SERVICE_DATA_ERROR, WECHAT_NOT_MIGRATED))
+        let code = dto
+            .code
+            .as_deref()
+            .map(str::trim)
+            .filter(|c| !c.is_empty())
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "code不能为空"))?;
+
+        let user_auth = self.repo().find_authorize_by_user(user_id).await?;
+        if let Some((_, open_id)) = user_auth {
+            if !open_id.is_empty() {
+                return Err(Error::biz(SERVICE_DATA_ERROR, "该账号已绑定微信公众号"));
+            }
+        }
+
+        let app_id = self
+            .repo()
+            .config_value("wechatAppId")
+            .await?
+            .filter(|v| !v.trim().is_empty())
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "微信 APPID 未配置"))?;
+        let app_secret = self
+            .repo()
+            .config_value("wechatAppSecret")
+            .await?
+            .filter(|v| !v.trim().is_empty())
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "微信 AppSecret 未配置"))?;
+
+        let url = format!(
+            "https://api.weixin.qq.com/sns/oauth2/access_token?appid={}&secret={}&code={}&grant_type=authorization_code",
+            crate::content::wechat_client::urlencode(&app_id),
+            crate::content::wechat_client::urlencode(&app_secret),
+            crate::content::wechat_client::urlencode(code)
+        );
+        let resp = reqwest::Client::new()
+            .get(url)
+            .timeout(std::time::Duration::from_secs(15))
+            .send()
+            .await
+            .map_err(|e| Error::Internal(format!("微信 OAuth 请求失败: {e}")))?;
+        let text = resp.text().await.map_err(|e| Error::Internal(e.to_string()))?;
+        let json_val = crate::content::wechat_client::parse_wechat_response(&text)?;
+        let open_id = json_val
+            .get("openid")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "该账号异常"))?;
+
+        let authorize_type = 1; // WECHAT
+        if let Some((_, existing_user_id)) = self.repo().find_authorize_by_open(open_id, authorize_type).await? {
+            if existing_user_id != user_id {
+                return Err(Error::biz(SERVICE_DATA_ERROR, "该微信号已绑定其他账号，请解绑后再重试"));
+            }
+        }
+
+        let now = now_seconds() as i32;
+        self.repo()
+            .insert_authorize(
+                authorize_type,
+                user_id,
+                open_id,
+                Some(&text),
+                "",
+                "",
+                None,
+                now,
+            )
+            .await?;
+        Ok(())
     }
 
     // ————————————————————— 内部 —————————————————————
