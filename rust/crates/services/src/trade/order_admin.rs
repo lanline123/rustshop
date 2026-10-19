@@ -3055,8 +3055,41 @@ fn item_sku_value(it: &OrderItem) -> Option<String> {
     }
 }
 
-/// 解析批量发货导入文件：JSON 数组或 CSV 文本（跳过说明行 + 表头）。
+/// 解析批量发货导入文件：Excel (.xlsx)、JSON 数组或 CSV 文本（跳过说明行 + 表头）。
 fn parse_deliver_import_rows(bytes: &[u8]) -> Result<Vec<OrderDeliverImportRow>> {
+    // 检查是否为 xlsx 二进制（PK zip magic: 0x50, 0x4B, 0x03, 0x04）
+    if bytes.starts_with(&[0x50, 0x4B, 0x03, 0x04]) {
+        let sheet = crate::system::excel::read_xlsx(bytes)
+            .map_err(|e| Error::Validation(format!("Excel 解析失败: {e}")))?;
+        let mut rows = Vec::new();
+        // 物理行 0 = 说明，物理行 1 = 表头，物理行 2 起是数据（从 Excel 第 3 行开始）
+        for (idx, line) in sheet.into_iter().enumerate() {
+            if idx < 2 {
+                continue;
+            }
+            let get = |i: usize| {
+                line.get(i)
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string)
+            };
+            let row = OrderDeliverImportRow {
+                order_sn: get(0),
+                product_name: get(6),
+                sku_name: get(7),
+                delivery_quantity: get(9),
+                shipping_method: get(10),
+                logistics_name: get(11),
+                tracking_no: get(13),
+                row_num: Some(idx as i32 + 1),
+            };
+            if row.order_sn.is_some() || row.product_name.is_some() {
+                rows.push(row);
+            }
+        }
+        return Ok(rows);
+    }
+
     let text = std::str::from_utf8(bytes)
         .map_err(|e| Error::Validation(format!("文件编码错误: {e}")))?;
     let text = text.trim_start_matches('\u{feff}').trim();
