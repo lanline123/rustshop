@@ -13,19 +13,21 @@
 //! - `batch`：仅 `type == "del"` 生效
 //! - `recall`：日志 `is_recall = 1` + 删除对应站内信（事务）
 //!
-//! ## 未迁移（诚实记录）
-//! `sendUserType = 4`（会员标签）/ `sendUserTarget`（组合人群）/ `5`（COMBINED）
-//! 依赖 `MemberAudienceService`（member_audience 域），本实现返回明确业务错误，
-//! 不伪造目标人群；其余差异见 [`crate::models::member::user_message_log`] 模块头。
+//! ## 人群解析
+//! `sendUserTarget`（统一结构，scope/会员/等级/标签并集）与 `sendUserType=4/5`
+//! + `memberAudience`（历史结构）均复用 `member_audience` 仓储解析目标会员。
 
 use std::sync::Arc;
 
 use tigshop_common::utils::now_seconds;
 use tigshop_core::entities::UserMessageLog;
+use tigshop_core::models::member::member_audience::{
+    resolve as resolve_audience, Audience, MemberAudienceDTO,
+};
 use tigshop_core::models::member::user_message_log::{
-    format_send_time, is_delete_batch, split_usernames, BatchDTO, UserMessageLogCreateDTO,
-    UserMessageLogListQuery, UserMessageLogPageVO, UserMessageLogRecallParam,
-    MSG_LOG_ID_REQUIRED, MSG_NO_MEMBERS, MSG_TARGET_NOT_MIGRATED, MSG_USERNAME_INVALID,
+    format_send_time, is_delete_batch, split_usernames, BatchDTO, SendUserTargetDTO,
+    UserMessageLogCreateDTO, UserMessageLogListQuery, UserMessageLogPageVO,
+    UserMessageLogRecallParam, MSG_LOG_ID_REQUIRED, MSG_NO_MEMBERS, MSG_USERNAME_INVALID,
     SEND_USER_TYPE_ALL, SEND_USER_TYPE_PART, SEND_USER_TYPE_RANK, SEND_USER_TYPE_SINGLE,
     SEND_USER_TYPE_TAG,
 };
@@ -126,7 +128,51 @@ impl UserMessageLogService {
                 }
                 Ok(users)
             }
-            SendMode::NotMigrated => Err(Error::biz_msg(MSG_TARGET_NOT_MIGRATED)),
+            SendMode::Audience(audience) => {
+                let audience = resolve_audience(&audience)?;
+                self.repos
+                    .member
+                    .member_audience
+                    .resolve_user_ids(&audience)
+                    .await
+            }
+            SendMode::Target(target) => {
+                if target.scope_or_default() == 0 {
+                    return self.repo().all_user_ids().await;
+                }
+                let mut ids = std::collections::BTreeSet::new();
+                if let Some(user_ids) = &target.user_ids {
+                    ids.extend(
+                        self.repos
+                            .member
+                            .member_audience
+                            .filter_member_ids(user_ids)
+                            .await?,
+                    );
+                }
+                if let Some(rank_ids) = &target.rank_ids {
+                    ids.extend(
+                        self.repos
+                            .member
+                            .member_audience
+                            .resolve_user_ids(&Audience::Ranks(rank_ids.clone()))
+                            .await?,
+                    );
+                }
+                if let Some(tag_ids) = &target.tag_ids {
+                    ids.extend(
+                        self.repos
+                            .member
+                            .member_audience
+                            .resolve_user_ids(&Audience::Tags {
+                                tag_ids: tag_ids.clone(),
+                                match_all: target.match_all(),
+                            })
+                            .await?,
+                    );
+                }
+                Ok(ids.into_iter().collect())
+            }
             SendMode::Empty => Ok(Vec::new()),
         }
     }
@@ -167,7 +213,7 @@ impl UserMessageLogService {
 }
 
 /// 目标会员解析方式（纯逻辑，便于单测覆盖 Java `findUserIds` 分支）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 enum SendMode {
     /// 全部会员（0）。
     All,
@@ -177,17 +223,21 @@ enum SendMode {
     Rank(i32),
     /// 按会员名 CSV（3）。
     Part,
-    /// 标签/组合人群（4/5 或 sendUserTarget）——未迁移。
-    NotMigrated,
+    /// 历史人群结构（`sendUserType=4` + `memberAudience`）。
+    Audience(MemberAudienceDTO),
+    /// 统一人群结构（`sendUserTarget`，三组并集）。
+    Target(SendUserTargetDTO),
     /// 未知/缺失发送类型 → 空人群（由调用方报「没有会员」）。
     Empty,
 }
 
 /// 解析发送类型（Java `findUserIds` 的分支判定）。
 fn send_mode(dto: &UserMessageLogCreateDTO) -> Result<SendMode> {
-    // Java：`sendUserTarget` 非空时一律以组合人群为准（未迁移）
-    if dto.send_user_target.is_some() {
-        return Ok(SendMode::NotMigrated);
+    // Java：`sendUserTarget` 非空时一律以统一人群结构为准
+    if let Some(raw) = &dto.send_user_target {
+        let target: SendUserTargetDTO = serde_json::from_value(raw.clone())
+            .map_err(|_| Error::Validation("会员人群参数有误".into()))?;
+        return Ok(SendMode::Target(target));
     }
     match dto.send_user_type {
         Some(SEND_USER_TYPE_ALL) => Ok(SendMode::All),
@@ -201,8 +251,22 @@ fn send_mode(dto: &UserMessageLogCreateDTO) -> Result<SendMode> {
         }
         Some(SEND_USER_TYPE_RANK) => Ok(SendMode::Rank(dto.user_rank.unwrap_or(0))),
         Some(SEND_USER_TYPE_PART) => Ok(SendMode::Part),
-        Some(SEND_USER_TYPE_TAG) => Ok(SendMode::NotMigrated),
-        Some(other) if other == 5 => Ok(SendMode::NotMigrated),
+        Some(SEND_USER_TYPE_TAG) => match &dto.member_audience {
+            Some(raw) => {
+                let audience: MemberAudienceDTO = serde_json::from_value(raw.clone())
+                    .map_err(|_| Error::Validation("会员人群参数有误".into()))?;
+                Ok(SendMode::Audience(audience))
+            }
+            None => Ok(SendMode::Empty),
+        },
+        Some(other) if other == 5 => match &dto.member_audience {
+            Some(raw) => {
+                let audience: MemberAudienceDTO = serde_json::from_value(raw.clone())
+                    .map_err(|_| Error::Validation("会员人群参数有误".into()))?;
+                Ok(SendMode::Audience(audience))
+            }
+            None => Ok(SendMode::Empty),
+        },
         _ => Ok(SendMode::Empty),
     }
 }
@@ -283,14 +347,32 @@ mod tests {
         dto.send_user_type = Some(SEND_USER_TYPE_PART);
         assert_eq!(send_mode(&dto).unwrap(), SendMode::Part);
 
-        // 标签 / 组合人群 → 未迁移
+        // 历史人群结构（标签）
         dto.send_user_type = Some(SEND_USER_TYPE_TAG);
-        assert_eq!(send_mode(&dto).unwrap(), SendMode::NotMigrated);
-        dto.send_user_type = Some(5);
-        assert_eq!(send_mode(&dto).unwrap(), SendMode::NotMigrated);
+        dto.member_audience = Some(serde_json::json!({
+            "audienceType": 2,
+            "tagIds": [7],
+            "tagMatchMode": 1
+        }));
+        assert_eq!(
+            send_mode(&dto).unwrap(),
+            SendMode::Audience(MemberAudienceDTO {
+                audience_type: Some(2),
+                tag_ids: Some(vec![7]),
+                tag_match_mode: Some(1),
+                ..Default::default()
+            })
+        );
+        // 统一人群结构优先
         dto.send_user_type = Some(1);
         dto.send_user_target = Some(serde_json::json!({"userIds": [1]}));
-        assert_eq!(send_mode(&dto).unwrap(), SendMode::NotMigrated);
+        assert_eq!(
+            send_mode(&dto).unwrap(),
+            SendMode::Target(SendUserTargetDTO {
+                user_ids: Some(vec![1]),
+                ..Default::default()
+            })
+        );
 
         // 未知/缺失 → 空人群
         let dto = UserMessageLogCreateDTO::default();

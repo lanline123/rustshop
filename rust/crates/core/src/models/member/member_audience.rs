@@ -23,7 +23,7 @@ pub const PLEASE_SELECT_MEMBER: &str = "请选择会员";
 pub const ALL_MEMBERS_TEXT: &str = "全部会员";
 
 /// 人群条件（Java `MemberAudienceDTO`）。
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct MemberAudienceDTO {
     pub audience_type: Option<i32>,

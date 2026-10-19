@@ -30,7 +30,7 @@
   账期更新定时循环、批量发货真实 xlsx 解析。
 - **当前真正剩余（按优先级）**：
   1. 行为占位 66 处：内容域 35（`gallery*` 视频/上传/zip、`decorate_template`、`wechat_menu` 发布、
-     `wechat_live*`/`api_wechat_live`）、会员 9（`login` 微信 OAuth/服务号/手机号快捷登录 7、`user_message_log` 2）、
+     `wechat_live*`/`api_wechat_live`）、会员 7（`login` 微信 OAuth/服务号/手机号快捷登录；`user_message_log` 已完成）、
      系统 5（`util` 小程序码/二维码 4、`app_version_admin` 1）、商品 4（ES 分词/全量同步）、
      商户 4（`shop_funds` 入驻流程）、交易 4（物流轨迹、代客配送 O2O）、营销 3（虚拟用户）、IM 1（视频上传；已读回执已完成）。
   2. 审计日志：`admin_log` + 请求级审计上下文（`tigshop_security::audit`，`require_auth` 注入 actor/IP）已完成；

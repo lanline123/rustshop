@@ -198,6 +198,36 @@ pub struct UserMessageLogCreateDTO {
     pub send_user_target: Option<serde_json::Value>,
 }
 
+/// 统一人群结构（Java `SendUserTargetDTO`，只保留站内信发送所需字段）。
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SendUserTargetDTO {
+    /// 0=全部会员（默认） 1=部分会员。
+    pub scope: Option<i32>,
+    /// 指定会员 ID（scope=1）。
+    pub user_ids: Option<Vec<i32>>,
+    /// 会员等级 ID（scope=1）。
+    pub rank_ids: Option<Vec<i32>>,
+    /// 会员标签 ID（scope=1）。
+    pub tag_ids: Option<Vec<i64>>,
+    /// 标签匹配：0=任一 1=全部。
+    pub tag_match_mode: Option<i32>,
+}
+
+impl SendUserTargetDTO {
+    /// Java `scopeOrDefault()`：缺省为全部会员。
+    #[must_use]
+    pub fn scope_or_default(&self) -> i32 {
+        self.scope.unwrap_or(0)
+    }
+
+    /// Java `matchModeOrDefault()`：只有 1 表示「全部」。
+    #[must_use]
+    pub fn match_all(&self) -> bool {
+        self.tag_match_mode == Some(1)
+    }
+}
+
 /// 撤回 / 删除入参（Java `UserMessageLogRecallParam`）。
 #[derive(Debug, Clone, Default, serde::Deserialize)]
 #[serde(rename_all = "camelCase", default)]

@@ -77,6 +77,89 @@ impl MemberAudienceRepository {
         }
     }
 
+    /// 解析人群命中的会员 ID（Java `MemberAudienceService#resolveUserIds`）。
+    pub async fn resolve_user_ids(&self, audience: &Audience) -> Result<Vec<i32>> {
+        match audience {
+            Audience::All => {
+                let rows: Vec<(i32,)> =
+                    sqlx::query_as("SELECT user_id FROM user WHERE user_type = ?")
+                        .bind(USER_TYPE_MEMBER)
+                        .fetch_all(&self.pool)
+                        .await
+                        .map_err(map_err)?;
+                Ok(rows.into_iter().map(|(id,)| id).collect())
+            }
+            Audience::Ranks(rank_ids) => {
+                if rank_ids.is_empty() {
+                    return Ok(Vec::new());
+                }
+                let ph = vec!["?"; rank_ids.len()].join(", ");
+                let sql = format!(
+                    "SELECT user_id FROM user WHERE user_type = ? AND rank_id IN ({ph})"
+                );
+                let mut q = sqlx::query_as::<_, (i32,)>(&sql).bind(USER_TYPE_MEMBER);
+                for id in rank_ids {
+                    q = q.bind(*id);
+                }
+                Ok(q.fetch_all(&self.pool)
+                    .await
+                    .map_err(map_err)?
+                    .into_iter()
+                    .map(|(id,)| id)
+                    .collect())
+            }
+            Audience::Tags { tag_ids, match_all } => {
+                if tag_ids.is_empty() {
+                    return Ok(Vec::new());
+                }
+                let ph = vec!["?"; tag_ids.len()].join(", ");
+                let sql = if *match_all {
+                    format!(
+                        "SELECT ut.user_id FROM user_member_tag ut JOIN user u ON u.user_id = ut.user_id AND u.user_type = ? WHERE ut.tag_id IN ({ph}) GROUP BY ut.user_id HAVING COUNT(DISTINCT ut.tag_id) = ?"
+                    )
+                } else {
+                    format!(
+                        "SELECT DISTINCT ut.user_id FROM user_member_tag ut JOIN user u ON u.user_id = ut.user_id AND u.user_type = ? WHERE ut.tag_id IN ({ph})"
+                    )
+                };
+                let mut q = sqlx::query_as::<_, (i32,)>(&sql).bind(USER_TYPE_MEMBER);
+                for id in tag_ids {
+                    q = q.bind(*id);
+                }
+                if *match_all {
+                    q = q.bind(i64::try_from(tag_ids.len()).unwrap_or(0));
+                }
+                Ok(q.fetch_all(&self.pool)
+                    .await
+                    .map_err(map_err)?
+                    .into_iter()
+                    .map(|(id,)| id)
+                    .collect())
+            }
+        }
+    }
+
+    /// 过滤出确实存在的会员 ID（Java `filterMemberIds`）。
+    pub async fn filter_member_ids(&self, user_ids: &[i32]) -> Result<Vec<i32>> {
+        if user_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let ph = vec!["?"; user_ids.len()].join(", ");
+        let sql = format!(
+            "SELECT user_id FROM user WHERE user_type = ? AND user_id IN ({ph})"
+        );
+        let mut q = sqlx::query_as::<_, (i32,)>(&sql).bind(USER_TYPE_MEMBER);
+        for id in user_ids {
+            q = q.bind(*id);
+        }
+        Ok(q.fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?
+            .into_iter()
+            .map(|(id,)| id)
+            .collect())
+    }
+
     /// 等级名称（Java `userRankService.listByIds`）。
     pub async fn rank_names(&self, rank_ids: &[i32]) -> Result<Vec<String>> {
         if rank_ids.is_empty() {
