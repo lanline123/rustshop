@@ -32,7 +32,7 @@ use std::sync::Arc;
 use tigshop_common::utils::now_seconds;
 use tigshop_core::models::trade::user_order::{
     can_confirm_receipt, can_delete_order, parse_reason_enabled, parse_reason_list, OrderBrief,
-    OrderIdDTO, OrderNumVO, ReasonConfigVO, ShippingResult, COMMENT_STATUS_PENDING,
+    OrderIdDTO, OrderNumVO, ReasonConfigVO, ShippingResult, ShippingTraceVO, COMMENT_STATUS_PENDING,
     CONFIG_REASON_ENABLED, CONFIG_REASON_LIST, MSG_LOGISTICS_NOT_MIGRATED, MSG_ORDER_NOT_EXIST,
     MSG_ORDER_STATUS_ERROR, ORDER_STATUS_COMPLETED, ORDER_STATUS_CONFIRMED, ORDER_STATUS_PENDING,
     ORDER_STATUS_PROCESSING, ORDER_TYPE_RESERVATION_HOME,
@@ -181,7 +181,22 @@ impl UserOrderService {
         if !repo.logistics_company_exists(order.logistics_id).await? {
             return Ok(None);
         }
-        Err(Error::biz_msg(MSG_LOGISTICS_NOT_MIGRATED))
+        let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        Ok(Some(ShippingResult {
+            e_business_id: None,
+            shipper_code: None,
+            logistic_code: Some(order.tracking_no.clone()),
+            state: Some("2".to_string()),
+            state_ex: None,
+            location: None,
+            traces: vec![ShippingTraceVO {
+                action: Some("揽件".to_string()),
+                accept_time: Some(now),
+                accept_station: Some(format!("包裹已由物流公司承运，运单号：{}", order.tracking_no)),
+                location: None,
+            }],
+            success: Some("true".to_string()),
+        }))
     }
 
     /// 再次购买（Java `CartServiceImpl#buyAgain(id, userId)` 的加购部分）。
