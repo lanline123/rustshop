@@ -134,8 +134,17 @@ pub fn online_total_sessions() -> usize {
 mod tests {
     use super::*;
 
+    /// 注册表是进程级共享；涉及登记/广播的用例串行执行，避免并行测试互相收到消息。
+    fn registry_test_lock() -> std::sync::MutexGuard<'static, ()> {
+        static LOCK: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
+        LOCK.get_or_init(|| std::sync::Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
     #[test]
     fn register_send_unregister_flow() {
+        let _guard = registry_test_lock();
         let key = user_key(false, "900001");
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
         let id = register(key.clone(), tx);
@@ -149,6 +158,7 @@ mod tests {
 
     #[test]
     fn multi_device_delivery() {
+        let _guard = registry_test_lock();
         let key = user_key(true, "1");
         let (tx1, mut rx1) = tokio::sync::mpsc::unbounded_channel::<String>();
         let (tx2, mut rx2) = tokio::sync::mpsc::unbounded_channel::<String>();
@@ -165,6 +175,7 @@ mod tests {
 
     #[test]
     fn broadcast_to_admins_only() {
+        let _guard = registry_test_lock();
         let admin_key = user_key(true, "42");
         let member_key = user_key(false, "7");
         let (tx_admin, mut rx_admin) = tokio::sync::mpsc::unbounded_channel::<String>();

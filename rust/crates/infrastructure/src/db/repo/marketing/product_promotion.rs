@@ -201,6 +201,29 @@ impl ProductPromotionRepository {
     // ————————————————————— promotion 表同步 —————————————————————
 
     /// 按 `relation_id` + 商品促销类型查 `promotion` 行（Java `savePromotion` 存在性判断）。
+    /// 某店铺（含平台通用 shop_id=0）当前进行中的满减/满折活动。
+    ///
+    /// # Errors
+    /// 数据库错误。
+    pub async fn find_active_by_shop(
+        &self,
+        shop_id: i32,
+        now: i32,
+    ) -> Result<Vec<ProductPromotion>> {
+        sqlx::query_as::<_, ProductPromotion>(
+            "SELECT * FROM product_promotion
+             WHERE shop_id IN (0, ?) AND is_available = 1
+               AND start_time <= ? AND end_time >= ?
+             ORDER BY sort_order DESC, promotion_id ASC",
+        )
+        .bind(shop_id)
+        .bind(now)
+        .bind(now)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
     pub async fn find_promotion_row(&self, relation_id: i32) -> Result<Option<Promotion>> {
         sqlx::query_as::<_, Promotion>(
             "SELECT * FROM promotion WHERE relation_id = ? AND type IN (3, 4, 5) LIMIT 1",

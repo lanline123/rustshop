@@ -313,6 +313,9 @@ struct CartAddDTO {
     sku_id: Option<i32>,
     #[serde(default = "default_one")]
     quantity: i32,
+    /// 拼团上下文（加购自拼团页时携带）
+    #[serde(default)]
+    groupon_data: Option<serde_json::Value>,
 }
 
 fn default_one() -> i32 {
@@ -325,8 +328,17 @@ async fn cart_add(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<CartAddDTO>,
 ) -> ApiResult<i32> {
-    let cart_id = state.trade.cart
-        .add(auth.id, dto.product_id, dto.sku_id, dto.quantity)
+    let groupon = dto
+        .groupon_data
+        .as_ref()
+        .and_then(|v| serde_json::from_value::<
+            tigshop_core::models::trade::check::GrouponCartData,
+        >(v.clone()).ok())
+        .filter(|g| g.is_valid());
+    let cart_id = state
+        .trade
+        .cart
+        .add(auth.id, dto.product_id, dto.sku_id, dto.quantity, groupon.as_ref())
         .await?;
     ok(cart_id)
 }

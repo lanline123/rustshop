@@ -24,12 +24,15 @@ use std::sync::Arc;
 use rust_decimal::Decimal;
 
 use tigshop_core::entities::{
-    Cart, Coupon, Product, SeckillItem, ShippingTpl, ShippingTplInfo, UserAddress,
+    Cart, Coupon, GrouponPromotion, GrouponPromotionItem, Product, SeckillItem, ShippingTpl,
+    ShippingTplInfo, UserAddress,
 };
 use tigshop_core::models::trade::check::{
     allocate_discount, build_payment_types, calc_points, calc_shipping_fee, config_enabled,
-    coupon_rule_discount, parse_sku_data, CartStoreTotalVO, CheckCartByStoreVO, CheckCartVO,
-    CheckCouponVO, CheckItemVO, CheckTotalVO, CouponListVO, OrderCheckParam, OrderCheckVO,
+    coupon_rule_discount, groupon_min_group_num, groupon_price_for, parse_groupon_data,
+    parse_promotion_tiers, parse_sku_data, pick_promotion_tier, promotion_discount,
+    CartStoreTotalVO, CheckCartByStoreVO, CheckCartVO, CheckCouponVO,
+    CheckItemVO, CheckTotalVO, CouponListVO, GrouponCartData, OrderCheckParam, OrderCheckVO,
     OrderInvoiceVO, PaymentTypeVO, ShippingRule, ShippingTypeVO, StoreShippingTypeQuery,
     CONFIG_USE_OFFLINE, CONFIG_USE_SURPLUS, MSG_CART_EMPTY, PAYMENT_TYPE_ONLINE,
 };
@@ -205,6 +208,8 @@ impl CheckService {
         let products = load_products(&self.repos, &product_ids).await?;
         let now = tigshop_common::utils::now_seconds() as i32;
         let seckill = load_seckill_prices(&self.repos, &carts, now).await?;
+        let groupon =
+            load_groupon_prices(&self.repos, &carts, i64::from(now)).await?;
 
         // 商品金额 + 按店铺分组（活动价优先）
         let mut shop_groups: BTreeMap<i32, Vec<&Cart>> = BTreeMap::new();
@@ -215,27 +220,64 @@ impl CheckService {
         let mut line_base_prices: HashMap<i32, Decimal> = HashMap::new();
         let mut seckill_total = Decimal::ZERO;
         let mut store_seckill: BTreeMap<i32, Decimal> = BTreeMap::new();
+        let mut groupon_total = Decimal::ZERO;
+        let mut store_groupon: BTreeMap<i32, Decimal> = BTreeMap::new();
         for cart in &carts {
             let base_price = product_price(&products, cart);
             let sku = cart.sku_id.unwrap_or(0);
             let seckill_item = seckill
                 .get(&(cart.product_id, sku))
                 .or_else(|| seckill.get(&(cart.product_id, 0)));
-            let price = seckill_item
-                .and_then(|item| item.seckill_price)
-                .map(|p| p.min(base_price))
-                .unwrap_or(base_price);
+            let groupon_item = groupon.get(&cart.cart_id);
+            let (price, is_groupon) = if let Some(g) = groupon_item {
+                (g.price.min(base_price), true)
+            } else {
+                (
+                    seckill_item
+                        .and_then(|item| item.seckill_price)
+                        .map(|p| p.min(base_price))
+                        .unwrap_or(base_price),
+                    false,
+                )
+            };
             let qty = cart.quantity.max(1);
             let subtotal = price * Decimal::from(qty);
             let discount = (base_price - price).max(Decimal::ZERO) * Decimal::from(qty);
-            seckill_total += discount;
-            *store_seckill.entry(cart.shop_id).or_default() += discount;
+            if is_groupon {
+                groupon_total += discount;
+                *store_groupon.entry(cart.shop_id).or_default() += discount;
+            } else {
+                seckill_total += discount;
+                *store_seckill.entry(cart.shop_id).or_default() += discount;
+            }
             product_amount += subtotal;
             total_quantity += qty;
             line_prices.insert(cart.cart_id, price);
             line_base_prices.insert(cart.cart_id, base_price);
             *store_amounts.entry(cart.shop_id).or_default() += subtotal;
             shop_groups.entry(cart.shop_id).or_default().push(cart);
+        }
+
+        // —— 满减/满折（按店铺；可能与秒杀/拼团叠加，按活动顺序逐步折价）——
+        let (full_reduce_total, store_full_reduce) = apply_full_reductions(
+            &self.repos,
+            &carts,
+            &products,
+            &mut line_prices,
+            now,
+        )
+        .await?;
+        // 活动折价后重算商品金额与店铺金额
+        product_amount = Decimal::ZERO;
+        store_amounts.clear();
+        for cart in &carts {
+            let price = line_prices
+                .get(&cart.cart_id)
+                .copied()
+                .unwrap_or_else(|| product_price(&products, cart));
+            let qty = cart.quantity.max(1);
+            product_amount += price * Decimal::from(qty);
+            *store_amounts.entry(cart.shop_id).or_default() += price * Decimal::from(qty);
         }
 
         let user = self.repos.member.user.find_by_id(user_id).await?;
@@ -419,6 +461,8 @@ impl CheckService {
             }
             let store_coupon_amount = coupons.per_store.get(shop_id).copied().unwrap_or_default();
             let store_seckill_amount = store_seckill.get(shop_id).copied().unwrap_or_default();
+            let store_groupon_amount = store_groupon.get(shop_id).copied().unwrap_or_default();
+            let store_full_reduce = store_full_reduce.get(shop_id).copied().unwrap_or_default();
             cart_list.push(CheckCartByStoreVO {
                 shop_id: *shop_id,
                 shop_title: if *shop_id == 0 {
@@ -434,7 +478,12 @@ impl CheckService {
                     coupon_ids: coupons.valid_selected.clone(),
                     discount_coupon_amount: store_coupon_amount,
                     discount_seckill_amount: store_seckill_amount,
-                    discounts: store_coupon_amount + store_seckill_amount,
+                    discount_product_promotion_amount: store_groupon_amount,
+                    discount_discount_amount: store_full_reduce,
+                    discounts: store_coupon_amount
+                        + store_seckill_amount
+                        + store_groupon_amount
+                        + store_full_reduce,
                     ..Default::default()
                 },
                 used_promotions: Vec::new(),
@@ -446,13 +495,15 @@ impl CheckService {
         let total = CheckTotalVO {
             product_amount,
             checked_count: total_quantity,
-            discounts: coupons.total + seckill_total,
+            discounts: coupons.total + seckill_total + groupon_total + full_reduce_total,
             discount_after: Some((product_amount - coupons.total).max(Decimal::ZERO).to_string()),
             total_count: total_quantity,
             discount_coupon_amount: coupons.total,
             coupon_amount: coupons.total,
             discount_seckill_amount: seckill_total,
-            discount_amount: seckill_total,
+            discount_product_promotion_amount: groupon_total,
+            discount_discount_amount: full_reduce_total,
+            discount_amount: seckill_total + groupon_total + full_reduce_total,
             shipping_fee: shipping.total,
             store_shipping_fee: shipping.per_store,
             total_amount,
@@ -770,6 +821,197 @@ pub(crate) async fn load_seckill_prices(
         map.entry((item.product_id.unwrap_or(0), sku)).or_insert(item);
     }
     Ok(map)
+}
+
+/// 拼团活动价（结算/下单共用）。
+#[derive(Debug, Clone)]
+pub(crate) struct GrouponPrice {
+    pub data: GrouponCartData,
+    pub price: Decimal,
+    pub promotion: GrouponPromotion,
+    pub item: GrouponPromotionItem,
+    pub min_group_num: i32,
+}
+
+/// 批量加载购物车行上的拼团活动价：按 `(活动, 商品, SKU)` 校验并匹配阶梯价。
+pub(crate) async fn load_groupon_prices(
+    repos: &Repositories,
+    carts: &[Cart],
+    now: i64,
+) -> Result<HashMap<i32, GrouponPrice>> {
+    let mut result = HashMap::new();
+    for cart in carts {
+        let Some(data) = parse_groupon_data(cart.extra_data.as_deref()) else {
+            continue;
+        };
+        let promotion_id = data.groupon_promotion_id.unwrap_or(0);
+        let item_id = data.groupon_promotion_item_id.unwrap_or(0);
+        if promotion_id <= 0 || item_id <= 0 {
+            continue;
+        }
+        let Some(promotion) = repos
+            .marketing
+            .groupon_promotion
+            .find_promotion(promotion_id)
+            .await?
+        else {
+            continue;
+        };
+        if now < promotion.start_time || now > promotion.end_time {
+            continue;
+        }
+        let Some(item) = repos
+            .marketing
+            .groupon_promotion_item
+            .find_item(item_id)
+            .await?
+        else {
+            continue;
+        };
+        if item.groupon_promotion_id != promotion_id
+            || item.product_id != i64::from(cart.product_id)
+        {
+            continue;
+        }
+        let details = repos
+            .marketing
+            .groupon_promotion_item
+            .find_details_by_item(item_id)
+            .await?;
+        let detail = details
+            .iter()
+            .find(|d| d.sku_id == i64::from(cart.sku_id.unwrap_or(0)))
+            .or_else(|| details.first());
+        let Some(detail) = detail else {
+            continue;
+        };
+        let price = groupon_price_for(&detail.group_price, data.group_num_key)
+            .or(data.price)
+            .unwrap_or_default();
+        if price <= Decimal::ZERO {
+            continue;
+        }
+        let min_group_num = {
+            let num = groupon_min_group_num(&item.group_num, data.group_num_key);
+            if num > 0 {
+                num
+            } else {
+                item.min_group_num
+            }
+        };
+        result.insert(
+            cart.cart_id,
+            GrouponPrice {
+                data,
+                price,
+                promotion,
+                item,
+                min_group_num,
+            },
+        );
+    }
+    Ok(result)
+}
+
+/// 满减/满折：按店铺命中活动，对命中商品行按比例折价（Java `ProductPromotionServiceImpl#parsePrice`）。
+///
+/// 返回 `(总优惠, 各店铺优惠)`；`line_prices` 会被就地更新为折后单价。
+pub(crate) async fn apply_full_reductions(
+    repos: &Repositories,
+    carts: &[Cart],
+    products: &HashMap<i32, Product>,
+    line_prices: &mut HashMap<i32, Decimal>,
+    now: i32,
+) -> Result<(Decimal, BTreeMap<i32, Decimal>)> {
+    let mut total = Decimal::ZERO;
+    let mut per_store: BTreeMap<i32, Decimal> = BTreeMap::new();
+    let mut by_shop: BTreeMap<i32, Vec<&Cart>> = BTreeMap::new();
+    for cart in carts {
+        by_shop.entry(cart.shop_id).or_default().push(cart);
+    }
+    for (shop_id, lines) in by_shop {
+        let promotions = repos
+            .marketing
+            .product_promotion
+            .find_active_by_shop(shop_id, now)
+            .await?;
+        for promotion in promotions {
+            if promotion.promotion_type != 1 && promotion.promotion_type != 2 {
+                continue;
+            }
+            let include_ids: Vec<i32> = if promotion.range == 3 || promotion.range == 4 {
+                serde_json::from_str(&promotion.range_data).unwrap_or_default()
+            } else {
+                Vec::new()
+            };
+            let eligible: Vec<&Cart> = lines
+                .iter()
+                .copied()
+                .filter(|cart| match promotion.range {
+                    3 => include_ids.contains(&cart.product_id),
+                    4 => !include_ids.contains(&cart.product_id),
+                    _ => true,
+                })
+                .collect();
+            if eligible.is_empty() {
+                continue;
+            }
+            let mut compare_data = Decimal::ZERO;
+            let mut price_amount = Decimal::ZERO;
+            for cart in &eligible {
+                let price = line_prices
+                    .get(&cart.cart_id)
+                    .copied()
+                    .unwrap_or_else(|| product_price(products, cart));
+                let qty = cart.quantity.max(1);
+                price_amount += price * Decimal::from(qty);
+                if promotion.unit == 1 {
+                    compare_data += price * Decimal::from(qty);
+                } else {
+                    compare_data += Decimal::from(qty);
+                }
+            }
+            if compare_data < promotion.min_order_amount {
+                continue;
+            }
+            let tiers = parse_promotion_tiers(&promotion.promotion_type_data);
+            let Some(tier) = pick_promotion_tier(&tiers, compare_data) else {
+                continue;
+            };
+            let Some((discount, proportion)) = promotion_discount(
+                promotion.promotion_type,
+                promotion.rules_type,
+                tier,
+                compare_data,
+                price_amount,
+            ) else {
+                continue;
+            };
+            if proportion >= Decimal::ONE {
+                continue;
+            }
+            for cart in &eligible {
+                let old = line_prices
+                    .get(&cart.cart_id)
+                    .copied()
+                    .unwrap_or_else(|| product_price(products, cart));
+                let new_price = (old * proportion).round_dp(2);
+                line_prices.insert(cart.cart_id, new_price);
+                let line_discount =
+                    (old - new_price).max(Decimal::ZERO) * Decimal::from(cart.quantity.max(1));
+                *per_store.entry(shop_id).or_default() += line_discount;
+            }
+            total += discount;
+            tracing::info!(
+                "满减/满折命中: shop={shop_id} promotion={} type={} discount={discount}",
+                promotion.promotion_id,
+                promotion.promotion_type
+            );
+        }
+    }
+    // 以店铺行级优惠合计为准，避免比例取整误差与活动金额不一致
+    let stored_total: Decimal = per_store.values().copied().sum();
+    Ok((stored_total.max(Decimal::ZERO), per_store))
 }
 
 /// 批量加载商品（结算页/下单共用）。

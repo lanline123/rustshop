@@ -3,6 +3,7 @@
 pub mod aftersales;
 pub mod aftersales_client;
 pub mod cart;
+pub mod groupon;
 pub mod cart_summary;
 pub mod check;
 pub mod order;

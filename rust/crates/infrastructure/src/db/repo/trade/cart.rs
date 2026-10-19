@@ -65,8 +65,8 @@ impl CartRepository {
             "INSERT INTO cart
              (user_id, product_id, product_sn, pic_thumb, market_price,
               original_price, quantity, sku_id, sku_data, product_type,
-              is_checked, shop_id, `type`, update_time)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+              is_checked, shop_id, `type`, update_time, extra_data)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(cart.user_id)
         .bind(cart.product_id)
@@ -82,6 +82,7 @@ impl CartRepository {
         .bind(cart.shop_id)
         .bind(cart.r#type)
         .bind(cart.update_time)
+        .bind(&cart.extra_data)
         .execute(&self.pool)
         .await
         .map_err(map_err)?;

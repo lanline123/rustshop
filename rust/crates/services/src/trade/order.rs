@@ -83,9 +83,49 @@ impl OrderService {
         let now_activity = utils::now_seconds() as i32;
         let seckill = crate::trade::check::load_seckill_prices(&self.repos, &lines, now_activity)
             .await?;
+        // 拼团活动价（购物车 extra_data 携带 grouponData）
+        let groupon_prices = crate::trade::check::load_groupon_prices(
+            &self.repos,
+            &lines,
+            i64::from(now_activity),
+        )
+        .await?;
         let mut seckill_discount = Decimal::ZERO;
         // (rec_id, 数量, 商品ID, 活动开始, 活动结束, 活动ID)
         let mut seckill_lines: Vec<(i32, i32, i32, i32, i32, i32)> = Vec::new();
+        // 拼团明细：(商品名, 拼团价信息)
+        let mut groupon_lines: Vec<(String, crate::trade::check::GrouponPrice)> = Vec::new();
+
+        // 预计算活动单价（秒杀/拼团），再应用满减/满折得到最终结算价
+        let mut line_prices: std::collections::HashMap<i32, Decimal> =
+            std::collections::HashMap::new();
+        for line in &lines {
+            let pid = line.product_id;
+            let sku_id = line.sku_id.unwrap_or(0);
+            let base_price = prices
+                .get(&pid)
+                .and_then(|p| *p)
+                .unwrap_or(line.original_price);
+            let price = if let Some(g) = groupon_prices.get(&line.cart_id) {
+                g.price.min(base_price)
+            } else {
+                seckill
+                    .get(&(pid, sku_id))
+                    .or_else(|| seckill.get(&(pid, 0)))
+                    .and_then(|item| item.seckill_price)
+                    .map(|p| p.min(base_price))
+                    .unwrap_or(base_price)
+            };
+            line_prices.insert(line.cart_id, price);
+        }
+        crate::trade::check::apply_full_reductions(
+            &self.repos,
+            &lines,
+            &products,
+            &mut line_prices,
+            now_activity,
+        )
+        .await?;
 
         for line in &lines {
             let pid = line.product_id;
@@ -98,17 +138,38 @@ impl OrderService {
             let seckill_item = seckill
                 .get(&(pid, sku_id))
                 .or_else(|| seckill.get(&(pid, 0)));
-            let price = seckill_item
-                .and_then(|item| item.seckill_price)
-                .map(|p| p.min(base_price))
-                .unwrap_or(base_price);
+            let groupon_line = groupon_prices.get(&line.cart_id);
+            let (activity_price, is_pin) = if let Some(g) = groupon_line {
+                (g.price.min(base_price), true)
+            } else {
+                (
+                    seckill_item
+                        .and_then(|item| item.seckill_price)
+                        .map(|p| p.min(base_price))
+                        .unwrap_or(base_price),
+                    false,
+                )
+            };
+            // 满减/满折后的最终单价
+            let price = line_prices
+                .get(&line.cart_id)
+                .copied()
+                .unwrap_or(activity_price);
             let subtotal = price * Decimal::from(qty);
             product_amount += subtotal;
             seckill_discount +=
                 (base_price - price).max(Decimal::ZERO) * Decimal::from(qty);
             *store_amounts.entry(line.shop_id).or_default() += subtotal;
-            if let Some(item) = seckill_item {
-                if price < base_price {
+            if let Some(g) = groupon_line {
+                groupon_lines.push((
+                    products
+                        .get(&pid)
+                        .map(|p| p.product_name.clone())
+                        .unwrap_or_default(),
+                    g.clone(),
+                ));
+            } else if let Some(item) = seckill_item {
+                if activity_price < base_price {
                     if let (Some(rec_id), Some(start), Some(end)) =
                         (Some(item.rec_id), item.seckill_start_time, item.seckill_end_time)
                     {
@@ -124,6 +185,8 @@ impl OrderService {
                 }
             }
 
+            let promotion_data = groupon_line
+                .and_then(|g| serde_json::to_string(&g.data).ok());
             items.push(OrderItem {
                 order_sn: order_sn.clone(),
                 user_id,
@@ -134,6 +197,8 @@ impl OrderService {
                 sku_data: line.sku_data.clone().unwrap_or_default(),
                 origin_price: Some(base_price),
                 shop_id: line.shop_id,
+                is_pin: i32::from(is_pin),
+                promotion_data,
                 ..Default::default()
             });
         }
@@ -361,7 +426,7 @@ impl OrderService {
         let order = Order {
             is_presale: if presale_row.is_some() { 1 } else { 0 },
             presale_type: presale_row.as_ref().map(|_| 2),
-            order_type: Some(0),
+            order_type: if groupon_lines.is_empty() { Some(0) } else { Some(2) },
             order_sn: order_sn.clone(),
             user_id,
             order_status: status::UNPAID,
@@ -394,6 +459,8 @@ impl OrderService {
 
         // 「扣库存 + 写订单」同一事务：任一行库存不足或订单写入失败，
         // 事务整体回滚，不残留已扣库存（原 Java 由 @Transactional 保证）。
+        let mut groupon_record_id: Option<i64> = None;
+
         let order_id = {
             let mut tx = self
                 .repos.trade.order
@@ -435,6 +502,36 @@ impl OrderService {
                     .repos.trade.order
                     .insert_order_in_tx(&mut tx, &order, &items)
                     .await;
+            }
+
+            // 拼团记录（与订单同事务；开团/参团状态机）
+            if result.is_ok() && !groupon_lines.is_empty() {
+                if let Some(order_id) = result.as_ref().ok().copied() {
+                    for (product_name, line) in &groupon_lines {
+                        match crate::trade::groupon::create_record_in_tx(
+                            &mut tx,
+                            &self.repos,
+                            user_id,
+                            &user.username,
+                            order_id,
+                            &order_sn,
+                            product_name,
+                            line,
+                        )
+                        .await
+                        {
+                            Ok(id) => {
+                                if groupon_record_id.is_none() {
+                                    groupon_record_id = Some(id);
+                                }
+                            }
+                            Err(e) => {
+                                result = Err(e);
+                                break;
+                            }
+                        }
+                    }
+                }
             }
 
             // 秒杀库存扣减（与订单同事务，失败整体回滚）
@@ -608,7 +705,7 @@ impl OrderService {
             online_amount,
             out_trade_no,
             return_type,
-            groupon_promotion_record_id: None,
+            groupon_promotion_record_id: groupon_record_id.and_then(|v| i32::try_from(v).ok()),
         })
     }
 

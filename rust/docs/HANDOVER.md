@@ -98,7 +98,12 @@ $env:RUST_LOG="info,tigshop=info,sqlx=warn"
   `order_presale.presale_status=2`。
 - 种子/回归：`tools/compat/seed_seckill.sql`、`seed_presale.sql`、`seckill_smoke.ps1`、`presale_smoke.ps1`；
   详见 `ACTIVITY-PRESALE.md`。
-- **未交付**：拼团引擎、满减引擎（原因与下一步见 `ACTIVITY-PRESALE.md` §4）。
+- **拼团**：加购 `grouponData` → 阶梯拼团价；下单事务内开团/参团记录状态机
+  （`join_type/join_status/min_group_num/join_expiration_time`），成团整团置成功；
+  定时任务把过期待成团置失败。实测：35 元商品拼团 10 元，开团/参团两单成团（status=2），过期团 status=3。
+- **满减/满折**：`product_promotion` 阶梯/循环、按金额/件数、指定/排除商品，与秒杀/拼团价叠加；
+  结算与下单同口径。实测：490 元商品经满减+满折后 387 元（优惠 103），订单落库一致。
+- 详细口径、剩余限制（拼团退款/虚拟成团、尾款超时）见 `ACTIVITY-PRESALE.md`。
 
 ### 🟡 进行中 — 微信生态链路（客户端基础已完成，业务端点待凭据）
 
@@ -169,6 +174,6 @@ python tools/check_structure.py --strict          # 结构 PASS
 1. 微信支付/支付宝/PayPal 沙箱联调（拿到凭据后，按 `PAYMENT-CHANNELS.md` 补下单/退款）。
 2. 对象存储 / ES / 翻译 / 物流轨迹（按业务是否需要云能力）。
 3. 微信生态链路（凭据 + HTTP 客户端骨架）。
-4. 活动引擎 v3：拼团（开团/参团/成团/过期）、满减规则、O2O 配送/自提点、发票随单、地区税率。
+4. 结算/O2O v3：O2O 配送/自提点、发票随单、地区税率；拼团退款/虚拟成团、预售尾款超时任务。
 5. MQ/定时任务扩展、Excel 余量、审计日志、多租户。
 6. Docker/nginx/监控/CI 与集成测试，完成可部署交付。

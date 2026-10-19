@@ -138,6 +138,124 @@ impl GrouponPromotionRecordRepository {
         }
     }
 
+    /// 事务内写入拼团记录（开团/参团通用），返回自增 ID。
+    ///
+    /// # Errors
+    /// 数据库错误。
+    pub async fn insert_record_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::MySql>,
+        r: &GrouponPromotionRecord,
+    ) -> Result<i64> {
+        let result = sqlx::query(
+            "INSERT INTO groupon_promotion_record
+             (groupon_promotion_id, groupon_promotion_item_id, product_id, product_name,
+              join_type, join_status, avatar, username, user_id, order_id, order_sn,
+              is_virtual, paid_amount, open_group_record_id, open_group_time,
+              group_captain_name, join_expiration_time, min_group_num, shop_id, add_time)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(r.groupon_promotion_id)
+        .bind(r.groupon_promotion_item_id)
+        .bind(r.product_id)
+        .bind(&r.product_name)
+        .bind(r.join_type)
+        .bind(r.join_status)
+        .bind(&r.avatar)
+        .bind(&r.username)
+        .bind(r.user_id)
+        .bind(r.order_id)
+        .bind(&r.order_sn)
+        .bind(r.is_virtual)
+        .bind(r.paid_amount)
+        .bind(r.open_group_record_id)
+        .bind(r.open_group_time)
+        .bind(&r.group_captain_name)
+        .bind(r.join_expiration_time)
+        .bind(r.min_group_num)
+        .bind(r.shop_id)
+        .bind(r.add_time)
+        .execute(&mut **tx)
+        .await
+        .map_err(map_err)?;
+        Ok(result.last_insert_id() as i64)
+    }
+
+    /// 事务内回填开团记录的 `open_group_record_id`（Java `save` 后 `updateById`）。
+    ///
+    /// # Errors
+    /// 数据库错误。
+    pub async fn set_open_group_id_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::MySql>,
+        record_id: i64,
+        open_group_id: i64,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE groupon_promotion_record SET open_group_record_id = ?              WHERE groupon_promotion_record_id = ?",
+        )
+        .bind(open_group_id)
+        .bind(record_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
+    /// 事务内统计某开团记录的参团人数（含开团记录本身）。
+    ///
+    /// # Errors
+    /// 数据库错误。
+    pub async fn count_members_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::MySql>,
+        open_group_id: i64,
+    ) -> Result<i64> {
+        let row: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM groupon_promotion_record WHERE open_group_record_id = ?",
+        )
+        .bind(open_group_id)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(map_err)?;
+        Ok(row.0)
+    }
+
+    /// 到期待成团的开团记录（拼团过期定时任务）。
+    ///
+    /// # Errors
+    /// 数据库错误。
+    pub async fn find_expired_waiting(
+        &self,
+        now: i64,
+        limit: u64,
+    ) -> Result<Vec<GrouponPromotionRecord>> {
+        sqlx::query_as::<_, GrouponPromotionRecord>(&format!(
+            "{SELECT} WHERE join_type = 1 AND join_status = 1              AND join_expiration_time > 0 AND join_expiration_time <= ?              ORDER BY groupon_promotion_record_id ASC LIMIT ?"
+        ))
+        .bind(now)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 拼团过期：把整团待成团成员置为失败（3），返回影响行数。
+    ///
+    /// # Errors
+    /// 数据库错误。
+    pub async fn mark_failed_by_open(&self, open_group_id: i64) -> Result<u64> {
+        let affected = sqlx::query(
+            "UPDATE groupon_promotion_record SET join_status = 3              WHERE open_group_record_id = ? AND join_status = 1",
+        )
+        .bind(open_group_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?
+        .rows_affected();
+        Ok(affected)
+    }
+
     /// 团员（Java `groupMemberList`：`open_group_record_id = id`）。
     pub async fn members(&self, open_record_id: i64) -> Result<Vec<GrouponPromotionRecord>> {
         sqlx::query_as::<_, GrouponPromotionRecord>(&format!(

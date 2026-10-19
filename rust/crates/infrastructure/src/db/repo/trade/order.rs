@@ -157,8 +157,8 @@ impl OrderRepository {
                 "INSERT INTO order_item
                  (order_id, order_sn, user_id, price, quantity, product_id,
                   product_name, product_sn, pic_thumb, sku_id, sku_data,
-                  product_type, shop_id, origin_price)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                  product_type, shop_id, origin_price, is_pin, promotion_data)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             )
             .bind(order_id)
             .bind(&item.order_sn)
@@ -174,6 +174,8 @@ impl OrderRepository {
             .bind(item.product_type)
             .bind(item.shop_id)
             .bind(item.origin_price)
+            .bind(item.is_pin)
+            .bind(&item.promotion_data)
             .execute(&mut **tx)
             .await
             .map_err(map_err)?;

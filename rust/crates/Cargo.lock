@@ -4026,6 +4026,7 @@ dependencies = [
  "serde_json",
  "sha1",
  "sha2",
+ "sqlx",
  "thiserror",
  "tigshop-common",
  "tigshop-core",

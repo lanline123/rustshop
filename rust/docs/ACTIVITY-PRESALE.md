@@ -77,30 +77,48 @@ DB: order14 total=32 paid=32 unpaid=0 pay_status=2；order_presale status=2
   `payment.balance_pay` 预售两阶段、`payment.paylog.settle_order_by_pay_sn`。
 - 字段：订单 `discount_amount` 参与下单落库；`order_presale` 全字段写入。
 
-## 4. 未完成与下一步
+## 4. 拼团引擎（已完成）
 
-### 拼团引擎（未交付）
+- **加购上下文**：`POST /cart/cart/addToCart` 接受 `grouponData`（`grouponPromotionId /
+  grouponPromotionItemId / grouponDetailId / groupNumKey / price / grouponPromotionRecordId`），
+  写入 `cart.extra_data`，拼团行不与普通购物车行合并。
+- **选价**：结算/下单解析购物车拼团上下文 → 校验活动有效期、活动商品、SKU →
+  按 `groupon_promotion_detail.group_price` 的 `groupNumKey` 匹配阶梯拼团价（缺省取最低价）。
+- **下单状态机**（Java `GrouponPromotionRecordServiceImpl#saveRecord`）：
+  - 无开团记录 ID → 开团（`join_type=1, join_status=1`），`min_group_num` 取阶梯人数；
+    1 人团立即成功；与订单同事务写 `groupon_promotion_record`；
+  - 带开团记录 ID → 参团（`join_type=2`），人数达到 `min_group_num` 时整团置成功（2）；
+  - 订单 `order_type=2`、明细 `is_pin=1` + `promotion_data`；
+    `submit` 返回 `grouponPromotionRecordId`（前端跳拼团详情）。
+- **过期**：定时任务 `run_groupon_expire`（`TIG_SCHEDULER__GROUPON_SECS`，默认 60s）把超时待成团记录置失败（3）。
+- **实测**（`groupon_smoke.ps1`，商品 136：35 元 → 拼团 10 元）：
+  - 开团：订单 20、`record=459`（status=1）；参团：订单 21、`record=460`（status=2），
+    整团（459/460）均置成功 2；
+  - 过期团：订单 22、`record=461` 经定时任务置失败 3；
+  - 结算价 10、`discountProductPromotionAmount=25`、订单 `total=14`（含运费 4）、`order_type=2`、`is_pin=1`。
 
-- 现状：`groupon_promotion`（普通团/阶梯团）、`groupon_promotion_item`、`groupon_promotion_detail`
-  （`group_price` 阶梯 JSON）、`groupon_promotion_record`（开团/参团记录）表与部分仓储已存在；
-  `groupon_records` 仅客户端列表查询。
-- 未做的原因：拼团需要「活动上下文」（开团/参团、`openGroupRecordId`、成团人数/阶梯价、过期失败退款），
-  当前结算/下单参数与购物车不携带拼团上下文，需先对齐 Java 前端入参与 cart 流程，避免自动成团算错价。
-- 下一步：按 `join_type/open_group_record_id/min_group_num/join_expiration_time` 状态机实现
-  `open_group / join_group / mark_success / expire_fail`，下单事务内创建记录并校验人数/阶梯价。
+## 5. 满减 / 满折引擎（已完成）
 
-### 满减引擎（未交付）
+- 数据源：`product_promotion`（`promotion_type 1/2`、`promotion_type_data` 阶梯、`rules_type` 阶梯/循环、
+  `unit` 金额/件、`range/range_data` 全部/指定商品/排除商品、`min_order_amount`、店铺 `shop_id`）。
+- 纯函数：`parse_promotion_tiers / pick_promotion_tier / promotion_discount`
+  （Java `ProductPromotionServiceImpl#parsePrice` 口径：阶梯取最高可用档、循环优惠按门槛倍数叠减、满折 `reduce/10`）。
+- 结算/下单：按店铺加载进行中活动，命中商品行按优惠比例折价；支持与秒杀/拼团价格叠加
+  （顺序执行，与 Java 购物车活动顺序一致）；结算页返回 `discountDiscountAmount`，
+  订单金额/明细价与结算页一致。
+- **实测**（`fullreduce_smoke.ps1`，商品 8：490 元；种子满减 + 演示数据已有满 50 减 10 + 9 折）：
+  - 结算：`product=387 / fullReduceDiscount=103 / price=387`；
+  - 下单：订单 24 `total=387 / product_amount=387 / discount_amount=103`，明细 `price=387 / origin_price=490`。
 
-- `product_promotion` 表（`promotion_type/promotion_type_data/rules_type/unit/range_data`）当前无种子数据，
-  Java 规则 JSON 语义需要从原 `ProductPromotionServiceImpl` 逐条确认（满额/满件、阶梯、叠加规则）。
-- 下一步：先实现纯函数规则解析 + 单测，再接购物车店铺维度试算与下单。
-
-### 其他限制
+## 6. 其他限制与回归
 
 - 预售尾款支付时间窗校验、超时未付尾款自动取消/退款、预售取消库存返还尚未接入定时任务；
-- 渠道回调依赖真实凭据（当前用线下/余额链路验证状态机）；拼团退款/失败自动处理未做。
+- 拼团退款/失败自动处理（虚拟成团、超时退款）未做，当前仅置失败状态；
+- 渠道回调依赖真实凭据（当前用线下/余额链路验证状态机）；
+- **数据库兼容**：本项目实体的 JSON 列按 `String` 解码，需把以下列改为 `TEXT`（本地已执行，换库后需重跑）：
+  `cart.extra_data`、`groupon_promotion_item.group_num`、`groupon_promotion_detail.group_price`。
 
-## 5. 回归
+## 7. 回归
 
 ```powershell
 mysql ... tigshop-java -e "source rust/tools/compat/seed_seckill.sql"
@@ -108,4 +126,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File rust/tools/compat/seckill_sm
 
 mysql ... tigshop-java -e "source rust/tools/compat/seed_presale.sql"
 powershell -NoProfile -ExecutionPolicy Bypass -File rust/tools/compat/presale_smoke.ps1
+
+mysql ... tigshop-java -e "source rust/tools/compat/seed_groupon.sql"
+powershell -NoProfile -ExecutionPolicy Bypass -File rust/tools/compat/groupon_smoke.ps1
+
+mysql ... tigshop-java -e "source rust/tools/compat/seed_fullreduce.sql"
+powershell -NoProfile -ExecutionPolicy Bypass -File rust/tools/compat/fullreduce_smoke.ps1
 ```

@@ -394,6 +394,101 @@ pub struct ShippingTypeVO {
 }
 
 // ——————————————————————————————————————————————
+// 拼团购物车数据（加购时随 `grouponData` 写入 cart.extra_data）
+// ——————————————————————————————————————————————
+
+/// 加购时的拼团上下文（Java `AddToCartDTO.GrouponData`）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct GrouponCartData {
+    /// 拼团活动 ID。
+    pub groupon_promotion_id: Option<i64>,
+    /// 拼团活动商品 ID。
+    pub groupon_promotion_item_id: Option<i64>,
+    /// 成团信息（明细）ID。
+    pub groupon_detail_id: Option<i64>,
+    /// 成团人数 key（阶梯团用）。
+    pub group_num_key: Option<i32>,
+    /// 拼团价。
+    pub price: Option<Decimal>,
+    /// 开团记录 ID（参团时由前端/购物车带入）。
+    pub groupon_promotion_record_id: Option<i64>,
+}
+
+impl GrouponCartData {
+    /// 是否包含完整拼团上下文（活动 + 活动商品）。
+    #[must_use]
+    pub fn is_valid(&self) -> bool {
+        self.groupon_promotion_id.unwrap_or(0) > 0
+            && self.groupon_promotion_item_id.unwrap_or(0) > 0
+    }
+}
+
+/// 解析购物车 `extra_data` 中的拼团上下文（非法/空 → None）。
+#[must_use]
+pub fn parse_groupon_data(raw: Option<&str>) -> Option<GrouponCartData> {
+    let raw = raw?.trim();
+    if raw.is_empty() || raw == "null" {
+        return None;
+    }
+    let data: GrouponCartData = serde_json::from_str(raw).ok()?;
+    if data.is_valid() {
+        Some(data)
+    } else {
+        None
+    }
+}
+
+/// 从活动商品 `group_num` JSON 中取指定 key 的成团人数（缺失→最小成团人数）。
+#[must_use]
+pub fn groupon_min_group_num(group_num_json: &str, group_num_key: Option<i32>) -> i32 {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(group_num_json) else {
+        return 0;
+    };
+    let Some(list) = value.as_array() else {
+        return 0;
+    };
+    if let Some(key) = group_num_key {
+        for tier in list {
+            if tier.get("groupNumKey").and_then(serde_json::Value::as_i64) == Some(i64::from(key)) {
+                if let Some(num) = tier.get("groupNum").and_then(serde_json::Value::as_i64) {
+                    return i32::try_from(num).unwrap_or(0);
+                }
+            }
+        }
+    }
+    list.iter()
+        .filter_map(|tier| tier.get("groupNum").and_then(serde_json::Value::as_i64))
+        .min()
+        .and_then(|v| i32::try_from(v).ok())
+        .unwrap_or(0)
+}
+
+/// 从明细 `group_price` JSON 中取指定 key 的拼团价（缺失→最低价）。
+#[must_use]
+pub fn groupon_price_for(group_price_json: &str, group_num_key: Option<i32>) -> Option<Decimal> {
+    let value = serde_json::from_str::<serde_json::Value>(group_price_json).ok()?;
+    let list = value.as_array()?;
+    let price_of = |tier: &serde_json::Value| -> Option<Decimal> {
+        tier.get("price").and_then(|v| {
+            v.as_str()
+                .and_then(|s| s.parse::<Decimal>().ok())
+                .or_else(|| v.as_f64().and_then(Decimal::from_f64_retain))
+        })
+    };
+    if let Some(key) = group_num_key {
+        for tier in list {
+            if tier.get("groupNumKey").and_then(serde_json::Value::as_i64) == Some(i64::from(key)) {
+                if let Some(price) = price_of(tier) {
+                    return Some(price);
+                }
+            }
+        }
+    }
+    list.iter().filter_map(price_of).min()
+}
+
+// ——————————————————————————————————————————————
 // 结算计算纯函数（结算页与下单共用，保证金额口径一致）
 // ——————————————————————————————————————————————
 
@@ -496,6 +591,99 @@ pub fn calc_deposit(
         deposit.round_dp(2)
     } else {
         Decimal::ZERO
+    }
+}
+
+/// 满减/满折规则阶梯（`product_promotion.promotion_type_data` JSON）。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PromotionTier {
+    /// 门槛（金额或件数，取决于 `unit`）。
+    pub min_amount: Decimal,
+    /// 满减金额（type=1）或折扣（type=2，几折）。
+    pub reduce: Decimal,
+}
+
+/// 解析 `promotion_type_data`（`[{"minAmount":100,"reduce":10}]`，兼容字符串/数字）。
+#[must_use]
+pub fn parse_promotion_tiers(raw: &str) -> Vec<PromotionTier> {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(raw) else {
+        return Vec::new();
+    };
+    let Some(list) = value.as_array() else {
+        return Vec::new();
+    };
+    let as_decimal = |v: &serde_json::Value| -> Option<Decimal> {
+        v.as_str()
+            .and_then(|s| s.parse::<Decimal>().ok())
+            .or_else(|| v.as_f64().and_then(Decimal::from_f64_retain))
+    };
+    list.iter()
+        .filter_map(|item| {
+            let min = item
+                .get("minAmount")
+                .and_then(|v| as_decimal(v))?;
+            let reduce = item
+                .get("reduce")
+                .and_then(|v| as_decimal(v))
+                .unwrap_or(Decimal::ZERO);
+            Some(PromotionTier {
+                min_amount: min,
+                reduce,
+            })
+        })
+        .collect()
+}
+
+/// 选取满足门槛的最高档（`isMoreApplicablePromotionRule`：minAmount 更大者优先）。
+#[must_use]
+pub fn pick_promotion_tier(tiers: &[PromotionTier], compare_data: Decimal) -> Option<&PromotionTier> {
+    tiers
+        .iter()
+        .filter(|tier| tier.min_amount > Decimal::ZERO && tier.min_amount <= compare_data)
+        .max_by(|a, b| a.min_amount.cmp(&b.min_amount))
+}
+
+/// 计算满减/满折后的总优惠与价格比例（Java `ProductPromotionServiceImpl#parsePrice`）。
+///
+/// - `promotion_type`：1 满减，2 满折（3 满赠不参与价格计算）；
+/// - `rules_type`：1 阶梯（只减一次），其他为循环优惠（按门槛倍数叠减）；
+/// - 返回 `(总优惠金额, 折后价格比例)`；不满足门槛返回 None。
+#[must_use]
+pub fn promotion_discount(
+    promotion_type: i32,
+    rules_type: i32,
+    tier: &PromotionTier,
+    compare_data: Decimal,
+    price_amount: Decimal,
+) -> Option<(Decimal, Decimal)> {
+    if price_amount <= Decimal::ZERO || compare_data < tier.min_amount || tier.min_amount <= Decimal::ZERO {
+        return None;
+    }
+    match promotion_type {
+        1 => {
+            let mut total = if rules_type == 1 {
+                tier.reduce
+            } else {
+                let times = (compare_data / tier.min_amount)
+                    .trunc()
+                    .max(Decimal::ONE);
+                tier.reduce * times
+            };
+            total = total.min(price_amount).max(Decimal::ZERO);
+            let proportion = if total >= price_amount {
+                Decimal::ZERO
+            } else {
+                (price_amount - total) / price_amount
+            };
+            Some((total, proportion))
+        }
+        2 => {
+            let ten = Decimal::from(10);
+            let proportion = tier.reduce.max(Decimal::ZERO).min(ten) / ten;
+            let total = (price_amount * (Decimal::ONE - proportion)).max(Decimal::ZERO);
+            Some((total, proportion))
+        }
+        _ => None,
     }
 }
 
@@ -801,5 +989,46 @@ mod tests {
         );
         // 未配置类型 → 0
         assert_eq!(calc_deposit(Decimal::from(10), None, None, None, None), Decimal::ZERO);
+    }
+
+    #[test]
+    fn groupon_cart_data_parse_and_tiers() {
+        let raw = r#"{"grouponPromotionId":43,"grouponPromotionItemId":65,"groupNumKey":2,"price":"35.00"}"#;
+        let data = parse_groupon_data(Some(raw)).unwrap();
+        assert!(data.is_valid());
+        assert_eq!(data.group_num_key, Some(2));
+        assert_eq!(data.price, Some(Decimal::new(3500, 2)));
+        assert!(parse_groupon_data(Some("{}")).is_none());
+        assert!(parse_groupon_data(None).is_none());
+
+        let group_num = r#"[{"groupNum":3,"groupNumKey":1},{"groupNum":5,"groupNumKey":2}]"#;
+        assert_eq!(groupon_min_group_num(group_num, Some(2)), 5);
+        assert_eq!(groupon_min_group_num(group_num, Some(9)), 3);
+
+        let prices = r#"[{"price":40,"groupNumKey":1},{"price":35,"groupNumKey":2}]"#;
+        assert_eq!(groupon_price_for(prices, Some(2)), Some(Decimal::from(35)));
+        assert_eq!(groupon_price_for(prices, None), Some(Decimal::from(35)));
+        assert_eq!(groupon_price_for("not-json", Some(1)), None);
+    }
+
+    #[test]
+    fn promotion_tiers_and_discount() {
+        let tiers = parse_promotion_tiers(r#"[{"minAmount":100,"reduce":10},{"minAmount":300,"reduce":50}]"#);
+        assert_eq!(tiers.len(), 2);
+        let tier = pick_promotion_tier(&tiers, Decimal::from(350)).unwrap();
+        assert_eq!(tier.reduce, Decimal::from(50));
+        // 阶梯满减：350 减 50
+        let (total, proportion) = promotion_discount(1, 1, tier, Decimal::from(350), Decimal::from(350)).unwrap();
+        assert_eq!(total, Decimal::from(50));
+        assert!(proportion < Decimal::ONE);
+        // 循环优惠：350/300 = 1 倍 → 50
+        let (loop_total, _) = promotion_discount(1, 0, tier, Decimal::from(600), Decimal::from(600)).unwrap();
+        assert_eq!(loop_total, Decimal::from(100));
+        // 满折 8.5 折
+        let tier = PromotionTier { min_amount: Decimal::from(100), reduce: Decimal::new(85, 1) };
+        let (total, proportion) = promotion_discount(2, 1, &tier, Decimal::from(200), Decimal::from(200)).unwrap();
+        assert_eq!(total, Decimal::from(30));
+        assert_eq!(proportion, Decimal::new(85, 2));
+        assert!(promotion_discount(1, 1, &tier, Decimal::from(10), Decimal::from(10)).is_none());
     }
 }

@@ -53,13 +53,14 @@ impl CartService {
         Self { repos, product }
     }
 
-    /// 加入购物车（同款累加数量）。
+    /// 加入购物车（同款累加数量；拼团上下文以独立行保存）。
     pub async fn add(
         &self,
         user_id: i32,
         product_id: i32,
         sku_id: Option<i32>,
         quantity: i32,
+        groupon_data: Option<&tigshop_core::models::trade::check::GrouponCartData>,
     ) -> Result<i32> {
         if quantity <= 0 {
             return Err(Error::Validation("数量必须大于0".into()));
@@ -67,17 +68,19 @@ impl CartService {
         // 校验商品可购
         self.product.check_purchasable(product_id, sku_id, quantity).await?;
 
-        // 已存在同款则累加
-        if let Some(existing) = self
-            .repos.trade.cart
-            .find_line(user_id, product_id, sku_id)
-            .await?
-        {
-            let new_qty = existing.quantity + quantity;
-            self.product.check_purchasable(product_id, sku_id, new_qty).await?;
-            let cart_id = existing.cart_id;
-            self.repos.trade.cart.update_quantity(cart_id, user_id, new_qty).await?;
-            return Ok(cart_id);
+        // 已存在同款则累加（拼团商品不与普通购物车行合并）
+        if groupon_data.is_none() {
+            if let Some(existing) = self
+                .repos.trade.cart
+                .find_line(user_id, product_id, sku_id)
+                .await?
+            {
+                let new_qty = existing.quantity + quantity;
+                self.product.check_purchasable(product_id, sku_id, new_qty).await?;
+                let cart_id = existing.cart_id;
+                self.repos.trade.cart.update_quantity(cart_id, user_id, new_qty).await?;
+                return Ok(cart_id);
+            }
         }
 
         let price = self
@@ -96,6 +99,8 @@ impl CartService {
             market_price: Some(price),
             is_checked: 1,
             r#type: 0,
+            extra_data: groupon_data
+                .and_then(|g| serde_json::to_string(g).ok()),
             ..Default::default()
         };
         self.repos.trade.cart.insert(&cart).await

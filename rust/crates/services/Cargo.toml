@@ -10,6 +10,7 @@ tigshop-core = { path = "../core" }
 tigshop-common = { path = "../common" }
 tigshop-infrastructure = { path = "../infrastructure" }
 tigshop-security = { path = "../security" }
+sqlx.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true

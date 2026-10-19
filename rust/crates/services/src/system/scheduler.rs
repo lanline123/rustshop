@@ -68,7 +68,8 @@ pub fn parse_positive_days(raw: Option<&str>) -> Option<i64> {
 pub fn spawn_all(repos: Arc<Repositories>, order: OrderService) -> Vec<JoinHandle<()>> {
     vec![
         tokio::spawn(order_auto_cancel_loop(repos.clone(), order.clone())),
-        tokio::spawn(order_auto_receive_loop(repos)),
+        tokio::spawn(order_auto_receive_loop(repos.clone())),
+        tokio::spawn(groupon_expire_loop(repos)),
     ]
 }
 
@@ -112,6 +113,56 @@ async fn order_auto_receive_loop(repos: Arc<Repositories>) {
             Err(e) => tracing::warn!("定时任务：自动收货失败: {e}"),
         }
     }
+}
+
+/// 拼团过期循环（每 60s；`TIG_SCHEDULER__GROUPON_SECS` 可调）。
+async fn groupon_expire_loop(repos: Arc<Repositories>) {
+    tokio::time::sleep(Duration::from_secs(
+        env_secs("TIG_SCHEDULER__DELAY_SECS", 30) + 15,
+    ))
+    .await;
+    let mut ticker = tokio::time::interval(Duration::from_secs(env_secs(
+        "TIG_SCHEDULER__GROUPON_SECS",
+        60,
+    )));
+    loop {
+        ticker.tick().await;
+        match run_groupon_expire(&repos).await {
+            Ok(0) => {}
+            Ok(n) => tracing::info!("定时任务：拼团过期置失败 {n} 团"),
+            Err(e) => tracing::warn!("定时任务：拼团过期处理失败: {e}"),
+        }
+    }
+}
+
+/// 执行一轮拼团过期：待成团且超过截止时间的开团记录整团置失败。
+///
+/// # Errors
+/// 数据库错误。
+pub async fn run_groupon_expire(repos: &Repositories) -> Result<usize> {
+    let now = utils::now_seconds() as i64;
+    let records = repos
+        .marketing
+        .groupon_promotion_record
+        .find_expired_waiting(now, SCAN_BATCH)
+        .await?;
+    let mut count = 0;
+    for record in records {
+        let affected = repos
+            .marketing
+            .groupon_promotion_record
+            .mark_failed_by_open(record.groupon_promotion_record_id)
+            .await?;
+        if affected > 0 {
+            count += 1;
+            tracing::info!(
+                "拼团过期: open_record={} 影响成员 {}",
+                record.groupon_promotion_record_id,
+                affected
+            );
+        }
+    }
+    Ok(count)
 }
 
 /// 执行一轮超时取消，返回处理笔数。

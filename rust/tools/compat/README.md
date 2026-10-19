@@ -56,3 +56,30 @@ powershell -NoProfile -ExecutionPolicy Bypass -File rust/tools/compat/presale_sm
 ## 完整运行步骤
 
 见 [`docs/RUN-RUST-FRONTEND.md`](../../docs/RUN-RUST-FRONTEND.md)。
+## groupon_smoke.ps1 / seed_groupon.sql
+
+拼团引擎联调（商品 136：35 元 → 拼团 10 元，2 人成团）：
+
+```powershell
+mysql ... tigshop-java -e "source rust/tools/compat/seed_groupon.sql"
+powershell -NoProfile -ExecutionPolicy Bypass -File rust/tools/compat/groupon_smoke.ps1
+```
+
+## fullreduce_smoke.ps1 / seed_fullreduce.sql
+
+满减/满折联调（商品 8：490 元，满减阶梯 + 9 折 + 演示数据满 50 减 10）：
+
+```powershell
+mysql ... tigshop-java -e "source rust/tools/compat/seed_fullreduce.sql"
+powershell -NoProfile -ExecutionPolicy Bypass -File rust/tools/compat/fullreduce_smoke.ps1
+```
+
+## JSON 列兼容（必须）
+
+MySQL dump 中以下列的 `JSON` 类型与 Rust `String` 解码不兼容，换库后需转 `TEXT`：
+
+```sql
+ALTER TABLE cart MODIFY extra_data TEXT NULL;
+ALTER TABLE groupon_promotion_item MODIFY group_num TEXT NOT NULL;
+ALTER TABLE groupon_promotion_detail MODIFY group_price TEXT NOT NULL;
+```
