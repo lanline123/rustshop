@@ -10,8 +10,7 @@
 use axum::{
     extract::{Query, State},
     http::HeaderMap,
-    routing::get,
-    Json, Router,
+    routing::get, Router,
 };
 use tigshop_core::models::merchant::shop_account_log::{ShopAccountQuery, ShopAccountVO};
 use tigshop_security::web::{ok, ApiResult};

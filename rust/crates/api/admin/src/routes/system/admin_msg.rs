@@ -170,6 +170,7 @@ mod tests {
             username: "v".into(),
             role_id: None,
             admin_type: Some("vendor".into()),
+            shop_id: None,
         };
         let q = AdminMsgListQuery {
             vendor_id: Some(9),
@@ -182,6 +183,7 @@ mod tests {
             username: "a".into(),
             role_id: None,
             admin_type: Some("admin".into()),
+            shop_id: None,
         };
         assert!(scope_of(&admin, &AdminMsgListQuery::default()).is_platform());
 
@@ -190,6 +192,7 @@ mod tests {
             username: "s".into(),
             role_id: None,
             admin_type: Some("shop".into()),
+            shop_id: None,
         };
         let q = AdminMsgListQuery {
             shop_id: Some(3),

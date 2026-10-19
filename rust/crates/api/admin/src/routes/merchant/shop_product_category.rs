@@ -500,6 +500,7 @@ mod tests {
             username: "admin".into(),
             role_id: None,
             admin_type: None,
+            shop_id: None,
         }
     }
 
@@ -509,6 +510,7 @@ mod tests {
             username: "admin".into(),
             role_id: None,
             admin_type: Some(t.into()),
+            shop_id: None,
         }
     }
 

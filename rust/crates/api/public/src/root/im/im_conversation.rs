@@ -363,6 +363,7 @@ mod tests {
             username: "u".into(),
             role_id: None,
             admin_type: admin_type.map(ToString::to_string),
+            shop_id: None,
         }
     }
 

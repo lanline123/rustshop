@@ -494,6 +494,7 @@ mod tests {
             username: "admin".to_string(),
             role_id: Some(1),
             admin_type: Some("admin".to_string()),
+            shop_id: None,
         };
         let op = operator_from(&auth);
         assert_eq!(op.id, Some(42));
@@ -504,6 +505,7 @@ mod tests {
             username: "   ".to_string(),
             role_id: None,
             admin_type: None,
+            shop_id: None,
         };
         assert_eq!(operator_from(&blank).name_ref(), Some("unknown"));
     }

@@ -445,6 +445,7 @@ mod tests {
             username: "admin".into(),
             role_id: Some(1),
             admin_type: Some("shop".into()),
+            shop_id: None,
         };
         // 无请求头 → 回退 JWT
         let headers = HeaderMap::new();
@@ -458,6 +459,7 @@ mod tests {
             username: "admin".into(),
             role_id: None,
             admin_type: None,
+            shop_id: None,
         };
         assert_eq!(
             resolve_admin_type(&headers, &anon, Some("vendor")).as_deref(),

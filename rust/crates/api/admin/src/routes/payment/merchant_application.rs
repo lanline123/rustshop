@@ -371,6 +371,7 @@ mod tests {
             username: "admin".into(),
             role_id: None,
             admin_type: Some("admin".into()),
+            shop_id: None,
         };
         let v = viewer(&headers(&[("x-admin-type", "admin")]), &auth);
         assert!(v.platform_admin);

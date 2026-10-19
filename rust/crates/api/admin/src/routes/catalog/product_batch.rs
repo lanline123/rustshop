@@ -25,7 +25,7 @@ use axum::{
     Router,
 };
 use tigshop_core::models::catalog::product_batch::{
-    ProductBatchDealQuery, ProductImportExcelVO, ProductServiceDTO, ProductServiceListQuery,
+    ProductBatchDealQuery, ProductServiceDTO, ProductServiceListQuery,
 };
 use tigshop_core::types::PageResult;
 use tigshop_openapi::RouteDoc;

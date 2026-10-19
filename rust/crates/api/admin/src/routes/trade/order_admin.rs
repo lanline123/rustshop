@@ -217,12 +217,9 @@ impl IdsQuery {
     }
 }
 
-/// 平台视角判定（Java `HeaderUtils.getShopId() <= 0 && getVendorId() <= 0`；
-/// Rust JWT 未签发 shop_id，按 `admin_type` 近似：`admin` 或缺失 → 平台）。
+/// 平台视角判定（Java `HeaderUtils.getShopId() <= 0 && getVendorId() <= 0`）。
 fn platform_view(auth: &AuthUser) -> bool {
-    auth.admin_type
-        .as_deref()
-        .is_none_or(|t| t.is_empty() || t == "admin")
+    auth.is_platform()
 }
 
 /// 站点根地址（Java 从 `HttpServletRequest` 取 scheme/serverName/serverPort）。
@@ -270,8 +267,11 @@ async fn read_upload(multipart: &mut Multipart) -> Result<(Option<String>, Vec<u
 async fn order_list(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    Query(q): Query<OrderListQuery>,
+    Query(mut q): Query<OrderListQuery>,
 ) -> ApiResult<PageResult<OrderVO>> {
+    if let Some(shop_id) = auth.scoped_shop_id() {
+        q.shop_id = Some(shop_id);
+    }
     ok(state
         .trade
         .order_admin
@@ -283,8 +283,11 @@ async fn order_list(
 async fn status_count(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    Query(q): Query<OrderListQuery>,
+    Query(mut q): Query<OrderListQuery>,
 ) -> ApiResult<OrderStatusCountVO> {
+    if let Some(shop_id) = auth.scoped_shop_id() {
+        q.shop_id = Some(shop_id);
+    }
     ok(state
         .trade
         .order_admin
@@ -295,9 +298,16 @@ async fn status_count(
 /// `GET /adminapi/order/order/detail?id=`：订单详情。
 async fn order_detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<OrderVO> {
-    ok(state.trade.order_admin.detail(q.id).await?)
+    let order = state.trade.order_admin.detail(q.id).await?;
+    if let Some(shop_id) = auth.scoped_shop_id() {
+        if order.shop_id != shop_id {
+            return Err(AppError(tigshop_core::Error::biz(403, "无权查看其他商户订单")));
+        }
+    }
+    ok(order)
 }
 
 /// `POST /adminapi/order/order/setAdminNote`：设置商家备注 / 标记。

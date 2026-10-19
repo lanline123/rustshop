@@ -127,6 +127,7 @@ async fn optional_auth(
             username: claims.usr,
             role_id: claims.role,
             admin_type: claims.typ,
+            shop_id: claims.shop_id,
         });
     }
     Ok(next.run(req).await)
@@ -321,6 +322,7 @@ mod tests {
                 username: "u".into(),
                 role_id: None,
                 admin_type: None,
+                shop_id: None,
             }))),
             12
         );

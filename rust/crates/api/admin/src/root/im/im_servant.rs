@@ -166,6 +166,7 @@ mod tests {
             username: "tester".into(),
             role_id: None,
             admin_type: None,
+            shop_id: None,
         }
     }
 

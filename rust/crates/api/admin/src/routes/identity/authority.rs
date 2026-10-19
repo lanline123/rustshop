@@ -337,6 +337,7 @@ mod tests {
             username: "admin".into(),
             role_id: Some(2),
             admin_type: Some("admin".into()),
+            shop_id: None,
         };
         let ctx = context_from(&auth, Some(0), None);
         assert_eq!(ctx.admin_id, 1);

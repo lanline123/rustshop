@@ -42,7 +42,7 @@ use axum::{
     http::{header, HeaderMap, HeaderValue},
     response::{IntoResponse, Response},
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 // 用 axum-extra 的 Query（serde_html_form）：支持重复键数组
 // （`productTypes=1&productTypes=2`），axum 内置的 serde_urlencoded 不支持
@@ -54,7 +54,7 @@ use tigshop_core::models::catalog::product_manage::{
     ProductBatchModifyVO, ProductDelDTO, ProductListItemVO, ProductSaveDTO,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult, AppError};
+use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 
 use crate::AdminState;
 
@@ -138,8 +138,12 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 /// 该逻辑依赖鉴权中间件（见模块头「多租户说明」）。
 async fn product_list(
     State(state): State<AdminState>,
-    Query(q): Query<AdminProductListQuery>,
+    Extension(auth): Extension<AuthUser>,
+    Query(mut q): Query<AdminProductListQuery>,
 ) -> ApiResult<PageResult<ProductListItemVO>> {
+    if let Some(shop_id) = auth.scoped_shop_id() {
+        q.shop_id = Some(shop_id);
+    }
     ok(state.catalog.product_manage.admin_list(&q).await?)
 }
 
@@ -155,9 +159,16 @@ struct IdQuery {
 
 async fn product_detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<Option<AdminProductDetailVO>> {
-    ok(state.catalog.product_manage.admin_detail(q.id).await?)
+    let detail = state.catalog.product_manage.admin_detail(q.id).await?;
+    if let (Some(shop_id), Some(ref d)) = (auth.scoped_shop_id(), &detail) {
+        if d.shop_id != shop_id && d.shop_id != 0 {
+            return Err(AppError(tigshop_core::Error::biz(403, "无权查看其他商户商品")));
+        }
+    }
+    ok(detail)
 }
 
 /// `GET /adminapi/product/product/catAndBrandList`：分类 + 品牌下拉。
@@ -174,8 +185,12 @@ async fn cat_and_brand_list(State(state): State<AdminState>) -> ApiResult<CatAnd
 /// 返回提示语文本（Java 返回 `String`，由响应包装器放入 `data`）。
 async fn product_create(
     State(state): State<AdminState>,
-    Json(dto): Json<ProductSaveDTO>,
+    Extension(auth): Extension<AuthUser>,
+    Json(mut dto): Json<ProductSaveDTO>,
 ) -> ApiResult<String> {
+    if let Some(shop_id) = auth.scoped_shop_id() {
+        dto.shop_id = Some(shop_id);
+    }
     ok(state.catalog.product_manage.create(&dto).await?)
 }
 
@@ -185,8 +200,12 @@ async fn product_create(
 /// `ProductSaveParam` 同构）。
 async fn product_update(
     State(state): State<AdminState>,
-    Json(dto): Json<ProductSaveDTO>,
+    Extension(auth): Extension<AuthUser>,
+    Json(mut dto): Json<ProductSaveDTO>,
 ) -> ApiResult<String> {
+    if let Some(shop_id) = auth.scoped_shop_id() {
+        dto.shop_id = Some(shop_id);
+    }
     ok(state.catalog.product_manage.update(&dto).await?)
 }
 
@@ -196,10 +215,15 @@ async fn product_update(
 /// 入参兼容 `{id}` / `{productId}` / `{ids: []}` 三种前端写法。
 async fn product_del(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<ProductDelDTO>,
 ) -> ApiResult<u64> {
     let ids = dto.target_ids();
-    ok(state.catalog.product_manage.delete(&ids).await?)
+    ok(state
+        .catalog
+        .product_manage
+        .delete_scoped(&ids, auth.scoped_shop_id())
+        .await?)
 }
 
 /// `GET /adminapi/product/productBatch/downloadTemplate`：下载导入模板。
@@ -235,12 +259,9 @@ async fn download_template(State(state): State<AdminState>) -> Response {
 ///
 /// 对应 Java `ProductBatchController.productBatchModify`：`multipart/form-data`，
 /// 参数 `isAutoCat` / `isAutoBrand` / `isChangePic` / `isUpload` + 文件 `file`。
-///
-/// **未迁移**：xlsx 解析依赖（`calamine`）未在本 crate 声明，
-/// 服务层完成「文件非空」校验后返回明确的未实现业务错误
-/// （见 `ProductManageService#batch_modify`）。
 async fn product_batch_modify(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     mut multipart: Multipart,
 ) -> ApiResult<ProductBatchModifyVO> {
     let mut params: std::collections::HashMap<String, String> = std::collections::HashMap::new();
@@ -273,13 +294,14 @@ async fn product_batch_modify(
     };
     let (file_name, bytes) = file.unwrap_or((None, Vec::new()));
     ok(state.catalog.product_manage
-        .batch_modify(
+        .batch_modify_scoped(
             parse_i32("isAutoCat"),
             parse_i32("isAutoBrand"),
             parse_i32("isChangePic"),
             parse_i32("isUpload"),
             file_name.as_deref(),
             &bytes,
+            auth.scoped_shop_id(),
         )
         .await?)
 }
@@ -290,7 +312,12 @@ async fn product_batch_modify(
 /// Java 原方法返回 `void`，这里回传 `true`/受影响结果便于前端与运维排查。
 async fn product_batch_edit(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<ProductBatchEditDTO>,
 ) -> ApiResult<bool> {
-    ok(state.catalog.product_manage.batch_edit(&dto).await?)
+    ok(state
+        .catalog
+        .product_manage
+        .batch_edit_scoped(&dto, auth.scoped_shop_id())
+        .await?)
 }

@@ -247,6 +247,7 @@ mod tests {
             username: "tester".into(),
             role_id: None,
             admin_type: t.map(ToString::to_string),
+            shop_id: None,
         }
     }
 

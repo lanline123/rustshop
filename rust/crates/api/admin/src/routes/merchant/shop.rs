@@ -27,7 +27,7 @@ use tigshop_core::models::merchant::shop::{
     ShopWithdrawAuditDTO, ShopWithdrawListQuery, ShopWithdrawVO,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult, AuthUser};
+use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 
 use crate::AdminState;
 
@@ -110,16 +110,22 @@ struct ShopIdQuery {
 /// `GET /adminapi/merchant/shop/detail?shopId=`：店铺详情（含评星/商户）。
 async fn shop_detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<ShopIdQuery>,
 ) -> ApiResult<ShopVO> {
-    ok(state.merchant.shop.detail(q.shop_id).await?)
+    let target_shop_id = auth.scoped_shop_id().unwrap_or(q.shop_id);
+    ok(state.merchant.shop.detail(target_shop_id).await?)
 }
 
 /// `POST /adminapi/merchant/shop/update`：更新店铺。
 async fn shop_update(
     State(state): State<AdminState>,
-    Json(dto): Json<ShopUpdateDTO>,
+    Extension(auth): Extension<AuthUser>,
+    Json(mut dto): Json<ShopUpdateDTO>,
 ) -> ApiResult<&'static str> {
+    if let Some(shop_id) = auth.scoped_shop_id() {
+        dto.shop_id = shop_id;
+    }
     state.merchant.shop.update(&dto).await?;
     ok("更新成功")
 }
@@ -127,16 +133,24 @@ async fn shop_update(
 /// `GET /adminapi/merchant/shopAccount/logList`：资金流水分页。
 async fn account_log_list(
     State(state): State<AdminState>,
-    Query(q): Query<ShopAccountLogListQuery>,
+    Extension(auth): Extension<AuthUser>,
+    Query(mut q): Query<ShopAccountLogListQuery>,
 ) -> ApiResult<PageResult<ShopAccountLogVO>> {
+    if let Some(shop_id) = auth.scoped_shop_id() {
+        q.shop_id = Some(shop_id);
+    }
     ok(state.merchant.shop.account_logs(&q).await?)
 }
 
 /// `GET /adminapi/merchant/shopWithdraw/list`：提现记录分页。
 async fn withdraw_list(
     State(state): State<AdminState>,
-    Query(q): Query<ShopWithdrawListQuery>,
+    Extension(auth): Extension<AuthUser>,
+    Query(mut q): Query<ShopWithdrawListQuery>,
 ) -> ApiResult<PageResult<ShopWithdrawVO>> {
+    if let Some(shop_id) = auth.scoped_shop_id() {
+        q.shop_id = Some(shop_id);
+    }
     ok(state.merchant.shop.withdraw_list(&q).await?)
 }
 
@@ -149,9 +163,16 @@ struct WithdrawIdQuery {
 /// `GET /adminapi/merchant/shopWithdraw/detail?id=`：提现详情。
 async fn withdraw_detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<WithdrawIdQuery>,
 ) -> ApiResult<ShopWithdrawVO> {
-    ok(state.merchant.shop.withdraw_detail(q.id).await?)
+    let detail = state.merchant.shop.withdraw_detail(q.id).await?;
+    if let Some(shop_id) = auth.scoped_shop_id() {
+        if detail.shop_id != shop_id {
+            return Err(AppError(tigshop_core::Error::biz(403, "无权查看其他店铺提现记录")));
+        }
+    }
+    ok(detail)
 }
 
 /// `GET /adminapi/merchant/shopWithdraw/config`：提现状态配置
@@ -167,6 +188,9 @@ async fn withdraw_audit(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<ShopWithdrawAuditDTO>,
 ) -> ApiResult<&'static str> {
+    if !auth.is_platform() {
+        return Err(AppError(tigshop_core::Error::biz(403, "仅平台管理员可审核商户提现")));
+    }
     state.merchant.shop
         .withdraw_audit(&dto, auth.admin_type.as_deref())
         .await?;

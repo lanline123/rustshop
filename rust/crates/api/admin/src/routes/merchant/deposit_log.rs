@@ -5,8 +5,7 @@
 
 use axum::{
     extract::{Query, State},
-    routing::get,
-    Json, Router,
+    routing::get, Router,
 };
 use serde::Deserialize;
 use tigshop_core::models::merchant::deposit_log::{DepositLogListQuery, DepositLogVO};
