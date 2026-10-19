@@ -35,8 +35,8 @@
      买家秀虚拟用户 1（`buyer_show.info`，外部随机资料 API）、小程序码/scene 2（`system/util`）。
   2. 审计日志：`admin_log` + 请求级审计上下文（`tigshop_security::audit`，`require_auth` 注入 actor/IP）已完成；
      Java 已实现调用点均已接入（约 30 个写点）；`merchant_apply` 新增管理员/员工功能未实现，落地时补审计。
-  3. 定时/MQ：已有订单取消、自动收货、拼团过期、账期更新 4 个循环；仍缺保证金到期、分账调度、
-     商品定时上下架、微信直播订单同步、售后自动收货/退款结算/自动评价、门店/分销/供应商结算、ES 同步重试。
+  3. 定时/MQ：已有订单取消、自动收货、拼团过期、账期更新、商品自动上下架 5 个循环；仍缺保证金到期、分账调度、
+     微信直播订单同步、售后自动收货/退款结算/自动评价、门店/分销/供应商结算、ES 同步重试。
   4. Excel 余量：对账单导出、库存批量导入/调拨等；电子卡密导入、商品批量导入、批量发货导入/失败数据/模板、订单导出已完成。
   5. 结算/活动残留：代客整单改价金额、定金尾款超时/取消、拼团退款/虚拟成团/限购、
      活动会员人群/满赠、限时折扣（`time_discount`）接入结算。
@@ -266,15 +266,15 @@ $env:TIG_SCHEDULER__GROUPON_SECS="3"  # 拼团过期扫描（新增）
 
 ### Wave 3（2–3 天）：定时任务 / MQ 广度
 
-**现状**：已有轮询框架（`services/system/scheduler.rs`）：订单超时取消、自动收货、拼团过期；未提交改动已加 MQ 抽象/routing keys。
+**现状**：已有轮询框架（`services/system/scheduler.rs`）：订单超时取消、自动收货、拼团过期、账期更新、商品自动上下架；未提交改动已加 MQ 抽象/routing keys。
 
 待补任务（无凭据可先做轮询；有 RabbitMQ 再接消费者）：
 
 1. 微信直播订单同步 `WechatLiveOrderSyncTask`（依赖微信凭据，可先写客户端骨架）。
 2. 保证金到期扫描 `DepositDueCheckTask`。
-3. 账期更新 `CreditUserPeriodUpdateTask`。
+3. ✅ 账期更新 `CreditUserPeriodUpdateTask`（已完成）。
 4. 分账调度 `ProfitSharingScheduleTask`（依赖支付渠道）。
-5. 商品定时上下架 `ProductAutoStatusTask`（依赖 `product_auto_status` 配置）。
+5. ✅ 商品定时上下架 `ProductAutoStatusTask`（已完成）。
 6. 售后自动收货、退款结算、自动评价（MQ 消费链路）。
 7. 门店结算、分销员结算、供应商结算、礼品卡/提货自动入库、订单完成送积分、ES 批量/单条同步失败重试。
 
