@@ -28,10 +28,10 @@ use std::sync::Arc;
 
 use tigshop_core::models::catalog::product_manage_extra::{
     parse_desc_images, product_field_column, scalar_to_string, ProductAuditDTO,
-    ProductBatchOperationDTO, ProductDescImageVO, ProductSkuListQuery, ProductUpdateFieldDTO,
+    ProductBatchOperationDTO, ProductDescImageVO, ProductPostVO, ProductSkuListQuery, ProductUpdateFieldDTO,
     CHECK_STATUS_APPROVED, CHECK_STATUS_PENDING, CHECK_STATUS_REJECTED, MSG_AUDIT_STATUS_INVALID,
     MSG_BATCH_TYPE_INVALID, MSG_ES_INIT_NOT_MIGRATED, MSG_PARTICIPLE_NOT_MIGRATED,
-    MSG_POST_NOT_MIGRATED, MSG_PRODUCT_NOT_FOUND, MSG_PRODUCT_STATUS_INVALID, MSG_PRODUCT_UNKNOWN,
+    MSG_PRODUCT_NOT_FOUND, MSG_PRODUCT_STATUS_INVALID, MSG_PRODUCT_UNKNOWN,
     SERVICE_DATA_ERROR,
 };
 use tigshop_core::types::PageResult;
@@ -236,14 +236,80 @@ impl ProductManageExtraService {
         Err(Error::biz(SERVICE_DATA_ERROR, MSG_ES_INIT_NOT_MIGRATED))
     }
 
-    /// 商品推广页（Java `post`；短链/小程序码未迁移）。
-    pub async fn post(&self, product_id: i32) -> Result<()> {
-        let _p = self
+    /// 商品推广页（对应 Java `ProductServiceImpl#post`）。
+    pub async fn post(&self, product_id: i32) -> Result<ProductPostVO> {
+        let p = self
             .repo()
             .find_product(product_id)
             .await?
             .ok_or_else(|| Error::Validation(MSG_PRODUCT_NOT_FOUND.into()))?;
-        Err(Error::biz(SERVICE_DATA_ERROR, MSG_POST_NOT_MIGRATED))
+
+        let mut shop_name = "商城自营".to_string();
+        if p.shop_id > 0 {
+            if let Ok(Some(shop)) = self.repos.merchant.shop_manage.find_shop(p.shop_id).await {
+                if let Some(title) = shop.shop_title {
+                    shop_name = title;
+                }
+            }
+        }
+
+        let h5_domain = self
+            .repos
+            .system
+            .config_client
+            .find_config_val("h5_domain", true)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+
+        let pc_domain = self
+            .repos
+            .system
+            .config_client
+            .find_config_val("pc_domain", true)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+
+        let h5_path = format!("/pages/product/index?id={product_id}");
+        let pc_original_link = format!("{pc_domain}/product/{}", p.product_sn);
+        let h5_original_link = format!("{h5_domain}{h5_path}");
+
+        // 生成小程序/H5 推广二维码（Base64 PNG）
+        let qr_target = if !h5_original_link.is_empty() {
+            &h5_original_link
+        } else {
+            &pc_original_link
+        };
+        let mini_code = crate::system::util::generate_qr_code_base64(qr_target).ok();
+
+        let pic_url = if !p.pic_large.is_empty() {
+            Some(p.pic_large)
+        } else if !p.pic_url.is_empty() {
+            Some(p.pic_url)
+        } else if !p.pic_thumb.is_empty() {
+            Some(p.pic_thumb)
+        } else {
+            None
+        };
+
+        Ok(ProductPostVO {
+            product_name: p.product_name,
+            product_price: Some(p.product_price),
+            pic_url,
+            product_brief: Some(p.product_brief),
+            product_sn: Some(p.product_sn),
+            shop_name,
+            h5_short_link: Some(h5_original_link.clone()),
+            h5_original_link: Some(h5_original_link),
+            pc_short_link: Some(pc_original_link.clone()),
+            pc_original_link: Some(pc_original_link),
+            mini_code,
+            wechat_short_link: None,
+            wechat_short_link_error: None,
+        })
     }
 }
 

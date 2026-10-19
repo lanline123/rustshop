@@ -56,16 +56,7 @@ impl UtilService {
         let Some(url) = url else {
             return Err(Error::Validation(MSG_URL_REQUIRED.into()));
         };
-        let code = qrcode::QrCode::new(url.as_bytes())
-            .map_err(|e| Error::biz(SERVICE_DATA_ERROR, e.to_string()))?;
-        let image = code.render::<image::Luma<u8>>().build();
-        let mut png_bytes = std::io::Cursor::new(Vec::new());
-        image
-            .write_to(&mut png_bytes, image::ImageFormat::Png)
-            .map_err(|e| Error::biz(SERVICE_DATA_ERROR, e.to_string()))?;
-        use base64::Engine;
-        let b64 = base64::engine::general_purpose::STANDARD.encode(png_bytes.into_inner());
-        Ok(format!("data:image/png;base64,{b64}"))
+        generate_qr_code_base64(url)
     }
 
     /// 小程序码（Java `WechatOAuthService.getMiniCode` 未迁移）。
@@ -97,6 +88,20 @@ impl UtilService {
         }
         Ok(serde_json::Value::Null)
     }
+}
+
+/// 将 URL 或文本生成为 QR Code 的 Base64 PNG data URL。
+pub fn generate_qr_code_base64(url: &str) -> Result<String> {
+    let code = qrcode::QrCode::new(url.as_bytes())
+        .map_err(|e| Error::biz(SERVICE_DATA_ERROR, e.to_string()))?;
+    let image = code.render::<image::Luma<u8>>().build();
+    let mut png_bytes = std::io::Cursor::new(Vec::new());
+    image
+        .write_to(&mut png_bytes, image::ImageFormat::Png)
+        .map_err(|e| Error::biz(SERVICE_DATA_ERROR, e.to_string()))?;
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(png_bytes.into_inner());
+    Ok(format!("data:image/png;base64,{b64}"))
 }
 
 #[cfg(test)]

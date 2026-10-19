@@ -134,6 +134,38 @@ pub struct ProductRecycleDTO {
     pub id: i64,
 }
 
+/// 商品推广海报/链接数据（Java `ProductPostVO`，管理端 `GET /product/product/post`）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ProductPostVO {
+    /// 商品名称
+    pub product_name: String,
+    /// 商品价格
+    pub product_price: Option<Decimal>,
+    /// 商品主图 URL
+    pub pic_url: Option<String>,
+    /// 商品简介
+    pub product_brief: Option<String>,
+    /// 商品编号
+    pub product_sn: Option<String>,
+    /// 店铺名称
+    pub shop_name: String,
+    /// H5 短链完整 URL
+    pub h5_short_link: Option<String>,
+    /// H5 原始链接
+    pub h5_original_link: Option<String>,
+    /// PC 短链完整 URL
+    pub pc_short_link: Option<String>,
+    /// PC 原始链接
+    pub pc_original_link: Option<String>,
+    /// 小程序二维码（Base64 data URL）
+    pub mini_code: Option<String>,
+    /// 微信小程序短链
+    pub wechat_short_link: Option<String>,
+    /// 微信短链失败原因
+    pub wechat_short_link_error: Option<String>,
+}
+
 /// 商品审核（Java `ProductAuditDTO`；`checkStatus` 1=通过 2=不通过）。
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]

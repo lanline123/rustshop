@@ -28,7 +28,7 @@ use axum::{
 };
 use serde::Deserialize;
 use tigshop_core::models::catalog::product_manage_extra::{
-    ProductAuditDTO, ProductBatchOperationDTO, ProductDescImageVO, ProductRecycleDTO,
+    ProductAuditDTO, ProductBatchOperationDTO, ProductDescImageVO, ProductPostVO, ProductRecycleDTO,
     ProductSkuListQuery, ProductUpdateFieldDTO,
 };
 use tigshop_core::types::PageResult;
@@ -177,13 +177,12 @@ async fn init_all_to_es(State(state): State<AdminState>) -> ApiResult<()> {
     ok(())
 }
 
-/// `GET /adminapi/product/product/post?productId=`（未迁移：短链/小程序码）
+/// `GET /adminapi/product/product/post?productId=`（商品推广数据）
 async fn post_page(
     State(state): State<AdminState>,
     Query(q): Query<ProductIdQuery>,
-) -> ApiResult<()> {
-    state.catalog.product_manage_extra.post(q.product_id).await?;
-    ok(())
+) -> ApiResult<ProductPostVO> {
+    ok(state.catalog.product_manage_extra.post(q.product_id).await?)
 }
 
 #[cfg(test)]
