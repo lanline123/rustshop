@@ -33,9 +33,8 @@
      `wechat_live*`/`api_wechat_live`）、会员 9（`login` 微信 OAuth/服务号/手机号快捷登录 7、`user_message_log` 2）、
      系统 5（`util` 小程序码/二维码 4、`app_version_admin` 1）、商品 4（ES 分词/全量同步）、
      商户 4（`shop_funds` 入驻流程）、交易 4（物流轨迹、代客配送 O2O）、营销 3（虚拟用户）、IM 1（视频上传；已读回执已完成）。
-  2. 审计日志：`admin_log` 写入服务已完成，新增请求级审计上下文
-     （`tigshop_security::audit`，`require_auth` 注入 actor/IP），已接 10 个模块/17 个写点；
-     剩余 APP 版本/消息类型/店铺管理/IM 客服/售后等约 5 个模块待接。
+  2. 审计日志：`admin_log` + 请求级审计上下文（`tigshop_security::audit`，`require_auth` 注入 actor/IP）已完成；
+     Java 已实现调用点均已接入（约 30 个写点）；`merchant_apply` 新增管理员/员工功能未实现，落地时补审计。
   3. 定时/MQ：已有订单取消、自动收货、拼团过期、账期更新 4 个循环；仍缺保证金到期、分账调度、
      商品定时上下架、微信直播订单同步、售后自动收货/退款结算/自动评价、门店/分销/供应商结算、ES 同步重试。
   4. Excel 余量：订单导出、对账单导出、库存批量导入/调拨等；电子卡密导入、商品批量导入、批量发货导入已完成。
