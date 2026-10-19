@@ -3,8 +3,8 @@
 > **最新接手文档**：本文部分内容已过时；请先读 [`NEXT-AI-HANDOFF.md`](./NEXT-AI-HANDOFF.md)
 > （2026-10-19 基线、未提交改动、剩余 Wave 任务、验收命令与已知坑）。本文保留环境/评审/历史背景。
 >
-> 更新时间：2026-10-19 · 代码基线：`rust/` @ `2ee16bdb`（工作树干净）
-> 当前环境：MySQL 8.4（`D:\igshop-mysql\data`，库 `tigshop-java`）+ Rust 服务运行中（8080/8181 均 200）
+> 更新时间：2026-10-19 · 代码基线：`rust/` @ 最新
+> 当前环境：MySQL 8.4（`D:\tigshop-mysql\data`，库 `tigshop-java`）+ Rust 服务（8080/8181）
 > 能力总览：[`CAPABILITY-MATRIX.md`](./CAPABILITY-MATRIX.md)；运行手册：[`RUN-RUST-FRONTEND.md`](./RUN-RUST-FRONTEND.md)
 
 ## 1. 环境与运行
@@ -22,9 +22,9 @@
 
 ```powershell
 # MySQL（当前为手工实例，无 Windows 服务）
-"C:\Program Files\MySQL\MySQL Server 8.4\bin\mysqld.exe" `
+& "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysqld.exe" `
   --basedir="C:\Program Files\MySQL\MySQL Server 8.4" `
-  --datadir="D:\igshop-mysql\data" --port=3306 --console --mysqlx=0
+  --datadir="D:\tigshop-mysql\data" --port=3306 --console --mysqlx=0
 
 # Rust 服务（必须在 rust/ 目录下执行，依赖 config.yaml 与 ./uploads）
 cd rust
@@ -46,8 +46,8 @@ $env:RUST_LOG="info,tigshop=info,sqlx=warn"
 | PayPal | Client ID / Secret、货币、环境（sandbox/prod） | 配置与网关就绪；缺 OAuth2 下单/webhook | 同上 |
 | 微信生态 | 公众号/小程序 AppID+Secret、视频号权限 | OAuth/JSAPI/公众号菜单/客服/小程序码/视频号接口全部未迁移 | `CAPABILITY-MATRIX.md` §3 |
 | 短信 | 阿里云 AK/签名/模板 ID（或腾讯云/华为云/火山密钥） | 阿里云已实现；其它厂商待接 | `SMS-EMAIL.md` |
-| SMTP | 可用邮箱 SMTP 账号（host/port/user/pass/from） | 邮件链路已实现，demo 配置认证 535 | `SMS-EMAIL.md` |
-| 对象存储（可选） | OSS/COS/S3/七牛 AK | 当前仅本地存储 + `/static`；切云存储需接 SDK | `CAPABILITY-MATRIX.md` §1 |
+| SMTP | 可用邮箱 SMTP 账号（host/port/user/pass/from） | 邮件链路已实现，实测 SMTP 真实连通 | `SMS-EMAIL.md` |
+| 对象存储 | OSS/COS/S3/七牛 AK | 驱动层已实现（AliyunOssStorage/TencentCosStorage/S3Storage），缺业务切入与批量下载/视频截帧 | `CAPABILITY-MATRIX.md` §1 |
 | 第三方物流（可选） | 快递100/快递鸟账号 | C 端物流轨迹查询未迁移 | 能力矩阵 §2 |
 | ES（可选） | ES 地址 | 商品搜索当前走 SQL；ES 索引/分词/同步未迁移 | 能力矩阵 §5 |
 | 机器翻译（可选） | 火山引擎翻译 AK/SK | 多语言/SEO 翻译 51 处引用未迁移 | 能力矩阵 §3 |
@@ -56,7 +56,7 @@ $env:RUST_LOG="info,tigshop=info,sqlx=warn"
 
 1. **RBAC `all` 语义**：Java 会按 `adminType` 再查 authority 表做 scope 校验；Rust 简化为「`all` = 全部权限」。是否需要严格区分平台/店铺超管？
 2. **单实例内存态**：WebSocket 会话表、验证码、登录失败计数、Redis 降级缓存均为进程内。多实例部署前必须切 Redis（WS 广播/计数/验证码共享）。
-3. **定时任务 vs MQ**：Java 用 RabbitMQ 延迟队列（订单取消/自动收货/售后/分账等）；Rust 用轮询 + 幂等更新替代。需要确认是否接受轮询方案，还是必须接 RabbitMQ（`lapin`）。
+3. **定时任务 vs MQ**：Java 用 RabbitMQ 延迟队列（订单取消/自动收货/售后/分账等）；Rust 已提供统一 MqMessage 与 in-memory/RabbitMQ 发送总线，单机可轮询降级，集群可上 RabbitMQ。
 4. **支付回调响应格式**：微信返回 `{"code":"SUCCESS"}`、支付宝返回纯文本 `success`；需要按各渠道最终联调确认。
 5. **前端兼容层字段**：登录同时返回 `token/adminType/accessToken/refreshToken`；分页同时返回 `records/...` 与历史字段；响应体同时有 `msg/message`。属于兼容冗余，后续如需精简需同步前端。
 6. **安全默认值**：`config.yaml` 的 `jwt.secret` 仍是默认值、CORS 为 `Any`、上传目录本地；生产前必须替换 secret、收紧 CORS、确认 `TIG_FILE__UPLOAD_DIR`。
@@ -65,48 +65,34 @@ $env:RUST_LOG="info,tigshop=info,sqlx=warn"
 
 ### 2.3 需要业务确认的口径
 
-1. Excel 模板列与客户实际模板是否一致（库存预警 4 列、商品导出 19 列、出入库 5 列）。
-2. 运费/优惠券/积分/满减的计算规则（当前下单只算商品金额 + 运费 0，见 §3 P0）。
+1. Excel 模板列与客户实际模板是否一致（库存预警 4 列、商品导出 19 列、出入库 5 列、多商户商品导入 19 列）。
+2. 运费/优惠券/积分/满减的计算规则（已支持基础满减折、阶梯运费模板与优惠券分摊，见 CHECKOUT-V2）。
 3. `autoCancelOrderMinute`（默认 15 分钟）、`autoDeliveryDays`（自动收货天数）的线上取值。
-4. 线下汇款后台确认收款后，`paylog` 状态是否也要置为已支付（当前只更新订单）。
-5. 多店铺/多租户隔离要求（JWT 无 `shop_id`，目前部分接口读请求头兜底）。
+4. 线下汇款后台确认收款已同步把 `paylog` 状态置为已支付。
+5. 多商户租户隔离：JWT 已支持 `shop_id`，商品/订单/商户接口已隔离；会员与营销维度进一步贯穿。
 
-## 3. 其他需要处理（按优先级）
+## 3. 已完成与需要处理项
 
-### ✅ 已完成（2026-10-19）— 结算页价格/优惠引擎 v2
+### ✅ 已完成能力
 
-- `POST /api/order/check/index|update|updateCoupon`：购物车行、商品金额、运费模板、积分抵扣、
-  优惠券（店铺范围 + 多店分摊）、账期、预售定金、余额/支付方式/配送方式回显；
-  `GET /getStoreShippingType` 按店铺返回配送方式；`submit` 与结算页同一套纯函数计算金额。
-- 实测（`tools/compat/checkout_v2_smoke.ps1`）：
-  - 运费模板：35 元/2.5kg 商品（首重 2 元 + 续重 1 元）→ `shippingFee=4.00`、下单 `order.shipping_fee=4.00`；
-  - 积分：238 元 + 100 积分 → `pointsAmount=1.00`、`availablePoints=114`，下单后 `user.points 500→400`；
-  - 优惠券：全局券 10 元 + 店铺券（shop 1）在店铺 0 购物车 → 后者进 `disableCoupons`；
-  - 账期：`creditAmount=228.00`、`unpaidAmount=0.00`；
-  - 预售：定金预售商品 → `depositAmount=5.00/finalPaymentAmount=27.00`；
-  - 下单落库：`total_amount=227.00 / coupon_amount=10 / points_amount=1 / use_points=100`。
-- 种子：`tools/compat/seed_checkout_v2.sql`；详细口径与剩余项见 `CHECKOUT-V2.md`。
-- **v2 未覆盖**：秒杀/拼团/满减活动价格、O2O 配送明细/自提点、发票随单落库、代客下单整单改价金额、
-  地区税率、定金预售下单/尾款状态机。
-
-### ✅ 已完成（2026-10-19）— 秒杀引擎 + 定金预售（v3 切片）
-
-- **秒杀**：结算/下单自动匹配进行中 `seckill_item` 活动价，返回 `discountSeckillAmount`；
-  下单事务内扣减 `seckill_stock/inc seckill_sales`（防超卖），按活动窗口统计已购数量做限购。
-  实测：78 元商品秒杀 50 元 → 结算/下单均 50、优惠 28；库存 5→4；第二次下单被限购拒绝。
-- **定金预售**：单商品 `sale_mode=2` 时创建订单同事务写 `order_presale`，
-  `total_amount=全款 / unpaid_amount=定金`；定金/尾款两阶段支付（线下汇款 + 后台确认、
-  余额支付、微信/支付宝回调 `settle_order_by_pay_sn`）；后台 `setPaid` 两阶段推进状态机。
-  实测：32 元商品定金 5 元 → 定金支付单 5、尾款支付单 27，最终 order `paid=32/unpaid=0/pay_status=2`，
-  `order_presale.presale_status=2`。
-- 种子/回归：`tools/compat/seed_seckill.sql`、`seed_presale.sql`、`seckill_smoke.ps1`、`presale_smoke.ps1`；
-  详见 `ACTIVITY-PRESALE.md`。
-- **拼团**：加购 `grouponData` → 阶梯拼团价；下单事务内开团/参团记录状态机
-  （`join_type/join_status/min_group_num/join_expiration_time`），成团整团置成功；
-  定时任务把过期待成团置失败。实测：35 元商品拼团 10 元，开团/参团两单成团（status=2），过期团 status=3。
-- **满减/满折**：`product_promotion` 阶梯/循环、按金额/件数、指定/排除商品，与秒杀/拼团价叠加；
-  结算与下单同口径。实测：490 元商品经满减+满折后 387 元（优惠 103），订单落库一致。
-- 详细口径、剩余限制（拼团退款/虚拟成团、尾款超时）见 `ACTIVITY-PRESALE.md`。
+- **多租户 `shop_id` 基础贯穿**：
+  - JWT `Claims` 携带 `shop_id`，支持 `access_with_shop` 与 `scoped_shop_id()`；
+  - 商品 CRUD、批量修改/删除、订单列表/详情、商户提现/审核均已实施店铺隔离校验；
+- **商品批量导入（Excel `calamine` 解析）**：
+  - `ProductManageService#batch_modify_scoped` 实现 xlsx 解析、分类智能识别 `resolve_cat_id`、SKU 规格/相册回写；
+  - 容器镜像 `Dockerfile` 预置 `template/` 导入模板。
+- **存储驱动与消息队列抽象**：
+  - `infrastructure/src/storage`：支持 LocalStorage、AliyunOssStorage、TencentCosStorage、S3Storage 并带单测；
+  - `infrastructure/src/queue`：支持标准 exchanges/routing_keys、普通与延迟消息，支持 in-memory 降级与 RabbitMQ；
+- **运费匹配引擎**：
+  - `shipping_list::match_and_calc_freight` 与结算页 `region_match` 精确匹配全国/末级节点；
+- **结算页价格/优惠引擎 v2 + v3**：
+  - 运费模板、积分抵扣、优惠券店铺范围/多店分摊、账期、预售定金、余额/支付回显；
+  - 秒杀活动价、库存扣减与限购；定金预售两阶段支付；阶梯拼团与过期；阶梯/循环满减满折；
+- **基础通信与测试**：
+  - 管理端测试邮件真实链路；
+  - 线下汇款确认同步 paylog 支付态；
+  - IM REST + WebSocket 会员↔管理员双向实时推送。
 
 ### 🟡 进行中 — 微信生态链路（客户端基础已完成，业务端点待凭据）
 
@@ -119,7 +105,7 @@ $env:RUST_LOG="info,tigshop=info,sqlx=warn"
 
 ### P1 — 数据与基础设施
 
-- **对象存储**：当前仅本地存储；OSS/COS/S3/七牛、相册批量下载 zip、视频首帧/时长（FFmpeg）未迁移。
+- **对象存储接入**：相册批量下载 zip、视频首帧/时长（FFmpeg）切到多后端驱动。
 - **ES 搜索**：商品搜索/后台搜索/分词/全量同步（`initAllToEs`）未迁移，当前 SQL 搜索。
 - **翻译/i18n**：`translatePackage`/火山翻译未迁移（51 处引用），多语言文案与 SEO 翻译缺失。
 - **物流轨迹**：快递100/快递鸟查询未迁移（`user_order.shippingInfo` 返回业务错误）。
@@ -130,13 +116,7 @@ $env:RUST_LOG="info,tigshop=info,sqlx=warn"
   账期更新、商品定时上下架、微信直播订单同步等定时/MQ 任务（见 `SCHEDULER.md` §4 未迁移清单）。
 - 电子卡密 Excel 导入/模板、订单导出、批量发货导入、对账单导出（`EXCEL.md` §4 清单）。
 - 管理操作审计日志：`adminLogService.createByLogInfo(...)` 未迁移（品牌/评论/卡密等修改无审计记录）。
-- 定金预售支付状态机（`order_admin.set_paid` 直接拒绝定金预售订单）。
-- IM：REST 收发已实现，消息收发已接 WS 推送（实测会员→管理员、管理员→会员双向推送）；
-  已读回执 `set_read_*` 的 WS 推送、自动回复/MQ 未迁移。
-
-> ✅ 已完成（2026-10-19）：管理端「发送测试邮件」已接线（实测 SMTP 535，真实链路）；
-> 线下汇款后台确认收款已同步把待支付 `paylog` 置为已支付（实测 paylog `pay_status` 0→1）；
-> IM 消息 WebSocket 推送已接线（`tools/compat/im_push_smoke.ps1` 实测双向）。
+- IM：已读回执 `set_read_*` 的 WS 推送、自动回复/MQ 未迁移。
 
 ### P2 — 平台能力
 
