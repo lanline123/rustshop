@@ -22,9 +22,7 @@
 //!   再继续查库返回 `Page`（响应已提交）。Rust 侧未迁移 Excel 能力，
 //!   服务层对该分支返回明确业务错误（不伪造二进制响应），见
 //!   [`EXCEL_TEMPLATE_UNMIGRATED_MSG`]。
-//! - `import` 端点的 Excel 解析同样未迁移：路由层完成「文件非空」校验后
-//!   返回 [`EXCEL_IMPORT_UNMIGRATED_MSG`]（与 product_stock / stock_warning
-//!   的既有做法一致）。
+//! - `import` 端点已支持真实 xlsx（`calamine` 解析后批量插 `e_card`）。
 //! - `updateField` 的允许字段是 `CheckFieldConstants.E_CARD_GROUP_FIELDS`
 //!   = `{"is_use"}`；`e_card_group` 表**有** `is_use` 列，所以该接口可用
 //!   （与 product_group 的恒失败不同）。

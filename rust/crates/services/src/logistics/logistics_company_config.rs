@@ -331,6 +331,11 @@ impl LogisticsCompanyConfigService {
 
         let config_id = self.repo().insert_config(&config).await?;
         // Java: adminLogService.createByLogInfo("新增物流公司配置:" + logisticsName)
+        let log_info = format!("新增物流公司配置:{}", company.logistics_name);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log(if shop_id > 0 { "shop" } else { "admin" }, shop_id, &log_info).await {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
         tracing::info!(
             "新增物流公司配置:{} (config_id={config_id}, shop_id={shop_id}, vendor_id={vendor_id})",
             company.logistics_name
@@ -383,6 +388,11 @@ impl LogisticsCompanyConfigService {
             .await?
             .map(|c| c.logistics_name)
             .unwrap_or_else(|| id.to_string());
+        let log_info = format!("更新物流公司配置:{company_name}");
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log(if existing.shop_id > 0 { "shop" } else { "admin" }, existing.shop_id, &log_info).await {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
         tracing::info!("更新物流公司配置:{company_name} (config_id={id})");
         Ok(())
     }
@@ -430,6 +440,11 @@ impl LogisticsCompanyConfigService {
             .await?
             .map(|c| c.logistics_name)
             .unwrap_or_else(|| id.to_string());
+        let log_info = format!("设置默认物流公司:{company_name}");
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log(if config.shop_id > 0 { "shop" } else { "admin" }, config.shop_id, &log_info).await {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
         tracing::info!("设置默认物流公司:{company_name} (config_id={id})");
         Ok(())
     }

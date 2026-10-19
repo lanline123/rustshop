@@ -219,7 +219,23 @@ impl AppVersionAdminService {
         let name = normalize_admin_name(admin_name);
         self.repos.system.app_version_admin
             .replace_configs(&entries, admin_id, &name)
-            .await
+            .await?;
+
+        let _ = self
+            .repos
+            .identity
+            .admin_log
+            .insert_log(
+                tigshop_common::utils::now_seconds() as i32,
+                admin_id.unwrap_or(0) as i32,
+                "admin",
+                0,
+                "更新APP版本配置",
+                "127.0.0.1",
+                None,
+            )
+            .await;
+        Ok(())
     }
 
     /// 上传更新文件（Java `AppVersionServiceImpl#upload`）。**未迁移**：对象存储。

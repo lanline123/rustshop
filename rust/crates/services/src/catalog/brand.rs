@@ -369,6 +369,10 @@ impl BrandService {
                 .update_first_word(b.brand_id, &fw)
                 .await?;
         }
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log("admin", 0, "品牌名称批量更新").await {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
         tracing::info!("批量更新品牌首字母: {n} 条");
         Ok(n)
     }
@@ -402,6 +406,13 @@ impl BrandService {
                 dto.reject_remark.as_deref().filter(|s| !s.trim().is_empty()),
             )
             .await?;
+
+        let log_info = format!("审核品牌{}", brand.brand_name);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log(if brand.shop_id > 0 { "shop" } else { "admin" }, brand.shop_id, &log_info).await {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
+
         tracing::info!(
             "审核品牌: id={} name={} status={status}",
             dto.brand_id,

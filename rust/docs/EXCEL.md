@@ -50,11 +50,12 @@ let result = state.catalog.xxx.import_rows(&rows).await?;
 
 ## 4. 尚未接 Excel 的端点（后续按同一模式补）
 
-- 商品批量导入 `POST /product/productBatch/productBatchModify`（依赖已实现，缺解析映射）
 - 商品库存批量导入/调拨导入（`product/stock/batchImport`、`batchImportAllocate` 等 8 个）
-- 订单导出 `GET /order/order/orderExport`、批量发货导入 `batchDeliverImport`
-- 电子卡密导入 `product/eCardGroup/import`
+- 订单导出 `GET /order/order/orderExport`、导入失败数据 `getBatchDeliverImportErrorData`、
+  发货模板下载 `downloadDeliverTemplate`
 - 对账单导出 `finance/statement/exportStatement`、`exportStatementStatistics`
 - 客户/会员导出、微信直播商品导入等
 
-以上端点目前仍返回「未迁移」或 JSON 行数据；Excel 基础能力已就绪，逐个按 §3 模式替换即可。
+> 已完成（2026-10-19）：商品批量导入 `productBatchModify`、批量发货导入 `batchDeliverImport`
+> （真实 xlsx + JSON/CSV）、电子卡密导入 `product/eCardGroup/import`。
+> 其余端点仍返回「未迁移」或 JSON 行数据；Excel 基础能力已就绪，按 §3 模式逐个替换即可。

@@ -114,8 +114,12 @@ $env:RUST_LOG="info,tigshop=info,sqlx=warn"
 
 - 售后自动收货、退款结算、门店结算、分账调度（`ProfitSharingScheduleTask`）、保证金到期扫描、
   账期更新、商品定时上下架、微信直播订单同步等定时/MQ 任务（见 `SCHEDULER.md` §4 未迁移清单）。
-- 电子卡密 Excel 导入/模板、订单导出、批量发货导入、对账单导出（`EXCEL.md` §4 清单）。
-- 管理操作审计日志：`adminLogService.createByLogInfo(...)` 未迁移（品牌/评论/卡密等修改无审计记录）。
+- 订单导出、导入失败数据/发货模板下载、对账单导出、库存批量导入（`EXCEL.md` §4 清单）；
+  电子卡密导入、商品批量导入、批量发货导入已完成。
+- 管理操作审计日志：`admin_log` 写入服务已实现，并新增请求级审计上下文
+  （`tigshop_security::audit` + `require_auth` 注入 actor/IP）；
+  已接邮件模板/电子卡/运费模板/品牌/评论/电子卡密/物流公司/物流配置/配送类型/优惠券共 10 个模块、17 个写点；
+  剩余 APP 版本/消息类型/店铺管理/IM 客服/售后等约 5 个模块待接。
 - IM：已读回执 `set_read_*` 的 WS 推送、自动回复/MQ 未迁移。
 
 ### P2 — 平台能力

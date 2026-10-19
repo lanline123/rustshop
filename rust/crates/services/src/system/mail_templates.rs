@@ -14,13 +14,10 @@
 //!   校验 → 构造补丁（`is_html` / `template_subject` / `template_content`
 //!   / `last_modify`）→ `updateById`。
 //!
-//! ## 未迁移
+//! ## 审计日志
 //!
-//! - Java 更新成功后调用
-//!   `adminLogService.createByLogInfo("更新邮件模板设置:" + 主题)` 写管理端
-//!   操作日志。Rust 侧尚无统一的「管理端审计日志」服务（`admin_log` 域
-//!   未迁移），本实现仅 `tracing::info!` 记录，行为差异见
-//!   `uncertain_points`。
+//! 更新成功后写 `admin_log`（`AdminLogService::record_log`），actor 取 JWT
+//! `AuthUser.id`、IP 取请求头 `X-Forwarded-For`/`X-Real-IP`。
 
 use std::sync::Arc;
 
@@ -74,7 +71,12 @@ impl MailTemplatesService {
     ///
     /// ⚠️ Java 的 `updateById` 命中 0 行（主键不存在）时**不报错**，
     /// 本实现一致：静默返回 `Ok(())`（仅审计日志会少一条）。
-    pub async fn update(&self, dto: &MailTemplatesDTO) -> Result<()> {
+    pub async fn update(
+        &self,
+        dto: &MailTemplatesDTO,
+        admin_id: i32,
+        client_ip: &str,
+    ) -> Result<()> {
         let template_id = validate_update(dto)?;
         let patch = build_patch(dto, utils::now_seconds());
 
@@ -85,20 +87,13 @@ impl MailTemplatesService {
         }
         // Java：adminLogService.createByLogInfo(StrUtil.format("更新邮件模板设置:{}", 主题))
         let log_info = format!("更新邮件模板设置:{}", patch.template_subject);
-        let _ = self
-            .repos
-            .identity
-            .admin_log
-            .insert_log(
-                tigshop_common::utils::now_seconds() as i32,
-                0,
-                "admin",
-                0,
-                &log_info,
-                "127.0.0.1",
-                None,
-            )
-            .await;
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log
+            .record_log(admin_id, "admin", 0, &log_info, Some(client_ip), None)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败（更新邮件模板）: {e}");
+        }
         tracing::info!(
             "更新邮件模板设置: template_id={template_id}, template_subject={}",
             patch.template_subject

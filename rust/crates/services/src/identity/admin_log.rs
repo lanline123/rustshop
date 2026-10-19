@@ -148,9 +148,25 @@ impl AdminLogService {
         request_log_id: Option<i32>,
     ) -> Result<i32> {
         let now = tigshop_common::utils::now_seconds() as i32;
-        let ip = ip_address.unwrap_or("127.0.0.1");
+        let ip = ip_address.unwrap_or("unknown");
         self.repo()
             .insert_log(now, user_id, scope_type, scope_id, log_info, ip, request_log_id)
+            .await
+    }
+
+    /// 记录当前请求的操作日志：actor/IP 取自 [`tigshop_security::audit::current`]。
+    ///
+    /// 不在请求上下文（如定时任务/直接调用）时退化为 `user_id=0, ip=unknown`。
+    pub async fn record_current_log(
+        &self,
+        scope_type: &str,
+        scope_id: i32,
+        log_info: &str,
+    ) -> Result<i32> {
+        let actor = tigshop_security::audit::current();
+        let admin_id = actor.as_ref().map(|a| a.admin_id).unwrap_or(0);
+        let ip = actor.map(|a| a.ip);
+        self.record_log(admin_id, scope_type, scope_id, log_info, ip.as_deref(), None)
             .await
     }
 

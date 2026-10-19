@@ -53,7 +53,8 @@
 //! > 4. `detail` 返回的 `shippingType` 是 `new ShippingType()` 空壳。
 
 use axum::{
-    extract::State,
+    extract::{Extension, State},
+    http::HeaderMap,
     routing::{get, post},
     Json, Router,
 };
@@ -63,7 +64,7 @@ use tigshop_core::models::logistics::shipping_tpl::{
     BatchDTO, DetailQuery, OperateDTO, SetDefaultQuery, ShippingTplSaveDTO, ShippingTplUpdateDTO,
     ShippingTplVO, ShippingTypeVO, UpdateFieldDTO,
 };
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{client_ip, ok, ApiResult, AuthUser};
 
 use crate::AdminState;
 
@@ -166,9 +167,15 @@ async fn detail(
 /// （与 shop_manage / pc_cat_floor / area_code 的处理方式一致）。
 async fn create(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    headers: HeaderMap,
     Json(dto): Json<ShippingTplSaveDTO>,
 ) -> ApiResult<i32> {
-    ok(state.logistics.shipping_tpl.create(&dto, current_shop_id()).await?)
+    ok(state
+        .logistics
+        .shipping_tpl
+        .create(&dto, current_shop_id(), auth.id, &client_ip(&headers))
+        .await?)
 }
 
 /// `POST /adminapi/setting/shippingTpl/update`：更新运费模板。
@@ -182,9 +189,15 @@ async fn create(
 /// Java 原方法返回 `void`，这里回传是否命中记录。
 async fn update(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    headers: HeaderMap,
     Json(dto): Json<ShippingTplUpdateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.logistics.shipping_tpl.update(&dto, current_shop_id()).await?)
+    ok(state
+        .logistics
+        .shipping_tpl
+        .update(&dto, current_shop_id(), auth.id, &client_ip(&headers))
+        .await?)
 }
 
 /// `POST /adminapi/setting/shippingTpl/del`：删除运费模板。
@@ -244,9 +257,15 @@ async fn config(State(state): State<AdminState>) -> ApiResult<Vec<ShippingTypeVO
 /// 因此本路由用 `Query` 提取（axum 的 `Query` 对 `POST` 同样有效）。
 async fn set_default(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    headers: HeaderMap,
     Query(q): Query<SetDefaultQuery>,
 ) -> ApiResult<bool> {
-    ok(state.logistics.shipping_tpl.set_default(&q, current_shop_id()).await?)
+    ok(state
+        .logistics
+        .shipping_tpl
+        .set_default(&q, current_shop_id(), auth.id, &client_ip(&headers))
+        .await?)
 }
 
 #[cfg(test)]

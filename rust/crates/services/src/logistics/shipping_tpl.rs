@@ -182,8 +182,8 @@ impl ShippingTplService {
     /// 4. 入库 `shipping_tpl`，取回自增主键
     /// 5. 按勾选的运送方式展开 `shipping_tpl_info` 行并批量入库
     /// 6. Java 还有 `adminLogService.createByLogInfo("创建运费模板:...")`
-    ///    —— 操作日志表 `admin_log` 的写入未在本切片实现（见
-    ///    `uncertain_points`），此处用 `tracing::info!` 记录
+    ///    —— 本实现通过 `AdminLogService::record_log` 写 `admin_log`，
+    ///    actor/IP 由路由层从 JWT 与请求头注入
     ///
     /// 返回新建模板主键（Java 控制器返回 `void`，此处便于前端跳转编辑，
     /// 与 shop_manage / pc_cat_floor / area_code 的处理方式一致）。
@@ -192,7 +192,13 @@ impl ShippingTplService {
     /// - 入参校验失败 ⇒ 带 Java 原文案的 `Validation`
     /// - 名称重复 ⇒ `运费模板名称已存在`
     /// - 无勾选运送方式 ⇒ `请选择运送方式`
-    pub async fn create(&self, dto: &ShippingTplSaveDTO, shop_id: Option<i32>) -> Result<i32> {
+    pub async fn create(
+        &self,
+        dto: &ShippingTplSaveDTO,
+        shop_id: Option<i32>,
+        admin_id: i32,
+        client_ip: &str,
+    ) -> Result<i32> {
         // 1. 入参校验（Java `@NotBlank` / `@NotNull`，见 validate_save 的说明）
         let v = validate_save(dto).map_err(Error::Validation)?;
 
@@ -246,20 +252,13 @@ impl ShippingTplService {
         let inserted = self.repo().insert_infos(&rows).await?;
 
         let log_info = format!("创建运费模板:{}", v.name);
-        let _ = self
-            .repos
-            .identity
-            .admin_log
-            .insert_log(
-                tigshop_common::utils::now_seconds() as i32,
-                0,
-                if shop_id.unwrap_or(0) > 0 { "shop" } else { "admin" },
-                shop_id.unwrap_or(0),
-                &log_info,
-                "127.0.0.1",
-                None,
-            )
-            .await;
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log
+            .record_log(admin_id, if shop_id.unwrap_or(0) > 0 { "shop" } else { "admin" }, shop_id.unwrap_or(0), &log_info, Some(client_ip), None)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败（创建运费模板）: {e}");
+        }
 
         tracing::info!(
             "创建运费模板: id={tpl_id}, name={}, 运送方式 {} 组, 内容行 {}",
@@ -285,7 +284,7 @@ impl ShippingTplService {
     ///    `setShippingTplId(updateDTO.getId())` ⇒ `updateById`
     /// 5. **先删后插**该模板的全部内容行
     ///    （`ShippingTplInfoServiceImpl#updateShippingTplInfo`）
-    /// 6. Java 记录操作日志（本切片用 `tracing` 代替）
+    /// 6. Java 记录操作日志（本实现写 `admin_log`，actor/IP 由路由注入）
     ///
     /// 返回受影响行数 > 0（Java 控制器返回 `void`）。
     ///
@@ -298,7 +297,13 @@ impl ShippingTplService {
     /// - 缺主键 ⇒ `运费模板主键不能为空`
     /// - 名称重复 ⇒ `运费模板名称已存在`
     /// - 无运送方式 ⇒ `请选择运送方式`
-    pub async fn update(&self, dto: &ShippingTplUpdateDTO, shop_id: Option<i32>) -> Result<bool> {
+    pub async fn update(
+        &self,
+        dto: &ShippingTplUpdateDTO,
+        shop_id: Option<i32>,
+        admin_id: i32,
+        client_ip: &str,
+    ) -> Result<bool> {
         // 1. 主键必填（Java 的 ShippingTplUpdateDTO 无 @NotNull，
         //    但 `updateById` 缺主键必然失败；本实现提前给出可诊断错误）
         let id = dto
@@ -363,20 +368,13 @@ impl ShippingTplService {
         let inserted = self.repo().insert_infos(&rows).await?;
 
         let log_info = format!("修改运费模板:{}", dto.shipping_tpl_name.as_deref().unwrap_or(""));
-        let _ = self
-            .repos
-            .identity
-            .admin_log
-            .insert_log(
-                tigshop_common::utils::now_seconds() as i32,
-                0,
-                if dto.shop_id.unwrap_or(0) > 0 { "shop" } else { "admin" },
-                dto.shop_id.unwrap_or(0),
-                &log_info,
-                "127.0.0.1",
-                None,
-            )
-            .await;
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log
+            .record_log(admin_id, if dto.shop_id.unwrap_or(0) > 0 { "shop" } else { "admin" }, dto.shop_id.unwrap_or(0), &log_info, Some(client_ip), None)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败（修改运费模板）: {e}");
+        }
 
         tracing::info!(
             "修改运费模板: id={id}, name={:?}, 影响 {affected} 行, 内容行 {}",
@@ -561,7 +559,7 @@ impl ShippingTplService {
     ///    见 `uncertain_points`）
     /// 3. 先把该店铺全部模板的默认清 0
     /// 4. 再把目标模板置 1
-    /// 5. Java 记录操作日志（本切片用 `tracing` 代替）
+    /// 5. Java 记录操作日志（本实现写 `admin_log`，actor/IP 由路由注入）
     ///
     /// 返回是否命中（受影响行数 > 0）。
     ///
@@ -569,7 +567,13 @@ impl ShippingTplService {
     /// - `id` 缺失 ⇒ `运费模板id不能为空`（本实现补的文案）
     /// - 记录不存在 ⇒ `该运费模板不存在`
     /// - 归属店铺不符 ⇒ `无权操作该运费模板`
-    pub async fn set_default(&self, q: &SetDefaultQuery, shop_id: Option<i32>) -> Result<bool> {
+    pub async fn set_default(
+        &self,
+        q: &SetDefaultQuery,
+        shop_id: Option<i32>,
+        admin_id: i32,
+        client_ip: &str,
+    ) -> Result<bool> {
         let id = q
             .id
             .filter(|v| *v > 0)
@@ -598,20 +602,13 @@ impl ShippingTplService {
         let affected = self.repo().mark_default(id).await?;
 
         let log_info = format!("设置默认运费模板:{}", tpl.shipping_tpl_name);
-        let _ = self
-            .repos
-            .identity
-            .admin_log
-            .insert_log(
-                tigshop_common::utils::now_seconds() as i32,
-                0,
-                if tpl.shop_id > 0 { "shop" } else { "admin" },
-                tpl.shop_id,
-                &log_info,
-                "127.0.0.1",
-                None,
-            )
-            .await;
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log
+            .record_log(admin_id, if tpl.shop_id > 0 { "shop" } else { "admin" }, tpl.shop_id, &log_info, Some(client_ip), None)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败（设置默认运费模板）: {e}");
+        }
 
         tracing::info!("设置默认运费模板: id={id}, name={}, 影响 {affected} 行", tpl.shipping_tpl_name);
         Ok(affected > 0)

@@ -362,6 +362,11 @@ impl CommentService {
             // Java `updateById` 影响 0 行会静默返回 false，接口仍 200
             tracing::warn!("更新评价未命中任何行: comment_id={comment_id}");
         } else {
+            let log_info = format!("更新评论晒单:{}", comment.content);
+            let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+            if let Err(e) = admin_log.record_current_log(if comment.shop_id > 0 { "shop" } else { "admin" }, comment.shop_id, &log_info).await {
+                tracing::warn!("写管理操作日志失败: {e}");
+            }
             tracing::info!("更新评价成功: id={comment_id}");
         }
         Ok(())

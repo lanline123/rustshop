@@ -16,6 +16,28 @@ use tigshop_core::Error;
 
 use crate::JwtService;
 
+/// 从请求头解析客户端 IP（`X-Forwarded-For` 首个地址，其次 `X-Real-IP`）。
+///
+/// 缺省返回 `"unknown"`；用于管理审计日志，避免把 actor/IP 写成固定值。
+#[must_use]
+pub fn client_ip(headers: &axum::http::HeaderMap) -> String {
+    headers
+        .get("X-Forwarded-For")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .or_else(|| {
+            headers
+                .get("X-Real-IP")
+                .and_then(|v| v.to_str().ok())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+        })
+        .unwrap_or("unknown")
+        .to_string()
+}
+
 /// 全局错误响应包装：任意 `tigshop_core::Error` → 标准 JSON 响应。
 ///
 /// ⚠️ 必须派生 `Debug`：测试里 `Result::expect(...)` / `unwrap()` 要求
@@ -164,7 +186,12 @@ pub async fn require_auth(
         admin_type: effective_admin_type,
         shop_id: effective_shop_id,
     });
-    Ok(next.run(req).await)
+    let ip = client_ip(req.headers());
+    let actor = crate::audit::AuditActor {
+        admin_id: id,
+        ip,
+    };
+    Ok(crate::audit::with_actor(actor, next.run(req)).await)
 }
 
 #[cfg(test)]
@@ -216,5 +243,15 @@ mod tests {
         };
         assert!(superadmin.is_platform());
         assert_eq!(superadmin.scoped_shop_id(), None);
+    }
+
+    #[test]
+    fn client_ip_prefers_forwarded_for() {
+        let mut headers = axum::http::HeaderMap::new();
+        assert_eq!(client_ip(&headers), "unknown");
+        headers.insert("X-Real-IP", "10.0.0.2".parse().unwrap());
+        assert_eq!(client_ip(&headers), "10.0.0.2");
+        headers.insert("X-Forwarded-For", "1.2.3.4, 5.6.7.8".parse().unwrap());
+        assert_eq!(client_ip(&headers), "1.2.3.4");
     }
 }

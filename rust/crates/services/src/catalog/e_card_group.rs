@@ -20,16 +20,15 @@
 //! - `updateField`：`field` 字面量等于 `"isUse"` 时先做同样的占用校验，
 //!   再走 `BaseServiceImpl#updateField`（白名单 `{"is_use"}`）。
 //! - `batch`：仅 `type == "del"` 时 `removeByIds`（**不**做占用校验）。
-//! - `import`：Java 解析 xlsx 批量插 `e_card`；Rust 侧 Excel 能力未迁移。
+//! - `import`：Java 解析 xlsx 批量插 `e_card`；Rust 侧已用 `calamine` 实现。
 //!
 //! # 未迁移 / 偏差
 //!
 //! - `isDownload > 0` 的模板导出：Java 直接写 `HttpServletResponse` 的 xlsx
 //!   二进制流；本实现返回明确业务错误 [`EXCEL_TEMPLATE_UNMIGRATED_MSG`]，
 //!   不伪造二进制响应。
-//! - `import`：路由层完成「文件非空」校验后返回
-//!   [`EXCEL_IMPORT_UNMIGRATED_MSG`]（与 product_stock / stock_warning 同一做法）。
-//! - `adminLogService.createByLogInfo(...)`（删除日志）未迁移，仅 `tracing`。
+//! - `list?isDownload>0` 模板导出仍未接 xlsx 响应流。
+//! - 删除日志已通过 `AdminLogService::record_log` 写入 `admin_log`（actor/IP 由路由层注入）。
 //! - Java `Assert`/`GlobalException` → 业务 500；注解校验 → `Error::Validation`
 //!   （HTTP 400），与既有域一致。
 
@@ -39,7 +38,7 @@ use tigshop_common::utils::now_seconds;
 use tigshop_core::models::catalog::e_card_group::{
     group_to_vo, is_allowed_update_field, map_field_column, BatchDTO, ECardGroupCreateDTO,
     ECardGroupListQuery, ECardGroupUpdateDTO, ECardGroupVO, UpdateFieldDTO,
-    EXCEL_IMPORT_UNMIGRATED_MSG, EXCEL_TEMPLATE_UNMIGRATED_MSG, FIELD_MAX_CHARS,
+    EXCEL_TEMPLATE_UNMIGRATED_MSG, FIELD_MAX_CHARS,
     FIELD_NAME_REQUIRED, FIELD_VALUE_REQUIRED, FILE_REQUIRED, GROUP_BOUND_PRODUCT_EXISTS,
     GROUP_ID_REQUIRED, GROUP_NAME_EXISTS, GROUP_NAME_OVER_LENGTH, GROUP_NAME_REQUIRED,
     GROUP_NOT_EXISTS, ID_REQUIRED, INVALID_FIELD_VALUE, OPERATION_TYPE_REQUIRED, UNSELECTED_ITEM,
@@ -145,7 +144,7 @@ impl ECardGroupService {
     /// 删除分组（对应 Java `ECardGroupServiceImpl#del`）。
     ///
     /// 被上架商品绑定的分组不可删除（Java 原样）。
-    pub async fn delete(&self, group_id: i32) -> Result<()> {
+    pub async fn delete(&self, group_id: i32, admin_id: i32, client_ip: &str) -> Result<()> {
         if self
             .repos.catalog.e_card_group
             .count_on_sale_products_bound(group_id)
@@ -159,20 +158,13 @@ impl ECardGroupService {
             .delete(group_id)
             .await?;
         let log_info = format!("删除电子卡券分组信息：id:{group_id}");
-        let _ = self
-            .repos
-            .identity
-            .admin_log
-            .insert_log(
-                now_seconds() as i32,
-                0,
-                "admin",
-                0,
-                &log_info,
-                "127.0.0.1",
-                None,
-            )
-            .await;
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log
+            .record_log(admin_id, "admin", 0, &log_info, Some(client_ip), None)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败（删除电子卡券组）: {e}");
+        }
         tracing::info!("删除电子卡券组: id={group_id}, deleted={deleted}");
         Ok(())
     }

@@ -90,6 +90,11 @@ impl CouponManageService {
         tx.commit()
             .await
             .map_err(|e| Error::Database(e.to_string()))?;
+        let log_info = format!("新增优惠券:{}", coupon.coupon_name);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log(if shop_id > 0 { "shop" } else { "admin" }, shop_id, &log_info).await {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
         tracing::info!("优惠券创建成功: id={coupon_id}, name={}", coupon.coupon_name);
         Ok(())
     }
@@ -132,6 +137,12 @@ impl CouponManageService {
         tx.commit()
             .await
             .map_err(|e| Error::Database(e.to_string()))?;
+        let coupon_name = dto.coupon_name.as_deref().unwrap_or(&existing_coupon.coupon_name);
+        let log_info = format!("修改优惠券:{coupon_name}");
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log(if shop_id > 0 { "shop" } else { "admin" }, shop_id, &log_info).await {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
         tracing::info!("优惠券更新成功: id={coupon_id}");
         Ok(())
     }

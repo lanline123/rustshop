@@ -4,6 +4,7 @@
 //! - `java-jwt` / `jjwt` → `jwt`
 //! - `jbcrypt` (BCryptPasswordEncoder) → `bcrypt` / `argon2`
 
+pub mod audit;
 pub mod jwt;
 pub mod password;
 pub mod web;

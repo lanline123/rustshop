@@ -177,6 +177,11 @@ impl ECardService {
             .ok_or_else(|| Error::biz(500, CARD_NOT_EXISTS))?;
         assert_not_used(existing.order_id)?;
         let deleted = self.repos.catalog.e_card.delete(card_id).await?;
+        let log_info = format!("删除电子卡券信息：id:{card_id}");
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log("admin", 0, &log_info).await {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
         tracing::info!("删除电子卡券: id={card_id}, deleted={deleted}");
         Ok(())
     }
@@ -198,6 +203,11 @@ impl ECardService {
             .repos.catalog.e_card
             .update_field(card_id, column, val)
             .await?;
+        let log_info = format!("更新电子卡券信息：id:{card_id}");
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log("admin", 0, &log_info).await {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
         tracing::info!("更新电子卡券字段: id={card_id}, field={column}");
         Ok(affected > 0)
     }

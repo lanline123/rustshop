@@ -18,12 +18,13 @@
 //! 因此两个 handler 只做业务处理，不做权限判断。
 
 use axum::{
-    extract::State,
+    extract::{Extension, State},
+    http::HeaderMap,
     routing::{get, post},
     Json, Router,
 };
 use tigshop_core::models::system::mail_templates::{MailTemplatesDTO, MailTemplatesVO};
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{client_ip, ok, ApiResult, AuthUser};
 
 use crate::AdminState;
 
@@ -69,8 +70,14 @@ async fn list(State(state): State<AdminState>) -> ApiResult<Vec<MailTemplatesVO>
 /// 原 Java 方法返回 `void`，本实现沿用本仓库其它切片的约定返回提示文案。
 async fn update(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    headers: HeaderMap,
     Json(dto): Json<MailTemplatesDTO>,
 ) -> ApiResult<&'static str> {
-    state.system.mail_templates.update(&dto).await?;
+    state
+        .system
+        .mail_templates
+        .update(&dto, auth.id, &client_ip(&headers))
+        .await?;
     ok("更新成功")
 }

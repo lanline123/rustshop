@@ -169,7 +169,16 @@ impl ShippingTypeService {
             is_support_cod: dto.is_support_cod,
             sort_order: dto.sort_order,
         };
-        self.repos.logistics.shipping_type.insert(&insert).await
+        let id = self.repos.logistics.shipping_type.insert(&insert).await?;
+        let log_info = format!(
+                "新增配送类型:{}",
+                dto.shipping_type_name.as_deref().unwrap_or("")
+            );
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log(if shop_id > 0 { "shop" } else { "admin" }, shop_id, &log_info).await {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
+        Ok(id)
     }
 
     /// 更新配送类型（对应 Java `ShippingTypeServiceImpl#update`）。
@@ -195,7 +204,16 @@ impl ShippingTypeService {
             // update DTO 无 shopId ⇒ 不写该列
             shop_id: None,
         };
-        self.repos.logistics.shipping_type.update(id, &patch).await
+        let affected = self.repos.logistics.shipping_type.update(id, &patch).await?;
+        let log_info = format!(
+                "修改配送类型:{}",
+                dto.shipping_type_name.as_deref().unwrap_or("")
+            );
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log("admin", 0, &log_info).await {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
+        Ok(affected)
     }
 
     /// 删除配送类型（对应 Java `removeById`）。

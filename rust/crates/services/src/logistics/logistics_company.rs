@@ -232,6 +232,12 @@ impl LogisticsCompanyService {
             })
             .await?;
 
+        let log_info = format!("新增物流公司:{}", dto.logistics_name.as_deref().unwrap_or(""));
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log("admin", 0, &log_info).await {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
+
         tracing::info!("创建物流公司成功: id={id}");
         Ok(id)
     }
@@ -311,6 +317,11 @@ impl LogisticsCompanyService {
         }
 
         let affected = self.repos.logistics.logistics_company.update(id, &patch).await?;
+        let log_info = format!("更新物流公司:{}", old.logistics_name);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log("admin", 0, &log_info).await {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
         tracing::info!("更新物流公司: id={id}, 影响 {affected} 行");
         Ok(affected > 0)
     }

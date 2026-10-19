@@ -50,10 +50,9 @@
 //!
 //! > **返回结构说明**：Java `list` 返回 MyBatis-Plus `Page`，Rust 统一 `PageResult`。
 //!
-//! > **降级（xlsx → JSON）**：`orderExport`（订单导出）、`batchDeliverImport`
-//! > （xlsx 读取 → JSON/CSV 读取）、`getBatchDeliverImportErrorData`
-//! > （xlsx 下载 → JSON）、`downloadDeliverTemplate`（xlsx 下载 → JSON 模板）
-//! > 四条接口因工作区未启用 xlsx 读写依赖而降级为结构化 JSON，详见服务层模块头。
+//! > **xlsx 支持**：`batchDeliverImport` 已支持真实 `.xlsx`（服务层 PK 魔数识别 +
+//! > `calamine` 解析），并兼容 JSON/CSV；`orderExport`、`getBatchDeliverImportErrorData`、
+//! > `downloadDeliverTemplate` 仍为结构化 JSON 降级（xlsx 响应流/模板下载未接）。
 
 use axum::{
     extract::{Multipart, Query, State},
@@ -659,7 +658,7 @@ async fn order_cancel_by_admin(
 
 // ————————————————————— 批量发货导入 / 模板 —————————————————————
 
-/// `POST /adminapi/order/order/batchDeliverImport`：批量发货导入（xlsx → JSON/CSV）。
+/// `POST /adminapi/order/order/batchDeliverImport`：批量发货导入（xlsx / JSON / CSV）。
 async fn batch_deliver_import(
     State(state): State<AdminState>,
     mut multipart: Multipart,

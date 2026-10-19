@@ -28,14 +28,13 @@
 //! > `Page<ECardGroupVO>`）；`updateField` 在 Java 返回 `boolean`，本模块
 //! > 原样返回 `data: boolean`；其余 Java 为 `void` ⇒ `data: null`。
 //!
-//! > **Excel 未迁移**：
-//! > - `list?isDownload>0`：Java 向响应写 xlsx 模板二进制流 → 服务层返回
-//! >   明确业务错误（不伪装成 JSON 页）。
-//! > - `import`：Java 解析 xlsx 后批量插 `e_card` → 本模块完成「文件非空」
-//! >   校验后返回明确业务错误（与 product_stock / stock_warning 一致）。
+//! > **Excel**：
+//! > - `import`：已支持真实 `.xlsx`（服务层 `calamine` 解析后批量插 `e_card`）。
+//! > - `list?isDownload>0`：xlsx 模板二进制响应仍未接，服务层返回明确业务错误。
 
 use axum::{
-    extract::{Multipart, Query, State},
+    extract::{Extension, Multipart, Query, State},
+    http::HeaderMap,
     routing::{get, post},
     Json, Router,
 };
@@ -46,7 +45,7 @@ use tigshop_core::models::catalog::e_card_group::{
 };
 use tigshop_core::types::PageResult;
 use tigshop_core::Error;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ApiResult, AuthUser, client_ip, ok};
 
 use crate::AdminState;
 
@@ -173,12 +172,18 @@ async fn e_card_group_update(
 /// Java `del(@Valid @RequestBody OperateDTO)`：`id @NotNull` 生效。
 async fn e_card_group_del(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    headers: HeaderMap,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<()> {
     let id = dto
         .id
         .ok_or_else(|| Error::Validation(ID_REQUIRED.into()))?;
-    state.catalog.e_card_group.delete(id).await?;
+    state
+        .catalog
+        .e_card_group
+        .delete(id, auth.id, &client_ip(&headers))
+        .await?;
     ok(())
 }
 
