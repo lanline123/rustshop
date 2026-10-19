@@ -132,7 +132,7 @@ async fn create(
     State(state): State<AdminState>,
     Json(dto): Json<ShopFundsCreateDTO>,
 ) -> ApiResult<()> {
-    state.merchant.shop_funds.create(&dto)?;
+    state.merchant.shop_funds.create(&dto).await?;
     ok(())
 }
 

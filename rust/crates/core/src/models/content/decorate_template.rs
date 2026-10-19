@@ -1,4 +1,4 @@
-﻿//! 装修模板域（content::decorate_template）DTO / 纯函数。
+//! 装修模板域（content::decorate_template）DTO / 纯函数。
 //!
 //! 对应原 Java `DecorateTemplateController` 的 3 个 GET 端点：
 //! `category`、`list`、`detail`（`/adminapi/decorate/template/...`）。
@@ -18,8 +18,9 @@ pub const MSG_NOT_MIGRATED: &str =
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct DecorateTemplateListQuery {
-    pub category_id: Option<i32>,
     pub keyword: Option<String>,
+    pub page_type: Option<String>,
+    pub category_ids: Option<String>,
     pub page: Option<u64>,
     pub size: Option<u64>,
 }
@@ -28,7 +29,7 @@ pub struct DecorateTemplateListQuery {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct DecorateTemplateDetailQuery {
-    pub id: Option<i32>,
+    pub sn: Option<String>,
 }
 
 /// 模板分类（Java `DecorateTemplateCategoryVO` 子集）。
@@ -57,10 +58,12 @@ pub fn page_params(page: Option<u64>, size: Option<u64>) -> (u64, u64) {
     (page.unwrap_or(1).max(1), size.unwrap_or(15).clamp(1, 100))
 }
 
-/// 详情 id 校验。
+/// 详情 sn 校验。
 #[must_use]
-pub fn validate_detail_id(id: Option<i32>) -> Result<i32, String> {
-    id.filter(|id| *id > 0)
+pub fn validate_detail_sn(sn: Option<&str>) -> Result<String, String> {
+    sn.map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
         .ok_or_else(|| MSG_ID_REQUIRED.to_string())
 }
 
@@ -69,10 +72,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn detail_requires_id() {
-        assert_eq!(validate_detail_id(None).unwrap_err(), MSG_ID_REQUIRED);
-        assert_eq!(validate_detail_id(Some(0)).unwrap_err(), MSG_ID_REQUIRED);
-        assert_eq!(validate_detail_id(Some(3)).unwrap(), 3);
+    fn detail_requires_sn() {
+        assert_eq!(validate_detail_sn(None).unwrap_err(), MSG_ID_REQUIRED);
+        assert_eq!(validate_detail_sn(Some("  ")).unwrap_err(), MSG_ID_REQUIRED);
+        assert_eq!(validate_detail_sn(Some("page_home")).unwrap(), "page_home");
     }
 
     #[test]
@@ -85,9 +88,9 @@ mod tests {
     #[test]
     fn query_accepts_java_names() {
         let q: DecorateTemplateListQuery =
-            serde_json::from_str(r#"{"categoryId":2,"keyword":"首页","page":1}"#).unwrap();
-        assert_eq!(q.category_id, Some(2));
-        let q: DecorateTemplateDetailQuery = serde_json::from_str(r#"{"id":5}"#).unwrap();
-        assert_eq!(q.id, Some(5));
+            serde_json::from_str(r#"{"categoryIds":"2","keyword":"首页","page":1}"#).unwrap();
+        assert_eq!(q.category_ids.as_deref(), Some("2"));
+        let q: DecorateTemplateDetailQuery = serde_json::from_str(r#"{"sn":"page_5"}"#).unwrap();
+        assert_eq!(q.sn.as_deref(), Some("page_5"));
     }
 }

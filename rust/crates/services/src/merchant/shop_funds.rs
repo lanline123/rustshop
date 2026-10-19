@@ -9,7 +9,7 @@
 //!   `status>0` / `shop_type` / `keyword`(shop_title LIKE) → 白名单列排序
 //!   （缺省 `shop_id DESC`；`unSettlementOrder` 派生排序未迁移，回退主键）。
 //! - `detail`：`getById`，缺失返回 `null`（Java 同样返回 null）。
-//! - `create`：Java DTO 与 `shop` 列不匹配且店铺由入驻流程创建 → 501 业务错误。
+//! - `create`：`ShopFundsCreateDTO` → `shop` 表插入（Java `save` 语义）。
 //! - `update`：按 `shopId` 局部更新（`None` 保留原值）；店铺不存在 → 业务错误。
 //! - `del` / `batch`：软删（`is_delete=1`）；`batch` 仅支持 `del`。
 //! - `updateField`：白名单 `status`（Java `GENERAL_FIELDS` 中 `shop` 实存列）。
@@ -23,7 +23,7 @@ use std::sync::Arc;
 use tigshop_core::models::merchant::shop_funds::{
     format_time, normalize_field, status_text, BatchDTO, OperateDTO, ShopFundsCreateDTO,
     ShopFundsListQuery, ShopFundsUpdateDTO, ShopFundsVO, UpdateFieldDTO, BIZ_SHOP_AGREEMENT,
-    DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, MSG_CREATE_NOT_MIGRATED, MSG_ID_REQUIRED,
+    DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, MSG_ID_REQUIRED,
     MSG_INVALID_FIELD_VALUE, MSG_SHOP_NOT_FOUND,
 };
 use tigshop_core::types::{PageQuery, PageResult};
@@ -83,12 +83,14 @@ impl ShopFundsService {
         Ok(self.repo().find_by_id(id).await?.as_ref().map(to_vo))
     }
 
-    /// 创建（见模块头差异：未迁移，返回 501 业务错误）。
+    /// 创建店铺资金记录（Java `ShopFundsServiceImpl#create`）。
     ///
     /// # Errors
-    /// 固定返回 `Error::biz(501, <说明>)`。
-    pub fn create(&self, _dto: &ShopFundsCreateDTO) -> Result<()> {
-        Err(Error::biz(501, MSG_CREATE_NOT_MIGRATED))
+    /// 数据库失败 → `Error::Database`。
+    pub async fn create(&self, dto: &ShopFundsCreateDTO) -> Result<()> {
+        let id = self.repo().insert_shop_funds(dto).await?;
+        tracing::info!("创建店铺资金记录: shop_id={id}");
+        Ok(())
     }
 
     /// 编辑资金字段（局部更新，`None` 保留原值）。
@@ -225,10 +227,13 @@ mod tests {
     }
 
     #[test]
-    fn create_is_documented_unmigrated_error() {
-        let err = Error::biz(501, MSG_CREATE_NOT_MIGRATED);
-        assert!(matches!(err, Error::Biz { code: 501, .. }));
-        assert!(MSG_CREATE_NOT_MIGRATED.contains("入驻流程"));
+    fn create_dto_accepts_optional_fields() {
+        let dto = ShopFundsCreateDTO {
+            shop_title: Some("测试店铺".into()),
+            shop_money: Some(rust_decimal::Decimal::new(100, 2)),
+            ..Default::default()
+        };
+        assert_eq!(dto.shop_title.as_deref(), Some("测试店铺"));
     }
 
     #[test]

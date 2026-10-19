@@ -6,9 +6,8 @@
 //!
 //! ## 已迁移（2）
 //! - `get`：读 `wechat_menu` 单例并解析 `menu_json`；空配置/解析失败 → 空树
-//! - `saveAndPublish`：**全量本地校验**（一级/二级/规则，文案逐字）后返回
-//!   明确「未迁移」业务错误（微信 `menu/create` 推送 + 落库未迁移，既不推送
-//!   也不落库，避免 DB 与微信 key 错位）
+//! - `saveAndPublish`：全量本地校验后落库 `wechat_menu`；微信配置可用时推送
+//!   `menu/create`，不可用时保存为草稿并返回提示
 //!
 //! ## 与 Java 的差异
 //! 见 [`crate::models::content::wechat_menu`] 模块头。
@@ -17,7 +16,6 @@ use std::sync::Arc;
 
 use tigshop_core::models::content::wechat_menu::{
     parse_menu_tree, validate_menu, SaveAndPublishVO, WxMenuSaveDTO, WxMenuVO,
-    MSG_PUBLISH_NOT_MIGRATED,
 };
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::Repositories;
@@ -187,11 +185,6 @@ mod tests {
         assert!(validate_menu(&dto).is_ok());
     }
 
-    #[test]
-    fn not_migrated_message_is_explicit() {
-        assert!(MSG_PUBLISH_NOT_MIGRATED.contains("尚未迁移"));
-        assert!(MSG_PUBLISH_NOT_MIGRATED.contains("menu/create"));
-    }
 
     #[test]
     fn get_vo_defaults_when_missing() {
@@ -212,12 +205,12 @@ mod tests {
     fn save_vo_shape() {
         let vo = SaveAndPublishVO {
             published: false,
-            err_msg: Some(MSG_PUBLISH_NOT_MIGRATED.into()),
+            err_msg: Some("微信配置未配置，菜单已保存为草稿".into()),
             published_at: None,
         };
         let json = serde_json::to_value(&vo).unwrap();
         assert_eq!(json["published"], false);
-        assert_eq!(json["errMsg"], MSG_PUBLISH_NOT_MIGRATED);
+        assert_eq!(json["errMsg"], "微信配置未配置，菜单已保存为草稿");
         assert!(json["publishedAt"].is_null());
     }
 }

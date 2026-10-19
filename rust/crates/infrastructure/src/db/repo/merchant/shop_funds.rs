@@ -157,6 +157,31 @@ impl ShopFundsRepository {
             .map_err(map_err)
     }
 
+    /// 创建店铺资金记录（Java `ShopFundsServiceImpl#create` → `save`）。
+    pub async fn insert_shop_funds(
+        &self,
+        dto: &tigshop_core::models::merchant::shop_funds::ShopFundsCreateDTO,
+    ) -> Result<i32> {
+        let now = tigshop_common::utils::now_seconds() as i32;
+        let sql = "INSERT INTO shop (shop_title, shop_logo, status, merchant_id, shop_money, \
+                   frozen_money, contact_mobile, description, add_time) \
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        let res = sqlx::query(sql)
+            .bind(dto.shop_title.as_deref().unwrap_or(""))
+            .bind(dto.shop_logo.as_deref().unwrap_or(""))
+            .bind(dto.status.unwrap_or(0))
+            .bind(dto.merchant_id.unwrap_or(0))
+            .bind(dto.shop_money.unwrap_or(Decimal::ZERO))
+            .bind(dto.frozen_money.unwrap_or(Decimal::ZERO))
+            .bind(dto.contact_mobile.as_deref().unwrap_or(""))
+            .bind(dto.description.as_deref().unwrap_or(""))
+            .bind(now)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(res.last_insert_id() as i32)
+    }
+
     /// 局部更新资金字段（见 models 模块头差异第 2 条）。
     ///
     /// # Errors

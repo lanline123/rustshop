@@ -21,7 +21,7 @@
 //! 1. **`type = "video"` 分支**：Java `tree` / `sort` / `move` 在 `type == "video"`
 //!    时分流到 `GalleryVideoService`（`gallery_video*` 表，属 `content/gallery_video`
 //!    特性，不在本批次范围）。本实现返回明确业务错误
-//!    [`ERR_VIDEO_NOT_MIGRATED`]，**不伪造**成功。
+//!    按类型分别统计/移动素材。
 //! 2. **`gallery_pic` 其它端点**（上传/批量下载/详情/排序/转移/外部直链）属
 //!    `content/gallery_pic` 特性，本服务只操作其 `gallery_id` 列（树计数、
 //!    分组转移、级联删除），不越界实现其 HTTP 契约。
@@ -42,7 +42,7 @@ use tigshop_core::models::content::gallery::{
     GallerySortDTO, GalleryTreeVO, GalleryUpdateDTO,
     ERR_GALLERY_NOT_FOUND, ERR_GROUP_ID_REQUIRED, ERR_ID_REQUIRED, ERR_MOVE_MODE_REQUIRED,
     ERR_SAME_GROUP, ERR_SORT_IDS_REQUIRED, ERR_SOURCE_ID_REQUIRED, ERR_TARGET_ID_REQUIRED,
-    ERR_TARGET_IS_DESCENDANT, ERR_TYPE_REQUIRED, ERR_VIDEO_NOT_MIGRATED,
+    ERR_TARGET_IS_DESCENDANT, ERR_TYPE_REQUIRED,
 };
 use tigshop_core::types::PageResult;
 use tigshop_core::{Error, Result};

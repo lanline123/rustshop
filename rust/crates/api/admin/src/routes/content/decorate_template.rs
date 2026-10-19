@@ -1,7 +1,7 @@
 ﻿//! 管理端装修模板路由（content::decorate_template）。
 //!
 //! 对应 Java `DecorateTemplateController`（`/adminapi/decorate/template`）：
-//! `GET category`、`GET list`、`GET detail`。三个接口均返回明确「未迁移」业务错误。
+//! `GET category`、`GET list`、`GET detail`。转发官网 OpenTemplate API，业务字段原样透传。
 
 use axum::{
     extract::{Query, State},
@@ -9,10 +9,9 @@ use axum::{
     Router,
 };
 use tigshop_core::models::content::decorate_template::{
-    DecorateTemplateCategoryVO, DecorateTemplateDetailQuery, DecorateTemplateListQuery,
-    DecorateTemplateVO,
+    DecorateTemplateDetailQuery, DecorateTemplateListQuery,
 };
-use tigshop_core::types::PageResult;
+use serde_json::Value;
 use tigshop_openapi::RouteDoc;
 use tigshop_security::web::{ok, ApiResult};
 
@@ -55,23 +54,21 @@ pub fn implemented_routes() -> Vec<RouteDoc> {
         .collect()
 }
 
-async fn category(
-    State(state): State<AdminState>,
-) -> ApiResult<Vec<DecorateTemplateCategoryVO>> {
+async fn category(State(state): State<AdminState>) -> ApiResult<Value> {
     ok(state.content.decorate_template.category().await?)
 }
 
 async fn list(
     State(state): State<AdminState>,
     Query(q): Query<DecorateTemplateListQuery>,
-) -> ApiResult<PageResult<DecorateTemplateVO>> {
+) -> ApiResult<Value> {
     ok(state.content.decorate_template.list(&q).await?)
 }
 
 async fn detail(
     State(state): State<AdminState>,
     Query(q): Query<DecorateTemplateDetailQuery>,
-) -> ApiResult<Option<DecorateTemplateVO>> {
+) -> ApiResult<Value> {
     ok(state.content.decorate_template.detail(&q).await?)
 }
 

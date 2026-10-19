@@ -33,7 +33,7 @@ use tigshop_common::utils::now_seconds;
 use tigshop_core::models::trade::user_order::{
     can_confirm_receipt, can_delete_order, parse_reason_enabled, parse_reason_list, OrderBrief,
     OrderIdDTO, OrderNumVO, ReasonConfigVO, ShippingResult, ShippingTraceVO, COMMENT_STATUS_PENDING,
-    CONFIG_REASON_ENABLED, CONFIG_REASON_LIST, MSG_LOGISTICS_NOT_MIGRATED, MSG_ORDER_NOT_EXIST,
+    CONFIG_REASON_ENABLED, CONFIG_REASON_LIST, MSG_ORDER_NOT_EXIST,
     MSG_ORDER_STATUS_ERROR, ORDER_STATUS_COMPLETED, ORDER_STATUS_CONFIRMED, ORDER_STATUS_PENDING,
     ORDER_STATUS_PROCESSING, ORDER_TYPE_RESERVATION_HOME,
 };
@@ -263,8 +263,4 @@ mod tests {
         assert_eq!(parse_reason_enabled(Some("0")), 0);
     }
 
-    #[test]
-    fn not_migrated_logistics_message_is_explicit() {
-        assert!(MSG_LOGISTICS_NOT_MIGRATED.contains("尚未迁移"));
-    }
 }

@@ -7,9 +7,7 @@
 //!
 //! ## 未迁移依赖（全部为**显式失败**，不伪造成功）
 //!
-//! 1. `qrCode`：Java `cn.hutool.extra.qrcode.QrCodeUtil.generateAsBase64`
-//!    依赖 hutool 二维码库；Rust 工作区未引入二维码 crate → 返回 1001
-//!    「二维码生成功能未迁移」。本地校验：`url` 非空。
+//! 1. `qrCode`：本地生成二维码 PNG Base64 data URL（`qrcode` + `image` crate）。
 //! 2. `miniCode`：Java `WechatOAuthService.getMiniCode` 依赖微信小程序
 //!    access_token/接口调用 → 返回 1001「小程序码生成功能未迁移」。
 //!    本地校验：`path`、`id` 非空。
@@ -23,7 +21,7 @@ use std::sync::Arc;
 
 use tigshop_core::models::system::util::{
     MSG_ID_REQUIRED, MSG_MINI_CODE_NOT_MIGRATED, MSG_MINI_SCENE_NOT_MIGRATED,
-    MSG_PATH_REQUIRED, MSG_QRCODE_NOT_MIGRATED, MSG_SCENE_REQUIRED, MSG_URL_REQUIRED,
+    MSG_PATH_REQUIRED, MSG_SCENE_REQUIRED, MSG_URL_REQUIRED,
 };
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::system::util::UtilRepository;

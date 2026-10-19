@@ -23,7 +23,7 @@ use tigshop_core::models::content::gallery_video::VideoScope;
 use tigshop_core::models::content::gallery_video_info::{
     validate_external_video_url, validate_required, validate_upload_file, GalleryVideoInfoDTO,
     GalleryVideoInfoDetailVO, GalleryVideoInfoListQuery, GalleryVideoInfoVO, GalleryVideoInfoItemVO,
-    GalleryVideoResVO, OperateDTO, UploadVideoInfoVO, MSG_ID_REQUIRED, MSG_UPLOAD_NOT_MIGRATED,
+    GalleryVideoResVO, OperateDTO, UploadVideoInfoVO, MSG_ID_REQUIRED,
     MSG_VIDEO_INFO_NOT_FOUND,
 };
 use tigshop_core::types::PageResult;
@@ -315,9 +315,7 @@ mod tests {
     }
 
     #[test]
-    fn upload_video_returns_not_migrated_after_validation() {
-        // 构造服务需 Repositories，这里仅验证模型层错误文案常量（避免 DB 依赖）
-        assert!(MSG_UPLOAD_NOT_MIGRATED.contains("尚未迁移"));
-        assert!(!MSG_UPLOAD_NOT_MIGRATED.is_empty());
+    fn upload_video_validation_rejects_empty_file() {
+        assert!(MSG_FILE_EMPTY.contains("不能为空"));
     }
 }

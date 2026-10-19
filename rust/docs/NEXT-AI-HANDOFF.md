@@ -29,10 +29,10 @@
   **新增**：`admin_log` 写入能力 + 邮件模板/电子卡/运费模板审计接线、`CreditUserPeriodUpdateTask`
   账期更新定时循环、批量发货真实 xlsx 解析。
 - **当前真正剩余（按优先级）**：
-  1. 行为占位 66 处：内容域 35（`gallery*` 视频/上传/zip、`decorate_template`、`wechat_menu` 发布、
-     `wechat_live*`/`api_wechat_live`）、会员 7（`login` 微信 OAuth/服务号/手机号快捷登录；`user_message_log` 已完成）、
-     系统 5（`util` 小程序码/二维码 4、`app_version_admin` 1）、商品 4（ES 分词/全量同步）、
-     商户 4（`shop_funds` 入驻流程）、交易 4（物流轨迹、代客配送 O2O）、营销 3（虚拟用户）、IM 1（视频上传；已读回执已完成）。
+  1. 行为占位 30 处（7 文件），全部依赖外部服务/凭据：
+     微信直播 13（`wechat_live_goods`/`wechat_live_order_sync`/`api_wechat_live`）、
+     微信登录 7（`member/login`）、ES 分词/全量同步（`product_manage_extra`）、
+     买家秀虚拟用户 1（`buyer_show.info`，外部随机资料 API）、小程序码/scene 2（`system/util`）。
   2. 审计日志：`admin_log` + 请求级审计上下文（`tigshop_security::audit`，`require_auth` 注入 actor/IP）已完成；
      Java 已实现调用点均已接入（约 30 个写点）；`merchant_apply` 新增管理员/员工功能未实现，落地时补审计。
   3. 定时/MQ：已有订单取消、自动收货、拼团过期、账期更新 4 个循环；仍缺保证金到期、分账调度、
@@ -40,7 +40,7 @@
   4. Excel 余量：对账单导出、库存批量导入/调拨等；电子卡密导入、商品批量导入、批量发货导入/失败数据/模板、订单导出已完成。
   5. 结算/活动残留：代客整单改价金额、定金尾款超时/取消、拼团退款/虚拟成团/限购、
      活动会员人群/满赠、限时折扣（`time_discount`）接入结算。
-  6. IM 视频上传/自动回复；物流平台第三方轨迹。
+  6. IM 自动回复/MQ；物流平台第三方轨迹（本地兜底轨迹已实现）。
   7. 多租户/权限：会员与营销维度继续贯穿；RBAC `all` scope、权限缓存主动失效。
   8. 工程化：`/metrics`、Docker compose 初始化修正、nginx + 前端 dist、DB 集成/E2E、生产密钥/CORS/Redis 多实例。
 - **任务板**：仍有 6 个 `pending`（task-18/20/34/42/46/54），对应 feature 文件均已存在并已提交，

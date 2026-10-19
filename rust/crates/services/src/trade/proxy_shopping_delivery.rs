@@ -7,8 +7,7 @@ use std::sync::Arc;
 
 use tigshop_core::models::trade::proxy_shopping_delivery::{
     validate_user_id, DeliveryOptionVO, DeliveryOptionsQuery, ProxyStoreShippingTypeQuery,
-    ShippingTypeVO, CART_TYPE_ADMIN_SHOPPING, MSG_DELIVERY_NOT_MIGRATED,
-    MSG_STORE_SHIPPING_NOT_MIGRATED,
+    ShippingTypeVO, CART_TYPE_ADMIN_SHOPPING,
 };
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::trade::proxy_shopping_delivery::ProxyShoppingDeliveryRepository;

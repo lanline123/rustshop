@@ -105,7 +105,7 @@ $env:RUST_LOG="info,tigshop=info,sqlx=warn"
 
 ### P1 — 数据与基础设施
 
-- **对象存储接入**：相册批量下载 zip、视频首帧/时长（FFmpeg）切到多后端驱动。
+- **对象存储接入**：相册批量下载 zip、gallery/IM 视频上传已完成；视频首帧/时长仍需 FFmpeg。
 - **ES 搜索**：商品搜索/后台搜索/分词/全量同步（`initAllToEs`）未迁移，当前 SQL 搜索。
 - **翻译/i18n**：`translatePackage`/火山翻译未迁移（51 处引用），多语言文案与 SEO 翻译缺失。
 - **物流轨迹**：快递100/快递鸟查询未迁移（`user_order.shippingInfo` 返回业务错误）。
@@ -113,14 +113,14 @@ $env:RUST_LOG="info,tigshop=info,sqlx=warn"
 ### P2 — 交易/资金扩展
 
 - 售后自动收货、退款结算、门店结算、分账调度（`ProfitSharingScheduleTask`）、保证金到期扫描、
-  账期更新、商品定时上下架、微信直播订单同步等定时/MQ 任务（见 `SCHEDULER.md` §4 未迁移清单）。
+  商品定时上下架、微信直播订单同步等定时/MQ 任务（见 `SCHEDULER.md` §4 未迁移清单；账期更新已完成）。
 - 对账单导出、库存批量导入（`EXCEL.md` §4 清单）；
   电子卡密导入、商品批量导入、批量发货导入/失败数据/模板、订单导出已完成。
 - 管理操作审计日志：`admin_log` 写入服务 + 请求级审计上下文
   （`tigshop_security::audit` + `require_auth` 注入 actor/IP）；
   Java 已实现调用点均已接入（商品/秒杀/限时折扣/品牌/评论/卡券/物流/优惠券/售后/登录/员工/消息类型/APP 版本等，约 30 个写点）；
   `merchant_apply` 的「新增管理员/员工」链路本身未实现，功能落地时一并补审计。
-- IM：已读回执 `set_read_*` 已接 WS 推送（`{"type":"read",...}`，会员↔客服双向）；自动回复/MQ 仍待接。
+- IM：已读回执 WS 推送、视频上传已完成；自动回复/MQ 仍待接。
 
 ### P2 — 平台能力
 
