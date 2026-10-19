@@ -1929,6 +1929,32 @@ impl OrderAdminService {
         Ok(())
     }
 
+    /// 订单导出为 xlsx（Java `orderExport` 直接回写 xlsx 二进制）。
+    ///
+    /// 复用 [`Self::order_export`] 的列表读取/富化逻辑，按 `columns` 顺序
+    /// 生成与 Java EasyExcel 等价的工作表。
+    pub async fn order_export_xlsx(
+        &self,
+        q: &OrderListQuery,
+        platform_view: bool,
+    ) -> Result<(String, Vec<u8>)> {
+        let vo = self.order_export(q, platform_view).await?;
+        let headers: Vec<&str> = vo.columns.iter().map(|c| c.label.as_str()).collect();
+        let rows: Vec<Vec<String>> = vo
+            .rows
+            .iter()
+            .map(|row| {
+                vo.columns
+                    .iter()
+                    .map(|col| export_cell(&col.key, row))
+                    .collect()
+            })
+            .collect();
+        let bytes = crate::system::excel::build_xlsx(&headers, &rows, &vo.sheet_name)
+            .map_err(|e| Error::Internal(format!("订单导出 Excel 生成失败: {e}")))?;
+        Ok((vo.file_name, bytes))
+    }
+
     /// 订单导出（`GET /order/order/orderExport`）。
     ///
     /// 对应 Java `orderExport`：按 2000 条/批流式读取列表并富化，
@@ -2770,6 +2796,49 @@ impl OrderAdminService {
 // ————————————————————— wave3 纯函数辅助（可单测） —————————————————————
 
 /// 订单导出可选列（顺序与 Java `getExportItemList()` 一致）。
+/// 单个导出单元格取值（列 key → 展示文本），与 Java EasyExcel 字段一致。
+fn export_cell(key: &str, row: &OrderExportRowVO) -> String {
+    match key {
+        "orderSn" => row.order_sn.clone(),
+        "addTime" => row.add_time.clone(),
+        "orderStatusName" => row.order_status_name.clone(),
+        "payStatusName" => row.pay_status_name.clone(),
+        "shopName" => row.shop_name.clone(),
+        "username" => row.username.clone(),
+        "consignee" => row.consignee.clone(),
+        "mobile" => row.mobile.clone(),
+        "address" => row.address.clone(),
+        "postcode" => row.postcode.clone(),
+        "totalAmount" => row.total_amount.to_string(),
+        "balance" => row.balance.to_string(),
+        "discountAmount" => row.discount_amount.to_string(),
+        "pointsAmount" => row.points_amount.to_string(),
+        "couponAmount" => row.coupon_amount.to_string(),
+        "payTime" => row.pay_time.clone().unwrap_or_default(),
+        "payTypeId" => row.pay_type_id.to_string(),
+        "payTypeName" => row.pay_type_name.clone(),
+        "payCode" => row.pay_code.clone(),
+        "outTradeNo" => row.out_trade_no.clone().unwrap_or_default(),
+        "paidAmount" => row.paid_amount.to_string(),
+        "shippingTime" => row.shipping_time.clone().unwrap_or_default(),
+        "shippingFee" => row.shipping_fee.to_string(),
+        "logisticsName" => row.logistics_name.clone(),
+        "trackingNo" => row.tracking_no.clone(),
+        "buyerNote" => row.buyer_note.clone(),
+        "adminNote" => row.admin_note.clone(),
+        "shippingStatusName" => row.shipping_status_name.clone(),
+        "productWeight" => row.product_weight.to_string(),
+        "usePoints" => row.use_points.to_string(),
+        "productName" => row.product_name.clone(),
+        "skuData" => row.sku_data.clone(),
+        "productSn" => row.product_sn.clone(),
+        "quantity" => row.quantity.to_string(),
+        "price" => row.price.to_string(),
+        "totalPrice" => row.total_price.to_string(),
+        other => String::new(),
+    }
+}
+
 fn export_columns() -> Vec<OrderExportItemVO> {
     const COLS: [(&str, &str); 30] = [
         ("orderSn", "订单编号"),
@@ -3896,5 +3965,23 @@ mod tests {
         assert_eq!(hit.item_id, 1);
         assert!(match_order_item(&items, Some("不存在"), None).is_none());
         assert!(match_order_item(&items, None, None).is_none());
+    }
+
+    #[test]
+    fn export_cell_maps_core_columns() {
+        let row = OrderExportRowVO {
+            order_sn: "SN2026".into(),
+            order_status_name: "待发货".into(),
+            total_amount: Decimal::new(12345, 2),
+            quantity: 2,
+            product_name: "测试商品".into(),
+            ..Default::default()
+        };
+        assert_eq!(export_cell("orderSn", &row), "SN2026");
+        assert_eq!(export_cell("orderStatusName", &row), "待发货");
+        assert_eq!(export_cell("totalAmount", &row), "123.45");
+        assert_eq!(export_cell("quantity", &row), "2");
+        assert_eq!(export_cell("productName", &row), "测试商品");
+        assert_eq!(export_cell("unknown", &row), "");
     }
 }

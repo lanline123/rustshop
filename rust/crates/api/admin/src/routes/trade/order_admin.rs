@@ -50,9 +50,9 @@
 //!
 //! > **返回结构说明**：Java `list` 返回 MyBatis-Plus `Page`，Rust 统一 `PageResult`。
 //!
-//! > **xlsx 支持**：`batchDeliverImport` 已支持真实 `.xlsx`（服务层 PK 魔数识别 +
-//! > `calamine` 解析），并兼容 JSON/CSV；`orderExport`、`getBatchDeliverImportErrorData`、
-//! > `downloadDeliverTemplate` 仍为结构化 JSON 降级（xlsx 响应流/模板下载未接）。
+//! > **xlsx 支持**：`orderExport` 已回写真实 xlsx；`batchDeliverImport` 支持 `.xlsx`（PK 魔数 +
+//! > `calamine`）及 JSON/CSV；`getBatchDeliverImportErrorData`、`downloadDeliverTemplate`
+//! > 仍为结构化 JSON 降级。
 
 use axum::{
     extract::{Multipart, Query, State},
@@ -585,17 +585,18 @@ async fn save_export_item(
     ok(())
 }
 
-/// `GET /adminapi/order/order/orderExport`：订单导出（xlsx → JSON 降级）。
+/// `GET /adminapi/order/order/orderExport`：订单导出（xlsx 二进制下载）。
 async fn order_export(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
     Query(q): Query<OrderListQuery>,
-) -> ApiResult<OrderExportVO> {
-    ok(state
+) -> Result<axum::response::Response, AppError> {
+    let (file_name, bytes) = state
         .trade
         .order_admin
-        .order_export(&q, platform_view(&auth))
-        .await?)
+        .order_export_xlsx(&q, platform_view(&auth))
+        .await?;
+    Ok(crate::support::excel_response::xlsx_response(bytes, &file_name))
 }
 
 /// `GET /adminapi/order/order/shippingInfo?id=`：物流信息。
