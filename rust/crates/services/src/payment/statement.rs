@@ -159,6 +159,84 @@ impl StatementService {
             .collect())
     }
 
+    /// 导出对账单为 xlsx（Java `exportStatement` 直接回写 xlsx）。
+    pub async fn export_statement_xlsx(
+        &self,
+        q: &StatementListQuery,
+    ) -> Result<(String, Vec<u8>)> {
+        let rows = self.export_statement(q).await?;
+        let headers = [
+            "账单ID",
+            "店铺",
+            "交易单号",
+            "结算时间",
+            "供应商",
+            "账户类型",
+            "账单类型",
+            "收支类型",
+            "支付方式",
+            "账户余额",
+            "金额",
+            "记录时间",
+        ];
+        let data: Vec<Vec<String>> = rows
+            .iter()
+            .map(|r| {
+                vec![
+                    r.statement_id.to_string(),
+                    r.shop_name.clone(),
+                    r.record_sn.clone().unwrap_or_default(),
+                    r.settlement_time.clone(),
+                    r.vendor_name.clone(),
+                    r.account_type_name.clone(),
+                    r.type_name.clone(),
+                    r.entry_type_name.clone(),
+                    r.payment_type_name.clone(),
+                    r.account_balance.to_string(),
+                    r.amount.to_string(),
+                    r.record_time.clone(),
+                ]
+            })
+            .collect();
+        let bytes = crate::system::excel::build_xlsx(&headers, &data, "对账单")
+            .map_err(|e| Error::Internal(format!("对账单 Excel 生成失败: {e}")))?;
+        Ok(("对账单.xlsx".to_string(), bytes))
+    }
+
+    /// 导出对账单统计为 xlsx。
+    pub async fn export_statistics_xlsx(
+        &self,
+        q: &StatementStatisticsQuery,
+    ) -> Result<(String, Vec<u8>)> {
+        let rows = self.export_statistics(q).await?;
+        let headers = [
+            "统计周期",
+            "收入",
+            "支出",
+            "收入笔数",
+            "支出笔数",
+            "账户类型",
+            "账户类型名",
+        ];
+        let data: Vec<Vec<String>> = rows
+            .iter()
+            .map(|r| {
+                vec![
+                    r.statement_date.clone(),
+                    r.income.to_string(),
+                    r.expenditure.to_string(),
+                    r.income_count.to_string(),
+                    r.expenditure_count.to_string(),
+                    r.account_type.to_string(),
+                    r.account_type_text.clone(),
+                ]
+            })
+            .collect();
+        let bytes = crate::system::excel::build_xlsx(&headers, &data, "对账单统计")
+            .map_err(|e| Error::Internal(format!("对账单统计 Excel 生成失败: {e}")))?;
+        Ok(("对账单统计.xlsx".to_string(), bytes))
+    }
+
     /// `GET /adminapi/finance/statement/getStatementStatisticsList`：对账单统计列表。
     pub async fn statistics_list(
         &self,

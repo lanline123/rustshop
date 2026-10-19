@@ -26,7 +26,7 @@ use tigshop_core::models::payment::statement::{
 };
 use tigshop_core::types::PageResult;
 use tigshop_openapi::RouteDoc;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AppError};
 
 use crate::AdminState;
 
@@ -118,8 +118,9 @@ async fn save_download(
 async fn export_statement(
     State(state): State<AdminState>,
     Query(q): Query<StatementListQuery>,
-) -> ApiResult<Vec<StatementExportVO>> {
-    ok(state.payment.statement.export_statement(&q).await?)
+) -> Result<axum::response::Response, AppError> {
+    let (file_name, bytes) = state.payment.statement.export_statement_xlsx(&q).await?;
+    Ok(crate::support::excel_response::xlsx_response(bytes, &file_name))
 }
 
 /// `GET /adminapi/finance/statement/exportStatementStatistics`：导出统计（JSON 降级）。
