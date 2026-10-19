@@ -16,20 +16,47 @@ use tigshop_core::{Error, Result};
 /// # Errors
 /// 列号越界 / 写入失败。
 pub fn build_xlsx(headers: &[&str], rows: &[Vec<String>], sheet_name: &str) -> Result<Vec<u8>> {
+    build_xlsx_with_leading(headers, None, rows, sheet_name)
+}
+
+/// 生成 xlsx，可选在工作表首行写一行说明（其后是表头与数据）。
+///
+/// 批量发货模板即「说明行 + 表头 + 数据行」三段式。
+pub fn build_xlsx_with_leading(
+    headers: &[&str],
+    leading: Option<&[String]>,
+    rows: &[Vec<String>],
+    sheet_name: &str,
+) -> Result<Vec<u8>> {
     let mut workbook = Workbook::new();
     let sheet = workbook.add_worksheet();
     sheet
         .set_name(sheet_name)
         .map_err(|e| Error::Internal(format!("Excel 工作表命名失败: {e}")))?;
+    let mut header_row = 0u32;
+    if let Some(leading) = leading {
+        for (col, value) in leading.iter().enumerate() {
+            if value.is_empty() {
+                continue;
+            }
+            let col = u16::try_from(col).map_err(|_| Error::Internal("Excel 列数过多".into()))?;
+            sheet
+                .write_string(0, col, value.as_str())
+                .map_err(|e| Error::Internal(format!("Excel 说明行写入失败: {e}")))?;
+        }
+        header_row = 1;
+    }
     for (col, header) in headers.iter().enumerate() {
         let col = u16::try_from(col).map_err(|_| Error::Internal("Excel 列数过多".into()))?;
         sheet
-            .write_string(0, col, *header)
+            .write_string(header_row, col, *header)
             .map_err(|e| Error::Internal(format!("Excel 表头写入失败: {e}")))?;
     }
     for (row_idx, row) in rows.iter().enumerate() {
-        let row_idx =
-            u32::try_from(row_idx + 1).map_err(|_| Error::Internal("Excel 行数过多".into()))?;
+        let row_idx = u32::try_from(row_idx)
+            .map_err(|_| Error::Internal("Excel 行数过多".into()))?
+            + header_row
+            + 1;
         for (col, value) in row.iter().enumerate() {
             if value.is_empty() {
                 continue;

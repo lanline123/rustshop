@@ -69,9 +69,6 @@ const DETAIL_BIZ_CODES: [&str; 4] = [
 /// 版本号格式错误文案（Java `GlobalException("版本号格式不正确，应为 x.y.z，例如 1.0.0")`）。
 pub const ERR_VERSION_FORMAT: &str = "版本号格式不正确，应为 x.y.z，例如 1.0.0";
 
-/// 对象存储链路未迁移的统一错误。
-pub const ERR_UPLOAD_NOT_MIGRATED: &str = "更新包上传服务未迁移：本构建未接通对象存储（原 Java LocalStorageService / OssService / CosService / QiniuService / AwsS3Service），无法上传 APP 更新包";
-
 /// 管理员用户名缺失时的兜底值（Java `MybatisPlusMetaObjectHandler`：`"unknown"`）。
 pub const UNKNOWN_ADMIN_NAME: &str = "unknown";
 
@@ -163,10 +160,9 @@ pub fn validate_upload_file(file_name: Option<&str>, bytes: &[u8]) -> Result<()>
     Ok(())
 }
 
-/// 上传 APP 更新包（Java `AppVersionServiceImpl#upload`）。**未迁移**。
+/// 上传 APP 更新包（Java `AppVersionServiceImpl#upload`）。
 ///
-/// 前置校验与 Java 一致（文件非空），随后返回明确的「对象存储未接通」业务错误，
-/// 绝不返回伪造的 URL。
+/// 校验文件非空后写入本地存储并返回 URL。
 pub fn upload_app_file(file_name: Option<&str>, bytes: &[u8]) -> Result<String> {
     validate_upload_file(file_name, bytes)?;
     let original = file_name.unwrap_or("app-release.apk");

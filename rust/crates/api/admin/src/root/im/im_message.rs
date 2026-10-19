@@ -23,7 +23,7 @@
 //! >   `shop`/`pos` → `x-shop-id`、其它 → `null`（与 im::im_config 同口径，
 //! >   `x-admin-type` 缺失时回退 JWT 的 `admin_type`）。
 //! >
-//! > **未迁移**：`uploadVideo` 依赖对象存储 + 视频抽帧，返回明确业务错误；
+//! > `uploadVideo` 写本地存储并返回视频信息（首帧封面在无 FFmpeg 时为空）；
 //! > `send` / `setRead` 的 WebSocket 推送与 `send` 的 RabbitMQ 自动回复均跳过
 //! > （详见服务层模块头）。
 //! >
@@ -117,7 +117,7 @@ async fn send(
     ok(state.im.im_message.send_as_admin(&dto, auth.id, shop_id).await?)
 }
 
-/// `POST /im/conversation/message/uploadVideo`：上传视频（multipart）。**未迁移**。
+/// `POST /im/conversation/message/uploadVideo`：上传视频（multipart，本地存储）。
 async fn upload_video(
     State(state): State<AdminState>,
     mut multipart: Multipart,

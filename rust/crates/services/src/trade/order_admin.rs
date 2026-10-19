@@ -2387,14 +2387,92 @@ impl OrderAdminService {
         })
     }
 
+    /// 批量发货模板导出为 xlsx（Java `downloadDeliverTemplate` 直接回写 xlsx）。
+    pub async fn download_deliver_template_xlsx(
+        &self,
+        ids: &[i32],
+    ) -> Result<(String, Vec<u8>)> {
+        let vo = self.download_deliver_template(ids).await?;
+        let headers: Vec<&str> = vo.headers.iter().map(String::as_str).collect();
+        let rows: Vec<Vec<String>> = vo
+            .rows
+            .iter()
+            .map(|row| {
+                vec![
+                    row.order_sn.clone(),
+                    row.username.clone(),
+                    row.consignee.clone(),
+                    row.mobile.clone(),
+                    row.address.clone(),
+                    row.total_amount.clone(),
+                    row.product_name.clone(),
+                    row.sku_name.clone(),
+                    row.quantity.clone(),
+                    row.delivery_quantity.clone(),
+                    row.shipping_method.clone(),
+                    row.logistics_name.clone(),
+                    row.logistics_code.clone(),
+                    row.tracking_no.clone(),
+                    row.add_time.clone(),
+                ]
+            })
+            .collect();
+        let leading = vec![vo.description.clone()];
+        let bytes = crate::system::excel::build_xlsx_with_leading(
+            &headers,
+            Some(&leading),
+            &rows,
+            "批量发货模板",
+        )
+        .map_err(|e| Error::Internal(format!("批量发货模板生成失败: {e}")))?;
+        Ok((vo.file_name, bytes))
+    }
+
+    /// 批量发货导入失败数据导出为 xlsx。
+    pub async fn batch_deliver_import_error_xlsx(
+        &self,
+        bytes: &[u8],
+    ) -> Result<(String, Vec<u8>)> {
+        let rows = self.batch_deliver_import_error_data(bytes).await?;
+        let headers = [
+            "行号",
+            "订单编号",
+            "商品名称",
+            "商品规格",
+            "发货数量",
+            "配送方式",
+            "物流公司",
+            "物流单号",
+            "错误信息",
+        ];
+        let data: Vec<Vec<String>> = rows
+            .iter()
+            .map(|row| {
+                vec![
+                    row.row_num.to_string(),
+                    row.order_sn.clone(),
+                    row.product_name.clone().unwrap_or_default(),
+                    row.sku_name.clone().unwrap_or_default(),
+                    row.delivery_quantity.clone().unwrap_or_default(),
+                    row.shipping_method.clone().unwrap_or_default(),
+                    row.logistics_name.clone().unwrap_or_default(),
+                    row.tracking_no.clone().unwrap_or_default(),
+                    row.error_msg.clone(),
+                ]
+            })
+            .collect();
+        let bytes = crate::system::excel::build_xlsx(&headers, &data, "错误数据")
+            .map_err(|e| Error::Internal(format!("失败数据 Excel 生成失败: {e}")))?;
+        Ok(("批量发货失败数据.xlsx".to_string(), bytes))
+    }
+
     /// 批量发货 Excel/CSV/JSON 导入（`POST /order/order/batchDeliverImport`）。
     ///
     /// 对应 Java `batchDeliverImport`：按订单号分组，每个订单只发一次；
     /// 订单级校验 → 配送方式/物流公司校验 → 逐行匹配商品并汇总发货数量 →
     /// 调用 `deliverOrder`。失败行进 `failDetails`，不阻断其它订单。
     ///
-    /// ⚠️ **降级**：Java 用 EasyExcel 读 `.xlsx`；Rust 未启用 xlsx 读依赖，
-    /// 接受「JSON 数组」或「CSV 文本（跳过说明行+表头，列序见模板）」。
+    /// 支持 `.xlsx`（calamine）以及 JSON 数组 / CSV 文本（跳过说明行+表头）。
     pub async fn batch_deliver_import(
         &self,
         bytes: &[u8],
@@ -2555,8 +2633,8 @@ impl OrderAdminService {
 
     /// 批量发货导入失败数据（`POST /order/order/getBatchDeliverImportErrorData`）。
     ///
-    /// 校验逻辑与 [`Self::batch_deliver_import`] 完全一致；Java 把失败行写成
-    /// xlsx 下载流，Rust 侧返回失败行 JSON（降级说明同上）。
+    /// 校验逻辑与 [`Self::batch_deliver_import`] 完全一致；本方法返回失败行数据，
+    /// 路由层再经 [`Self::batch_deliver_import_error_xlsx`] 输出 xlsx 下载流。
     pub async fn batch_deliver_import_error_data(
         &self,
         bytes: &[u8],

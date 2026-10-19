@@ -7,7 +7,7 @@
 //! |----------------------------------|---------|
 //! | `GET  /setting/galleryVideoInfo/list`        | `list` |
 //! | `POST /setting/galleryVideoInfo/del`         | `del` |
-//! | `POST /setting/galleryVideoInfo/uploadVideo` | `uploadVideo`（本地校验 → 未迁移） |
+//! | `POST /setting/galleryVideoInfo/uploadVideo` | `uploadVideo`（本地存储） |
 //! | `POST /setting/galleryVideoInfo/create`      | `save` |
 //! | `POST /setting/galleryVideoInfo/update`      | `update` |
 //! | `GET  /setting/galleryVideoInfo/detail`      | `detail` |

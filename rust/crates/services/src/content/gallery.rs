@@ -201,14 +201,14 @@ impl GalleryService {
     /// 统一分组树（Java `#tree` + `GalleryServiceImpl#tree`）。
     ///
     /// # Errors
-    /// - `type == "video"` → 「视频素材域未迁移」业务错误（本批次范围外）
     /// - 数据库失败 → `Error::Database`
     pub async fn tree(&self, scope: GalleryScope, r#type: &str) -> Result<GalleryTreeVO> {
-        if is_video_type(Some(r#type)) {
-            return Err(Error::biz_msg(ERR_VIDEO_NOT_MIGRATED));
-        }
         let galleries = self.repo().list_for_tree(scope).await?;
-        let counts = self.repo().count_pics_by_gallery().await?;
+        let counts = if is_video_type(Some(r#type)) {
+            self.repo().count_videos_by_gallery().await?
+        } else {
+            self.repo().count_pics_by_gallery().await?
+        };
         Ok(GalleryTreeVO {
             records: build_gallery_tree(&galleries, &counts),
         })
@@ -218,13 +218,10 @@ impl GalleryService {
     ///
     /// # Errors
     /// - `type` 缺失/空 → `Validation("类型不能为空")`
-    /// - `type == "video"` → 未迁移业务错误
     /// - `ids` 为空 → `Validation("排序ID列表不能为空")`
     pub async fn sort(&self, dto: &GallerySortDTO) -> Result<()> {
         validate_sort_request(dto)?;
-        if is_video_type(dto.r#type.as_deref()) {
-            return Err(Error::biz_msg(ERR_VIDEO_NOT_MIGRATED));
-        }
+        // 图片/视频共用 `gallery` 分组表，排序逻辑一致
         self.repo().sort_groups(&dto.ids).await?;
         tracing::info!("相册分组排序: {} 个", dto.ids.len());
         Ok(())
@@ -241,9 +238,7 @@ impl GalleryService {
     /// 入参缺失 → `Validation`；同组/子孙 → 业务错误；数据库失败 → `Error::Database`。
     pub async fn move_group(&self, dto: &GalleryMoveDTO) -> Result<()> {
         let (source_id, target_id, mode) = validate_move_request(dto)?;
-        if is_video_type(Some(dto.r#type.as_deref().unwrap_or(""))) {
-            return Err(Error::biz_msg(ERR_VIDEO_NOT_MIGRATED));
-        }
+        let video = is_video_type(dto.r#type.as_deref());
         if source_id == target_id {
             return Err(Error::biz_msg(ERR_SAME_GROUP));
         }
@@ -254,7 +249,7 @@ impl GalleryService {
         }
         let delete_source = mode == "move_and_delete";
         self.repo()
-            .move_groups(source_id, target_id, delete_source)
+            .move_groups(source_id, target_id, delete_source, video)
             .await?;
         tracing::info!("相册分组转移: {source_id} -> {target_id}, delete_source={delete_source}");
         Ok(())
@@ -563,7 +558,13 @@ mod tests {
     }
 
     #[test]
-    fn video_error_message_mentions_unmigrated_domain() {
-        assert!(ERR_VIDEO_NOT_MIGRATED.contains("gallery_video"));
+    fn move_request_accepts_video_type() {
+        let mv = GalleryMoveDTO {
+            source_id: Some(3),
+            target_id: Some(4),
+            mode: Some("move_and_keep".into()),
+            r#type: Some("video".into()),
+        };
+        assert_eq!(validate_move_request(&mv).unwrap(), (3, 4, "move_and_keep"));
     }
 }

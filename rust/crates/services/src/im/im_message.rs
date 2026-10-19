@@ -588,22 +588,44 @@ impl ImMessageService {
     // ————————————————————— 上传视频（未迁移） —————————————————————
 
     /// 上传视频（对应 adminapi `ImMessageController.uploadVideo` →
-    /// `GalleryVideoInfoService.uploadVideo`）。**未迁移**：
-    /// Java 依赖 jcodec 首帧解析 + 对象存储 + `gallery_video_info` 落库，
-    /// 本构建不具备，成功路径不可用；此处仅校验文件非空后返回明确业务错误，
-    /// **绝不伪造上传结果**（口径与 member::user_center `upload_video` 一致）。
+    /// `GalleryVideoInfoService.uploadVideo`）。
+    ///
+    /// 本地存储落盘并返回 URL/文件名/格式；首帧封面依赖 FFmpeg，
+    /// 当前环境未安装时返回空封面（不影响上传与消息发送）。
     ///
     /// # Errors
-    /// - 文件为空 / 文件名为空 → `Error::Validation`（对齐 Java
-    ///   `MultipartFile.isEmpty` / `UPLOAD_FILE_IS_NULL`）；
-    /// - 其余情况 → `Error::Biz(500, 未迁移文案)`。
+    /// - 文件为空 / 文件名为空 → `Error::Validation`；
+    /// - 存储写入失败 → `Error::Database`。
     pub fn upload_video(
         &self,
         file_name: Option<&str>,
         bytes: &[u8],
     ) -> Result<UploadVideoInfoVO> {
         require_upload_file(file_name, bytes)?;
-        Err(Error::biz(500, ERR_UPLOAD_VIDEO_NOT_MIGRATED))
+        let original = file_name
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or("video.mp4");
+        let url = tigshop_infrastructure::storage::save_local_upload_blocking(
+            "im", original, bytes,
+        )?;
+        let path = std::path::Path::new(original);
+        let stem = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("video")
+            .to_string();
+        let format = path
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("mp4")
+            .to_string();
+        Ok(UploadVideoInfoVO {
+            video_url: url,
+            video_name: stem,
+            format,
+            video_cover: String::new(),
+        })
     }
 
     // ————————————————————— 辅助 —————————————————————
@@ -762,8 +784,6 @@ fn clamp_i32(v: i64) -> i32 {
 }
 
 /// 上传视频未迁移文案。
-const ERR_UPLOAD_VIDEO_NOT_MIGRATED: &str =
-    "文件上传服务未迁移：本构建未接通对象存储与视频/图库服务（原 Java GalleryVideoInfoService）";
 
 /// 校验上传文件非空（Java `MultipartFile.isEmpty()` + `UPLOAD_FILE_IS_NULL`）。
 fn require_upload_file(file_name: Option<&str>, bytes: &[u8]) -> Result<()> {

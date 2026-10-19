@@ -50,9 +50,8 @@
 //!
 //! > **返回结构说明**：Java `list` 返回 MyBatis-Plus `Page`，Rust 统一 `PageResult`。
 //!
-//! > **xlsx 支持**：`orderExport` 已回写真实 xlsx；`batchDeliverImport` 支持 `.xlsx`（PK 魔数 +
-//! > `calamine`）及 JSON/CSV；`getBatchDeliverImportErrorData`、`downloadDeliverTemplate`
-//! > 仍为结构化 JSON 降级。
+//! > **xlsx 支持**：`orderExport`、`getBatchDeliverImportErrorData`、`downloadDeliverTemplate`
+//! > 均回写真实 xlsx；`batchDeliverImport` 支持 `.xlsx`（PK 魔数 + `calamine`）及 JSON/CSV。
 
 use axum::{
     extract::{Multipart, Query, State},
@@ -672,30 +671,32 @@ async fn batch_deliver_import(
         .await?)
 }
 
-/// `POST /adminapi/order/order/getBatchDeliverImportErrorData`：导入失败数据。
+/// `POST /adminapi/order/order/getBatchDeliverImportErrorData`：导入失败数据（xlsx 下载）。
 async fn get_batch_deliver_import_error_data(
     State(state): State<AdminState>,
     mut multipart: Multipart,
-) -> ApiResult<Vec<OrderDeliverImportErrorVO>> {
+) -> Result<axum::response::Response, AppError> {
     let (_, bytes) = read_upload(&mut multipart).await?;
-    ok(state
+    let (file_name, data) = state
         .trade
         .order_admin
-        .batch_deliver_import_error_data(&bytes)
-        .await?)
+        .batch_deliver_import_error_xlsx(&bytes)
+        .await?;
+    Ok(crate::support::excel_response::xlsx_response(data, &file_name))
 }
 
-/// `GET /adminapi/order/order/downloadDeliverTemplate?ids=1,2`：批量发货模板。
+/// `GET /adminapi/order/order/downloadDeliverTemplate?ids=1,2`：批量发货模板（xlsx 下载）。
 async fn download_deliver_template(
     State(state): State<AdminState>,
     Query(q): Query<IdsQuery>,
-) -> ApiResult<OrderDeliverTemplateVO> {
+) -> Result<axum::response::Response, AppError> {
     let ids = q.parse()?;
-    ok(state
+    let (file_name, bytes) = state
         .trade
         .order_admin
-        .download_deliver_template(&ids)
-        .await?)
+        .download_deliver_template_xlsx(&ids)
+        .await?;
+    Ok(crate::support::excel_response::xlsx_response(bytes, &file_name))
 }
 
 #[cfg(test)]

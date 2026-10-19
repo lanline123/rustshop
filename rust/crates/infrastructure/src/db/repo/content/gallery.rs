@@ -256,6 +256,17 @@ impl GalleryRepository {
 
     // ————————————————————— 事务写操作 —————————————————————
 
+    /// 视频数量按分组统计（`gallery_video_info`）。
+    pub async fn count_videos_by_gallery(&self) -> Result<HashMap<i32, i64>> {
+        let rows: Vec<(i32, i64)> = sqlx::query_as(
+            "SELECT gallery_id, COUNT(*) FROM gallery_video_info GROUP BY gallery_id",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(rows.into_iter().collect())
+    }
+
     /// 分组排序（Java `@Transactional sort`）：按 `ids` 顺序写 `gallery_sort = i + 1`。
     pub async fn sort_groups(&self, ids: &[i32]) -> Result<()> {
         let mut tx = self.pool.begin().await.map_err(map_err)?;
@@ -282,13 +293,15 @@ impl GalleryRepository {
         source_id: i32,
         target_id: i32,
         delete_source: bool,
+        video: bool,
     ) -> Result<()> {
         let ids = self.find_subtree_ids(source_id).await?;
         let mut tx = self.pool.begin().await.map_err(map_err)?;
         let ph = placeholders(ids.len());
 
+        let table = if video { "gallery_video_info" } else { "gallery_pic" };
         let move_sql = format!(
-            "UPDATE gallery_pic SET gallery_id = ? WHERE gallery_id IN ({ph})"
+            "UPDATE {table} SET gallery_id = ? WHERE gallery_id IN ({ph})"
         );
         let mut mv = sqlx::query(&move_sql).bind(target_id);
         for id in &ids {

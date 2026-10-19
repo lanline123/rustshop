@@ -10,7 +10,7 @@
 //! - `create`：外链 URL 深度校验 + 级联 `galleryId` 归一 + 审计字段
 //! - `update`：选择性更新（未提交字段保留）
 //! - `detail`：缺行 → 「系统未找到视频信息」
-//! - `uploadVideo`：**本地校验后返回明确「未迁移」**（对象存储 + FFmpeg 首帧未迁移）
+//! - `uploadVideo`：本地存储保存视频并返回 URL（无 FFmpeg 时封面为空）
 //!
 //! ## 与 Java 的差异
 //! 见 [`crate::models::content::gallery_video_info`] 模块头。
