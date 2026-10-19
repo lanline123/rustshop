@@ -137,10 +137,10 @@ fn shop_id_from_headers(headers: &HeaderMap) -> Option<i32> {
 async fn create(
     State(state): State<AdminState>,
     headers: HeaderMap,
-    Extension(_auth): Extension<AuthUser>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<CouponDTO>,
 ) -> ApiResult<()> {
-    let shop_id = shop_id_from_headers(&headers);
+    let shop_id = auth.scoped_shop_id().or_else(|| shop_id_from_headers(&headers));
     state
         .marketing
         .coupon_manage
@@ -153,9 +153,10 @@ async fn create(
 async fn update(
     State(state): State<AdminState>,
     headers: HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<CouponDTO>,
 ) -> ApiResult<()> {
-    let shop_id = shop_id_from_headers(&headers);
+    let shop_id = auth.scoped_shop_id().or_else(|| shop_id_from_headers(&headers));
     state
         .marketing
         .coupon_manage
@@ -167,27 +168,42 @@ async fn update(
 /// `POST /adminapi/promotion/coupon/del`：删除优惠券（软删）。
 async fn del(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<()> {
-    state.marketing.coupon_manage.del(&dto).await?;
+    state
+        .marketing
+        .coupon_manage
+        .del_scoped(&dto, auth.scoped_shop_id())
+        .await?;
     ok(())
 }
 
 /// `POST /adminapi/promotion/coupon/updateField`：更新单个字段。
 async fn update_field(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<()> {
-    state.marketing.coupon_manage.update_field(&dto).await?;
+    state
+        .marketing
+        .coupon_manage
+        .update_field_scoped(&dto, auth.scoped_shop_id())
+        .await?;
     ok(())
 }
 
 /// `POST /adminapi/promotion/coupon/batch`：批量操作（仅 del 生效）。
 async fn batch(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<()> {
-    state.marketing.coupon_manage.batch(&dto).await?;
+    state
+        .marketing
+        .coupon_manage
+        .batch_scoped(&dto, auth.scoped_shop_id())
+        .await?;
     ok(())
 }
 
@@ -200,9 +216,10 @@ async fn config(State(state): State<AdminState>) -> ApiResult<Vec<CouponConfigRa
 async fn issue_preview(
     State(state): State<AdminState>,
     headers: HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<CouponManualIssueParam>,
 ) -> ApiResult<CouponManualIssuePreviewVO> {
-    let shop_id = shop_id_from_headers(&headers);
+    let shop_id = auth.scoped_shop_id().or_else(|| shop_id_from_headers(&headers));
     ok(state
         .marketing
         .coupon_manage

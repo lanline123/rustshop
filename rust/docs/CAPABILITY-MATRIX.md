@@ -51,9 +51,10 @@
 |---|---|---|
 | IM WebSocket `/ws` | ✅ | 欢迎语、心跳回显、无效 token 拒绝、服务端推送；IM 消息收发已接 WS 双向推送（实测）；多端会话；进程内表（多实例需 Redis） |
 | 定时任务（订单超时取消/自动收货） | ✅ | 轮询 + 幂等条件更新（替代 Java RabbitMQ 延迟队列），可配 `autoCancelOrderMinute`/`autoDeliveryDays` |
-| MQ（RabbitMQ） | ⛔ 未使用 | Rust 以轮询定时任务替代延迟队列；多实例可加 Redis 锁或接 `lapin` |
+| MQ（RabbitMQ） | ✅ | `tigshop_infrastructure::mq` 抽象（Memory/RabbitMQ `lapin` 驱动，支持异步发布/消费抽象与环境降级） |
+| 多后端存储 | ✅ | 本地目录、阿里云 OSS、腾讯云 COS、AWS S3/MinIO 四后端统一适配 |
 | RBAC 方法级权限 | ✅ | 契约自动生成 864 条权限；`all` 超管；403+code1001 与 Java 一致；30s 缓存 |
-| 多租户 shop_id 隔离 | 🟡 部分 | 读请求头兜底，JWT 未签发 shop_id；多店铺隔离不完整 |
+| 多租户 shop_id 隔离 | ✅ | JWT Claims 签发与解析、`AuthUser::scoped_shop_id`；商品与营销优惠券列表/详情/增删改均接入租户范围隔离（单测全绿） |
 
 ## 5. 数据导入导出
 

@@ -56,17 +56,25 @@ impl AuthService {
         }
         crate::system::captcha::reset_login_error(&dto.username);
 
-        let (access, refresh, expires_in) = self.jwt.issue_pair(
+        let scoped_shop_id = if user.shop_id > 0 {
+            Some(user.shop_id)
+        } else {
+            None
+        };
+
+        let (access, refresh, expires_in) = self.jwt.issue_pair_with_shop(
             user.admin_id.to_string(),
             user.username.clone(),
             Some(user.role_id),
             Some(user.admin_type.clone()),
+            scoped_shop_id,
         )?;
 
         tracing::info!(
-            "管理员登录成功: {} ({})",
+            "管理员登录成功: {} ({}, shop_id={:?})",
             user.username,
-            user.admin_id
+            user.admin_id,
+            scoped_shop_id
         );
 
         Ok(LoginVO {
@@ -87,11 +95,12 @@ impl AuthService {
         if claims.ttype != tigshop_security::jwt::TokenType::Refresh {
             return Err(Error::Unauthorized("需要刷新令牌".into()));
         }
-        let (access, refresh, expires_in) = self.jwt.issue_pair(
+        let (access, refresh, expires_in) = self.jwt.issue_pair_with_shop(
             claims.sub.clone(),
             claims.usr.clone(),
             claims.role,
             claims.typ.clone(),
+            claims.shop_id,
         )?;
         Ok(LoginVO {
             token: access.clone(),

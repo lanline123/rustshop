@@ -248,4 +248,27 @@ mod tests {
         assert_eq!(c.sub, "7");
         assert!(s.from_authorization(None).is_err());
     }
+
+    #[test]
+    fn multi_tenant_shop_id_claims() {
+        let s = svc();
+        // Merchant admin with shop_id = 42
+        let (access, refresh, _) = s
+            .issue_pair_with_shop("10".into(), "merchant1".into(), Some(2), Some("merchant".into()), Some(42))
+            .unwrap();
+        let c = s.decode(&access).unwrap();
+        assert_eq!(c.sub, "10");
+        assert_eq!(c.typ.as_deref(), Some("merchant"));
+        assert_eq!(c.shop_id, Some(42));
+
+        let r = s.decode(&refresh).unwrap();
+        assert_eq!(r.shop_id, Some(42));
+
+        // Platform admin with shop_id = 0
+        let (p_access, _, _) = s
+            .issue_pair_with_shop("1".into(), "admin".into(), Some(1), Some("admin".into()), Some(0))
+            .unwrap();
+        let pc = s.decode(&p_access).unwrap();
+        assert_eq!(pc.shop_id, Some(0));
+    }
 }

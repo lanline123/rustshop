@@ -14,12 +14,12 @@
 use axum::{
     extract::{Query, State},
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use serde::Deserialize;
 use tigshop_core::models::{CouponListQuery, CouponVO};
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 
 use crate::AdminState;
 
@@ -55,8 +55,12 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 /// `GET /adminapi/promotion/coupon/list`：优惠券分页。
 async fn coupon_list(
     State(state): State<AdminState>,
-    Query(q): Query<CouponListQuery>,
+    Extension(auth): Extension<AuthUser>,
+    Query(mut q): Query<CouponListQuery>,
 ) -> ApiResult<PageResult<CouponVO>> {
+    if let Some(shop_id) = auth.scoped_shop_id() {
+        q.shop_id = Some(shop_id);
+    }
     ok(state.marketing.coupon.list(&q).await?)
 }
 
@@ -93,17 +97,28 @@ struct IdQuery {
 /// `GET /adminapi/promotion/coupon/detail?id=`：优惠券详情。
 async fn coupon_detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<CouponVO> {
-    ok(state.marketing.coupon.detail_vo(q.id).await?)
+    let vo = state.marketing.coupon.detail_vo(q.id).await?;
+    if let Some(shop_id) = auth.scoped_shop_id() {
+        if vo.shop_id != shop_id && vo.shop_id != 0 {
+            return Err(AppError(tigshop_core::Error::biz(403, "无权查看其他店铺的优惠券")));
+        }
+    }
+    ok(vo)
 }
 
 /// `GET /adminapi/promotion/coupon/validList`：有效（进行中）优惠券列表，供选择器使用。
 async fn valid_list(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(mut q): Query<CouponListQuery>,
 ) -> ApiResult<PageResult<CouponVO>> {
     q.status = Some(1); // 进行中
+    if let Some(shop_id) = auth.scoped_shop_id() {
+        q.shop_id = Some(shop_id);
+    }
     ok(state.marketing.coupon.list(&q).await?)
 }
 

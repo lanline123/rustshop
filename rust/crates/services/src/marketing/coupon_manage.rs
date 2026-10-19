@@ -98,17 +98,29 @@ impl CouponManageService {
     pub async fn update(&self, dto: &CouponDTO, shop_id: Option<i32>) -> Result<()> {
         validate_coupon_dto(dto, true)?;
         let coupon_id = dto.coupon_id.unwrap_or(0);
-        let shop_id = shop_id.unwrap_or(0);
-        let patch = build_coupon_patch(dto, shop_id)?;
         let repo = self.repo();
+        let existing = repo.find_coupon(coupon_id).await?;
+        let Some(existing_coupon) = existing else {
+            return Err(Error::biz_msg(MSG_NOT_EXIST));
+        };
+        if let Some(sid) = shop_id {
+            if sid > 0 {
+                let curr_sid = existing_coupon.shop_id.unwrap_or(0);
+                if curr_sid != sid && curr_sid != 0 {
+                    return Err(Error::biz(403, "无权修改其他商家的优惠券"));
+                }
+            }
+        }
+
+        let shop_id = shop_id.unwrap_or(existing_coupon.shop_id.unwrap_or(0));
+        let patch = build_coupon_patch(dto, shop_id)?;
         let mut tx = repo.begin().await?;
         let affected = repo
             .update_coupon_in_tx(&mut tx, coupon_id, &patch)
             .await?;
         if affected {
             // Java `savePromotion`：用合并后的活动字段同步 marketing 行。
-            let existing = repo.find_coupon(coupon_id).await?;
-            let merged = merge_coupon_for_promotion(existing.as_ref(), dto, shop_id);
+            let merged = merge_coupon_for_promotion(Some(&existing_coupon), dto, shop_id);
             let promotion = build_coupon_promotion(&merged, dto, coupon_id, shop_id);
             if repo.count_promotion_row(coupon_id).await? > 0 {
                 repo.update_promotion_row_in_tx(&mut tx, coupon_id, &promotion)
@@ -126,11 +138,24 @@ impl CouponManageService {
 
     /// 删除优惠券（Java `del` → `softDel`：软删 + 同步软删 marketing 行）。
     pub async fn del(&self, dto: &OperateDTO) -> Result<()> {
+        self.del_scoped(dto, None).await
+    }
+
+    /// 删除优惠券（支持租户隔离）。
+    pub async fn del_scoped(&self, dto: &OperateDTO, scoped_shop_id: Option<i32>) -> Result<()> {
         let Some(id) = dto.id else {
             // Java：id 为 null → 返回 false（控制器 void，不报错）
             return Ok(());
         };
         let repo = self.repo();
+        if let Some(sid) = scoped_shop_id {
+            if let Some(c) = repo.find_coupon(id).await? {
+                let curr_sid = c.shop_id.unwrap_or(0);
+                if curr_sid != sid && curr_sid != 0 {
+                    return Err(Error::biz(403, "无权删除其他商家的优惠券"));
+                }
+            }
+        }
         let mut tx = repo.begin().await?;
         if repo.soft_delete_coupons_in_tx(&mut tx, &[id]).await? > 0 {
             repo.soft_delete_promotions_in_tx(&mut tx, &[id]).await?;
@@ -143,6 +168,11 @@ impl CouponManageService {
 
     /// 批量操作（Java `batch`：仅 `type == "del"` 生效）。
     pub async fn batch(&self, dto: &BatchDTO) -> Result<()> {
+        self.batch_scoped(dto, None).await
+    }
+
+    /// 批量操作（支持租户隔离）。
+    pub async fn batch_scoped(&self, dto: &BatchDTO, scoped_shop_id: Option<i32>) -> Result<()> {
         if dto.ids.is_empty() {
             return Err(Error::Validation(tigshop_core::models::marketing::coupon_manage::MSG_UNSELECTED_ITEM.into()));
         }
@@ -151,6 +181,16 @@ impl CouponManageService {
             return Ok(());
         }
         let repo = self.repo();
+        if let Some(sid) = scoped_shop_id {
+            for &id in &dto.ids {
+                if let Some(c) = repo.find_coupon(id).await? {
+                    let curr_sid = c.shop_id.unwrap_or(0);
+                    if curr_sid != sid && curr_sid != 0 {
+                        return Err(Error::biz(403, "批量操作中包含其他商家的优惠券"));
+                    }
+                }
+            }
+        }
         let mut tx = repo.begin().await?;
         if repo.soft_delete_coupons_in_tx(&mut tx, &dto.ids).await? > 0 {
             repo.soft_delete_promotions_in_tx(&mut tx, &dto.ids).await?;
@@ -163,12 +203,23 @@ impl CouponManageService {
 
     /// 更新单个字段（Java `updateField`，白名单列）。
     pub async fn update_field(&self, dto: &UpdateFieldDTO) -> Result<()> {
+        self.update_field_scoped(dto, None).await
+    }
+
+    /// 更新单个字段（支持租户隔离）。
+    pub async fn update_field_scoped(&self, dto: &UpdateFieldDTO, scoped_shop_id: Option<i32>) -> Result<()> {
         let Some(column) = resolve_coupon_field(&dto.field) else {
             return Err(Error::biz_msg(MSG_FIELD_INVALID));
         };
         let repo = self.repo();
-        if repo.find_coupon(dto.id).await?.is_none() {
+        let Some(c) = repo.find_coupon(dto.id).await? else {
             return Err(Error::biz_msg(MSG_NOT_EXIST));
+        };
+        if let Some(sid) = scoped_shop_id {
+            let curr_sid = c.shop_id.unwrap_or(0);
+            if curr_sid != sid && curr_sid != 0 {
+                return Err(Error::biz(403, "无权修改其他商家的优惠券"));
+            }
         }
         repo.update_coupon_field(dto.id, column, &dto.val).await?;
         Ok(())

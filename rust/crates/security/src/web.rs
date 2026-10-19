@@ -147,14 +147,74 @@ pub async fn require_auth(
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.trim().parse::<i32>().ok());
 
+    let header_admin_type = req
+        .headers()
+        .get("x-admin-type")
+        .or_else(|| req.headers().get("X-Admin-Type"))
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+
     let effective_shop_id = claims.shop_id.or(header_shop_id);
+    let effective_admin_type = claims.typ.or(header_admin_type);
 
     req.extensions_mut().insert(AuthUser {
         id,
         username: claims.usr,
         role_id: claims.role,
-        admin_type: claims.typ,
+        admin_type: effective_admin_type,
         shop_id: effective_shop_id,
     });
     Ok(next.run(req).await)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn auth_user_tenant_isolation_rules() {
+        // Platform admin (typ = "admin", shop_id = 0 or None)
+        let platform_admin = AuthUser {
+            id: 1,
+            username: "admin".into(),
+            role_id: Some(1),
+            admin_type: Some("admin".into()),
+            shop_id: Some(0),
+        };
+        assert!(platform_admin.is_platform());
+        assert_eq!(platform_admin.scoped_shop_id(), None);
+
+        // Merchant admin (typ = "merchant", shop_id = 88)
+        let merchant_admin = AuthUser {
+            id: 2,
+            username: "vendor88".into(),
+            role_id: Some(2),
+            admin_type: Some("merchant".into()),
+            shop_id: Some(88),
+        };
+        assert!(!merchant_admin.is_platform());
+        assert_eq!(merchant_admin.scoped_shop_id(), Some(88));
+
+        // Unknown/unspecified type with shop_id > 0
+        let other_vendor = AuthUser {
+            id: 3,
+            username: "vendor99".into(),
+            role_id: None,
+            admin_type: None,
+            shop_id: Some(99),
+        };
+        assert!(!other_vendor.is_platform());
+        assert_eq!(other_vendor.scoped_shop_id(), Some(99));
+
+        // Superadmin with no shop_id and no typ
+        let superadmin = AuthUser {
+            id: 1,
+            username: "super".into(),
+            role_id: Some(1),
+            admin_type: None,
+            shop_id: None,
+        };
+        assert!(superadmin.is_platform());
+        assert_eq!(superadmin.scoped_shop_id(), None);
+    }
 }
