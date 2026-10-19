@@ -278,6 +278,57 @@ impl CreditUserService {
         );
         Ok(())
     }
+
+    /// 更新所有授信会员的账期起点（对应 Java `CreditUserServiceImpl#updateAllPeriodStartTime`）。
+    ///
+    /// 每天 0 点执行，根据当前时间与结算周期天数更新 `period_start_time`。
+    pub async fn update_all_period_start_time(&self) -> Result<u64> {
+        let users = self.repo().find_enabled_with_period().await?;
+        if users.is_empty() {
+            return Ok(0);
+        }
+
+        let now = now_seconds();
+        let today_start = today_start_epoch();
+        let mut updated = 0_u64;
+
+        for user in users {
+            let days = settlement_type_days(user.settlement_type) as i64;
+            if days <= 0 {
+                continue;
+            }
+            let Some(period_start) = user.period_start_time.filter(|&v| v > 0) else {
+                continue;
+            };
+
+            // 经过的整天数
+            let seconds_passed = today_start.saturating_sub(period_start);
+            let days_passed = seconds_passed / 86400;
+
+            if days_passed < days {
+                // 还在第一个周期内
+                continue;
+            }
+
+            let period_index = days_passed / days;
+            let new_period_start = period_start + period_index * days * 86400;
+
+            if new_period_start != period_start {
+                if let Ok(affected) = self
+                    .repo()
+                    .update_period_start_time(user.credit_user_id, new_period_start, now)
+                    .await
+                {
+                    if affected > 0 {
+                        updated += 1;
+                    }
+                }
+            }
+        }
+
+        tracing::info!("授信会员周期更新完成: 更新 {updated} 位会员");
+        Ok(updated)
+    }
 }
 
 // ——————————————————————————————————————————————

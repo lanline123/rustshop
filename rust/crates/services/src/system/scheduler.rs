@@ -69,7 +69,8 @@ pub fn spawn_all(repos: Arc<Repositories>, order: OrderService) -> Vec<JoinHandl
     vec![
         tokio::spawn(order_auto_cancel_loop(repos.clone(), order.clone())),
         tokio::spawn(order_auto_receive_loop(repos.clone())),
-        tokio::spawn(groupon_expire_loop(repos)),
+        tokio::spawn(groupon_expire_loop(repos.clone())),
+        tokio::spawn(credit_user_period_update_loop(repos)),
     ]
 }
 
@@ -133,6 +134,32 @@ async fn groupon_expire_loop(repos: Arc<Repositories>) {
             Err(e) => tracing::warn!("定时任务：拼团过期处理失败: {e}"),
         }
     }
+}
+
+/// 授信会员结算周期更新循环（默认每小时扫描一次，`TIG_SCHEDULER__CREDIT_PERIOD_SECS` 可调，默认 3600s）。
+async fn credit_user_period_update_loop(repos: Arc<Repositories>) {
+    tokio::time::sleep(Duration::from_secs(
+        env_secs("TIG_SCHEDULER__DELAY_SECS", 30) + 45,
+    ))
+    .await;
+    let mut ticker = tokio::time::interval(Duration::from_secs(env_secs(
+        "TIG_SCHEDULER__CREDIT_PERIOD_SECS",
+        3600,
+    )));
+    loop {
+        ticker.tick().await;
+        match run_credit_user_period_update(&repos).await {
+            Ok(0) => {}
+            Ok(n) => tracing::info!("定时任务：授信会员结算周期已推进 {n} 位"),
+            Err(e) => tracing::warn!("定时任务：授信会员结算周期推进失败: {e}"),
+        }
+    }
+}
+
+/// 执行一轮授信会员账期推进（对应 Java `CreditUserPeriodUpdateTask`）。
+pub async fn run_credit_user_period_update(repos: &Repositories) -> Result<u64> {
+    let service = crate::payment::credit_user::CreditUserService::new(Arc::new(repos.clone()));
+    service.update_all_period_start_time().await
 }
 
 /// 执行一轮拼团过期：待成团且超过截止时间的开团记录整团置失败。

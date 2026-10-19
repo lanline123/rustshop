@@ -206,6 +206,31 @@ impl CreditUserRepository {
         Ok(res.rows_affected())
     }
 
+    /// 查询所有启用的且已设置账期起点的授信会员（对应 Java updateAllPeriodStartTime）。
+    pub async fn find_enabled_with_period(&self) -> Result<Vec<CreditUser>> {
+        let sql = format!(
+            "{CREDIT_USER_SELECT} WHERE status = 1 AND period_start_time IS NOT NULL AND period_start_time > 0"
+        );
+        sqlx::query_as::<_, CreditUser>(&sql)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)
+    }
+
+    /// 更新账期周期起点时间与更新时间
+    pub async fn update_period_start_time(&self, id: i32, period_start_time: i64, now: i64) -> Result<u64> {
+        let res = sqlx::query(
+            "UPDATE credit_user SET period_start_time = ?, update_time = ? WHERE credit_user_id = ?",
+        )
+        .bind(period_start_time)
+        .bind(now)
+        .bind(id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(res.rows_affected())
+    }
+
     // ————————————————————— 装配 / 过滤 —————————————————————
 
     /// 用户名模糊匹配的会员 ID（`user.username LIKE`）。
