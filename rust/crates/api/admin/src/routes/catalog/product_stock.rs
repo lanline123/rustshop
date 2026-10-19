@@ -58,7 +58,7 @@ use tigshop_core::models::catalog::product_stock::{
     ProductStockAllocateOperationRecordVO, ProductStockAllocateRecordDetailVO,
     ProductStockAllocateRecordPageVO, ProductStockDetailVO, ProductStockPageVO,
     ProductStockRecordVO, StockAdjustDTO, StockDetailQuery, StockInDTO, StockPageQuery,
-    ProductImportSuccessVO, ProductStockImportRow,
+    AllocateProductImportRow, ProductImportSuccessVO, ProductStockImportRow,
     StockRecordPageQuery, EXCEL_UNMIGRATED_MSG,
 };
 use tigshop_core::types::PageResult;
@@ -389,6 +389,14 @@ async fn adjust_detail(
 ) -> ApiResult<Vec<ProductStockAdjustRecordDetailVO>> {
     let op = operator_from(&headers, &auth);
     ok(state.catalog.product_stock.adjust_detail(&q, &op).await?)
+}
+
+/// 调拨导入的出/入库组织查询参数（Java `@RequestParam shopId/targetShopId`）。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AllocateShopQuery {
+    shop_id: Option<i32>,
+    target_shop_id: Option<i32>,
 }
 
 /// `GET /adminapi/product/stock/getAllocateProductStockPage`：获取可调拨商品列表。
@@ -741,11 +749,13 @@ fn parse_stock_import_rows(bytes: &[u8]) -> Result<Vec<ProductStockImportRow>, A
 }
 
 /// `GET /adminapi/product/stock/getAllocateTemplate`：下载导入调拨单 Excel。
-///
-/// 对应 Java `ProductStockController.getAllocateTemplate(HttpServletResponse)`。
-/// **未迁移**。
-async fn get_allocate_template() -> ApiResult<serde_json::Value> {
-    excel_unmigrated()
+async fn get_allocate_template() -> std::result::Result<axum::response::Response, AppError> {
+    let headers = ["出库门店", "入库门店", "备注", "商品名称", "商品编码", "商品规格名称", "数量"];
+    let bytes = tigshop_services::system::excel::build_xlsx(&headers, &[], "调拨单导入模板")?;
+    Ok(crate::support::excel_response::xlsx_response(
+        bytes,
+        "allocate_template.xlsx",
+    ))
 }
 
 /// `POST /adminapi/product/stock/batchImportAllocate`：批量导入调拨商品。
@@ -764,27 +774,112 @@ async fn get_batch_import_error_data(_file: Multipart) -> ApiResult<serde_json::
 }
 
 /// `GET /adminapi/product/stock/downloadAllocateTemplate`：下载调拨商品导入模版。
-///
-/// 对应 Java `ProductStockController.downloadAllocateTemplate(HttpServletResponse)`。
-/// **未迁移**。
-async fn download_allocate_template() -> ApiResult<serde_json::Value> {
-    excel_unmigrated()
+async fn download_allocate_template() -> std::result::Result<axum::response::Response, AppError> {
+    let headers = ["商品名称", "商品编码", "商品规格名称", "商品调拨库数量"];
+    let bytes = tigshop_services::system::excel::build_xlsx(&headers, &[], "调拨商品导入模板")?;
+    Ok(crate::support::excel_response::xlsx_response(
+        bytes,
+        "allocate_product_template.xlsx",
+    ))
 }
 
-/// `POST /adminapi/product/stock/batchImportAllocateProduct`：批量导入调拨商品。
-///
-/// 对应 Java `ProductStockController.batchImportAllocateProduct(MultipartFile,
-/// shopId, targetShopId)`。**未迁移**。
-async fn batch_import_allocate_product(_file: Multipart) -> ApiResult<serde_json::Value> {
-    excel_unmigrated()
+/// `POST /adminapi/product/stock/batchImportAllocateProduct`：批量导入调拨商品（校验预览）。
+async fn batch_import_allocate_product(
+    State(state): State<AdminState>,
+    Query(q): Query<AllocateShopQuery>,
+    mut multipart: Multipart,
+) -> ApiResult<Vec<ProductImportSuccessVO>> {
+    let bytes = read_upload_file(&mut multipart).await?;
+    let rows = parse_allocate_product_rows(&bytes)?;
+    if rows.is_empty() {
+        return Err(AppError(Error::biz_msg("表格数据为空")));
+    }
+    let shop_id = q.shop_id.ok_or_else(|| AppError(Error::biz_msg("请选择出库组织")))?;
+    let target_shop_id = q
+        .target_shop_id
+        .ok_or_else(|| AppError(Error::biz_msg("请选择入库组织")))?;
+    let (success, errors) = state
+        .catalog
+        .product_stock
+        .allocate_product_preview(&rows, shop_id, target_shop_id)
+        .await?;
+    if !errors.is_empty() {
+        return Err(AppError(Error::biz_msg(format!(
+            "导入失败:共导入{}个,失败{}个",
+            rows.len(),
+            errors.len()
+        ))));
+    }
+    ok(success)
 }
 
-/// `POST /adminapi/product/stock/getAllocateProductErrorData`：获取调拨商品导入失败的数据。
-///
-/// 对应 Java `ProductStockController.getAllocateProductErrorData(MultipartFile,
-/// shopId, targetShopId, HttpServletResponse)`。**未迁移**。
-async fn get_allocate_product_error_data(_file: Multipart) -> ApiResult<serde_json::Value> {
-    excel_unmigrated()
+/// `POST /adminapi/product/stock/getAllocateProductErrorData`：调拨商品导入失败数据 xlsx。
+async fn get_allocate_product_error_data(
+    State(state): State<AdminState>,
+    Query(q): Query<AllocateShopQuery>,
+    mut multipart: Multipart,
+) -> std::result::Result<axum::response::Response, AppError> {
+    let bytes = read_upload_file(&mut multipart).await?;
+    let rows = parse_allocate_product_rows(&bytes)?;
+    let shop_id = q.shop_id.ok_or_else(|| AppError(Error::biz_msg("请选择出库组织")))?;
+    let target_shop_id = q
+        .target_shop_id
+        .ok_or_else(|| AppError(Error::biz_msg("请选择入库组织")))?;
+    let (_, errors) = state
+        .catalog
+        .product_stock
+        .allocate_product_preview(&rows, shop_id, target_shop_id)
+        .await?;
+    let headers_out = [
+        "商品名称",
+        "商品编码",
+        "商品规格名称",
+        "商品调拨库数量",
+        "错误信息",
+    ];
+    let data: Vec<Vec<String>> = errors
+        .iter()
+        .map(|e| {
+            vec![
+                e.product_name.clone().unwrap_or_default(),
+                e.product_sn.clone().unwrap_or_default(),
+                e.product_sku_name.clone().unwrap_or_default(),
+                e.quantity.clone().unwrap_or_default(),
+                e.error_msg.clone(),
+            ]
+        })
+        .collect();
+    let bytes = tigshop_services::system::excel::build_xlsx(&headers_out, &data, "调拨导入错误")?;
+    Ok(crate::support::excel_response::xlsx_response(
+        bytes,
+        "allocate_product_import_error.xlsx",
+    ))
+}
+
+/// 解析调拨商品导入 xlsx（列序与 `AllocateProductImportExcelDTO` 一致）。
+fn parse_allocate_product_rows(
+    bytes: &[u8],
+) -> Result<Vec<AllocateProductImportRow>, AppError> {
+    let sheet = tigshop_services::system::excel::read_xlsx(bytes).map_err(AppError)?;
+    let mut rows = Vec::new();
+    for line in sheet.iter().skip(1) {
+        let get = |i: usize| {
+            line.get(i)
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+        };
+        let row = AllocateProductImportRow {
+            product_name: get(0),
+            product_sn: get(1),
+            product_sku_name: get(2),
+            quantity: get(3),
+        };
+        if row.product_sn.is_some() || row.product_name.is_some() {
+            rows.push(row);
+        }
+    }
+    Ok(rows)
 }
 
 #[cfg(test)]

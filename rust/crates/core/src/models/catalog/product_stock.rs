@@ -35,6 +35,27 @@ pub struct ProductStockImportRow {
     pub comment: Option<String>,
 }
 
+/// 调拨商品导入行（Java `AllocateProductImportExcelDTO`）。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AllocateProductImportRow {
+    pub product_name: Option<String>,
+    pub product_sn: Option<String>,
+    pub product_sku_name: Option<String>,
+    pub quantity: Option<String>,
+}
+
+/// 调拨商品导入错误行（Java `AllocateProductImportErrorExcelDTO`）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AllocateProductImportErrorVO {
+    pub product_name: Option<String>,
+    pub product_sn: Option<String>,
+    pub product_sku_name: Option<String>,
+    pub quantity: Option<String>,
+    pub error_msg: String,
+}
+
 /// 导入成功预览行（Java `ProductImportSuccessListVO`）。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
