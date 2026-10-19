@@ -24,6 +24,43 @@ use crate::entities::{
     ProductStockAllocateRecordDetail, ProductStockRecord, ProductStockRecordDetail,
 };
 
+/// 商品出入库导入行（Java `ProductStockOutExcelDTO`）。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ProductStockImportRow {
+    pub product_name: Option<String>,
+    pub product_sn: Option<String>,
+    pub product_sku_name: Option<String>,
+    pub quantity: Option<String>,
+    pub comment: Option<String>,
+}
+
+/// 导入成功预览行（Java `ProductImportSuccessListVO`）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ProductImportSuccessVO {
+    pub product_id: i32,
+    pub product_name: String,
+    pub product_unit: Option<String>,
+    pub product_pic_thumb: Option<String>,
+    pub product_sku_id: Option<i32>,
+    pub product_sku_name: Option<String>,
+    pub quantity: i32,
+    pub current_product_stock: i32,
+}
+
+/// 导入失败行（Java `ProductImportErrorExcelVO`）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ProductImportErrorVO {
+    pub product_name: Option<String>,
+    pub product_sn: Option<String>,
+    pub product_sku_name: Option<String>,
+    pub quantity: Option<String>,
+    pub comment: Option<String>,
+    pub error_msg: String,
+}
+
 // ——————————————————————————————————————————————
 // 未迁移能力的统一错误文案
 // ——————————————————————————————————————————————

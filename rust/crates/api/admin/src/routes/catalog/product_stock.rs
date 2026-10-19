@@ -58,6 +58,7 @@ use tigshop_core::models::catalog::product_stock::{
     ProductStockAllocateOperationRecordVO, ProductStockAllocateRecordDetailVO,
     ProductStockAllocateRecordPageVO, ProductStockDetailVO, ProductStockPageVO,
     ProductStockRecordVO, StockAdjustDTO, StockDetailQuery, StockInDTO, StockPageQuery,
+    ProductImportSuccessVO, ProductStockImportRow,
     StockRecordPageQuery, EXCEL_UNMIGRATED_MSG,
 };
 use tigshop_core::types::PageResult;
@@ -626,20 +627,117 @@ async fn download_template() -> std::result::Result<axum::response::Response, Ap
     ))
 }
 
-/// `POST /adminapi/product/stock/batchImport`：批量导入商品。
+/// `POST /adminapi/product/stock/batchImport`：批量导入商品（校验预览）。
 ///
 /// 对应 Java `ProductStockController.batchImport(@RequestParam("file") MultipartFile)`。
-/// **未迁移**（Excel 解析）。
-async fn batch_import(_file: Multipart) -> ApiResult<serde_json::Value> {
-    excel_unmigrated()
+async fn batch_import(
+    State(state): State<AdminState>,
+    headers: axum::http::HeaderMap,
+    mut multipart: Multipart,
+) -> ApiResult<Vec<ProductImportSuccessVO>> {
+    let bytes = read_upload_file(&mut multipart).await?;
+    let rows = parse_stock_import_rows(&bytes)?;
+    if rows.is_empty() {
+        return Err(AppError(Error::biz_msg("表格数据为空")));
+    }
+    let shop_id = shop_id_from_headers(&headers);
+    let (success, errors) = state
+        .catalog
+        .product_stock
+        .import_preview(&rows, shop_id)
+        .await?;
+    if !errors.is_empty() {
+        return Err(AppError(Error::biz_msg(format!(
+            "导入失败:共导入{}个,失败{}个",
+            rows.len(),
+            errors.len()
+        ))));
+    }
+    ok(success)
 }
 
-/// `POST /adminapi/product/stock/getImportErrorData`：获取导入失败的数据。
-///
-/// 对应 Java `ProductStockController.getImportErrorData(MultipartFile,
-/// HttpServletResponse)`（契约标记为匿名，与 Java 一致）。**未迁移**。
-async fn get_import_error_data(_file: Multipart) -> ApiResult<serde_json::Value> {
-    excel_unmigrated()
+/// `POST /adminapi/product/stock/getImportErrorData`：获取导入失败的数据（xlsx）。
+async fn get_import_error_data(
+    State(state): State<AdminState>,
+    headers: axum::http::HeaderMap,
+    mut multipart: Multipart,
+) -> std::result::Result<axum::response::Response, AppError> {
+    let bytes = read_upload_file(&mut multipart).await?;
+    let rows = parse_stock_import_rows(&bytes)?;
+    let shop_id = shop_id_from_headers(&headers);
+    let (_, errors) = state
+        .catalog
+        .product_stock
+        .import_preview(&rows, shop_id)
+        .await?;
+    let headers_out = [
+        "商品名称",
+        "商品编码",
+        "商品规格名称",
+        "商品出入库数量",
+        "备注",
+        "错误信息",
+    ];
+    let data: Vec<Vec<String>> = errors
+        .iter()
+        .map(|e| {
+            vec![
+                e.product_name.clone().unwrap_or_default(),
+                e.product_sn.clone().unwrap_or_default(),
+                e.product_sku_name.clone().unwrap_or_default(),
+                e.quantity.clone().unwrap_or_default(),
+                e.comment.clone().unwrap_or_default(),
+                e.error_msg.clone(),
+            ]
+        })
+        .collect();
+    let bytes = tigshop_services::system::excel::build_xlsx(&headers_out, &data, "导入错误数据")?;
+    Ok(crate::support::excel_response::xlsx_response(
+        bytes,
+        "product_stock_import_error.xlsx",
+    ))
+}
+
+/// 读取 multipart 中的 `file` 字段。
+async fn read_upload_file(multipart: &mut Multipart) -> Result<Vec<u8>, AppError> {
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        AppError(Error::Validation(format!("读取上传文件失败: {e}")))
+    })? {
+        if field.name() == Some("file") {
+            return field
+                .bytes()
+                .await
+                .map(|b| b.to_vec())
+                .map_err(|e| AppError(Error::Validation(format!("读取上传文件失败: {e}"))));
+        }
+    }
+    Err(AppError(Error::Validation("请上传文件".into())))
+}
+
+/// 解析商品出入库导入 xlsx（首行表头；列序与 Java DTO 一致）。
+fn parse_stock_import_rows(bytes: &[u8]) -> Result<Vec<ProductStockImportRow>, AppError> {
+    let sheet = tigshop_services::system::excel::read_xlsx(bytes)
+        .map_err(AppError)?;
+    let mut rows = Vec::new();
+    for line in sheet.iter().skip(1) {
+        let get = |i: usize| {
+            line.get(i)
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+        };
+        let row = ProductStockImportRow {
+            product_name: get(0),
+            product_sn: get(1),
+            product_sku_name: get(2),
+            quantity: get(3),
+            comment: get(4),
+        };
+        if row.product_sn.is_some() || row.product_name.is_some() {
+            rows.push(row);
+        }
+    }
+    Ok(rows)
 }
 
 /// `GET /adminapi/product/stock/getAllocateTemplate`：下载导入调拨单 Excel。

@@ -652,6 +652,111 @@ impl ProductStockService {
         self.repo().insert_inventory_log(&log).await
     }
 
+    /// 商品出入库导入预览（Java `ProductStockRecordServiceImpl#batchImport`）。
+    ///
+    /// 只做校验与预览，不直接改库存；有错误时由路由层返回「导入失败:...」。
+    pub async fn import_preview(
+        &self,
+        rows: &[tigshop_core::models::catalog::product_stock::ProductStockImportRow],
+        shop_id: i32,
+    ) -> Result<(
+        Vec<tigshop_core::models::catalog::product_stock::ProductImportSuccessVO>,
+        Vec<tigshop_core::models::catalog::product_stock::ProductImportErrorVO>,
+    )> {
+        use tigshop_core::models::catalog::product_stock::{
+            ProductImportErrorVO, ProductImportSuccessVO,
+        };
+        let mut success = Vec::new();
+        let mut errors = Vec::new();
+        for row in rows {
+            let sn = row.product_sn.as_deref().map(str::trim).unwrap_or("");
+            let sku_name = row.product_sku_name.as_deref().map(str::trim).unwrap_or("");
+            let mut push_err = |msg: &str| {
+                errors.push(ProductImportErrorVO {
+                    product_name: row.product_name.clone(),
+                    product_sn: row.product_sn.clone(),
+                    product_sku_name: row.product_sku_name.clone(),
+                    quantity: row.quantity.clone(),
+                    comment: row.comment.clone(),
+                    error_msg: msg.to_string(),
+                });
+            };
+            if sn.is_empty() {
+                push_err("商品编码没有填写");
+                continue;
+            }
+            let Some(product) = self
+                .repo()
+                .find_product_by_sn(sn, Some(shop_id))
+                .await?
+            else {
+                push_err("商品不存在");
+                continue;
+            };
+            if product.product_type != Some(1) {
+                push_err("该商品不是实物商品不能出入库");
+                continue;
+            }
+            let mut sku_id = None;
+            let mut sku_stock = None;
+            let mut sku_value = None;
+            if sku_name.is_empty() {
+                if self.repo().count_skus(product.product_id).await? > 0 {
+                    push_err("该商品下面有规格商品，请补齐商品规格");
+                    continue;
+                }
+            } else {
+                let Some(sku) = self.repo().find_sku_by_value(product.product_id, sku_name).await?
+                else {
+                    push_err("商品规格不存在");
+                    continue;
+                };
+                sku_id = Some(sku.sku_id);
+                sku_stock = sku.sku_stock;
+                sku_value = Some(sku.sku_value);
+            }
+            let quantity = row
+                .quantity
+                .as_deref()
+                .map(str::trim)
+                .unwrap_or("")
+                .parse::<i32>()
+                .unwrap_or(0);
+            let current_stock = if shop_id > 0 {
+                if let Some(store) = self
+                    .repo()
+                    .find_store_product(product.product_id, shop_id)
+                    .await?
+                {
+                    if let Some(sid) = sku_id {
+                        self.repo()
+                            .find_store_product_sku(store.store_product_id, sid)
+                            .await?
+                            .and_then(|s| s.sku_stock)
+                            .unwrap_or_else(|| store.product_stock.unwrap_or(0))
+                    } else {
+                        store.product_stock.unwrap_or(0)
+                    }
+                } else {
+                    sku_stock.unwrap_or(product.product_stock)
+                }
+            } else {
+                sku_stock.unwrap_or(product.product_stock)
+            };
+            success.push(ProductImportSuccessVO {
+                product_id: product.product_id,
+                product_name: product.product_name.clone(),
+                product_unit: product.product_unit.clone(),
+                product_pic_thumb: Some(product.pic_thumb.clone()),
+                product_sku_id: sku_id,
+                product_sku_name: sku_value,
+                quantity,
+                current_product_stock: current_stock,
+            });
+        }
+        Ok((success, errors))
+    }
+
     // ————————————————————— 库存调整 —————————————————————
 
     /// `POST /stockAdjust`：库存调整
