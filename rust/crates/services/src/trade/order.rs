@@ -72,9 +72,12 @@ impl OrderService {
             retries += 1;
         }
 
-        // 批量取价：一次查询替代循环内逐条 current_price（消除 N+1）。
+        // 商品 + 价格（与结算页同口径：商品现价；SKU 价格由 current_prices 提供）
         let product_ids: Vec<i32> = lines.iter().map(|l| l.product_id).collect();
+        let products = crate::trade::check::load_products(&self.repos, &product_ids).await?;
         let prices = self.repos.catalog.product.current_prices(&product_ids).await?;
+        let mut store_amounts: std::collections::BTreeMap<i32, Decimal> =
+            std::collections::BTreeMap::new();
 
         for line in &lines {
             let pid = line.product_id;
@@ -86,6 +89,7 @@ impl OrderService {
                 .unwrap_or(line.original_price);
             let subtotal = price * Decimal::from(qty);
             product_amount += subtotal;
+            *store_amounts.entry(line.shop_id).or_default() += subtotal;
 
             items.push(OrderItem {
                 order_sn: order_sn.clone(),
@@ -101,26 +105,7 @@ impl OrderService {
             });
         }
 
-        // —— 优惠券抵扣（与结算页一致：按用户券 + 商品金额试算）——
-        // 前端结算表单提交 `useCouponIds`；兼容旧字段 `couponId`。
-        let coupon_used: Vec<i32> = dto
-            .use_coupon_ids
-            .clone()
-            .filter(|ids| !ids.is_empty())
-            .or_else(|| dto.coupon_id.filter(|id| *id > 0).map(|id| vec![id]))
-            .unwrap_or_default();
-        let coupon_amount = if coupon_used.is_empty() {
-            Decimal::ZERO
-        } else {
-            crate::marketing::coupon::CouponService::new(self.repos.clone())
-                .calc_discount(user_id, &coupon_used, product_amount)
-                .await?
-        };
-        // 运费：运费模板引擎未接入，暂取 0（与结算页一致）
-        let shipping_fee = Decimal::ZERO;
-        let total = (product_amount - coupon_amount).max(Decimal::ZERO) + shipping_fee;
-
-        // —— 收货地址快照 ——
+        // —— 收货地址快照（同时取地区用于运费模板匹配）——
         let addr = match dto.address_id.filter(|id| *id > 0) {
             Some(address_id) => {
                 self.repos
@@ -131,24 +116,139 @@ impl OrderService {
             }
             None => None,
         };
-        let (consignee, mobile, email, address, region_ids, region_names) = match addr {
-            Some(a) => (
-                a.consignee,
-                a.mobile,
-                a.email.unwrap_or_default(),
-                a.address,
-                a.region_ids,
-                a.region_names,
-            ),
-            None => (
-                String::new(),
-                String::new(),
-                String::new(),
-                String::new(),
-                "[]".to_string(),
-                "[]".to_string(),
-            ),
+        let (consignee, mobile, email, address, region_ids, region_names, region_id_list) =
+            match addr {
+                Some(a) => {
+                    let ids: Vec<i32> =
+                        serde_json::from_str(&a.region_ids).unwrap_or_default();
+                    (
+                        a.consignee,
+                        a.mobile,
+                        a.email.unwrap_or_default(),
+                        a.address,
+                        a.region_ids,
+                        a.region_names,
+                        ids,
+                    )
+                }
+                None => (
+                    String::new(),
+                    String::new(),
+                    String::new(),
+                    String::new(),
+                    "[]".to_string(),
+                    "[]".to_string(),
+                    Vec::new(),
+                ),
+            };
+
+        // —— 优惠券抵扣（店铺范围 + 门槛校验，与结算页同口径）——
+        // 前端结算表单提交 `useCouponIds`；兼容旧字段 `couponId`。
+        let coupon_used: Vec<i32> = dto
+            .use_coupon_ids
+            .clone()
+            .filter(|ids| !ids.is_empty())
+            .or_else(|| dto.coupon_id.filter(|id| *id > 0).map(|id| vec![id]))
+            .unwrap_or_default();
+        let mut coupon_amount = Decimal::ZERO;
+        let mut valid_coupons: Vec<i32> = Vec::new();
+        if !coupon_used.is_empty() {
+            let coupons = self
+                .repos
+                .marketing
+                .coupon
+                .find_by_ids(&coupon_used)
+                .await?;
+            let by_id: std::collections::HashMap<i32, tigshop_core::entities::Coupon> = coupons
+                .into_iter()
+                .map(|c| (c.coupon_id, c))
+                .collect();
+            for coupon_id in &coupon_used {
+                let coupon = by_id.get(coupon_id).ok_or_else(|| {
+                    Error::biz(1001, format!("优惠券不存在: {coupon_id}"))
+                })?;
+                let shop_id = coupon.shop_id.unwrap_or(0);
+                let base = if shop_id > 0 {
+                    store_amounts.get(&shop_id).copied().unwrap_or(Decimal::ZERO)
+                } else {
+                    product_amount
+                };
+                if base <= Decimal::ZERO {
+                    return Err(Error::biz(1001, "优惠券不适用于当前店铺商品".to_string()));
+                }
+                if base < coupon.min_order_amount {
+                    return Err(Error::biz(1001, "优惠券未达到使用门槛".to_string()));
+                }
+                coupon_amount += tigshop_core::models::trade::check::coupon_rule_discount(
+                    coupon.coupon_type,
+                    coupon.coupon_money,
+                    coupon.coupon_discount,
+                    coupon.max_order_amount,
+                    base,
+                );
+                valid_coupons.push(*coupon_id);
+            }
+        }
+
+        // —— 运费模板（与结算页同一函数）——
+        let shipping = crate::trade::check::calculate_shipping(
+            &self.repos,
+            &lines,
+            &products,
+            &region_id_list,
+            if dto.shipping_method == Some(2) {
+                Some(2)
+            } else {
+                None
+            },
+        )
+        .await?;
+        let shipping_fee = shipping.total;
+
+        // —— 积分抵扣（与结算页同一函数）——
+        let user = self
+            .repos
+            .member
+            .user
+            .find_by_id(user_id)
+            .await?
+            .ok_or_else(|| Error::biz_msg("用户不存在"))?;
+        let cfg = self
+            .repos
+            .trade
+            .check
+            .find_config_values(&[
+                "integralScale",
+                "integralPercent",
+                "integralPercentBaseAmount",
+                "usePoints",
+            ])
+            .await?;
+        let config_enabled = |key: &str| {
+            cfg.get(key).map(|v| v.trim() == "1").unwrap_or(false)
         };
+        let decimal_cfg = |key: &str, default: Decimal| {
+            cfg.get(key)
+                .and_then(|v| v.trim().parse::<Decimal>().ok())
+                .unwrap_or(default)
+        };
+        let points = if config_enabled("usePoints") {
+            tigshop_core::models::trade::check::calc_points(
+                dto.use_points.unwrap_or(0),
+                user.points,
+                (product_amount - coupon_amount).max(Decimal::ZERO),
+                decimal_cfg("integralScale", Decimal::ZERO),
+                decimal_cfg("integralPercent", Decimal::ZERO),
+                decimal_cfg("integralPercentBaseAmount", Decimal::ONE_HUNDRED),
+            )
+        } else {
+            Default::default()
+        };
+        let points_amount = points.points_amount;
+
+        // 应付金额 = 商品 - 优惠券 + 运费 - 积分抵扣（与结算页 totalAmount 一致）
+        let total =
+            (product_amount - coupon_amount + shipping_fee - points_amount).max(Decimal::ZERO);
 
         let order = Order {
             order_type: Some(0),
@@ -167,7 +267,8 @@ impl OrderService {
             address,
             region_ids,
             region_names,
-            use_points: dto.use_points.unwrap_or(0),
+            use_points: points.used_points,
+            points_amount,
             is_valid: 1,
             is_del: 0,
             total_amount: total,
@@ -253,13 +354,28 @@ impl OrderService {
         }
 
         // 占用优惠券（尽力而为；失败仅告警，避免订单已建但接口失败）
-        if !coupon_used.is_empty() {
+        if !valid_coupons.is_empty() {
             if let Err(e) = crate::marketing::coupon::CouponService::new(self.repos.clone())
-                .use_coupons(user_id, &coupon_used, order_id)
+                .use_coupons(user_id, &valid_coupons, order_id)
                 .await
             {
                 tracing::warn!("订单 {order_id} 优惠券占用失败: {e}");
             }
+        }
+
+        // 扣减积分（与结算页口径一致；失败仅告警，避免已建订单接口失败）
+        if points.used_points > 0
+            && !self
+                .repos
+                .member
+                .user
+                .try_debit_points(user_id, points.used_points)
+                .await?
+        {
+            tracing::warn!(
+                "订单 {order_id} 积分扣减失败: user={user_id}, points={}",
+                points.used_points
+            );
         }
 
         // 扣减成功，失效商品详情缓存

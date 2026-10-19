@@ -324,6 +324,14 @@ pub struct CheckTotalVO {
     pub tax_rate: Decimal,
     pub tax_rate_amount: Decimal,
     pub gift_card_amount: Decimal,
+    /// 账期支付金额（useCredit=1 且可用时等于应付金额）。
+    pub credit_amount: Decimal,
+    /// 预售定金金额（仅定金预售）。
+    pub deposit_amount: Option<Decimal>,
+    /// 预售尾款金额（仅定金预售）。
+    pub final_payment_amount: Option<Decimal>,
+    /// 本次实际支付定金（可能被余额抵扣后）。
+    pub actual_pay_deposit_amount: Option<Decimal>,
 }
 
 /// 优惠券列表（Java `OrderCheckVO.CouponList`）。
@@ -384,6 +392,179 @@ pub struct ShippingTypeVO {
     pub sort_order: i32,
     pub shop_id: i32,
 }
+
+// ——————————————————————————————————————————————
+// 结算计算纯函数（结算页与下单共用，保证金额口径一致）
+// ——————————————————————————————————————————————
+
+/// 积分抵扣计算结果。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PointsCalc {
+    /// 本单最多可用积分（受用户积分 / 积分价值 / 支付比例封顶）。
+    pub available_points: i32,
+    /// 实际使用积分。
+    pub used_points: i32,
+    /// 积分抵扣金额。
+    pub points_amount: Decimal,
+}
+
+/// Decimal → i32（截断并钳制到 `[0, i32::MAX]`；用于积分等整数口径）。
+fn dec_clamp_i32(value: Decimal) -> i32 {
+    let text = value.trunc().to_string();
+    text.parse::<i64>()
+        .unwrap_or(i64::MAX)
+        .clamp(0, i64::from(i32::MAX)) as i32
+}
+
+/// 计算积分抵扣（Java `getOrderAvailablePoints` / `getPointValueAmount`）。
+///
+/// - `integral_scale`：每 100 积分可抵扣金额（Java `integralScale`）；
+/// - `integral_percent`：每 `integral_percent_base` 元最多可使用的积分（Java `integralPercent`）；
+/// - `base`：可抵扣基数（商品金额 - 优惠券）；
+/// - 返回可用积分、实际使用积分与抵扣金额（金额不超过 `base`）。
+#[must_use]
+pub fn calc_points(
+    use_point: i32,
+    user_points: i32,
+    base: Decimal,
+    integral_scale: Decimal,
+    integral_percent: Decimal,
+    integral_percent_base: Decimal,
+) -> PointsCalc {
+    let zero = Decimal::ZERO;
+    let base = base.max(zero);
+    if user_points <= 0 || base <= zero || integral_scale <= zero {
+        return PointsCalc::default();
+    }
+    // 积分价值上限：每 100 积分抵 integral_scale 元 → 覆盖 base 需要的积分
+    let value_points = dec_clamp_i32((base * Decimal::ONE_HUNDRED / integral_scale).ceil());
+    // 支付比例上限
+    let percent_base = if integral_percent_base > zero {
+        integral_percent_base
+    } else {
+        Decimal::ONE_HUNDRED
+    };
+    let max_percent_points = if integral_percent > zero {
+        dec_clamp_i32((base * integral_percent / percent_base).trunc())
+    } else {
+        0
+    };
+    let available = user_points
+        .min(value_points)
+        .min(max_percent_points)
+        .max(0);
+    let used = use_point.max(0).min(available);
+    let mut points_amount = Decimal::from(used) * integral_scale / Decimal::ONE_HUNDRED;
+    if points_amount > base {
+        points_amount = base;
+    }
+    PointsCalc {
+        available_points: available,
+        used_points: used,
+        points_amount: points_amount.max(zero),
+    }
+}
+
+/// 优惠券抵扣金额（Java `coupon_discount_amount`）：
+/// `coupon_type == 2` 为折扣券（`coupon_discount` 为几折），否则为满减券（`coupon_money`）；
+/// `max_order_amount > 0` 时封顶。
+#[must_use]
+pub fn coupon_rule_discount(
+    coupon_type: i32,
+    coupon_money: Decimal,
+    coupon_discount: Decimal,
+    max_order_amount: Decimal,
+    base: Decimal,
+) -> Decimal {
+    let base = base.max(Decimal::ZERO);
+    let mut amount = if coupon_type == 2 {
+        let ten = Decimal::from(10);
+        let discount = coupon_discount.max(Decimal::ZERO).min(ten);
+        base * (ten - discount) / ten
+    } else {
+        coupon_money
+    };
+    if max_order_amount > Decimal::ZERO {
+        amount = amount.min(max_order_amount);
+    }
+    amount.max(Decimal::ZERO).min(base)
+}
+
+/// 把一笔（全局券）优惠按店铺商品金额比例分摊；最后一家承担舍入余额，保证合计精确。
+#[must_use]
+pub fn allocate_discount(
+    total_discount: Decimal,
+    store_amounts: &std::collections::BTreeMap<i32, Decimal>,
+) -> HashMap<i32, Decimal> {
+    let mut result: HashMap<i32, Decimal> = HashMap::new();
+    let total_amount: Decimal = store_amounts.values().copied().sum();
+    if total_discount <= Decimal::ZERO || total_amount <= Decimal::ZERO {
+        return result;
+    }
+    let mut allocated = Decimal::ZERO;
+    let shops: Vec<i32> = store_amounts.keys().copied().collect();
+    for (idx, shop_id) in shops.iter().enumerate() {
+        let amount = if idx + 1 == shops.len() {
+            (total_discount - allocated).max(Decimal::ZERO)
+        } else {
+            let store_amount = store_amounts.get(shop_id).copied().unwrap_or_default();
+            (total_discount * store_amount / total_amount)
+                .round_dp(2)
+                .min(total_discount - allocated)
+                .max(Decimal::ZERO)
+        };
+        allocated += amount;
+        result.insert(*shop_id, amount);
+    }
+    result
+}
+
+/// 运费模板规则（`shipping_tpl` + `shipping_tpl_info` 的结算相关字段）。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ShippingRule {
+    pub pricing_type: i32,
+    pub is_free: bool,
+    pub start_number: Decimal,
+    pub start_price: Decimal,
+    pub add_number: Decimal,
+    pub add_price: Decimal,
+    pub free_price: Decimal,
+}
+
+/// 计算一个店铺的运费（Java `ShippingTplInfoService#getShippingFee` 的口径）：
+/// - 包邮 / 满额包邮 → 0；
+/// - 首重/首件内 → `start_price`；
+/// - 超出部分按（`add_number` 重量/件数，`add_price` 价格）向上取整累加。
+#[must_use]
+pub fn calc_shipping_fee(
+    rule: &ShippingRule,
+    shop_amount: Decimal,
+    quantity: Decimal,
+    weight: Decimal,
+) -> Decimal {
+    if rule.is_free {
+        return Decimal::ZERO;
+    }
+    if rule.free_price > Decimal::ZERO && shop_amount >= rule.free_price {
+        return Decimal::ZERO;
+    }
+    let base = if rule.pricing_type == 2 {
+        weight.max(Decimal::ZERO)
+    } else {
+        quantity.max(Decimal::ZERO)
+    };
+    if rule.start_number <= Decimal::ZERO || rule.add_number <= Decimal::ZERO {
+        // 规则不完整：只收首价（不猜测续价）
+        return rule.start_price.max(Decimal::ZERO);
+    }
+    if base <= rule.start_number {
+        return rule.start_price.max(Decimal::ZERO);
+    }
+    let extra = base - rule.start_number;
+    let units = (extra / rule.add_number).ceil();
+    (rule.start_price + units * rule.add_price).max(Decimal::ZERO)
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -459,5 +640,111 @@ mod tests {
     fn cart_empty_message_is_explicit() {
         assert_eq!(MSG_CART_EMPTY, "请先选择要结算的商品");
         assert_eq!(MSG_LOGIN_REQUIRED, "请先登录");
+    }
+
+    #[test]
+    fn points_calc_respects_scale_and_percent() {
+        // integralScale=1（100 积分=1 元），integralPercent=50（每 100 元最多 50 积分）
+        let calc = calc_points(
+            9999,
+            1000,
+            Decimal::new(20000, 2), // 200 元
+            Decimal::from(1),
+            Decimal::from(50),
+            Decimal::from(100),
+        );
+        // 200 元最多用 100 积分（50/100 * 200）
+        assert_eq!(calc.available_points, 100);
+        assert_eq!(calc.used_points, 100);
+        assert_eq!(calc.points_amount, Decimal::ONE);
+    }
+
+    #[test]
+    fn points_calc_capped_by_user_and_base() {
+        let calc = calc_points(
+            500,
+            10,
+            Decimal::new(100, 2), // 1 元
+            Decimal::from(1),
+            Decimal::from(50),
+            Decimal::from(100),
+        );
+        // 1 元最多 0 积分（50/100 * 1 向下取整）→ 不可用
+        assert_eq!(calc.available_points, 0);
+        assert_eq!(calc.points_amount, Decimal::ZERO);
+
+        let calc = calc_points(5, 1000, Decimal::new(500, 2), Decimal::from(1), Decimal::from(100), Decimal::from(100));
+        assert_eq!(calc.used_points, 5);
+        assert_eq!(calc.points_amount, Decimal::new(5, 2));
+    }
+
+    #[test]
+    fn coupon_rule_money_and_discount() {
+        // 满减券
+        assert_eq!(
+            coupon_rule_discount(1, Decimal::from(10), Decimal::from(0), Decimal::ZERO, Decimal::from(150)),
+            Decimal::from(10)
+        );
+        // 折扣券 8.5 折 → 优惠 15%
+        assert_eq!(
+            coupon_rule_discount(2, Decimal::ZERO, Decimal::new(85, 1), Decimal::ZERO, Decimal::from(100)),
+            Decimal::new(15, 0)
+        );
+        // 封顶
+        assert_eq!(
+            coupon_rule_discount(1, Decimal::from(100), Decimal::ZERO, Decimal::from(30), Decimal::from(200)),
+            Decimal::from(30)
+        );
+    }
+
+    #[test]
+    fn shipping_fee_first_and_additional_units() {
+        let rule = ShippingRule {
+            pricing_type: 1, // 按件
+            is_free: false,
+            start_number: Decimal::from(1),
+            start_price: Decimal::from(5),
+            add_number: Decimal::from(2),
+            add_price: Decimal::from(2),
+            free_price: Decimal::from(100),
+        };
+        // 1 件：首价 5
+        assert_eq!(calc_shipping_fee(&rule, Decimal::from(10), Decimal::from(1), Decimal::ZERO), Decimal::from(5));
+        // 4 件：5 + ceil((4-1)/2)*2 = 9
+        assert_eq!(calc_shipping_fee(&rule, Decimal::from(10), Decimal::from(4), Decimal::ZERO), Decimal::from(9));
+        // 满 100 包邮
+        assert_eq!(calc_shipping_fee(&rule, Decimal::from(100), Decimal::from(1), Decimal::ZERO), Decimal::ZERO);
+        // 包邮模板
+        let free = ShippingRule { is_free: true, ..rule };
+        assert_eq!(calc_shipping_fee(&free, Decimal::from(1), Decimal::from(1), Decimal::ZERO), Decimal::ZERO);
+    }
+
+    #[test]
+    fn shipping_weight_pricing() {
+        let rule = ShippingRule {
+            pricing_type: 2,
+            is_free: false,
+            start_number: Decimal::new(1000, 3), // 1kg
+            start_price: Decimal::from(8),
+            add_number: Decimal::new(500, 3), // 0.5kg
+            add_price: Decimal::from(2),
+            free_price: Decimal::ZERO,
+        };
+        // 2.2kg：8 + ceil((1.2)/0.5)=3 → 14
+        assert_eq!(
+            calc_shipping_fee(&rule, Decimal::from(10), Decimal::ZERO, Decimal::new(2200, 3)),
+            Decimal::from(14)
+        );
+    }
+
+    #[test]
+    fn discount_allocation_sums_exactly() {
+        let mut stores = std::collections::BTreeMap::new();
+        stores.insert(0, Decimal::from(100));
+        stores.insert(1, Decimal::from(50));
+        stores.insert(2, Decimal::from(50));
+        let alloc = allocate_discount(Decimal::from(10), &stores);
+        assert_eq!(alloc.values().copied().sum::<Decimal>(), Decimal::from(10));
+        assert_eq!(alloc.get(&0).copied(), Some(Decimal::from(5)));
     }
 }

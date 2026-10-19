@@ -42,6 +42,32 @@ impl CheckRepository {
         Ok(row.and_then(|(value,)| value))
     }
 
+    /// 批量读取配置值（结算页积分/账期等配置，一次 `IN` 查询）。
+    ///
+    /// # Errors
+    /// 数据库错误。
+    pub async fn find_config_values(
+        &self,
+        biz_codes: &[&str],
+    ) -> Result<std::collections::HashMap<String, String>> {
+        if biz_codes.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+        let placeholders = vec!["?"; biz_codes.len()].join(", ");
+        let sql = format!(
+            "SELECT biz_code, biz_val FROM config WHERE biz_code IN ({placeholders}) AND is_del = 0"
+        );
+        let mut q = sqlx::query_as::<_, (String, Option<String>)>(&sql);
+        for code in biz_codes {
+            q = q.bind(*code);
+        }
+        let rows = q.fetch_all(&self.pool).await.map_err(map_err)?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|(code, value)| value.map(|v| (code, v)))
+            .collect())
+    }
+
     /// 最近一条发票（Java `getLastInvoice`：`invoice_type/title_type` 缺省 0，
     /// `user_id` + `ORDER BY id DESC LIMIT 1`）。
     pub async fn find_last_invoice(

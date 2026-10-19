@@ -1,27 +1,34 @@
-//! 订单结算域服务（trade::check）。
+//! 订单结算域服务（trade::check）——结算页 v2。
 //!
 //! 对应原 Java `com.tigshop.service.order.impl.OrderCheckServiceImpl` 的
 //! `getAvailablePaymentType` / `getLastInvoice` / `getOrderCheckData` /
-//! `getStoreShippingType`。
+//! `getStoreShippingType`，并补齐结算价格引擎的主要部分：
 //!
-//! # 实现口径
+//! - **运费模板**：按商品 `shipping_tpl_id`（缺省回退店铺默认模板）+ 地区规则
+//!   计算店铺运费；包邮、满额包邮、按件/按重、续件/续重均支持（纯函数
+//!   [`tigshop_core::models::trade::check::calc_shipping_fee`]）。
+//! - **积分抵扣**：按 `integralScale` / `integralPercent` / `integralPercentBaseAmount`
+//!   计算可用积分、实际积分与抵扣金额（[`tigshop_core::models::trade::check::calc_points`]）。
+//! - **优惠券店铺范围与多店分摊**：`coupon.shop_id` 限定店铺，全局券按商品金额
+//!   比例分摊到各店铺；不可用券进入 `disableCoupons`。
+//! - **账期**：`useCredit` 配置 + `credit_user` 授信，返回 `creditPaymentInfo` 与
+//!   `creditAmount`；余额/账期互斥。
+//! - **预售**：读取 `product_presale`，返回 `productPresale` 与定金/尾款金额。
+//! - **改价标记**：购物车存在改价数据时置 `hasChangePrice`。
 //!
-//! - 结算页 `index` / `update` / `updateCoupon`：勾选购物车行 → 商品金额 →
-//!   可用优惠券（选中券按 `CouponService::calc_discount` 抵扣）→ 余额/积分展示 →
-//!   支付方式/配送方式回显；运费模板、秒杀/拼团/满减活动暂未接入（运费 0、活动折扣 0）。
-//! - `getStoreShippingType`：按店铺返回 `shipping_type` 列表（`shop_id=0` 视为全局）。
-//! - `available_payment_types` / `last_invoice`：完整 DB/config 实现。
-
+//! 仍未迁移（需要营销域活动引擎，另行排期）：秒杀/拼团/满减活动价格、O2O 配送
+//! 选项/自提点、发票信息随单落库、代客下单整单改价金额、多店铺优惠券逐券明细落库。
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use rust_decimal::Decimal;
 
-use tigshop_core::entities::{Cart, Product};
+use tigshop_core::entities::{Cart, Coupon, Product, ShippingTpl, ShippingTplInfo, UserAddress};
 use tigshop_core::models::trade::check::{
-    build_payment_types, config_enabled, parse_sku_data, CartStoreTotalVO, CheckCartByStoreVO,
-    CheckCartVO, CheckCouponVO, CheckItemVO, CheckTotalVO, CouponListVO, OrderCheckParam,
-    OrderCheckVO, OrderInvoiceVO, PaymentTypeVO, ShippingTypeVO, StoreShippingTypeQuery,
+    allocate_discount, build_payment_types, calc_points, calc_shipping_fee, config_enabled,
+    coupon_rule_discount, parse_sku_data, CartStoreTotalVO, CheckCartByStoreVO, CheckCartVO,
+    CheckCouponVO, CheckItemVO, CheckTotalVO, CouponListVO, OrderCheckParam, OrderCheckVO,
+    OrderInvoiceVO, PaymentTypeVO, ShippingRule, ShippingTypeVO, StoreShippingTypeQuery,
     CONFIG_USE_OFFLINE, CONFIG_USE_SURPLUS, MSG_CART_EMPTY, PAYMENT_TYPE_ONLINE,
 };
 use tigshop_core::{Error, Result};
@@ -29,10 +36,33 @@ use tigshop_infrastructure::db::repo::trade::check::CheckRepository;
 use tigshop_infrastructure::db::Repositories;
 
 use crate::marketing::coupon::CouponService;
+use tigshop_core::models::marketing::coupon::UserCouponVO;
+
+/// 结算相关配置键（积分/账期）。
+const CFG_INTEGRAL_SCALE: &str = "integralScale";
+const CFG_INTEGRAL_PERCENT: &str = "integralPercent";
+const CFG_INTEGRAL_PERCENT_BASE: &str = "integralPercentBaseAmount";
+const CFG_USE_POINTS: &str = "usePoints";
+const CFG_USE_CREDIT: &str = "useCredit";
 
 /// 订单结算域服务。
 pub struct CheckService {
     repos: Arc<Repositories>,
+}
+
+/// 店铺运费计算结果。
+pub(crate) struct ShippingCalc {
+    pub total: Decimal,
+    pub per_store: HashMap<i32, Decimal>,
+}
+
+/// 优惠券试算结果。
+struct CouponCalc {
+    total: Decimal,
+    per_store: HashMap<i32, Decimal>,
+    valid_selected: Vec<i32>,
+    enable: Vec<CheckCouponVO>,
+    disable: Vec<serde_json::Value>,
 }
 
 impl CheckService {
@@ -105,9 +135,6 @@ impl CheckService {
     }
 
     /// 店铺配送方式（Java `getStoreShippingType`）。
-    ///
-    /// 返回 `{shopId: [ShippingType...]}`；`shipping_type.shop_id = 0` 作为全局方式
-    /// 出现在每个店铺列表里。当前没有勾选商品时，按配送方式表自身的店铺分组返回。
     pub async fn store_shipping_types(
         &self,
         query: &StoreShippingTypeQuery,
@@ -132,7 +159,7 @@ impl CheckService {
                     .push(to_shipping_vo(item));
             }
             if grouped.is_empty() {
-                grouped.insert(shop_ids.first().copied().unwrap_or(0), default_shipping_types(0));
+                grouped.insert(0, default_shipping_types(0));
             }
             return Ok(grouped);
         }
@@ -141,7 +168,7 @@ impl CheckService {
             let list: Vec<ShippingTypeVO> = all
                 .iter()
                 .filter(|s| s.shop_id == shop_id || s.shop_id == 0)
-                .map(to_shipping_vo)
+                .map(|s| to_shipping_vo(s))
                 .collect();
             if list.is_empty() {
                 grouped.insert(shop_id, default_shipping_types(shop_id));
@@ -152,7 +179,7 @@ impl CheckService {
         Ok(grouped)
     }
 
-    /// 结算页数据装配。
+    /// 结算页数据装配（v2）。
     async fn build_check(&self, user_id: i32, param: &OrderCheckParam) -> Result<OrderCheckVO> {
         let carts: Vec<Cart> = self
             .repos
@@ -173,55 +200,32 @@ impl CheckService {
                 product_ids.push(cart.product_id);
             }
         }
-        let products = self.repos.catalog.product.find_by_ids(&product_ids).await?;
-        let product_map: HashMap<i32, &Product> =
-            products.iter().map(|p| (p.product_id, p)).collect();
+        let products = load_products(&self.repos, &product_ids).await?;
 
         // 商品金额 + 按店铺分组
         let mut shop_groups: BTreeMap<i32, Vec<&Cart>> = BTreeMap::new();
+        let mut store_amounts: BTreeMap<i32, Decimal> = BTreeMap::new();
         let mut product_amount = Decimal::ZERO;
         let mut total_quantity: i32 = 0;
         for cart in &carts {
-            let price = product_map
-                .get(&cart.product_id)
-                .map(|p| p.product_price)
-                .unwrap_or(cart.original_price);
-            product_amount += price * Decimal::from(cart.quantity.max(1));
-            total_quantity += cart.quantity.max(1);
+            let price = product_price(&products, cart);
+            let qty = cart.quantity.max(1);
+            let subtotal = price * Decimal::from(qty);
+            product_amount += subtotal;
+            total_quantity += qty;
+            *store_amounts.entry(cart.shop_id).or_default() += subtotal;
             shop_groups.entry(cart.shop_id).or_default().push(cart);
         }
 
-        // 优惠券：可用券列表 + 选中券抵扣
-        let coupon_service = CouponService::new(self.repos.clone());
-        let usable = coupon_service.my_usable_coupons(user_id).await?;
-        let selected: Vec<i32> = param
-            .use_coupon_ids
-            .clone()
-            .or_else(|| param.select_user_coupon_ids.clone())
-            .unwrap_or_default();
-        let coupon_amount = if selected.is_empty() {
-            Decimal::ZERO
-        } else {
-            match coupon_service
-                .calc_discount(user_id, &selected, product_amount)
-                .await
-            {
-                Ok(amount) => amount,
-                Err(e) => {
-                    tracing::warn!("结算页优惠券试算失败（按不使用券处理）: {e}");
-                    Decimal::ZERO
-                }
-            }
-        };
-
         let user = self.repos.member.user.find_by_id(user_id).await?;
         let balance = user.as_ref().map(|u| u.balance).unwrap_or_default();
-        let available_points = user.as_ref().map(|u| u.points).unwrap_or(0);
+        let user_points = user.as_ref().map(|u| u.points).unwrap_or(0);
         let default_address_id = user.as_ref().map(|u| u.address_id).unwrap_or(0);
         let address_id = param
             .address_id
             .filter(|id| *id > 0)
             .unwrap_or(default_address_id);
+        let region_ids = self.address_region_ids(address_id).await?;
 
         let payments = self.available_payment_types(param.flow_type).await?;
         let pay_type_id = param
@@ -231,15 +235,125 @@ impl CheckService {
             .unwrap_or(PAYMENT_TYPE_ONLINE);
         let flow_type = param.flow_type.unwrap_or(1);
 
-        let all_shipping = self.repos.logistics.shipping_type.list_all().await?;
+        // —— 运费模板 ——
+        let shipping = calculate_shipping(
+            &self.repos,
+            &carts,
+            &products,
+            &region_ids,
+            param.delivery_type,
+        )
+        .await?;
+
+        // —— 优惠券（店铺范围 + 多店分摊）——
+        let coupon_service = CouponService::new(self.repos.clone());
+        let usable = coupon_service.my_usable_coupons(user_id).await?;
+        let selected: Vec<i32> = param
+            .use_coupon_ids
+            .clone()
+            .or_else(|| param.select_user_coupon_ids.clone())
+            .unwrap_or_default();
+        let coupons = self
+            .calc_coupons(&usable, &selected, &store_amounts, product_amount)
+            .await?;
+
+        // —— 积分抵扣 ——
+        let cfg = self
+            .repo()
+            .find_config_values(&[
+                CFG_INTEGRAL_SCALE,
+                CFG_INTEGRAL_PERCENT,
+                CFG_INTEGRAL_PERCENT_BASE,
+                CFG_USE_POINTS,
+                CFG_USE_CREDIT,
+            ])
+            .await?;
+        let points_enabled = config_enabled(cfg.get(CFG_USE_POINTS).map(String::as_str));
+        let points = if points_enabled {
+            let base_after_coupon = (product_amount - coupons.total).max(Decimal::ZERO);
+            calc_points(
+                param.use_point.unwrap_or(0),
+                user_points,
+                base_after_coupon,
+                decimal_config(&cfg, CFG_INTEGRAL_SCALE, Decimal::ZERO),
+                decimal_config(&cfg, CFG_INTEGRAL_PERCENT, Decimal::ZERO),
+                decimal_config(&cfg, CFG_INTEGRAL_PERCENT_BASE, Decimal::ONE_HUNDRED),
+            )
+        } else {
+            Default::default()
+        };
+
+        // —— 应付 / 余额 / 账期 ——
+        let total_before_balance =
+            (product_amount + shipping.total - coupons.total - points.points_amount)
+                .max(Decimal::ZERO);
+        let balance_used = if param.use_balance.unwrap_or_default() > Decimal::ZERO {
+            balance.min(total_before_balance).max(Decimal::ZERO)
+        } else {
+            Decimal::ZERO
+        };
+        let use_credit_requested = param.use_credit == Some(1);
+        if use_credit_requested && balance_used > Decimal::ZERO {
+            return Err(Error::biz(1001, "账期支付与余额支付不能同时使用"));
+        }
+        let credit_enabled =
+            config_enabled(cfg.get(CFG_USE_CREDIT).map(String::as_str));
+        let credit_info = if credit_enabled {
+            self.credit_payment_info(user_id, total_before_balance).await
+        } else {
+            None
+        };
+        let mut credit_amount = Decimal::ZERO;
+        if use_credit_requested {
+            if !credit_enabled {
+                return Err(Error::biz(1001, "账期支付未启用"));
+            }
+            let can_use = credit_info
+                .as_ref()
+                .and_then(|v| v.get("canUseCredit"))
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false);
+            if !can_use {
+                let reason = credit_info
+                    .as_ref()
+                    .and_then(|v| v.get("disableReason"))
+                    .and_then(serde_json::Value::as_str)
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or("当前不可使用账期支付");
+                return Err(Error::biz(1001, reason.to_string()));
+            }
+            let available = credit_info
+                .as_ref()
+                .and_then(|v| v.get("availableAmount"))
+                .and_then(|v| v.as_str().and_then(|s| s.parse::<Decimal>().ok()));
+            credit_amount = available
+                .unwrap_or(total_before_balance)
+                .min(total_before_balance - balance_used)
+                .max(Decimal::ZERO);
+        }
+        let unpaid_amount =
+            (total_before_balance - balance_used - credit_amount).max(Decimal::ZERO);
+        let total_amount = total_before_balance;
+
+        // —— 预售（定金/尾款展示）——
+        let (presale_json, deposit_amount, final_payment_amount) =
+            self.presale_info(&products, &shop_groups).await?;
+
+        // —— 改价标记 ——
+        let has_change_price = carts.iter().any(|c| {
+            c.change_price_data
+                .as_deref()
+                .map(|s| !s.trim().is_empty() && s.trim() != "null")
+                .unwrap_or(false)
+        });
+
+        // —— 组装店铺购物车 ——
         let mut cart_list: Vec<CheckCartByStoreVO> = Vec::new();
         for (shop_id, lines) in &shop_groups {
             let mut carts_vo: Vec<CheckCartVO> = Vec::new();
             for cart in lines {
-                let product = product_map.get(&cart.product_id);
-                let price = product
-                    .map(|p| p.product_price)
-                    .unwrap_or(cart.original_price);
+                let product = products.get(&cart.product_id);
+                let price = product.map(|p| p.product_price).unwrap_or(cart.original_price);
                 let qty = cart.quantity.max(1);
                 carts_vo.push(CheckCartVO {
                     cart_id: cart.cart_id,
@@ -252,17 +366,13 @@ impl CheckService {
                         .clone()
                         .or_else(|| product.map(|p| p.pic_thumb.clone()))
                         .unwrap_or_default(),
-                    market_price: cart
-                        .market_price
-                        .or_else(|| product.map(|p| p.market_price)),
+                    market_price: cart.market_price.or_else(|| product.map(|p| p.market_price)),
                     original_price: cart.original_price,
                     quantity: qty,
                     sku_id: cart.sku_id.unwrap_or(0),
                     sku_data: parse_sku_data(cart.sku_data.as_deref()),
                     extra_sku_data: parse_sku_data(cart.extra_sku_data.as_deref()),
-                    product_type: product
-                        .and_then(|p| p.product_type)
-                        .unwrap_or(cart.product_type),
+                    product_type: product.and_then(|p| p.product_type).unwrap_or(cart.product_type),
                     is_checked: cart.is_checked(),
                     shop_id: cart.shop_id,
                     r#type: cart.r#type,
@@ -280,70 +390,51 @@ impl CheckService {
                     is_disabled: product.map(|p| p.product_status != 1).unwrap_or(false),
                 });
             }
-            let shop_title = product_map
-                .get(&carts_vo.first().map(|c| c.product_id).unwrap_or_default())
-                .map(|p| p.product_name.clone())
-                .unwrap_or_default();
+            let store_coupon_amount = coupons.per_store.get(shop_id).copied().unwrap_or_default();
             cart_list.push(CheckCartByStoreVO {
                 shop_id: *shop_id,
                 shop_title: if *shop_id == 0 {
                     "平台自营".to_string()
                 } else {
-                    shop_title
+                    format!("店铺 {shop_id}")
                 },
                 no_shipping: 0,
                 min_order_amount_diff: "0".to_string(),
                 is_not_reach_min_order_amount: false,
                 carts: carts_vo,
-                total: CartStoreTotalVO::default(),
+                total: CartStoreTotalVO {
+                    coupon_ids: coupons.valid_selected.clone(),
+                    discount_coupon_amount: store_coupon_amount,
+                    discounts: store_coupon_amount,
+                    ..Default::default()
+                },
                 used_promotions: Vec::new(),
                 enable_use_promotion: Vec::new(),
                 gift: Vec::new(),
             });
         }
 
-        let mut store_shipping_fee: HashMap<i32, Decimal> = HashMap::new();
-        for shop_id in shop_groups.keys() {
-            store_shipping_fee.insert(*shop_id, Decimal::ZERO);
-        }
-
-        let discount_after = (product_amount - coupon_amount).max(Decimal::ZERO);
-        let total_amount = (product_amount - coupon_amount).max(Decimal::ZERO);
         let total = CheckTotalVO {
             product_amount,
             checked_count: total_quantity,
-            discounts: coupon_amount,
-            discount_after: Some(discount_after.to_string()),
+            discounts: coupons.total,
+            discount_after: Some((product_amount - coupons.total).max(Decimal::ZERO).to_string()),
             total_count: total_quantity,
-            discount_coupon_amount: coupon_amount,
-            coupon_amount,
-            discount_amount: coupon_amount,
-            shipping_fee: Decimal::ZERO,
-            store_shipping_fee,
+            discount_coupon_amount: coupons.total,
+            coupon_amount: coupons.total,
+            discount_amount: coupons.total,
+            shipping_fee: shipping.total,
+            store_shipping_fee: shipping.per_store,
             total_amount,
-            balance,
-            unpaid_amount: total_amount,
+            balance: balance_used,
+            unpaid_amount,
+            credit_amount,
+            points_amount: points.points_amount,
+            deposit_amount,
+            final_payment_amount,
+            actual_pay_deposit_amount: deposit_amount,
             ..Default::default()
         };
-
-        let enable_coupons: Vec<CheckCouponVO> = usable
-            .iter()
-            .map(|uc| CheckCouponVO {
-                id: uc.id,
-                coupon_id: uc.coupon_id,
-                coupon_name: uc.coupon_name.clone(),
-                coupon_type: uc.coupon_type,
-                coupon_money: uc.coupon_money,
-                min_order_amount: uc.min_order_amount,
-                coupon_desc: uc.coupon_desc.clone(),
-                is_global: uc.send_range == 0,
-                coupon_discount: uc.coupon_discount,
-                shop_id: 0,
-                end_date: format_epoch(uc.end_date),
-                user_coupon_id: uc.id,
-                selected: selected.contains(&uc.id),
-            })
-            .collect();
 
         let shipping_type_value = param
             .shipping_type
@@ -353,41 +444,467 @@ impl CheckService {
         Ok(OrderCheckVO {
             cart_list,
             total,
-            has_change_price: false,
+            has_change_price,
             change_price_type: 0,
             price_change_type: 0,
             cart_change_price_type: 0,
-            available_points,
+            available_points: points.available_points,
             coupon_list: CouponListVO {
-                enable_coupons,
-                disable_coupons: Vec::new(),
+                enable_coupons: coupons.enable,
+                disable_coupons: coupons.disable,
             },
             item: CheckItemVO {
                 address_id,
                 shipping_type: shipping_type_value,
                 pay_type_id,
-                use_point: param.use_point.unwrap_or(0),
-                use_balance: param.use_balance.unwrap_or_default(),
+                use_point: points.used_points,
+                use_balance: balance_used,
                 use_credit: param.use_credit.unwrap_or(0),
-                use_coupon_ids: Some(selected.clone()),
-                select_user_coupon_ids: Some(selected),
+                use_coupon_ids: Some(coupons.valid_selected.clone()),
+                select_user_coupon_ids: Some(coupons.valid_selected),
                 flow_type,
                 delivery_type: param.delivery_type,
             },
             use_coupon_ids: param.use_coupon_ids.clone(),
             select_user_coupon_ids: param.select_user_coupon_ids.clone(),
-            tmpl_ids: all_shipping
-                .iter()
-                .map(|s| s.shipping_type_id.to_string())
-                .collect(),
+            tmpl_ids: Vec::new(),
             flow_type,
             message: None,
             delivery_option: None,
-            product_presale: None,
-            credit_payment_info: None,
+            product_presale: presale_json,
+            credit_payment_info: credit_info,
             coupon_exclude_amount: "0".to_string(),
             points_exclude_amount: "0".to_string(),
         })
+    }
+
+    /// 地址地区 ID（用于运费模板地区匹配；无地址返回空）。
+    async fn address_region_ids(&self, address_id: i32) -> Result<Vec<i32>> {
+        if address_id <= 0 {
+            return Ok(Vec::new());
+        }
+        let address: Option<UserAddress> = self
+            .repos
+            .member
+            .user_address_client
+            .find_by_id(address_id)
+            .await?;
+        Ok(address
+            .and_then(|a| serde_json::from_str::<Vec<i32>>(&a.region_ids).ok())
+            .unwrap_or_default())
+    }
+
+    /// 优惠券试算：可用性（店铺范围/门槛）+ 多店分摊。
+    async fn calc_coupons(
+        &self,
+        usable: &[UserCouponVO],
+        selected: &[i32],
+        store_amounts: &BTreeMap<i32, Decimal>,
+        product_amount: Decimal,
+    ) -> Result<CouponCalc> {
+        let ids: Vec<i32> = usable.iter().map(|u| u.coupon_id).collect();
+        let entities: HashMap<i32, Coupon> = self
+            .repos
+            .marketing
+            .coupon
+            .find_by_ids(&ids)
+            .await?
+            .into_iter()
+            .map(|c| (c.coupon_id, c))
+            .collect();
+
+        let mut enable = Vec::new();
+        let mut disable = Vec::new();
+        let mut selected_discounts: Vec<(i32, Decimal, i32)> = Vec::new();
+        let mut total = Decimal::ZERO;
+        let mut per_store: HashMap<i32, Decimal> = HashMap::new();
+        let mut valid_selected = Vec::new();
+
+        for uc in usable {
+            let Some(coupon) = entities.get(&uc.coupon_id) else {
+                continue;
+            };
+            let shop_id = coupon.shop_id.unwrap_or(0);
+            let base = if shop_id > 0 {
+                store_amounts.get(&shop_id).copied().unwrap_or_default()
+            } else {
+                product_amount
+            };
+            let in_scope = shop_id == 0 || store_amounts.contains_key(&shop_id);
+            let meets_min = base >= coupon.min_order_amount && base > Decimal::ZERO;
+            let eligible = in_scope && meets_min && coupon.is_delete != Some(1);
+            let vo = map_coupon(uc, coupon, eligible);
+            let is_selected = selected.contains(&uc.id);
+            if eligible {
+                enable.push(CheckCouponVO {
+                    selected: is_selected,
+                    ..vo
+                });
+                if is_selected {
+                    let discount = coupon_rule_discount(
+                        coupon.coupon_type,
+                        coupon.coupon_money,
+                        coupon.coupon_discount,
+                        coupon.max_order_amount,
+                        base,
+                    );
+                    if discount > Decimal::ZERO {
+                        total += discount;
+                        selected_discounts.push((uc.id, discount, shop_id));
+                        valid_selected.push(uc.id);
+                    }
+                }
+            } else {
+                let reason = if !in_scope {
+                    "不适用于当前店铺商品"
+                } else {
+                    "未达到使用门槛"
+                };
+                let mut value = serde_json::to_value(&vo).unwrap_or_default();
+                if let Some(obj) = value.as_object_mut() {
+                    obj.insert("disableReason".into(), serde_json::json!(reason));
+                }
+                disable.push(value);
+            }
+        }
+
+        // 分摊：店铺券归店铺；全局券按店铺商品金额比例
+        for (_, discount, shop_id) in &selected_discounts {
+            if *shop_id > 0 {
+                *per_store.entry(*shop_id).or_default() += *discount;
+            } else {
+                for (sid, amount) in allocate_discount(*discount, store_amounts) {
+                    *per_store.entry(sid).or_default() += amount;
+                }
+            }
+        }
+        // 舍入：保证 per_store 合计等于 total
+        let allocated_total: Decimal = per_store.values().copied().sum();
+        if allocated_total != total {
+            if let Some((shop_id, _)) = per_store.iter().next().map(|(k, v)| (*k, *v)) {
+                *per_store.entry(shop_id).or_default() += total - allocated_total;
+            }
+        }
+        Ok(CouponCalc {
+            total,
+            per_store,
+            valid_selected,
+            enable,
+            disable,
+        })
+    }
+
+    /// 账期支付信息（Java `creditUserService.getUserCreditInfo`）。
+    async fn credit_payment_info(
+        &self,
+        user_id: i32,
+        order_amount: Decimal,
+    ) -> Option<serde_json::Value> {
+        let row = self
+            .repos
+            .payment
+            .credit_user
+            .find_by_user_id(user_id)
+            .await
+            .ok()
+            .flatten()?;
+        let enabled = row.status == 1;
+        let available = row.available_amount.max(Decimal::ZERO);
+        let can_use = enabled && available >= order_amount && order_amount > Decimal::ZERO;
+        let settlement_days = if row.settlement_type == 2 { 90 } else { 30 };
+        let settlement_text = if row.settlement_type == 2 {
+            "季结90天"
+        } else {
+            "月结30天"
+        };
+        let disable_reason = if !enabled {
+            "授信已禁用"
+        } else if available < order_amount {
+            "可用额度不足"
+        } else {
+            ""
+        };
+        Some(serde_json::json!({
+            "creditUserId": row.credit_user_id,
+            "creditLimit": row.credit_limit.to_string(),
+            "usedAmount": row.used_amount.to_string(),
+            "availableAmount": available.to_string(),
+            "settlementType": row.settlement_type,
+            "settlementTypeText": settlement_text,
+            "settlementDays": settlement_days,
+            "canUseCredit": can_use,
+            "disableReason": disable_reason,
+            "orderAmount": order_amount.to_string(),
+        }))
+    }
+
+    /// 预售信息（`product_presale`）：返回 `(productPresale, deposit, finalPayment)`。
+    async fn presale_info(
+        &self,
+        products: &HashMap<i32, Product>,
+        shop_groups: &BTreeMap<i32, Vec<&Cart>>,
+    ) -> Result<(Option<serde_json::Value>, Option<Decimal>, Option<Decimal>)> {
+        for (_, lines) in shop_groups {
+            for cart in lines {
+                let Some(product) = products.get(&cart.product_id) else {
+                    continue;
+                };
+                if product.sale_mode <= 0 {
+                    continue;
+                }
+                let Some(presale) = self
+                    .repos
+                    .catalog
+                    .product_manage
+                    .find_presale(cart.product_id)
+                    .await?
+                else {
+                    continue;
+                };
+                let line_amount =
+                    product.product_price * Decimal::from(cart.quantity.max(1));
+                let mut deposit = Decimal::ZERO;
+                let mut final_payment = Decimal::ZERO;
+                if presale.sale_mode == 2 || product.sale_mode == 2 {
+                    deposit = match presale.deposit_type {
+                        Some(1) => {
+                            let ratio = Decimal::from(presale.deposit_ratio.unwrap_or(0));
+                            let mut amount = line_amount * ratio / Decimal::ONE_HUNDRED;
+                            if presale.is_round_down == Some(1) {
+                                amount = amount.trunc();
+                            }
+                            amount
+                        }
+                        Some(2) => presale.deposit_fixed_amount.unwrap_or_default(),
+                        _ => Decimal::ZERO,
+                    }
+                    .max(Decimal::ZERO)
+                    .min(line_amount);
+                    final_payment = (line_amount - deposit).max(Decimal::ZERO);
+                }
+                let value = serde_json::json!({
+                    "presaleId": presale.presale_id,
+                    "productId": presale.product_id,
+                    "saleMode": presale.sale_mode,
+                    "depositType": presale.deposit_type,
+                    "depositRatio": presale.deposit_ratio,
+                    "depositFixedAmount": presale.deposit_fixed_amount.map(|v| v.to_string()),
+                    "isRoundDown": presale.is_round_down,
+                    "deliveryType": presale.delivery_type,
+                    "depositAmount": deposit.to_string(),
+                    "finalPaymentAmount": final_payment.to_string(),
+                    "productAmount": line_amount.to_string(),
+                });
+                return Ok((
+                    Some(value),
+                    if deposit > Decimal::ZERO { Some(deposit) } else { None },
+                    if final_payment > Decimal::ZERO {
+                        Some(final_payment)
+                    } else {
+                        None
+                    },
+                ));
+            }
+        }
+        Ok((None, None, None))
+    }
+}
+
+// ——————————————————————————————————————————————
+// 共享：商品加载 / 运费计算（下单复用，保证口径一致）
+// ——————————————————————————————————————————————
+
+/// 批量加载商品（结算页/下单共用）。
+pub(crate) async fn load_products(
+    repos: &Repositories,
+    ids: &[i32],
+) -> Result<HashMap<i32, Product>> {
+    Ok(repos
+        .catalog
+        .product
+        .find_by_ids(ids)
+        .await?
+        .into_iter()
+        .map(|p| (p.product_id, p))
+        .collect())
+}
+
+/// 商品当前结算单价。
+pub(crate) fn product_price(products: &HashMap<i32, Product>, cart: &Cart) -> Decimal {
+    products
+        .get(&cart.product_id)
+        .map(|p| p.product_price)
+        .unwrap_or(cart.original_price)
+}
+
+/// 计算运费（按店铺）：`shipping_tpl` + `shipping_tpl_info`。
+///
+/// 口径：包邮商品/包邮模板/满额包邮 = 0；按件或按重、首件首重 + 续件续重。
+/// 地区规则：地址地区命中模板区域时用该区域，否则用默认区域（`is_default=1`）或首条。
+pub(crate) async fn calculate_shipping(
+    repos: &Repositories,
+    carts: &[Cart],
+    products: &HashMap<i32, Product>,
+    region_ids: &[i32],
+    delivery_type: Option<i32>,
+) -> Result<ShippingCalc> {
+    let mut per_store: HashMap<i32, Decimal> = HashMap::new();
+    let mut total = Decimal::ZERO;
+    // 自提/虚拟发货不收运费
+    if delivery_type == Some(2) {
+        for cart in carts {
+            per_store.entry(cart.shop_id).or_insert(Decimal::ZERO);
+        }
+        return Ok(ShippingCalc { total, per_store });
+    }
+
+    let mut by_shop: BTreeMap<i32, Vec<&Cart>> = BTreeMap::new();
+    for cart in carts {
+        by_shop.entry(cart.shop_id).or_default().push(cart);
+    }
+    for (shop_id, lines) in by_shop {
+        let shop_amount: Decimal = lines
+            .iter()
+            .map(|c| product_price(products, c) * Decimal::from(c.quantity.max(1)))
+            .sum();
+        // tpl_id -> (件数, 重量)
+        let mut groups: BTreeMap<i32, (Decimal, Decimal)> = BTreeMap::new();
+        for cart in &lines {
+            let product = products.get(&cart.product_id);
+            let free_shipping = product.map(|p| p.free_shipping == 1).unwrap_or(false);
+            if free_shipping {
+                continue;
+            }
+            let mut tpl_id = product.map(|p| p.shipping_tpl_id).unwrap_or(0);
+            if tpl_id <= 0 {
+                tpl_id = repos
+                    .logistics
+                    .shipping_tpl
+                    .find_default_tpl_id(shop_id)
+                    .await?
+                    .unwrap_or(0);
+            }
+            if tpl_id <= 0 {
+                continue;
+            }
+            let qty = Decimal::from(cart.quantity.max(1));
+            let weight = product
+                .map(|p| p.product_weight * qty)
+                .unwrap_or(Decimal::ZERO);
+            let entry = groups.entry(tpl_id).or_insert((Decimal::ZERO, Decimal::ZERO));
+            entry.0 += qty;
+            entry.1 += weight;
+        }
+
+        let mut store_fee = Decimal::ZERO;
+        for (tpl_id, (quantity, weight)) in groups {
+            let Some(tpl) = repos.logistics.shipping_tpl.find_tpl_by_id(tpl_id).await? else {
+                continue;
+            };
+            if tpl.is_free == 1 {
+                continue;
+            }
+            let infos = repos
+                .logistics
+                .shipping_tpl
+                .find_infos_by_tpl(tpl_id)
+                .await?;
+            let Some(info) = select_shipping_info(&infos, region_ids) else {
+                continue;
+            };
+            let rule = ShippingRule {
+                pricing_type: tpl.pricing_type,
+                is_free: info.is_free == 1 || tpl.is_free == 1,
+                start_number: info.start_number,
+                start_price: info.start_price,
+                add_number: info.add_number,
+                add_price: info.add_price,
+                free_price: info.free_price,
+            };
+            store_fee += calc_shipping_fee(&rule, shop_amount, quantity, weight);
+        }
+        per_store.insert(shop_id, store_fee);
+        total += store_fee;
+    }
+    Ok(ShippingCalc { total, per_store })
+}
+
+/// 选择模板区域：优先命中地址地区，其次默认区域，最后首条。
+fn select_shipping_info<'a>(
+    infos: &'a [ShippingTplInfo],
+    region_ids: &[i32],
+) -> Option<&'a ShippingTplInfo> {
+    if infos.is_empty() {
+        return None;
+    }
+    if !region_ids.is_empty() {
+        for info in infos {
+            if region_match(info.region_data.as_deref(), region_ids) {
+                return Some(info);
+            }
+        }
+    }
+    infos
+        .iter()
+        .find(|info| info.is_default == 1)
+        .or_else(|| infos.first())
+}
+
+/// 地区是否命中（兼容 `areaRegions` / `area_regions`，数组内任一地区 ID 相交即命中）。
+fn region_match(region_data: Option<&str>, region_ids: &[i32]) -> bool {
+    let Some(raw) = region_data else {
+        return false;
+    };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(raw) else {
+        return false;
+    };
+    let areas = value
+        .get("areaRegions")
+        .or_else(|| value.get("area_regions"))
+        .and_then(serde_json::Value::as_array);
+    let Some(areas) = areas else {
+        return false;
+    };
+    areas.iter().any(|group| {
+        group
+            .as_array()
+            .map(|ids| {
+                ids.iter()
+                    .filter_map(serde_json::Value::as_i64)
+                    .any(|id| region_ids.iter().any(|r| i64::from(*r) == id))
+            })
+            .unwrap_or(false)
+    })
+}
+
+/// 解析配置为 Decimal（缺失/非法回退默认值）。
+fn decimal_config(
+    cfg: &HashMap<String, String>,
+    key: &str,
+    default: Decimal,
+) -> Decimal {
+    cfg.get(key)
+        .and_then(|v| v.trim().parse::<Decimal>().ok())
+        .unwrap_or(default)
+}
+
+/// `UserCouponVO` + `Coupon` → 结算页优惠券 VO。
+fn map_coupon(uc: &UserCouponVO, coupon: &Coupon, _eligible: bool) -> CheckCouponVO {
+    let shop_id = coupon.shop_id.unwrap_or(0);
+    CheckCouponVO {
+        id: uc.id,
+        coupon_id: uc.coupon_id,
+        coupon_name: uc.coupon_name.clone(),
+        coupon_type: uc.coupon_type,
+        coupon_money: uc.coupon_money,
+        min_order_amount: uc.min_order_amount,
+        coupon_desc: uc.coupon_desc.clone(),
+        is_global: shop_id == 0,
+        coupon_discount: uc.coupon_discount,
+        shop_id,
+        end_date: format_epoch(uc.end_date),
+        user_coupon_id: uc.id,
+        selected: false,
     }
 }
 
@@ -453,4 +970,38 @@ mod tests {
         assert_eq!(format_epoch(-1), "");
         assert!(format_epoch(1_700_000_000).starts_with("2023-"));
     }
+
+    #[test]
+    fn region_match_parses_both_key_styles() {
+        let camel = r#"{"areaRegions":[[110000],[120000]]}"#;
+        assert!(region_match(Some(camel), &[110000]));
+        assert!(!region_match(Some(camel), &[130000]));
+        let snake = r#"{"area_regions":[[110000,110100]]}"#;
+        assert!(region_match(Some(snake), &[110100]));
+        assert!(!region_match(None, &[110000]));
+        assert!(!region_match(Some("not-json"), &[110000]));
+    }
+
+    #[test]
+    fn config_decimal_parsing() {
+        let mut cfg = HashMap::new();
+        cfg.insert("integralScale".to_string(), "1".to_string());
+        assert_eq!(
+            decimal_config(&cfg, "integralScale", Decimal::ZERO),
+            Decimal::ONE
+        );
+        assert_eq!(
+            decimal_config(&cfg, "missing", Decimal::new(15, 1)),
+            Decimal::new(15, 1)
+        );
+    }
+
+    #[test]
+    fn zero_shipping_for_pickup() {
+        // 纯函数覆盖：自提场景在 calculate_shipping 中直接返回 0
+        let rule = ShippingRule::default();
+        assert_eq!(calc_shipping_fee(&rule, Decimal::ZERO, Decimal::ZERO, Decimal::ZERO), Decimal::ZERO);
+    }
+
+    fn _unused_product_type_anchor(_: Product, _: ShippingTpl) {}
 }

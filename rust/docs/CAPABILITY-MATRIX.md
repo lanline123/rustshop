@@ -20,7 +20,7 @@
 
 | 能力 | 状态 | 验证/说明 |
 |---|---|---|
-| 结算页（订单确认） | ✅ | `order/check/index|update|updateCoupon|getStoreShippingType` 已实现；实测优惠券抵扣（140.80=150.80-10）、下单落库、券占用、地址快照；运费/活动/积分抵扣为 v1 限制 |
+| 结算页（订单确认） | ✅ v2 | 运费模板、积分抵扣、优惠券店铺范围/多店分摊、账期、预售定金、改价标记已实现；实测见 `CHECKOUT-V2.md`。剩余：秒杀/拼团/满减活动、O2O、发票随单、税率、定金预售下单 |
 | 下单（含地址/运费占位） | ✅ | 修复无 SKU 商品库存扣减、`order_extension` 缺列；地址快照、优惠券抵扣已接入 |
 | 余额支付（全额/部分抵扣） | ✅ | 实测：`returnType=2` 全额已付、部分抵扣 `onlineAmount` |
 | 线下汇款 + 后台确认收款 | ✅ | `pay/create?type=offline` + `order/order/setPaid` 实测；确认收款同步待支付 paylog → 已支付（0→1） |

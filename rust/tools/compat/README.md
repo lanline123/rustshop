@@ -21,6 +21,18 @@ SELECT COUNT(*) FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA='tigshop-java' AND COLUMN_TYPE LIKE '%unsigned%';  -- 0
 ```
 
+## checkout_v2_smoke.ps1 / seed_checkout_v2.sql
+
+结算页 v2（运费模板 / 积分抵扣 / 优惠券店铺范围与多店分摊 / 账期 / 预售）联调：
+
+```powershell
+mysql ... tigshop-java -e "source rust/tools/compat/seed_checkout_v2.sql"
+powershell -NoProfile -ExecutionPolicy Bypass -File rust/tools/compat/checkout_v2_smoke.ps1
+```
+
+脚本输出 A~G 七段日志（运费、积分、店铺券禁用、账期、预售、下单落库、运费随单落库）。
+口径与剩余项见 [`docs/CHECKOUT-V2.md`](../../docs/CHECKOUT-V2.md)。
+
 ## 完整运行步骤
 
 见 [`docs/RUN-RUST-FRONTEND.md`](../../docs/RUN-RUST-FRONTEND.md)。

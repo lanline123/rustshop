@@ -118,6 +118,27 @@ impl UserRepository {
         Ok(affected > 0)
     }
 
+    /// 积分出账（原子条件扣减，积分不足时 rows_affected = 0）。
+    ///
+    /// # Errors
+    /// 数据库错误。
+    pub async fn try_debit_points(&self, user_id: i32, points: i32) -> Result<bool> {
+        if points <= 0 {
+            return Ok(true);
+        }
+        let affected = sqlx::query(
+            "UPDATE user SET points = points - ? WHERE user_id = ? AND points >= ?",
+        )
+        .bind(points)
+        .bind(user_id)
+        .bind(points)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?
+        .rows_affected();
+        Ok(affected > 0)
+    }
+
     /// 会员分页查询（发放对象选择器）。
     ///
     /// 关键字模糊匹配用户名/昵称/手机号/邮箱，对齐 Java

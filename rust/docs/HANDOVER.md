@@ -70,17 +70,21 @@ $env:RUST_LOG="info,tigshop=info,sqlx=warn"
 
 ## 3. 其他需要处理（按优先级）
 
-### ✅ 已完成（2026-10-19）— 结算页价格/优惠引擎 v1
+### ✅ 已完成（2026-10-19）— 结算页价格/优惠引擎 v2
 
-- `POST /api/order/check/index`、`update`、`updateCoupon` 已实现：勾选购物车行、商品金额、
-  可用优惠券（选中券抵扣）、余额/积分展示、支付方式/配送方式回显；
-  `GET /getStoreShippingType` 按店铺返回配送方式；`submit` 已应用优惠券抵扣并快照收货地址。
-- 实测：`updateCoupon`（满 100 减 10）→ `couponAmount=10 / total=140.80`；
-  下单 → `order.total_amount=140.80 / coupon_amount=10.00`、券标记已用、购物车清空；
-  带地址下单 → `consignee/mobile/email/address` 正确落库。
-- 种子：`tools/compat/seed_coupon.sql`（满 100 减 10，用户 1）。
-- **v1 未覆盖（后续按需补）**：运费模板（当前运费 0）、秒杀/拼团/满减活动、积分抵扣金额
-  （`pointsAmount=0`，仅展示可用积分）、账期/发票/改价/O2O 自提/预售、优惠券店铺范围过滤与多店分摊。
+- `POST /api/order/check/index|update|updateCoupon`：购物车行、商品金额、运费模板、积分抵扣、
+  优惠券（店铺范围 + 多店分摊）、账期、预售定金、余额/支付方式/配送方式回显；
+  `GET /getStoreShippingType` 按店铺返回配送方式；`submit` 与结算页同一套纯函数计算金额。
+- 实测（`tools/compat/checkout_v2_smoke.ps1`）：
+  - 运费模板：35 元/2.5kg 商品（首重 2 元 + 续重 1 元）→ `shippingFee=4.00`、下单 `order.shipping_fee=4.00`；
+  - 积分：238 元 + 100 积分 → `pointsAmount=1.00`、`availablePoints=114`，下单后 `user.points 500→400`；
+  - 优惠券：全局券 10 元 + 店铺券（shop 1）在店铺 0 购物车 → 后者进 `disableCoupons`；
+  - 账期：`creditAmount=228.00`、`unpaidAmount=0.00`；
+  - 预售：定金预售商品 → `depositAmount=5.00/finalPaymentAmount=27.00`；
+  - 下单落库：`total_amount=227.00 / coupon_amount=10 / points_amount=1 / use_points=100`。
+- 种子：`tools/compat/seed_checkout_v2.sql`；详细口径与剩余项见 `CHECKOUT-V2.md`。
+- **v2 未覆盖**：秒杀/拼团/满减活动价格、O2O 配送明细/自提点、发票随单落库、代客下单整单改价金额、
+  地区税率、定金预售下单/尾款状态机。
 
 ### 🟡 进行中 — 微信生态链路（客户端基础已完成，业务端点待凭据）
 
@@ -143,13 +147,14 @@ python tools/check_sql_columns.py --strict        # 表/列一致
 python tools/check_structure.py --strict          # 结构 PASS
 ```
 
-冒烟脚本：`tools/compat/captcha_e2e.py`、`ws_smoke.ps1`、`ws_push_smoke.ps1`、`rbac_smoke.ps1`。
+冒烟脚本：`tools/compat/captcha_e2e.py`、`ws_smoke.ps1`、`ws_push_smoke.ps1`、`rbac_smoke.ps1`、
+`checkout_v2_smoke.ps1`。
 
 ## 6. 建议接手顺序
 
 1. 微信支付/支付宝/PayPal 沙箱联调（拿到凭据后，按 `PAYMENT-CHANNELS.md` 补下单/退款）。
 2. 对象存储 / ES / 翻译 / 物流轨迹（按业务是否需要云能力）。
 3. 微信生态链路（凭据 + HTTP 客户端骨架）。
-4. 结算页 v2：运费模板、活动/秒杀/拼团、积分抵扣金额、账期/发票/改价/O2O/预售。
+4. 结算页 v3：秒杀/拼团/满减活动价格、O2O 配送/自提点、发票随单、地区税率、定金预售下单/尾款。
 5. MQ/定时任务扩展、Excel 余量、审计日志、多租户。
 6. Docker/nginx/监控/CI 与集成测试，完成可部署交付。
