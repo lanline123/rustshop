@@ -23,6 +23,7 @@ COPY crates/security/Cargo.toml ./crates/security/
 COPY crates/services/Cargo.toml ./crates/services/
 COPY crates/api/admin/Cargo.toml ./crates/api/admin/
 COPY crates/api/public/Cargo.toml ./crates/api/public/
+COPY crates/api/openapi/Cargo.toml ./crates/api/openapi/
 COPY crates/bin/Cargo.toml ./crates/bin/
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -35,13 +36,14 @@ RUN cargo build --release --manifest-path crates/Cargo.toml -p tigshop-server
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates libssl3 default-mysql-client \
+        ca-certificates libssl3 default-mysql-client curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY --from=builder /app/crates/target/release/tigshop /usr/local/bin/tigshop
 COPY config.yaml ./config.yaml
 COPY migrations ./migrations
+COPY template ./template
 
 ENV RUST_LOG=info,tigshop=info
 EXPOSE 8080 8181

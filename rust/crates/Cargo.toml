@@ -191,7 +191,8 @@ too_many_lines = "allow"
 debug = 1 # Limited debug info for faster builds
 
 [profile.dev.package."*"]
-debug = 2 # Full debug info for dependencies
+debug = 0 # Prevent LLVM out of memory on Windows MSVC
+
 
 [profile.release]
 lto = "fat"

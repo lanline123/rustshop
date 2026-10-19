@@ -556,18 +556,30 @@ impl ProductManageRepository {
     /// （`productService.batchOperation` / `recycle`），本切片被要求实现
     /// `POST /del`，语义取「软删除」，详见返回值 `uncertain_points`。
     pub async fn soft_delete_products(&self, ids: &[i32]) -> Result<u64> {
+        self.soft_delete_products_scoped(ids, None).await
+    }
+
+    /// 软删除商品（带店铺租户隔离，商户账号只能删除自身店铺的商品）。
+    pub async fn soft_delete_products_scoped(&self, ids: &[i32], shop_id: Option<i32>) -> Result<u64> {
         if ids.is_empty() {
             return Ok(0);
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!("UPDATE product SET is_delete = 1 WHERE product_id IN ({ph})");
+        let mut sql = format!("UPDATE product SET is_delete = 1 WHERE product_id IN ({ph})");
+        if let Some(_sid) = shop_id {
+            sql.push_str(" AND shop_id = ?");
+        }
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(id);
         }
+        if let Some(sid) = shop_id {
+            q = q.bind(sid);
+        }
         let r = q.execute(&self.pool).await.map_err(map_err)?;
         Ok(r.rows_affected())
     }
+
 
     // ————————————————————— 商品 SKU —————————————————————
 

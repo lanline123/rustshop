@@ -367,6 +367,13 @@ impl ProductManageService {
             .await?
             .ok_or_else(|| Error::biz(400, ERR_NOT_EXIST))?;
 
+        // 多租户隔离：商户账号禁止越权修改其他商户商品
+        if let Some(target_shop_id) = dto.shop_id {
+            if target_shop_id > 0 && db.shop_id != target_shop_id && db.shop_id != 0 {
+                return Err(Error::biz(403, "无权操作其他商户商品"));
+            }
+        }
+
         // 1. 名称 / 价格校验（入参未传时保持库中原值，不触发校验）
         if dto.product_name.is_some() {
             validate_product_name(dto.product_name.as_deref())?;
@@ -449,13 +456,24 @@ impl ProductManageService {
     /// Java 源码中不存在（`ProductController` 只有 `/batch`、`/recycle`），
     /// 这里按「软删除」实现（与原系统回收站语义一致，不做物理删除）。
     pub async fn delete(&self, ids: &[i32]) -> Result<u64> {
+        self.delete_scoped(ids, None).await
+    }
+
+    /// 删除商品（带租户店铺隔离）。
+    pub async fn delete_scoped(&self, ids: &[i32], shop_id: Option<i32>) -> Result<u64> {
         if ids.is_empty() {
             return Err(Error::biz(400, "商品ID不能为空"));
         }
-        let affected = self.repos.catalog.product_manage.soft_delete_products(ids).await?;
-        tracing::info!("软删除商品 {} 个", affected);
+        let affected = self
+            .repos
+            .catalog
+            .product_manage
+            .soft_delete_products_scoped(ids, shop_id)
+            .await?;
+        tracing::info!("软删除商品 {} 个 (shop_id: {:?})", affected, shop_id);
         Ok(affected)
     }
+
 
     // ————————————————————— 管理端：批量修改 —————————————————————
 
@@ -464,6 +482,15 @@ impl ProductManageService {
     /// 与原 Java 一致：逐行「货号重复校验」→ 逐行全列回写
     /// （`updateBatchById` 的非空字段更新语义），库中不存在的行静默跳过。
     pub async fn batch_edit(&self, dto: &ProductBatchEditDTO) -> Result<bool> {
+        self.batch_edit_scoped(dto, None).await
+    }
+
+    /// 商品批量修改（支持多商户租户隔离）。
+    pub async fn batch_edit_scoped(
+        &self,
+        dto: &ProductBatchEditDTO,
+        scoped_shop_id: Option<i32>,
+    ) -> Result<bool> {
         let items = dto.edit_items.clone().unwrap_or_default();
         if items.is_empty() {
             // Java：`CollUtil.isNotEmpty(dto.getEditItems())` 不成立时直接返回 true
@@ -489,6 +516,11 @@ impl ProductManageService {
                 tracing::warn!("批量修改跳过不存在的商品: product_id={product_id}");
                 continue;
             };
+            if let Some(sid) = scoped_shop_id {
+                if product.shop_id != sid {
+                    return Err(Error::biz(403, "无权修改其他商家的商品"));
+                }
+            }
             apply_batch_item(&mut product, item);
             self.repos.catalog.product_manage.update_product(&product).await?;
         }
@@ -515,15 +547,19 @@ impl ProductManageService {
         } else {
             (TEMPLATE_MERCHANT, DOWNLOAD_NAME_MERCHANT)
         };
-        // 候选路径：显式环境变量 → 编译期基准路径 → 进程工作目录相对路径
+        // 候选路径：显式环境变量 → 相对路径 → 编译期基准路径
         let mut candidates: Vec<String> = Vec::new();
         if let Ok(p) = std::env::var("TIG_PRODUCT_IMPORT_TEMPLATE") {
             if !p.trim().is_empty() {
                 candidates.push(p);
             }
         }
+        let actual_filename = if o2o { "o2o商品导入模板.xlsx" } else { "多商户商品导入模板.xlsx" };
+        candidates.push(format!("template/{actual_filename}"));
+        candidates.push(format!("rust/template/{actual_filename}"));
+        candidates.push(format!("../template/{actual_filename}"));
+        candidates.push(format!("java/tigshop-adminapi/src/main/resources/template/{actual_filename}"));
         candidates.push(path.to_string());
-        candidates.push(format!("java/tigshop-adminapi/src/main/resources/template/{name}"));
         if o2o {
             candidates.push(TEMPLATE_MERCHANT.to_string());
         }
@@ -543,15 +579,7 @@ impl ProductManageService {
 
     /// 商品导入（对应 `ProductBatchServiceImpl#productBatchModify`）。
     ///
-    /// **未迁移（诚实声明）**：Excel（xlsx）解析需要 `calamine`，而本
-    /// workspace 的 `tigshop-services` 未声明该依赖，且本切片不允许修改
-    /// `Cargo.toml`。因此这里只完成 Java 的入参校验（文件非空），
-    /// 随后返回明确的「未实现」业务错误，而不是伪造导入结果。
-    /// 参数语义（与 Java 入参一一对应）：
-    /// - `is_auto_cat`：分类自动匹配
-    /// - `is_auto_brand`：品牌自动匹配
-    /// - `is_change_pic`：图片是否覆盖
-    /// - `is_upload`：图片是否上传
+    /// 通过 `calamine` 解析上传的 Excel xlsx 二进制数据并逐组按商品录入/更新。
     pub async fn batch_modify(
         &self,
         is_auto_cat: Option<i32>,
@@ -561,23 +589,311 @@ impl ProductManageService {
         file_name: Option<&str>,
         file_bytes: &[u8],
     ) -> Result<ProductBatchModifyVO> {
-        if file_bytes.is_empty() {
-            return Err(Error::biz(400, ERR_FILE_EMPTY));
-        }
-        tracing::warn!(
-            "商品导入请求已接收（file={:?}, {} 字节, isAutoCat={:?}, isAutoBrand={:?}, isChangePic={:?}, isUpload={:?}），但 Excel 解析未迁移",
-            file_name,
-            file_bytes.len(),
+        self.batch_modify_scoped(
             is_auto_cat,
             is_auto_brand,
             is_change_pic,
-            is_upload
-        );
-        Err(Error::biz(
-            501,
-            "商品导入功能未实现：当前构建未启用 Excel 解析依赖（calamine）",
-        ))
+            is_upload,
+            file_name,
+            file_bytes,
+            None,
+        )
+        .await
     }
+
+    /// 商品导入（支持多商户租户隔离）。
+    pub async fn batch_modify_scoped(
+        &self,
+        is_auto_cat: Option<i32>,
+        _is_auto_brand: Option<i32>,
+        is_change_pic: Option<i32>,
+        _is_upload: Option<i32>,
+        file_name: Option<&str>,
+        file_bytes: &[u8],
+        shop_id: Option<i32>,
+    ) -> Result<ProductBatchModifyVO> {
+        if file_bytes.is_empty() {
+            return Err(Error::biz(400, ERR_FILE_EMPTY));
+        }
+
+        tracing::info!(
+            "开始处理 Excel 商品导入: file={:?}, size={} 字节, shop_id={:?}",
+            file_name,
+            file_bytes.len(),
+            shop_id
+        );
+
+        // 1. 调用系统公共模块读取 Excel 文件
+        let raw_rows = match crate::system::excel::read_xlsx(file_bytes) {
+            Ok(rows) => rows,
+            Err(e) => {
+                tracing::warn!("Excel 解析失败: {e}");
+                return Err(Error::biz(400, "读取Excel文件失败"));
+            }
+        };
+
+        if raw_rows.is_empty() || raw_rows.len() <= 1 {
+            return Ok(ProductBatchModifyVO {
+                add_num: 0,
+                update_num: 0,
+                fail_num: 0,
+                error_msg: Some("请上传有数据的文件".to_string()),
+                error_list: Vec::new(),
+            });
+        }
+
+        // 2. 表头位置解析
+        let header = &raw_rows[0];
+        let find_col = |name: &str| -> Option<usize> {
+            header.iter().position(|h| h.trim() == name)
+        };
+        let c_sn = find_col("商品编码").unwrap_or(0);
+        let c_name = find_col("商品名称").unwrap_or(1);
+        let c_pic = find_col("商品图片").unwrap_or(2);
+        let c_cat = find_col("商品分类").unwrap_or(3);
+        let c_status = find_col("是否上架（默认1）")
+            .or_else(|| find_col("是否上架"))
+            .unwrap_or(6);
+        let c_spec = find_col("商品规格").unwrap_or(7);
+        let c_sku_sn = find_col("规格编码").unwrap_or(9);
+        let c_sku_tsn = find_col("规格条码").unwrap_or(10);
+        let c_price = find_col("商品售价").unwrap_or(12);
+        let c_stock = find_col("库存").unwrap_or(13);
+        let c_market = find_col("市场价").unwrap_or(14);
+        let c_tsn = find_col("商品条码").unwrap_or(15);
+        let c_keywords = find_col("搜索关键词").unwrap_or(16);
+        let c_brief = find_col("商品描述")
+            .or_else(|| find_col("商品简介"))
+            .unwrap_or(17);
+        let c_cost = find_col("成本价").unwrap_or(18);
+
+        let cell = |r: &[String], idx: usize| -> String {
+            r.get(idx).map(|s| s.trim()).unwrap_or("").to_string()
+        };
+
+        // 3. 数据行抽取与按商品分组
+        let mut grouped: Vec<(String, Vec<ParsedRowData>)> = Vec::new();
+        let mut group_map: HashMap<String, usize> = HashMap::new();
+        let mut error_list: Vec<String> = Vec::new();
+        let mut fail_num = 0;
+
+        for (row_idx, row) in raw_rows.iter().enumerate().skip(1) {
+            if row.iter().all(|c| c.trim().is_empty()) {
+                continue;
+            }
+            let sn = cell(row, c_sn);
+            let name = cell(row, c_name);
+            if sn.is_empty() && name.is_empty() {
+                fail_num += 1;
+                error_list.push(format!("第 {} 行：商品编码和商品名称均为空", row_idx + 1));
+                continue;
+            }
+            if sn.len() > 50 {
+                fail_num += 1;
+                error_list.push(format!("第 {} 行：商品编码超过50个字符", row_idx + 1));
+                continue;
+            }
+            let key = if !sn.is_empty() {
+                format!("SN:{sn}")
+            } else {
+                format!("NAME:{name}")
+            };
+
+            let row_data = ParsedRowData {
+                product_sn: sn,
+                product_name: name,
+                pic_url: cell(row, c_pic),
+                category_name: cell(row, c_cat),
+                product_status: cell(row, c_status),
+                spec_name: cell(row, c_spec),
+                sku_sn: cell(row, c_sku_sn),
+                sku_tsn: cell(row, c_sku_tsn),
+                product_price: cell(row, c_price),
+                product_stock: cell(row, c_stock),
+                market_price: cell(row, c_market),
+                product_tsn: cell(row, c_tsn),
+                keywords: cell(row, c_keywords),
+                product_brief: cell(row, c_brief),
+                cost_price: cell(row, c_cost),
+            };
+
+            if let Some(&idx) = group_map.get(&key) {
+                grouped[idx].1.push(row_data);
+            } else {
+                let idx = grouped.len();
+                group_map.insert(key.clone(), idx);
+                grouped.push((key, vec![row_data]));
+            }
+        }
+
+        // 4. 加载基础字典与分类
+        let categories = self.repos.catalog.product_manage.find_categories().await?;
+        let now = utils::now_seconds() as i32;
+
+        let mut add_num = 0;
+        let mut update_num = 0;
+
+        for (group_idx, (_key, rows)) in grouped.into_iter().enumerate() {
+            let first = &rows[0];
+            let product_sn = if !first.product_sn.is_empty() {
+                first.product_sn.clone()
+            } else {
+                format!("SN{}", utils::now_millis())
+            };
+
+            if first.product_name.is_empty() {
+                fail_num += 1;
+                error_list.push(format!("第 {} 组({})：商品名称为空", group_idx + 1, product_sn));
+                continue;
+            }
+
+            // 查询库中是否已存在
+            let existing = self.repos.catalog.product_manage.find_product_by_sn(&product_sn).await?;
+            if let Some(mut exist) = existing {
+                // 多商户租户隔离
+                if let Some(sid) = shop_id {
+                    if sid > 0 && exist.shop_id != sid && exist.shop_id != 0 {
+                        fail_num += 1;
+                        error_list.push(format!("第 {} 组({})：商品属于其他店铺，无权修改", group_idx + 1, product_sn));
+                        continue;
+                    }
+                }
+
+                // 更新商品字段
+                if !first.product_name.is_empty() {
+                    exist.product_name = first.product_name.clone();
+                }
+                if let Ok(price) = first.product_price.parse::<Decimal>() {
+                    exist.product_price = price;
+                }
+                if let Ok(stock) = first.product_stock.parse::<i32>() {
+                    exist.product_stock = stock;
+                }
+                if is_change_pic == Some(1) && !first.pic_url.is_empty() {
+                    exist.pic_url = first.pic_url.clone();
+                    exist.pic_thumb = first.pic_url.clone();
+                    exist.pic_original = first.pic_url.clone();
+                }
+                exist.last_update = now;
+
+                if let Err(e) = self.repos.catalog.product_manage.update_product(&exist).await {
+                    fail_num += 1;
+                    error_list.push(format!("第 {} 组({})：更新失败: {e}", group_idx + 1, product_sn));
+                    continue;
+                }
+                update_num += 1;
+            } else {
+                // 新建商品
+                let cat_id = resolve_cat_id(&categories, &first.category_name);
+                if cat_id == 0 && is_auto_cat != Some(1) {
+                    fail_num += 1;
+                    error_list.push(format!("第 {} 组({})：分类【{}】不存在", group_idx + 1, product_sn, first.category_name));
+                    continue;
+                }
+
+                let price = first.product_price.parse::<Decimal>().unwrap_or(Decimal::ZERO);
+                let stock = first.product_stock.parse::<i32>().unwrap_or(0);
+                let market = first.market_price.parse::<Decimal>().unwrap_or(price * Decimal::from_str_exact("1.2").unwrap_or(Decimal::ONE));
+                let cost = first.cost_price.parse::<Decimal>().ok();
+
+                let opt_non_empty = |s: &str| {
+                    let trimmed = s.trim();
+                    if trimmed.is_empty() {
+                        None
+                    } else {
+                        Some(trimmed.to_string())
+                    }
+                };
+
+                let mut product = Product {
+                    product_sn: product_sn.clone(),
+                    product_name: first.product_name.clone(),
+                    product_tsn: opt_non_empty(&first.product_tsn),
+                    category_id: cat_id,
+                    brand_id: 0,
+                    shop_id: shop_id.unwrap_or(0),
+                    product_price: price,
+                    market_price: market,
+                    cost_price: cost,
+                    product_stock: stock,
+                    pic_url: first.pic_url.clone(),
+                    pic_thumb: first.pic_url.clone(),
+                    pic_original: first.pic_url.clone(),
+                    product_brief: first.product_brief.clone(),
+                    keywords: opt_non_empty(&first.keywords),
+                    product_status: first.product_status.parse::<i32>().unwrap_or(1),
+                    check_status: 1,
+                    add_time: now,
+                    last_update: now,
+                    ..Default::default()
+                };
+
+                let product_id = match self.repos.catalog.product_manage.insert_product(&product).await {
+                    Ok(id) => id,
+                    Err(e) => {
+                        fail_num += 1;
+                        error_list.push(format!("第 {} 组({})：创建商品记录失败: {e}", group_idx + 1, product_sn));
+                        continue;
+                    }
+                };
+                product.product_id = product_id;
+
+                // 写入商品相册
+                if !first.pic_url.is_empty() {
+                    let gallery = ProductGallery {
+                        product_id,
+                        pic_url: first.pic_url.clone(),
+                        pic_thumb: first.pic_url.clone(),
+                        pic_original: first.pic_url.clone(),
+                        pic_large: first.pic_url.clone(),
+                        sort_order: 0,
+                        shop_id: product.shop_id as i64,
+                        ..Default::default()
+                    };
+                    let _ = self.repos.catalog.product_manage.insert_gallery(&gallery).await;
+                }
+
+                // 写入规格 SKU
+                let has_sku = rows.len() > 1 || !first.spec_name.is_empty() || !first.sku_sn.is_empty();
+                if has_sku {
+                    for r in &rows {
+                        let sku_price = r.product_price.parse::<Decimal>().unwrap_or(price);
+                        let sku_stock = r.product_stock.parse::<i32>().unwrap_or(stock);
+                        let sku = ProductSku {
+                            product_id,
+                            sku_sn: opt_non_empty(&r.sku_sn),
+                            sku_tsn: opt_non_empty(&r.sku_tsn),
+                            sku_value: r.spec_name.clone(),
+                            sku_price: Some(sku_price),
+                            sku_stock: Some(sku_stock),
+                            is_enabled: 1,
+                            market_price: Some(r.market_price.parse::<Decimal>().unwrap_or(market)),
+                            cost_price: r.cost_price.parse::<Decimal>().ok(),
+                            ..Default::default()
+                        };
+                        let _ = self.repos.catalog.product_manage.insert_sku(&sku).await;
+                    }
+                }
+
+                add_num += 1;
+            }
+        }
+
+        let error_msg = if error_list.is_empty() {
+            Some("上传完成".to_string())
+        } else {
+            Some(format!("上传完成，{} 组成功，{} 组失败", add_num + update_num, fail_num))
+        };
+
+        Ok(ProductBatchModifyVO {
+            add_num,
+            update_num,
+            fail_num,
+            error_msg,
+            error_list,
+        })
+    }
+
 
     // ————————————————————— 前台：商品详情 —————————————————————
 
@@ -1971,6 +2287,44 @@ fn to_client_info(p: &Product) -> ClientProductInfoVO {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+struct ParsedRowData {
+    product_sn: String,
+    product_name: String,
+    pic_url: String,
+    category_name: String,
+    product_status: String,
+    spec_name: String,
+    sku_sn: String,
+    sku_tsn: String,
+    product_price: String,
+    product_stock: String,
+    market_price: String,
+    product_tsn: String,
+    keywords: String,
+    product_brief: String,
+    cost_price: String,
+}
+
+fn resolve_cat_id(categories: &[Category], raw_name: &str) -> i32 {
+    let name = raw_name.trim();
+    if name.is_empty() {
+        return 0;
+    }
+    // 1. 精确匹配分类名称
+    if let Some(cat) = categories.iter().find(|c| c.category_name.trim() == name) {
+        return cat.category_id;
+    }
+    // 2. 匹配路径末级分类，例如 "服装 > 女装 > 上衣" 或 "服装/女装/上衣"
+    let leaf_name = name.split(['>', '/', '\\']).last().unwrap_or("").trim();
+    if !leaf_name.is_empty() {
+        if let Some(cat) = categories.iter().find(|c| c.category_name.trim() == leaf_name) {
+            return cat.category_id;
+        }
+    }
+    0
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2424,5 +2778,69 @@ mod tests {
         // 金额统一 Decimal，避免 f64 精度问题
         let v = Decimal::from_f64(0.1 + 0.2).unwrap();
         assert_eq!(v.to_string(), "0.3");
+    }
+
+    #[test]
+    fn test_resolve_cat_id() {
+        let cats = vec![
+            Category {
+                category_id: 10,
+                category_name: "服装".to_string(),
+                ..Default::default()
+            },
+            Category {
+                category_id: 101,
+                category_name: "女装".to_string(),
+                ..Default::default()
+            },
+            Category {
+                category_id: 102,
+                category_name: "连衣裙".to_string(),
+                ..Default::default()
+            },
+        ];
+
+        // 精确匹配
+        assert_eq!(resolve_cat_id(&cats, "服装"), 10);
+        assert_eq!(resolve_cat_id(&cats, "女装"), 101);
+
+        // 路径末级匹配
+        assert_eq!(resolve_cat_id(&cats, "服装 > 女装 > 连衣裙"), 102);
+        assert_eq!(resolve_cat_id(&cats, "服装/女装/连衣裙"), 102);
+
+        // 未匹配
+        assert_eq!(resolve_cat_id(&cats, "数码3C"), 0);
+        assert_eq!(resolve_cat_id(&cats, ""), 0);
+    }
+
+    #[test]
+    fn test_excel_round_trip_for_import() {
+        let headers = vec!["商品编码", "商品名称", "售价", "库存", "分类名称"];
+        let rows = vec![
+            vec![
+                "SN001".to_string(),
+                "测试商品1".to_string(),
+                "99.00".to_string(),
+                "100".to_string(),
+                "服装".to_string(),
+            ],
+            vec![
+                "SN002".to_string(),
+                "测试商品2".to_string(),
+                "199.00".to_string(),
+                "50".to_string(),
+                "女装".to_string(),
+            ],
+        ];
+
+        let bytes = crate::system::excel::build_xlsx(&headers, &rows, "Sheet1").unwrap();
+        assert!(!bytes.is_empty());
+
+        let read_back = crate::system::excel::read_xlsx(&bytes).unwrap();
+        assert_eq!(read_back.len(), 3);
+        assert_eq!(read_back[0], vec!["商品编码", "商品名称", "售价", "库存", "分类名称"]);
+        assert_eq!(read_back[1][0], "SN001");
+        assert_eq!(read_back[1][1], "测试商品1");
+        assert_eq!(read_back[2][0], "SN002");
     }
 }
