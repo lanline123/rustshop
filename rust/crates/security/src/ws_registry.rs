@@ -171,7 +171,8 @@ mod tests {
         let (tx_member, mut rx_member) = tokio::sync::mpsc::unbounded_channel::<String>();
         let id_a = register(admin_key.clone(), tx_admin);
         let id_m = register(member_key.clone(), tx_member);
-        assert_eq!(send_to_admins("hello"), 1);
+        // 注册表是进程级共享：其它并行测试也可能注册管理员会话，故只断言「至少送达本测试的管理员」
+        assert!(send_to_admins("hello") >= 1);
         assert_eq!(rx_admin.try_recv().unwrap(), "hello");
         assert!(rx_member.try_recv().is_err());
         unregister(&admin_key, id_a);

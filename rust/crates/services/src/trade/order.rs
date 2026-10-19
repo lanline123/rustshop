@@ -79,17 +79,50 @@ impl OrderService {
         let mut store_amounts: std::collections::BTreeMap<i32, Decimal> =
             std::collections::BTreeMap::new();
 
+        // 秒杀活动价（与结算页同一映射）
+        let now_activity = utils::now_seconds() as i32;
+        let seckill = crate::trade::check::load_seckill_prices(&self.repos, &lines, now_activity)
+            .await?;
+        let mut seckill_discount = Decimal::ZERO;
+        // (rec_id, 数量, 商品ID, 活动开始, 活动结束, 活动ID)
+        let mut seckill_lines: Vec<(i32, i32, i32, i32, i32, i32)> = Vec::new();
+
         for line in &lines {
             let pid = line.product_id;
-            let sku_id = line.sku_id;
+            let sku_id = line.sku_id.unwrap_or(0);
             let qty = line.quantity.max(1);
-            let price = prices
+            let base_price = prices
                 .get(&pid)
                 .and_then(|p| *p)
                 .unwrap_or(line.original_price);
+            let seckill_item = seckill
+                .get(&(pid, sku_id))
+                .or_else(|| seckill.get(&(pid, 0)));
+            let price = seckill_item
+                .and_then(|item| item.seckill_price)
+                .map(|p| p.min(base_price))
+                .unwrap_or(base_price);
             let subtotal = price * Decimal::from(qty);
             product_amount += subtotal;
+            seckill_discount +=
+                (base_price - price).max(Decimal::ZERO) * Decimal::from(qty);
             *store_amounts.entry(line.shop_id).or_default() += subtotal;
+            if let Some(item) = seckill_item {
+                if price < base_price {
+                    if let (Some(rec_id), Some(start), Some(end)) =
+                        (Some(item.rec_id), item.seckill_start_time, item.seckill_end_time)
+                    {
+                        seckill_lines.push((
+                            rec_id,
+                            qty,
+                            pid,
+                            start,
+                            end,
+                            item.seckill_id.unwrap_or(0),
+                        ));
+                    }
+                }
+            }
 
             items.push(OrderItem {
                 order_sn: order_sn.clone(),
@@ -97,12 +130,32 @@ impl OrderService {
                 price,
                 quantity: qty,
                 product_id: pid,
-                sku_id: sku_id.unwrap_or(0),
+                sku_id,
                 sku_data: line.sku_data.clone().unwrap_or_default(),
-                origin_price: Some(line.original_price),
+                origin_price: Some(base_price),
                 shop_id: line.shop_id,
                 ..Default::default()
             });
+        }
+
+        // 秒杀限购校验（按活动窗口内该用户已购数量）
+        for (_, qty, pid, start, end, seckill_id) in &seckill_lines {
+            if *seckill_id <= 0 {
+                continue;
+            }
+            if let Some(record) = self.repos.marketing.seckill.find_by_id(*seckill_id).await? {
+                if record.seckill_limit_num.unwrap_or(0) > 0 {
+                    let bought = self
+                        .repos
+                        .marketing
+                        .seckill
+                        .count_user_purchases(user_id, *pid, *start, *end)
+                        .await?;
+                    if bought + i64::from(*qty) > i64::from(record.seckill_limit_num.unwrap_or(0)) {
+                        return Err(Error::biz(1001, "超过秒杀商品限购数量".to_string()));
+                    }
+                }
+            }
         }
 
         // —— 收货地址快照（同时取地区用于运费模板匹配）——
@@ -250,7 +303,64 @@ impl OrderService {
         let total =
             (product_amount - coupon_amount + shipping_fee - points_amount).max(Decimal::ZERO);
 
+        // —— 定金预售：单商品 + product_presale.sale_mode = 2 ——
+        let now_ts = utils::now_seconds() as i32;
+        let mut presale_row: Option<tigshop_core::entities::OrderPresale> = None;
+        let mut deposit_now = total;
+        if lines.len() == 1 {
+            let product_id = lines[0].product_id;
+            if let Some(product) = products.get(&product_id) {
+                if product.sale_mode == 2 {
+                    if let Some(ps) = self
+                        .repos
+                        .catalog
+                        .product_manage
+                        .find_presale(product_id)
+                        .await?
+                    {
+                        let deposit = tigshop_core::models::trade::check::calc_deposit(
+                            total,
+                            ps.deposit_type,
+                            ps.deposit_ratio,
+                            ps.deposit_fixed_amount,
+                            ps.is_round_down,
+                        );
+                        if deposit > Decimal::ZERO {
+                            deposit_now = deposit;
+                            presale_row = Some(tigshop_core::entities::OrderPresale {
+                                presale_order_id: 0,
+                                order_id: 0,
+                                order_sn: order_sn.clone(),
+                                product_id,
+                                sale_mode: 2,
+                                deposit_amount: deposit,
+                                final_payment_amount: (total - deposit).max(Decimal::ZERO),
+                                deposit_paid_time: None,
+                                final_payment_start_time: None,
+                                final_payment_paid_time: None,
+                                presale_status: 0,
+                                delivery_days: if ps.delivery_type == 1 {
+                                    Some(ps.delivery_relative_days.unwrap_or(0))
+                                } else {
+                                    None
+                                },
+                                delivery_date: if ps.delivery_type == 2 {
+                                    ps.delivery_date
+                                } else {
+                                    None
+                                },
+                                create_time: now_ts,
+                                update_time: now_ts,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
         let order = Order {
+            is_presale: if presale_row.is_some() { 1 } else { 0 },
+            presale_type: presale_row.as_ref().map(|_| 2),
             order_type: Some(0),
             order_sn: order_sn.clone(),
             user_id,
@@ -273,10 +383,11 @@ impl OrderService {
             is_del: 0,
             total_amount: total,
             paid_amount: Decimal::ZERO,
-            unpaid_amount: total,
+            unpaid_amount: deposit_now,
             product_amount,
             coupon_amount,
             shipping_fee,
+            discount_amount: seckill_discount,
             order_source: "web".into(),
             ..Default::default()
         };
@@ -324,6 +435,45 @@ impl OrderService {
                     .repos.trade.order
                     .insert_order_in_tx(&mut tx, &order, &items)
                     .await;
+            }
+
+            // 秒杀库存扣减（与订单同事务，失败整体回滚）
+            if result.is_ok() {
+                for (rec_id, qty, _, _, _, _) in &seckill_lines {
+                    match self
+                        .repos
+                        .marketing
+                        .seckill
+                        .dec_stock_inc_sales_in_tx(&mut tx, *rec_id, *qty)
+                        .await
+                    {
+                        Ok(true) => {}
+                        Ok(false) => {
+                            result = Err(Error::biz(1001, "秒杀库存不足".to_string()));
+                            break;
+                        }
+                        Err(e) => {
+                            result = Err(e);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 预售订单信息与订单同事务写入，避免「订单在、预售信息丢」
+            if result.is_ok() {
+                if let Some(mut row) = presale_row.clone() {
+                    if let Some(order_id) = result.as_ref().ok() {
+                        row.order_id = *order_id;
+                        result = self
+                            .repos
+                            .payment
+                            .pay
+                            .insert_presale_in_tx(&mut tx, &row)
+                            .await
+                            .map(|_| row.order_id);
+                    }
+                }
             }
 
             match result {
@@ -386,8 +536,10 @@ impl OrderService {
         tracing::info!("创建订单成功: order_id={order_id}, sn={order_sn}, user={user_id}");
 
         // —— 余额抵扣（Java `OrderCheckServiceImpl#calcBalanceDeduction`）——
-        let mut online_amount = total;
+        // 定金预售：本次只支付定金，余额抵扣留给尾款阶段（避免把定金当全款结算）
+        let mut online_amount = if presale_row.is_some() { deposit_now } else { total };
         let mut return_type = 1_i32;
+        if presale_row.is_none() {
         if let Some(requested) = dto.use_balance {
             if requested > Decimal::ZERO {
                 let available = self
@@ -444,6 +596,8 @@ impl OrderService {
                     }
                 }
             }
+        }
+
         }
 
         let out_trade_no = format!("PAY{order_sn}");

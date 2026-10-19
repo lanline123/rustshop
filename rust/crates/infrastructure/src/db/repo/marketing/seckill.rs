@@ -346,6 +346,93 @@ impl SeckillRepository {
         Ok(())
     }
 
+    /// 批量查询商品当前进行中的秒杀明细（结算/下单选价，一次 `IN` 查询）。
+    ///
+    /// # Errors
+    /// 数据库错误。
+    pub async fn find_active_by_products(
+        &self,
+        product_ids: &[i32],
+        now: i32,
+    ) -> Result<Vec<SeckillItem>> {
+        if product_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let placeholders = vec!["?"; product_ids.len()].join(", ");
+        let sql = format!(
+            "SELECT * FROM seckill_item
+             WHERE product_id IN ({placeholders})
+               AND seckill_start_time <= ?
+               AND seckill_end_time >= ?
+               AND seckill_stock > 0
+             ORDER BY rec_id DESC"
+        );
+        let mut q = sqlx::query_as::<_, SeckillItem>(&sql);
+        for id in product_ids {
+            q = q.bind(*id);
+        }
+        q.bind(now)
+            .bind(now)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)
+    }
+
+    /// 用户在某秒杀商品上的历史购买数量（限购校验）。
+    ///
+    /// # Errors
+    /// 数据库错误。
+    pub async fn count_user_purchases(
+        &self,
+        user_id: i32,
+        product_id: i32,
+        start_time: i32,
+        end_time: i32,
+    ) -> Result<i64> {
+        let row: (i64,) = sqlx::query_as(
+            "SELECT CAST(COALESCE(SUM(oi.quantity), 0) AS SIGNED) FROM order_item oi
+             JOIN `order` o ON o.order_id = oi.order_id
+             WHERE o.user_id = ? AND oi.product_id = ?
+               AND o.add_time >= ? AND o.add_time <= ?
+               AND o.is_del = 0",
+        )
+        .bind(user_id)
+        .bind(product_id)
+        .bind(start_time)
+        .bind(end_time)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.0)
+    }
+
+    /// 事务内扣减秒杀库存并累加销量（`seckill_stock - seckill_sales >= qty` 防超卖）。
+    ///
+    /// # Errors
+    /// 数据库错误。
+    pub async fn dec_stock_inc_sales_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::MySql>,
+        rec_id: i32,
+        quantity: i32,
+    ) -> Result<bool> {
+        let affected = sqlx::query(
+            "UPDATE seckill_item
+             SET seckill_stock = seckill_stock - ?,
+                 seckill_sales = seckill_sales + ?
+             WHERE rec_id = ? AND seckill_stock - seckill_sales >= ?",
+        )
+        .bind(quantity)
+        .bind(quantity)
+        .bind(rec_id)
+        .bind(quantity)
+        .execute(&mut **tx)
+        .await
+        .map_err(map_err)?
+        .rows_affected();
+        Ok(affected > 0)
+    }
+
     /// 当前进行中的秒杀商品列表（前台秒杀专区）。
     ///
     /// 返回 `(活动, 明细)` 以便上层组装商品信息。

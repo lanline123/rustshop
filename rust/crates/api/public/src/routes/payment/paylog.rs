@@ -222,6 +222,14 @@ async fn notify(
                 .paylog
                 .mark_paid_by_pay_sn(pay_sn, transaction_id, &body_str)
                 .await?;
+            if let Err(e) = state
+                .payment
+                .paylog
+                .settle_order_by_pay_sn(pay_sn, transaction_id)
+                .await
+            {
+                tracing::warn!("支付回调后推进订单状态失败: pay_sn={pay_sn}, err={e}");
+            }
             Ok((
                 StatusCode::OK,
                 Json(serde_json::json!({ "code": "SUCCESS", "message": "成功" })),
@@ -258,6 +266,14 @@ async fn notify(
                 .paylog
                 .mark_paid_by_pay_sn(pay_sn, transaction_id, &body_str)
                 .await?;
+            if let Err(e) = state
+                .payment
+                .paylog
+                .settle_order_by_pay_sn(pay_sn, transaction_id)
+                .await
+            {
+                tracing::warn!("支付回调后推进订单状态失败: pay_sn={pay_sn}, err={e}");
+            }
             Ok((StatusCode::OK, "success").into_response())
         }
         // —— PayPal / 其它渠道 ——

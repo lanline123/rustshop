@@ -86,6 +86,20 @@ $env:RUST_LOG="info,tigshop=info,sqlx=warn"
 - **v2 未覆盖**：秒杀/拼团/满减活动价格、O2O 配送明细/自提点、发票随单落库、代客下单整单改价金额、
   地区税率、定金预售下单/尾款状态机。
 
+### ✅ 已完成（2026-10-19）— 秒杀引擎 + 定金预售（v3 切片）
+
+- **秒杀**：结算/下单自动匹配进行中 `seckill_item` 活动价，返回 `discountSeckillAmount`；
+  下单事务内扣减 `seckill_stock/inc seckill_sales`（防超卖），按活动窗口统计已购数量做限购。
+  实测：78 元商品秒杀 50 元 → 结算/下单均 50、优惠 28；库存 5→4；第二次下单被限购拒绝。
+- **定金预售**：单商品 `sale_mode=2` 时创建订单同事务写 `order_presale`，
+  `total_amount=全款 / unpaid_amount=定金`；定金/尾款两阶段支付（线下汇款 + 后台确认、
+  余额支付、微信/支付宝回调 `settle_order_by_pay_sn`）；后台 `setPaid` 两阶段推进状态机。
+  实测：32 元商品定金 5 元 → 定金支付单 5、尾款支付单 27，最终 order `paid=32/unpaid=0/pay_status=2`，
+  `order_presale.presale_status=2`。
+- 种子/回归：`tools/compat/seed_seckill.sql`、`seed_presale.sql`、`seckill_smoke.ps1`、`presale_smoke.ps1`；
+  详见 `ACTIVITY-PRESALE.md`。
+- **未交付**：拼团引擎、满减引擎（原因与下一步见 `ACTIVITY-PRESALE.md` §4）。
+
 ### 🟡 进行中 — 微信生态链路（客户端基础已完成，业务端点待凭据）
 
 已完成：`services/src/content/wechat_client.rs`（access_token 缓存、客服列表/客服文本消息、
@@ -155,6 +169,6 @@ python tools/check_structure.py --strict          # 结构 PASS
 1. 微信支付/支付宝/PayPal 沙箱联调（拿到凭据后，按 `PAYMENT-CHANNELS.md` 补下单/退款）。
 2. 对象存储 / ES / 翻译 / 物流轨迹（按业务是否需要云能力）。
 3. 微信生态链路（凭据 + HTTP 客户端骨架）。
-4. 结算页 v3：秒杀/拼团/满减活动价格、O2O 配送/自提点、发票随单、地区税率、定金预售下单/尾款。
+4. 活动引擎 v3：拼团（开团/参团/成团/过期）、满减规则、O2O 配送/自提点、发票随单、地区税率。
 5. MQ/定时任务扩展、Excel 余量、审计日志、多租户。
 6. Docker/nginx/监控/CI 与集成测试，完成可部署交付。

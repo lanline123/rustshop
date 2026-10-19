@@ -23,7 +23,9 @@ use std::sync::Arc;
 
 use rust_decimal::Decimal;
 
-use tigshop_core::entities::{Cart, Coupon, Product, ShippingTpl, ShippingTplInfo, UserAddress};
+use tigshop_core::entities::{
+    Cart, Coupon, Product, SeckillItem, ShippingTpl, ShippingTplInfo, UserAddress,
+};
 use tigshop_core::models::trade::check::{
     allocate_discount, build_payment_types, calc_points, calc_shipping_fee, config_enabled,
     coupon_rule_discount, parse_sku_data, CartStoreTotalVO, CheckCartByStoreVO, CheckCartVO,
@@ -201,18 +203,37 @@ impl CheckService {
             }
         }
         let products = load_products(&self.repos, &product_ids).await?;
+        let now = tigshop_common::utils::now_seconds() as i32;
+        let seckill = load_seckill_prices(&self.repos, &carts, now).await?;
 
-        // 商品金额 + 按店铺分组
+        // 商品金额 + 按店铺分组（活动价优先）
         let mut shop_groups: BTreeMap<i32, Vec<&Cart>> = BTreeMap::new();
         let mut store_amounts: BTreeMap<i32, Decimal> = BTreeMap::new();
         let mut product_amount = Decimal::ZERO;
         let mut total_quantity: i32 = 0;
+        let mut line_prices: HashMap<i32, Decimal> = HashMap::new();
+        let mut line_base_prices: HashMap<i32, Decimal> = HashMap::new();
+        let mut seckill_total = Decimal::ZERO;
+        let mut store_seckill: BTreeMap<i32, Decimal> = BTreeMap::new();
         for cart in &carts {
-            let price = product_price(&products, cart);
+            let base_price = product_price(&products, cart);
+            let sku = cart.sku_id.unwrap_or(0);
+            let seckill_item = seckill
+                .get(&(cart.product_id, sku))
+                .or_else(|| seckill.get(&(cart.product_id, 0)));
+            let price = seckill_item
+                .and_then(|item| item.seckill_price)
+                .map(|p| p.min(base_price))
+                .unwrap_or(base_price);
             let qty = cart.quantity.max(1);
             let subtotal = price * Decimal::from(qty);
+            let discount = (base_price - price).max(Decimal::ZERO) * Decimal::from(qty);
+            seckill_total += discount;
+            *store_seckill.entry(cart.shop_id).or_default() += discount;
             product_amount += subtotal;
             total_quantity += qty;
+            line_prices.insert(cart.cart_id, price);
+            line_base_prices.insert(cart.cart_id, base_price);
             *store_amounts.entry(cart.shop_id).or_default() += subtotal;
             shop_groups.entry(cart.shop_id).or_default().push(cart);
         }
@@ -353,7 +374,13 @@ impl CheckService {
             let mut carts_vo: Vec<CheckCartVO> = Vec::new();
             for cart in lines {
                 let product = products.get(&cart.product_id);
-                let price = product.map(|p| p.product_price).unwrap_or(cart.original_price);
+                let base_price = product
+                    .map(|p| p.product_price)
+                    .unwrap_or(cart.original_price);
+                let price = line_prices
+                    .get(&cart.cart_id)
+                    .copied()
+                    .unwrap_or(base_price);
                 let qty = cart.quantity.max(1);
                 carts_vo.push(CheckCartVO {
                     cart_id: cart.cart_id,
@@ -367,7 +394,7 @@ impl CheckService {
                         .or_else(|| product.map(|p| p.pic_thumb.clone()))
                         .unwrap_or_default(),
                     market_price: cart.market_price.or_else(|| product.map(|p| p.market_price)),
-                    original_price: cart.original_price,
+                    original_price: base_price,
                     quantity: qty,
                     sku_id: cart.sku_id.unwrap_or(0),
                     sku_data: parse_sku_data(cart.sku_data.as_deref()),
@@ -378,7 +405,7 @@ impl CheckService {
                     r#type: cart.r#type,
                     update_time: cart.update_time,
                     product_name: product.map(|p| p.product_name.clone()).unwrap_or_default(),
-                    product_price: price,
+                    product_price: base_price,
                     category_id: product.map(|p| p.category_id).unwrap_or(0),
                     brand_id: product.map(|p| p.brand_id).unwrap_or(0),
                     product_stock: product.map(|p| p.product_stock).unwrap_or(0),
@@ -386,11 +413,12 @@ impl CheckService {
                     stock: product.map(|p| p.product_stock).unwrap_or(0),
                     has_sku: cart.sku_id.unwrap_or(0) > 0,
                     subtotal: price * Decimal::from(qty),
-                    origin_price: cart.original_price,
+                    origin_price: base_price,
                     is_disabled: product.map(|p| p.product_status != 1).unwrap_or(false),
                 });
             }
             let store_coupon_amount = coupons.per_store.get(shop_id).copied().unwrap_or_default();
+            let store_seckill_amount = store_seckill.get(shop_id).copied().unwrap_or_default();
             cart_list.push(CheckCartByStoreVO {
                 shop_id: *shop_id,
                 shop_title: if *shop_id == 0 {
@@ -405,7 +433,8 @@ impl CheckService {
                 total: CartStoreTotalVO {
                     coupon_ids: coupons.valid_selected.clone(),
                     discount_coupon_amount: store_coupon_amount,
-                    discounts: store_coupon_amount,
+                    discount_seckill_amount: store_seckill_amount,
+                    discounts: store_coupon_amount + store_seckill_amount,
                     ..Default::default()
                 },
                 used_promotions: Vec::new(),
@@ -417,12 +446,13 @@ impl CheckService {
         let total = CheckTotalVO {
             product_amount,
             checked_count: total_quantity,
-            discounts: coupons.total,
+            discounts: coupons.total + seckill_total,
             discount_after: Some((product_amount - coupons.total).max(Decimal::ZERO).to_string()),
             total_count: total_quantity,
             discount_coupon_amount: coupons.total,
             coupon_amount: coupons.total,
-            discount_amount: coupons.total,
+            discount_seckill_amount: seckill_total,
+            discount_amount: seckill_total,
             shipping_fee: shipping.total,
             store_shipping_fee: shipping.per_store,
             total_amount,
@@ -713,6 +743,34 @@ impl CheckService {
 // ——————————————————————————————————————————————
 // 共享：商品加载 / 运费计算（下单复用，保证口径一致）
 // ——————————————————————————————————————————————
+
+/// 秒杀活动价映射：`(product_id, sku_id)`；`sku_id=0` 表示商品级活动。
+pub(crate) type SeckillPrices = HashMap<(i32, i32), SeckillItem>;
+
+/// 批量加载商品当前进行中的秒杀明细（结算/下单共用）。
+pub(crate) async fn load_seckill_prices(
+    repos: &Repositories,
+    lines: &[Cart],
+    now: i32,
+) -> Result<SeckillPrices> {
+    let mut ids: Vec<i32> = Vec::new();
+    for line in lines {
+        if !ids.contains(&line.product_id) {
+            ids.push(line.product_id);
+        }
+    }
+    let items = repos
+        .marketing
+        .seckill
+        .find_active_by_products(&ids, now)
+        .await?;
+    let mut map = HashMap::new();
+    for item in items {
+        let sku = item.sku_id.unwrap_or(0);
+        map.entry((item.product_id.unwrap_or(0), sku)).or_insert(item);
+    }
+    Ok(map)
+}
 
 /// 批量加载商品（结算页/下单共用）。
 pub(crate) async fn load_products(

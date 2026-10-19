@@ -197,37 +197,126 @@ impl BalancePayService {
         };
         let paylog_id = self.repos.payment.paylog.insert(&paylog).await?;
 
-        // 5. 结算订单：余额抵扣计入已付
-        let new_paid = order.paid_amount + deduct;
-        let order_fully_paid = new_paid >= order.total_amount;
-        if order_fully_paid {
-            let ok = self
-                .repos.trade.order
-                .mark_paid(order_id, utils::now_seconds() as i32, new_paid)
-                .await?;
-            if !ok {
-                // 订单已被并发标记为已支付（如重复请求）——回滚余额扣减
-                self.repos.member.user.adjust_balance(user_id, deduct).await?;
-                self.repos.payment.paylog.delete_paylog(paylog_id).await?;
-                return Err(Error::Conflict("订单已支付，请刷新后重试".into()));
-            }
-            tracing::info!(
-                "余额支付全额付清: order_id={order_id} deducted={deduct} paylog={paylog_id}"
-            );
+        // 5. 结算订单：余额抵扣计入已付；定金预售按「定金 → 尾款」两阶段推进
+        let now = utils::now_seconds() as i32;
+        let presale = if order.is_presale == 1 && order.presale_type == Some(2) {
+            self.repos
+                .payment
+                .pay
+                .find_presale_by_order_id(order_id)
+                .await?
         } else {
-            let ok = self
-                .repos.trade.order
-                .apply_partial_payment(order_id, deduct)
-                .await?;
-            if !ok {
-                self.repos.member.user.adjust_balance(user_id, deduct).await?;
-                self.repos.payment.paylog.delete_paylog(paylog_id).await?;
-                return Err(Error::Conflict("订单支付状态已变更，请刷新后重试".into()));
+            None
+        };
+        let mut order_fully_paid = false;
+        if let Some(ps) = presale {
+            match ps.presale_status {
+                0 => {
+                    if deduct >= order.unpaid_amount {
+                        // 定金付清：已付=定金、未付=尾款；预售状态置「待付尾款」
+                        self.repos
+                            .payment
+                            .pay
+                            .settle_presale_deposit(order_id, ps.deposit_amount)
+                            .await?;
+                        self.repos
+                            .payment
+                            .pay
+                            .update_presale_deposit_paid(order_id, now, Some(now))
+                            .await?;
+                        order_fully_paid = false;
+                        tracing::info!(
+                            "定金余额支付完成: order_id={order_id} deposit={} paylog={paylog_id}",
+                            ps.deposit_amount
+                        );
+                    } else {
+                        let ok = self
+                            .repos
+                            .trade
+                            .order
+                            .apply_partial_payment(order_id, deduct)
+                            .await?;
+                        if !ok {
+                            self.repos.member.user.adjust_balance(user_id, deduct).await?;
+                            self.repos.payment.paylog.delete_paylog(paylog_id).await?;
+                            return Err(Error::Conflict("订单支付状态已变更，请刷新后重试".into()));
+                        }
+                    }
+                }
+                1 => {
+                    let new_paid = order.paid_amount + deduct;
+                    order_fully_paid = new_paid >= order.total_amount;
+                    if order_fully_paid {
+                        let ok = self
+                            .repos
+                            .trade
+                            .order
+                            .mark_paid(order_id, now, new_paid)
+                            .await?;
+                        if !ok {
+                            self.repos.member.user.adjust_balance(user_id, deduct).await?;
+                            self.repos.payment.paylog.delete_paylog(paylog_id).await?;
+                            return Err(Error::Conflict("订单已支付，请刷新后重试".into()));
+                        }
+                        self.repos
+                            .payment
+                            .pay
+                            .update_presale_final_paid(order_id, now)
+                            .await?;
+                        tracing::info!(
+                            "尾款余额支付完成: order_id={order_id} deducted={deduct} paylog={paylog_id}"
+                        );
+                    } else {
+                        let ok = self
+                            .repos
+                            .trade
+                            .order
+                            .apply_partial_payment(order_id, deduct)
+                            .await?;
+                        if !ok {
+                            self.repos.member.user.adjust_balance(user_id, deduct).await?;
+                            self.repos.payment.paylog.delete_paylog(paylog_id).await?;
+                            return Err(Error::Conflict("订单支付状态已变更，请刷新后重试".into()));
+                        }
+                    }
+                }
+                _ => {
+                    self.repos.member.user.adjust_balance(user_id, deduct).await?;
+                    self.repos.payment.paylog.delete_paylog(paylog_id).await?;
+                    return Err(Error::Conflict("预售订单已完成支付".into()));
+                }
             }
-            tracing::info!(
-                "余额部分抵扣: order_id={order_id} deducted={deduct} 剩余应付={}",
-                unpaid - deduct
-            );
+        } else {
+            let new_paid = order.paid_amount + deduct;
+            order_fully_paid = new_paid >= order.total_amount;
+            if order_fully_paid {
+                let ok = self
+                    .repos.trade.order
+                    .mark_paid(order_id, now, new_paid)
+                    .await?;
+                if !ok {
+                    self.repos.member.user.adjust_balance(user_id, deduct).await?;
+                    self.repos.payment.paylog.delete_paylog(paylog_id).await?;
+                    return Err(Error::Conflict("订单已支付，请刷新后重试".into()));
+                }
+                tracing::info!(
+                    "余额支付全额付清: order_id={order_id} deducted={deduct} paylog={paylog_id}"
+                );
+            } else {
+                let ok = self
+                    .repos.trade.order
+                    .apply_partial_payment(order_id, deduct)
+                    .await?;
+                if !ok {
+                    self.repos.member.user.adjust_balance(user_id, deduct).await?;
+                    self.repos.payment.paylog.delete_paylog(paylog_id).await?;
+                    return Err(Error::Conflict("订单支付状态已变更，请刷新后重试".into()));
+                }
+                tracing::info!(
+                    "余额部分抵扣: order_id={order_id} deducted={deduct} 剩余应付={}",
+                    unpaid - deduct
+                );
+            }
         }
 
         Ok(BalancePayResult {

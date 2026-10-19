@@ -144,6 +144,119 @@ impl PayRepository {
     }
 
     /// 按订单查预约信息。
+    /// 事务内写入预售订单信息（`order_presale`）。
+    ///
+    /// # Errors
+    /// 数据库错误。
+    pub async fn insert_presale_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::MySql>,
+        p: &OrderPresale,
+    ) -> Result<i32> {
+        let result = sqlx::query(
+            "INSERT INTO order_presale
+             (order_id, order_sn, product_id, sale_mode, deposit_amount, final_payment_amount,
+              deposit_paid_time, final_payment_start_time, final_payment_paid_time,
+              presale_status, delivery_days, delivery_date, create_time, update_time)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(p.order_id)
+        .bind(&p.order_sn)
+        .bind(p.product_id)
+        .bind(p.sale_mode)
+        .bind(p.deposit_amount)
+        .bind(p.final_payment_amount)
+        .bind(p.deposit_paid_time)
+        .bind(p.final_payment_start_time)
+        .bind(p.final_payment_paid_time)
+        .bind(p.presale_status)
+        .bind(p.delivery_days)
+        .bind(p.delivery_date)
+        .bind(p.create_time)
+        .bind(p.update_time)
+        .execute(&mut **tx)
+        .await
+        .map_err(map_err)?;
+        Ok(result.last_insert_id() as i32)
+    }
+
+    /// 定金支付完成：更新预售状态为「待付尾款」并记录尾款开始时间。
+    ///
+    /// # Errors
+    /// 数据库错误。
+    pub async fn update_presale_deposit_paid(
+        &self,
+        order_id: i32,
+        deposit_paid_time: i32,
+        final_payment_start_time: Option<i32>,
+    ) -> Result<u64> {
+        let affected = sqlx::query(
+            "UPDATE order_presale
+             SET presale_status = 1, deposit_paid_time = ?, final_payment_start_time = ?,
+                 update_time = ?
+             WHERE order_id = ? AND presale_status = 0",
+        )
+        .bind(deposit_paid_time)
+        .bind(final_payment_start_time)
+        .bind(deposit_paid_time)
+        .bind(order_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?
+        .rows_affected();
+        Ok(affected)
+    }
+
+    /// 尾款支付完成：更新预售状态为「已完成支付」。
+    ///
+    /// # Errors
+    /// 数据库错误。
+    pub async fn update_presale_final_paid(
+        &self,
+        order_id: i32,
+        final_payment_paid_time: i32,
+    ) -> Result<u64> {
+        let affected = sqlx::query(
+            "UPDATE order_presale
+             SET presale_status = 2, final_payment_paid_time = ?, update_time = ?
+             WHERE order_id = ? AND presale_status = 1",
+        )
+        .bind(final_payment_paid_time)
+        .bind(final_payment_paid_time)
+        .bind(order_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?
+        .rows_affected();
+        Ok(affected)
+    }
+
+    /// 定金支付后推进订单金额：已付累加、未付改为尾款。
+    ///
+    /// # Errors
+    /// 数据库错误。
+    pub async fn settle_presale_deposit(
+        &self,
+        order_id: i32,
+        deposit_amount: Decimal,
+    ) -> Result<u64> {
+        let affected = sqlx::query(
+            "UPDATE `order`
+             SET paid_amount = paid_amount + ?,
+                 unpaid_amount = GREATEST(total_amount - paid_amount, 0),
+                 pay_time = ?
+             WHERE order_id = ?",
+        )
+        .bind(deposit_amount)
+        .bind(utils_now())
+        .bind(order_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?
+        .rows_affected();
+        Ok(affected)
+    }
+
     pub async fn find_reservation_by_order_id(
         &self,
         order_id: i32,
@@ -156,6 +269,10 @@ impl PayRepository {
         .await
         .map_err(map_err)
     }
+}
+
+fn utils_now() -> i32 {
+    tigshop_common::utils::now_seconds() as i32
 }
 
 fn map_err(e: sqlx::Error) -> Error {

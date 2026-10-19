@@ -1217,10 +1217,80 @@ impl OrderAdminService {
             .find_order(id)
             .await?
             .ok_or_else(|| Error::biz_msg("订单不存在"))?;
+        // 定金预售：按「待付定金 → 待付尾款 → 已完成」推进
         if order.presale_type == Some(2) {
-            return Err(Error::biz_msg(
-                "定金预售订单支付状态机未迁移，请通过支付回调处理",
-            ));
+            let presale = self
+                .repos
+                .payment
+                .pay
+                .find_presale_by_order_id(id)
+                .await?
+                .ok_or_else(|| Error::biz_msg("预售订单信息不存在"))?;
+            let now = utils::now_seconds() as i32;
+            match presale.presale_status {
+                0 => {
+                    // 确认定金收款：订单已付 + 定金、未付改为尾款；预售状态置「待付尾款」
+                    self.repos
+                        .payment
+                        .pay
+                        .settle_presale_deposit(id, presale.deposit_amount)
+                        .await?;
+                    self.repos
+                        .payment
+                        .pay
+                        .update_presale_deposit_paid(id, now, Some(now))
+                        .await?;
+                    self.repos
+                        .trade
+                        .order_admin
+                        .quick_order_log(id, &order.order_sn, "定金收款")
+                        .await?;
+                    if let Err(e) = self
+                        .repos
+                        .payment
+                        .paylog
+                        .mark_order_paylogs_paid(id)
+                        .await
+                    {
+                        tracing::warn!("定金确认同步 paylog 失败: order={id}, err={e}");
+                    }
+                    return Ok(false);
+                }
+                1 => {
+                    // 确认尾款收款：订单全额付清 + 预售完成
+                    let patch = OrderPatch::new()
+                        .i32_val("pay_status", PayStatus::Paid as i32)
+                        .i32_val("pay_time", now)
+                        .decimal("paid_amount", order.total_amount)
+                        .decimal("unpaid_amount", Decimal::ZERO);
+                    self.repos
+                        .trade
+                        .order_admin
+                        .update_order(id, &patch)
+                        .await?;
+                    self.repos
+                        .payment
+                        .pay
+                        .update_presale_final_paid(id, now)
+                        .await?;
+                    self.repos
+                        .trade
+                        .order_admin
+                        .quick_order_log(id, &order.order_sn, "尾款收款")
+                        .await?;
+                    if let Err(e) = self
+                        .repos
+                        .payment
+                        .paylog
+                        .mark_order_paylogs_paid(id)
+                        .await
+                    {
+                        tracing::warn!("尾款确认同步 paylog 失败: order={id}, err={e}");
+                    }
+                    return Ok(false);
+                }
+                _ => return Err(Error::biz_msg("预售订单已完成支付")),
+            }
         }
         let now = utils::now_seconds() as i32;
         let mut patch = OrderPatch::new()

@@ -33,6 +33,26 @@ powershell -NoProfile -ExecutionPolicy Bypass -File rust/tools/compat/checkout_v
 脚本输出 A~G 七段日志（运费、积分、店铺券禁用、账期、预售、下单落库、运费随单落库）。
 口径与剩余项见 [`docs/CHECKOUT-V2.md`](../../docs/CHECKOUT-V2.md)。
 
+## seckill_smoke.ps1 / seed_seckill.sql
+
+秒杀引擎联调（商品 6：78 元 → 50 元、库存 5、限购 1）：
+
+```powershell
+mysql ... tigshop-java -e "source rust/tools/compat/seed_seckill.sql"
+powershell -NoProfile -ExecutionPolicy Bypass -File rust/tools/compat/seckill_smoke.ps1
+```
+
+## presale_smoke.ps1 / seed_presale.sql
+
+定金预售联调（商品 264：32 元、固定定金 5 元 → 尾款 27 元，两阶段支付）：
+
+```powershell
+mysql ... tigshop-java -e "source rust/tools/compat/seed_presale.sql"
+powershell -NoProfile -ExecutionPolicy Bypass -File rust/tools/compat/presale_smoke.ps1
+```
+
+口径与未完成项见 [`docs/ACTIVITY-PRESALE.md`](../../docs/ACTIVITY-PRESALE.md)。
+
 ## 完整运行步骤
 
 见 [`docs/RUN-RUST-FRONTEND.md`](../../docs/RUN-RUST-FRONTEND.md)。

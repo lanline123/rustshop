@@ -465,6 +465,40 @@ pub fn calc_points(
     }
 }
 
+/// 计算定金（Java `ProductPresaleService#calcDepositAmount` 口径）。
+///
+/// - `deposit_type`：1=按比例，2=固定金额；
+/// - 比例：`amount * ratio / 100`，`round_down` 时向下取整；
+/// - 结果不超过 `amount`。
+#[must_use]
+pub fn calc_deposit(
+    amount: Decimal,
+    deposit_type: Option<i32>,
+    ratio: Option<i32>,
+    fixed_amount: Option<Decimal>,
+    round_down: Option<i32>,
+) -> Decimal {
+    let amount = amount.max(Decimal::ZERO);
+    let mut deposit = match deposit_type {
+        Some(1) => {
+            let ratio = Decimal::from(ratio.unwrap_or(0).clamp(0, 100));
+            let mut value = amount * ratio / Decimal::ONE_HUNDRED;
+            if round_down == Some(1) {
+                value = value.trunc();
+            }
+            value
+        }
+        Some(2) => fixed_amount.unwrap_or_default(),
+        _ => Decimal::ZERO,
+    };
+    let deposit = deposit.max(Decimal::ZERO).min(amount);
+    if deposit > Decimal::ZERO {
+        deposit.round_dp(2)
+    } else {
+        Decimal::ZERO
+    }
+}
+
 /// 优惠券抵扣金额（Java `coupon_discount_amount`）：
 /// `coupon_type == 2` 为折扣券（`coupon_discount` 为几折），否则为满减券（`coupon_money`）；
 /// `max_order_amount > 0` 时封顶。
@@ -746,5 +780,26 @@ mod tests {
         let alloc = allocate_discount(Decimal::from(10), &stores);
         assert_eq!(alloc.values().copied().sum::<Decimal>(), Decimal::from(10));
         assert_eq!(alloc.get(&0).copied(), Some(Decimal::from(5)));
+    }
+
+    #[test]
+    fn presale_deposit_ratio_fixed_and_rounding() {
+        // 10% of 32 = 3.2
+        assert_eq!(
+            calc_deposit(Decimal::from(32), Some(1), Some(10), None, Some(0)),
+            Decimal::new(320, 2)
+        );
+        // 向下取整：33 * 10% = 3.3 → 3
+        assert_eq!(
+            calc_deposit(Decimal::from(33), Some(1), Some(10), None, Some(1)),
+            Decimal::from(3)
+        );
+        // 固定金额，且不超过订单金额
+        assert_eq!(
+            calc_deposit(Decimal::from(5), Some(2), None, Some(Decimal::from(8)), None),
+            Decimal::from(5)
+        );
+        // 未配置类型 → 0
+        assert_eq!(calc_deposit(Decimal::from(10), None, None, None, None), Decimal::ZERO);
     }
 }

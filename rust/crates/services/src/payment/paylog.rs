@@ -273,6 +273,100 @@ impl PaylogService {
         Ok(ok)
     }
 
+    /// 渠道回调成功后推进订单/定金预售状态（幂等）。
+    ///
+    /// - 定金预售 status 0：定金到账 → 订单已付+定金、未付改尾款、status 1；
+    /// - 定金预售 status 1：尾款到账 → 订单全额付清、status 2；
+    /// - 普通订单：累计已付达到订单总额时标记已支付。
+    pub async fn settle_order_by_pay_sn(
+        &self,
+        pay_sn: &str,
+        transaction_id: &str,
+    ) -> Result<()> {
+        let Some(paylog) = self
+            .repos
+            .payment
+            .paylog
+            .find_latest_by_pay_sn(pay_sn)
+            .await?
+        else {
+            return Ok(());
+        };
+        if paylog.pay_status != crate::payment::paylog::PAYLOG_STATUS_PAID {
+            return Ok(());
+        }
+        let order_id = paylog.order_id;
+        let Some(order) = self.repos.payment.pay.find_order_by_id(order_id).await? else {
+            return Ok(());
+        };
+        let now = tigshop_common::utils::now_seconds() as i32;
+        if order.is_presale == 1 && order.presale_type == Some(2) {
+            if let Some(ps) = self
+                .repos
+                .payment
+                .pay
+                .find_presale_by_order_id(order_id)
+                .await?
+            {
+                match ps.presale_status {
+                    0 => {
+                        self.repos
+                            .payment
+                            .pay
+                            .settle_presale_deposit(order_id, ps.deposit_amount)
+                            .await?;
+                        self.repos
+                            .payment
+                            .pay
+                            .update_presale_deposit_paid(order_id, now, Some(now))
+                            .await?;
+                        tracing::info!("微信/支付宝定金到账: order={order_id} sn={transaction_id}");
+                    }
+                    1 => {
+                        let new_paid = order.paid_amount + paylog.pay_amount;
+                        if new_paid >= order.total_amount {
+                            self.repos
+                                .trade
+                                .order
+                                .mark_paid(order_id, now, new_paid)
+                                .await?;
+                            self.repos
+                                .payment
+                                .pay
+                                .update_presale_final_paid(order_id, now)
+                                .await?;
+                            tracing::info!("微信/支付宝尾款到账: order={order_id}");
+                        } else {
+                            self.repos
+                                .trade
+                                .order
+                                .apply_partial_payment(order_id, paylog.pay_amount)
+                                .await?;
+                        }
+                    }
+                    _ => {}
+                }
+                return Ok(());
+            }
+        }
+        // 普通订单：以支付流水累计已付，达到总额即标记已支付
+        let new_paid = order.paid_amount + paylog.pay_amount;
+        if new_paid >= order.total_amount {
+            self.repos
+                .trade
+                .order
+                .mark_paid(order_id, now, new_paid)
+                .await?;
+        } else {
+            self.repos
+                .trade
+                .order
+                .apply_partial_payment(order_id, paylog.pay_amount)
+                .await?;
+        }
+        Ok(())
+    }
+
     /// 按商户支付单号标记支付成功（渠道回调常用）。
     ///
     /// 返回受影响行数；`>1` 说明是定金预售/合单的多行场景。

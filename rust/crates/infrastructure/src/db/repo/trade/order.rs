@@ -107,9 +107,10 @@ impl OrderRepository {
               buyer_note, shipping_method, pay_type_id, shop_id, is_valid, is_del,
               total_amount, paid_amount, unpaid_amount, product_amount, coupon_amount,
               shipping_fee, referrer_user_id, order_source, vendor_id, order_extension,
-              email, use_points, points_amount, balance)
+              email, use_points, points_amount, balance, is_presale, presale_type,
+              discount_amount)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(order.order_type.unwrap_or(0))
         .bind(&order.order_sn)
@@ -143,6 +144,9 @@ impl OrderRepository {
         .bind(order.use_points)
         .bind(order.points_amount)
         .bind(order.balance)
+        .bind(order.is_presale)
+        .bind(order.presale_type)
+        .bind(order.discount_amount)
         .execute(&mut **tx)
         .await
         .map_err(map_err)?;
