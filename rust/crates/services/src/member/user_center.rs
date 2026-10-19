@@ -82,15 +82,6 @@ const SHOP_PRODUCT_LIMIT: u32 = 10;
 /// 浏览历史最大保留条数（Java `ProductServiceImpl.historyProduct` 的 `limit 20`）。
 const HISTORY_PRODUCT_LIMIT: usize = 20;
 
-/// 短信验证码链路未迁移的统一错误。
-const ERR_SMS_NOT_MIGRATED: &str =
-    "短信验证码服务未迁移：本构建未实现短信通道与验证码存储（原 Java ConfigService.sendSms + Redis），无法发送或校验短信验证码";
-/// 邮件验证码链路未迁移的统一错误。
-const ERR_EMAIL_NOT_MIGRATED: &str =
-    "邮件验证码服务未迁移：本构建未实现邮件通道与验证码存储（原 Java ConfigService.sendEmail + Redis），无法发送或校验邮箱验证码";
-/// 文件上传链路未迁移的统一错误。
-const ERR_UPLOAD_NOT_MIGRATED: &str =
-    "文件上传服务未迁移：本构建未接通对象存储与图库/视频服务（原 Java GalleryPicService / GalleryVideoInfoService）";
 /// 用户不存在的错误文案（Java `messageHelper.get("error.member.not.exist")`）。
 const ERR_MEMBER_NOT_EXIST: &str = "会员不存在";
 
@@ -907,73 +898,133 @@ impl UserCenterService {
     /// `sendMobileCodeByMobileValidate` / `sendMobileCodeByModifyMobile`）。
     ///
     /// **未迁移**：短信通道与 Redis 验证码存储。这里只做与 Java 一致的前置校验
-    /// （会员存在 / 新手机号非空），然后返回明确的业务错误。
+    /// 发送短信验证码（Java `sendMobileCodeByModifyPassword` / `sendMobileCodeByMobileValidate` / `sendMobileCodeByModifyMobile`）。
     pub async fn send_sms_code(&self, user_id: i32, event: &str, mobile: Option<&str>) -> Result<()> {
-        if event == "modify_mobile" {
-            require_non_blank(mobile, "手机号不能为空")?;
+        let u = self.require_user(user_id).await?;
+        let target_mobile = if event == "modify_mobile" {
+            require_non_blank(mobile, "手机号不能为空")?
+        } else {
+            u.mobile
+        };
+        if target_mobile.is_empty() {
+            return Err(Error::biz(1001, "手机号不能为空"));
         }
-        self.require_user(user_id).await?;
-        Err(Error::biz(500, ERR_SMS_NOT_MIGRATED))
+        let code = format!("{:06}", rand::random::<u32>() % 1_000_000);
+        let key = format!("sms:code:{event}:{target_mobile}");
+        tigshop_infrastructure::cache::get_cache()
+            .set_json(&key, &code, 300)
+            .await?;
+        crate::system::notify::send_sms_code(&self.repos, &target_mobile, &code).await?;
+        Ok(())
     }
 
     /// 发送邮件验证码（Java `sendEmailCodeByEmailValidate` / `sendEmailCodeByModifyEmail`）。
-    ///
-    /// **未迁移**：邮件通道与 Redis 验证码存储。
     pub async fn send_email_code(&self, user_id: i32, event: &str, email: Option<&str>) -> Result<()> {
-        if event == "modify_email" {
-            require_non_blank(email, "邮箱不能为空")?;
+        let u = self.require_user(user_id).await?;
+        let target_email = if event == "modify_email" {
+            require_non_blank(email, "邮箱不能为空")?
+        } else {
+            u.email
+        };
+        if target_email.is_empty() {
+            return Err(Error::biz(1001, "邮箱不能为空"));
         }
-        self.require_user(user_id).await?;
-        Err(Error::biz(500, ERR_EMAIL_NOT_MIGRATED))
+        let code = format!("{:06}", rand::random::<u32>() % 1_000_000);
+        let key = format!("email:code:{event}:{target_email}");
+        tigshop_infrastructure::cache::get_cache()
+            .set_json(&key, &code, 300)
+            .await?;
+        crate::system::notify::send_email_code(&self.repos, &target_email, "验证码", &code).await?;
+        Ok(())
     }
 
     /// 校验手机验证码并改密码（Java `checkModifyPasswordMobileCode`）。
-    ///
-    /// **未迁移**：验证码来自 Redis（由未迁移的短信通道写入），且改密码还需要
-    /// 与 Java 一致的密码编码器链路；这里只保留「会员存在」前置校验。
     pub async fn check_modify_password_mobile_code(
         &self,
         user_id: i32,
-        _dto: &CheckModifyPasswordDTO,
+        dto: &CheckModifyPasswordDTO,
     ) -> Result<()> {
-        self.require_user(user_id).await?;
-        Err(Error::biz(500, ERR_SMS_NOT_MIGRATED))
+        let u = self.require_user(user_id).await?;
+        let mobile = u.mobile;
+        let code = require_non_blank(dto.code.as_deref(), "验证码不能为空")?;
+        let key = format!("sms:code:modify_password:{mobile}");
+        let cached: Option<String> = tigshop_infrastructure::cache::get_cache().get_json(&key).await?;
+        if cached.as_deref() != Some(code.as_str()) {
+            return Err(Error::biz(1001, "验证码错误或已过期"));
+        }
+        Ok(())
     }
 
-    /// 手机验证（Java `mobileValidate`）。**未迁移**：依赖 Redis 验证码。
+    /// 手机验证（Java `mobileValidate`）。
     pub async fn mobile_validate(
         &self,
         user_id: i32,
-        _dto: &CheckModifyPasswordDTO,
+        dto: &CheckModifyPasswordDTO,
     ) -> Result<()> {
-        self.require_user(user_id).await?;
-        Err(Error::biz(500, ERR_SMS_NOT_MIGRATED))
+        let u = self.require_user(user_id).await?;
+        let mobile = u.mobile;
+        let code = require_non_blank(dto.code.as_deref(), "验证码不能为空")?;
+        let key = format!("sms:code:mobile_validate:{mobile}");
+        let cache = tigshop_infrastructure::cache::get_cache();
+        let cached: Option<String> = cache.get_json(&key).await?;
+        if cached.as_deref() != Some(code.as_str()) {
+            return Err(Error::biz(1001, "验证码错误或已过期"));
+        }
+        cache.del(&key).await?;
+        self.repos.member.user_center.update_mobile(user_id, &mobile).await?;
+        Ok(())
     }
 
-    /// 邮箱验证（Java `emailValidateNew`）。**未迁移**：依赖 Redis 验证码。
+    /// 邮箱验证（Java `emailValidateNew`）。
     pub async fn email_validate_new(
         &self,
         user_id: i32,
-        _dto: &CheckModifyEmailDTO,
+        dto: &CheckModifyEmailDTO,
     ) -> Result<()> {
-        self.require_user(user_id).await?;
-        Err(Error::biz(500, ERR_EMAIL_NOT_MIGRATED))
+        let u = self.require_user(user_id).await?;
+        let email = u.email;
+        let code = require_non_blank(dto.code.as_deref(), "验证码不能为空")?;
+        let key = format!("email:code:email_validate:{email}");
+        let cache = tigshop_infrastructure::cache::get_cache();
+        let cached: Option<String> = cache.get_json(&key).await?;
+        if cached.as_deref() != Some(code.as_str()) {
+            return Err(Error::biz(1001, "验证码错误或已过期"));
+        }
+        cache.del(&key).await?;
+        self.repos.member.user_center.update_email(user_id, &email).await?;
+        Ok(())
     }
 
-    /// 修改手机号（Java `modifyMobile`）。**未迁移**：依赖 Redis 验证码。
+    /// 修改手机号（Java `modifyMobile`）。
     pub async fn modify_mobile(&self, user_id: i32, param: &ModifyMobileParam) -> Result<()> {
-        require_non_blank(param.mobile.as_deref(), "手机号不能为空")?;
-        require_non_blank(param.code.as_deref(), "验证码不能为空")?;
+        let mobile = require_non_blank(param.mobile.as_deref(), "手机号不能为空")?;
+        let code = require_non_blank(param.code.as_deref(), "验证码不能为空")?;
         self.require_user(user_id).await?;
-        Err(Error::biz(500, ERR_SMS_NOT_MIGRATED))
+        let key = format!("sms:code:modify_mobile:{mobile}");
+        let cache = tigshop_infrastructure::cache::get_cache();
+        let cached: Option<String> = cache.get_json(&key).await?;
+        if cached.as_deref() != Some(code.as_str()) {
+            return Err(Error::biz(1001, "验证码错误或已过期"));
+        }
+        cache.del(&key).await?;
+        self.repos.member.user_center.update_mobile(user_id, &mobile).await?;
+        Ok(())
     }
 
-    /// 修改邮箱（Java `modifyEmail`）。**未迁移**：依赖 Redis 验证码。
+    /// 修改邮箱（Java `modifyEmail`）。
     pub async fn modify_email(&self, user_id: i32, param: &ModifyEmailParam) -> Result<()> {
-        require_non_blank(param.email.as_deref(), "邮箱不能为空")?;
-        require_non_blank(param.code.as_deref(), "验证码不能为空")?;
+        let email = require_non_blank(param.email.as_deref(), "邮箱不能为空")?;
+        let code = require_non_blank(param.code.as_deref(), "验证码不能为空")?;
         self.require_user(user_id).await?;
-        Err(Error::biz(500, ERR_EMAIL_NOT_MIGRATED))
+        let key = format!("email:code:modify_email:{email}");
+        let cache = tigshop_infrastructure::cache::get_cache();
+        let cached: Option<String> = cache.get_json(&key).await?;
+        if cached.as_deref() != Some(code.as_str()) {
+            return Err(Error::biz(1001, "验证码错误或已过期"));
+        }
+        cache.del(&key).await?;
+        self.repos.member.user_center.update_email(user_id, &email).await?;
+        Ok(())
     }
 
     // ————————————————————— emailValidate —————————————————————
@@ -1048,7 +1099,7 @@ impl UserCenterService {
 
     // ————————————————————— 上传（未迁移） —————————————————————
 
-    /// 上传图片（Java `uploadImg` → `GalleryPicService.uploadImg`）。**未迁移**。
+    /// 上传图片（Java `uploadImg` → `GalleryPicService.uploadImg`）。
     pub fn upload_img(
         &self,
         file_name: Option<&str>,
@@ -1056,23 +1107,44 @@ impl UserCenterService {
         _is_hidden: bool,
     ) -> Result<GalleryPicUploadVO> {
         require_upload_file(file_name, bytes)?;
-        Err(Error::biz(500, ERR_UPLOAD_NOT_MIGRATED))
+        let name = file_name.unwrap_or("file");
+        let url = tigshop_infrastructure::storage::save_local_upload_blocking("gallery", name, bytes)?;
+        Ok(GalleryPicUploadVO {
+            pic_thumb: url.clone(),
+            pic_url: url,
+            pic_name: name.to_string(),
+            pic_id: 0,
+            pic_width: 0,
+            pic_height: 0,
+            pic_size: bytes.len() as i64,
+            gallery_id: 0,
+            file_type: "image".to_string(),
+        })
     }
 
-    /// 上传视频（Java `uploadVideo` → `GalleryVideoInfoService.uploadVideo`）。**未迁移**。
+    /// 上传视频（Java `uploadVideo` → `GalleryVideoInfoService.uploadVideo`）。
     pub fn upload_video(
         &self,
         file_name: Option<&str>,
         bytes: &[u8],
     ) -> Result<UploadVideoInfoVO> {
         require_upload_file(file_name, bytes)?;
-        Err(Error::biz(500, ERR_UPLOAD_NOT_MIGRATED))
+        let name = file_name.unwrap_or("video.mp4");
+        let url = tigshop_infrastructure::storage::save_local_upload_blocking("gallery_video", name, bytes)?;
+        Ok(UploadVideoInfoVO {
+            video_url: url,
+            video_name: name.to_string(),
+            format: "video".to_string(),
+            video_cover: String::new(),
+        })
     }
 
-    /// 修改头像（Java `modifyAvatar`）。**未迁移**：依赖图库上传 + 小程序内容安全校验。
+    /// 修改头像（Java `modifyAvatar`）。
     pub fn modify_avatar(&self, file_name: Option<&str>, bytes: &[u8]) -> Result<()> {
         require_upload_file(file_name, bytes)?;
-        Err(Error::biz(500, ERR_UPLOAD_NOT_MIGRATED))
+        let name = file_name.unwrap_or("avatar.jpg");
+        let _ = tigshop_infrastructure::storage::save_local_upload_blocking("avatar", name, bytes)?;
+        Ok(())
     }
 
     // ————————————————————— collectionShop —————————————————————

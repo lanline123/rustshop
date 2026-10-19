@@ -675,47 +675,42 @@ impl ProxyShoppingOrderCheckService {
 
     /// `POST /adminapi/proxyShopping/order/check/index`：获取结算页信息。
     ///
-    /// 对应 Java 控制器 `index`（`:73-88`）。控制器自身的流程**逐条照抄**
-    /// （顺序与 Java 一致）：`flowType = 15` → `validateUserIdNotEmpty`
+    /// 对应 Java 控制器 `index`（`:73-88`）。控制器流程：
+    /// `flowType = 15` → `validateUserIdNotEmpty`
     /// （`userId <= 0` 报「请选择用户」）→ `indexInitParam()`
     /// （`selectFrom = 1`、余额/礼品卡/积分清零）→ `useDefaultCouponIds = useCoupon`
     /// → `isCartList = true` → `shopId`（请求头）→ `fillUsePointAndBalance`。
-    ///
-    /// 随后 Java 调 `orderCheckService.getOrderCheckData(param)` —— **未迁移**，
-    /// 见模块头第 3 条，此处返回明确业务错误而非伪造结算数据。
+    /// 随后调用 `orderCheckService.getOrderCheckData(param)`。
     pub async fn check_index(
         &self,
         param: &OrderCheckParam,
         ctx: &RequestContext,
-    ) -> Result<()> {
+    ) -> Result<tigshop_core::models::trade::check::OrderCheckVO> {
         let mut param = param.clone();
         param.flow_type = Some(FLOW_TYPE_ADMIN_SHOPPING);
-        validate_user_id_not_empty(&param)?;
+        let user_id = validate_user_id_not_empty(&param)?;
         param.index_init_param();
-        // Java `Integer.parseInt(configService.getConfigVal(USE_COUPON))`；
-        // 本实现用宽松解析（缺失/空/脏数据 → 0，不抛 NumberFormatException）。
         let use_coupon = self.config_val(CFG_USE_COUPON).await?;
         param.use_default_coupon_ids = Some(parse_int_config(Some(use_coupon.as_str())));
         param.is_cart_list = Some(true);
         param.shop_id = Some(ctx.shop_id_or_zero());
         self.apply_admin_settings(&mut param, ctx).await?;
-        Err(unmigrated_order_check())
+        let check_param = convert_to_check_param(&param)?;
+        let check_service = crate::trade::check::CheckService::new(self.repos.clone());
+        check_service.order_check_index(user_id, &check_param).await
     }
 
     /// `POST /adminapi/proxyShopping/order/check/update`：更新结算信息。
     ///
-    /// 对应 Java 控制器 `update`（`:111-126`）。控制器流程：
-    /// `flowType = 15` → `validateUserIdNotEmpty` → `selectFrom = CHECK_INDEX(2)`
-    /// → 依据 `enableChangePrice` 决定 `isCartList`/`onlyShow` → `shopId`
-    /// → `fillUsePointAndBalance` → `getOrderCheckData`（未迁移）。
+    /// 对应 Java 控制器 `update`（`:111-126`）。
     pub async fn check_update(
         &self,
         param: &OrderCheckParam,
         ctx: &RequestContext,
-    ) -> Result<()> {
+    ) -> Result<tigshop_core::models::trade::check::OrderCheckVO> {
         let mut param = param.clone();
         param.flow_type = Some(FLOW_TYPE_ADMIN_SHOPPING);
-        validate_user_id_not_empty(&param)?;
+        let user_id = validate_user_id_not_empty(&param)?;
         param.select_from = Some(SELECT_FROM_CHECK_INDEX);
         let (is_cart_list, only_show) = resolve_update_flags(&param);
         param.is_cart_list = Some(is_cart_list);
@@ -724,80 +719,73 @@ impl ProxyShoppingOrderCheckService {
         }
         param.shop_id = Some(ctx.shop_id_or_zero());
         self.apply_admin_settings(&mut param, ctx).await?;
-        Err(unmigrated_order_check())
+        let check_param = convert_to_check_param(&param)?;
+        let check_service = crate::trade::check::CheckService::new(self.repos.clone());
+        check_service.order_check_update(user_id, &check_param).await
     }
 
     /// `POST /adminapi/proxyShopping/order/check/updateCoupon`：更新优惠券。
     ///
-    /// 对应 Java 控制器 `updateCoupon`（`:128-138`）。控制器流程：
-    /// `flowType = 15` → `validateUserIdNotEmpty` → `selectFrom = CHECK_UPDATE(3)`
-    /// → `isCartList = true` → `shopId` → `fillUsePointAndBalance`
-    /// → `getOrderCheckData`（未迁移）。
+    /// 对应 Java 控制器 `updateCoupon`（`:128-138`）。
     pub async fn check_update_coupon(
         &self,
         param: &OrderCheckParam,
         ctx: &RequestContext,
-    ) -> Result<()> {
+    ) -> Result<tigshop_core::models::trade::check::OrderCheckVO> {
         let mut param = param.clone();
         param.flow_type = Some(FLOW_TYPE_ADMIN_SHOPPING);
-        validate_user_id_not_empty(&param)?;
+        let user_id = validate_user_id_not_empty(&param)?;
         param.select_from = Some(SELECT_FROM_CHECK_UPDATE);
         param.is_cart_list = Some(true);
         param.shop_id = Some(ctx.shop_id_or_zero());
         self.apply_admin_settings(&mut param, ctx).await?;
-        Err(unmigrated_order_check())
+        let check_param = convert_to_check_param(&param)?;
+        let check_service = crate::trade::check::CheckService::new(self.repos.clone());
+        check_service.order_check_update_coupon(user_id, &check_param).await
     }
 
     /// `POST /adminapi/proxyShopping/order/check/changePrice`：改价。
     ///
-    /// 对应 Java 控制器 `changePrice`（`:140-152`）。控制器流程：
-    /// `flowType = 15` → `validateUserIdNotEmpty` → `validateChangePriceValue`
-    /// → `selectFrom = CHECK_INDEX(2)` → `shopId` → `isCartList = false`
-    /// → `onlyShow = false` → `fillUsePointAndBalance`
-    /// → `getOrderCheckData`（未迁移）。
-    ///
-    /// ⚠️ Java 此接口**不调用** `indexInitParam()`，故 `useBalance`/`usePoint`
-    /// 不会被预清零，只在 `fillUsePointAndBalance` 里处理。
+    /// 对应 Java 控制器 `changePrice`（`:140-152`）。
     pub async fn change_price(
         &self,
         param: &OrderCheckParam,
         ctx: &RequestContext,
-    ) -> Result<()> {
+    ) -> Result<tigshop_core::models::trade::check::OrderCheckVO> {
         let mut param = param.clone();
         param.flow_type = Some(FLOW_TYPE_ADMIN_SHOPPING);
-        validate_user_id_not_empty(&param)?;
+        let user_id = validate_user_id_not_empty(&param)?;
         validate_change_price_value(&param)?;
         param.select_from = Some(SELECT_FROM_CHECK_INDEX);
         param.shop_id = Some(ctx.shop_id_or_zero());
         param.is_cart_list = Some(false);
         param.only_show = Some(false);
         self.apply_admin_settings(&mut param, ctx).await?;
-        Err(unmigrated_order_check())
+        let check_param = convert_to_check_param(&param)?;
+        let check_service = crate::trade::check::CheckService::new(self.repos.clone());
+        check_service.order_check_update(user_id, &check_param).await
     }
 
     /// `POST /adminapi/proxyShopping/order/check/changePriceShow`：改价展示。
     ///
-    /// 对应 Java 控制器 `changePriceShow`（`:154-171`）。控制器流程：
-    /// `flowType = 15` → `validateUserIdNotEmpty` → `validateChangePriceValue`
-    /// → `shopId` → 依据「是否传了改价信息」决定 `isCartList` → `onlyShow = true`
-    /// → `indexInitParam()`（**注意顺序：在 onlyShow 之后**，会把
-    /// `selectFrom` 置 1、余额/礼品卡/积分清零）→ `fillUsePointAndBalance`
-    /// → `getOrderCheckData`（未迁移）。
+    /// 对应 Java 控制器 `changePriceShow`（`:154-171`）。
     pub async fn change_price_show(
         &self,
         param: &OrderCheckParam,
         ctx: &RequestContext,
-    ) -> Result<()> {
+    ) -> Result<tigshop_core::models::trade::check::OrderCheckVO> {
         let mut param = param.clone();
         param.flow_type = Some(FLOW_TYPE_ADMIN_SHOPPING);
-        validate_user_id_not_empty(&param)?;
+        let user_id = validate_user_id_not_empty(&param)?;
         validate_change_price_value(&param)?;
         param.shop_id = Some(ctx.shop_id_or_zero());
         param.is_cart_list = Some(resolve_change_price_show_is_cart_list(&param));
         param.only_show = Some(true);
         param.index_init_param();
         self.apply_admin_settings(&mut param, ctx).await?;
-        Err(unmigrated_order_check())
+        let check_param = convert_to_check_param(&param)?;
+        let check_service = crate::trade::check::CheckService::new(self.repos.clone());
+        check_service.order_check_update(user_id, &check_param).await
     }
 
     /// `POST /adminapi/proxyShopping/order/check/submit`：提交订单。
@@ -901,6 +889,16 @@ pub fn shipping_type_of<'a>(
 #[must_use]
 pub fn is_fixed_price_change(row: &CartChangePrice) -> bool {
     row.change_price_type == Some(1)
+}
+
+/// 将代客下单参数转换为结算域通用入参
+pub fn convert_to_check_param(
+    param: &OrderCheckParam,
+) -> Result<tigshop_core::models::trade::check::OrderCheckParam> {
+    let json_val = serde_json::to_value(param)
+        .map_err(|e| tigshop_core::Error::biz(500, e.to_string()))?;
+    serde_json::from_value(json_val)
+        .map_err(|e| tigshop_core::Error::biz(500, e.to_string()))
 }
 
 #[cfg(test)]

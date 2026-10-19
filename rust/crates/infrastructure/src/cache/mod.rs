@@ -18,6 +18,15 @@ enum Backend {
     Memory(MemoryStore),
 }
 
+static GLOBAL_CACHE: std::sync::OnceLock<CacheService> = std::sync::OnceLock::new();
+
+/// 获取全局缓存实例（未显式初始化时自动使用内存降级缓存）。
+pub fn get_cache() -> &'static CacheService {
+    GLOBAL_CACHE.get_or_init(|| CacheService {
+        backend: Backend::Memory(Arc::new(Mutex::new(HashMap::new()))),
+    })
+}
+
 /// 异步缓存客户端（Redis 或内存降级）。
 #[derive(Clone)]
 pub struct CacheService {
@@ -30,18 +39,20 @@ impl CacheService {
     /// # Errors
     /// 仅当构建 Redis 客户端 URL 非法且内存分配失败等不可恢复场景；连接失败不报错。
     pub async fn init(url: &str) -> Result<Self> {
-        match Self::try_redis(url).await {
+        let instance = match Self::try_redis(url).await {
             Ok(service) => {
                 tracing::info!("Redis 缓存初始化完成: {url}");
-                Ok(service)
+                service
             }
             Err(e) => {
                 tracing::warn!("Redis 不可用（{e}），降级为进程内内存缓存（单实例开发模式）");
-                Ok(Self {
+                Self {
                     backend: Backend::Memory(Arc::new(Mutex::new(HashMap::new()))),
-                })
+                }
             }
-        }
+        };
+        let _ = GLOBAL_CACHE.set(instance.clone());
+        Ok(instance)
     }
 
     async fn try_redis(url: &str) -> Result<Self> {

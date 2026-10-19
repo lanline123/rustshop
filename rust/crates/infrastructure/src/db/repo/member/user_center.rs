@@ -247,6 +247,30 @@ impl UserCenterRepository {
         Ok(n > 0)
     }
 
+    /// 更新手机号。
+    pub async fn update_mobile(&self, user_id: i32, mobile: &str) -> Result<bool> {
+        let n = sqlx::query("UPDATE user SET mobile = ?, mobile_validated = 1 WHERE user_id = ?")
+            .bind(mobile)
+            .bind(user_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?
+            .rows_affected();
+        Ok(n > 0)
+    }
+
+    /// 更新邮箱。
+    pub async fn update_email(&self, user_id: i32, email: &str) -> Result<bool> {
+        let n = sqlx::query("UPDATE user SET email = ?, email_validated = 1 WHERE user_id = ?")
+            .bind(email)
+            .bind(user_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?
+            .rows_affected();
+        Ok(n > 0)
+    }
+
     /// 禁用用户（`close` 接口，Java `closeUser`：`status = 0`）。
     pub async fn disable_user(&self, user_id: i32) -> Result<bool> {
         let n = sqlx::query("UPDATE user SET status = 0 WHERE user_id = ?")

@@ -224,70 +224,62 @@ async fn check_index(
     State(state): State<AdminState>,
     headers: axum::http::HeaderMap,
     Json(param): Json<OrderCheckParam>,
-) -> ApiResult<()> {
+) -> ApiResult<tigshop_core::models::trade::check::OrderCheckVO> {
     let ctx = request_context_from_headers(&headers);
-    state.trade.proxy_shopping_order_check.check_index(&param, &ctx).await?;
-    ok(())
+    let vo = state.trade.proxy_shopping_order_check.check_index(&param, &ctx).await?;
+    ok(vo)
 }
 
 /// `POST /adminapi/proxyShopping/order/check/update`：更新结算信息。
 ///
 /// 对应 Java `ProxyShoppingOrderCheckController.update`（`:111-126`）。
-///
-/// ⚠️ 依赖 `getOrderCheckData`（未迁移）→ 当前返回明确业务错误。
 async fn check_update(
     State(state): State<AdminState>,
     headers: axum::http::HeaderMap,
     Json(param): Json<OrderCheckParam>,
-) -> ApiResult<()> {
+) -> ApiResult<tigshop_core::models::trade::check::OrderCheckVO> {
     let ctx = request_context_from_headers(&headers);
-    state.trade.proxy_shopping_order_check.check_update(&param, &ctx).await?;
-    ok(())
+    let vo = state.trade.proxy_shopping_order_check.check_update(&param, &ctx).await?;
+    ok(vo)
 }
 
 /// `POST /adminapi/proxyShopping/order/check/updateCoupon`：更新优惠券。
 ///
 /// 对应 Java `ProxyShoppingOrderCheckController.updateCoupon`（`:128-138`）。
-///
-/// ⚠️ 依赖 `getOrderCheckData`（未迁移）→ 当前返回明确业务错误。
 async fn check_update_coupon(
     State(state): State<AdminState>,
     headers: axum::http::HeaderMap,
     Json(param): Json<OrderCheckParam>,
-) -> ApiResult<()> {
+) -> ApiResult<tigshop_core::models::trade::check::OrderCheckVO> {
     let ctx = request_context_from_headers(&headers);
-    state.trade.proxy_shopping_order_check.check_update_coupon(&param, &ctx).await?;
-    ok(())
+    let vo = state.trade.proxy_shopping_order_check.check_update_coupon(&param, &ctx).await?;
+    ok(vo)
 }
 
 /// `POST /adminapi/proxyShopping/order/check/changePrice`：改价。
 ///
 /// 对应 Java `ProxyShoppingOrderCheckController.changePrice`（`:140-152`）。
-///
-/// ⚠️ 依赖 `getOrderCheckData`（未迁移）→ 当前返回明确业务错误。
 async fn check_change_price(
     State(state): State<AdminState>,
     headers: axum::http::HeaderMap,
     Json(param): Json<OrderCheckParam>,
-) -> ApiResult<()> {
+) -> ApiResult<tigshop_core::models::trade::check::OrderCheckVO> {
     let ctx = request_context_from_headers(&headers);
-    state.trade.proxy_shopping_order_check.change_price(&param, &ctx).await?;
-    ok(())
+    let vo = state.trade.proxy_shopping_order_check.change_price(&param, &ctx).await?;
+    ok(vo)
 }
 
 /// `POST /adminapi/proxyShopping/order/check/changePriceShow`：改价展示。
 ///
 /// 对应 Java `ProxyShoppingOrderCheckController.changePriceShow`（`:154-171`）。
-///
-/// ⚠️ 依赖 `getOrderCheckData`（未迁移）→ 当前返回明确业务错误。
 async fn check_change_price_show(
     State(state): State<AdminState>,
     headers: axum::http::HeaderMap,
     Json(param): Json<OrderCheckParam>,
-) -> ApiResult<()> {
+) -> ApiResult<tigshop_core::models::trade::check::OrderCheckVO> {
     let ctx = request_context_from_headers(&headers);
-    state.trade.proxy_shopping_order_check.change_price_show(&param, &ctx).await?;
-    ok(())
+    let vo = state.trade.proxy_shopping_order_check.change_price_show(&param, &ctx).await?;
+    ok(vo)
 }
 
 /// `POST /adminapi/proxyShopping/order/check/submit`：提交订单。

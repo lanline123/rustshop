@@ -1,4 +1,4 @@
-﻿//! 代客下单配送方式域服务（trade::proxy_shopping_delivery）。
+//! 代客下单配送方式域服务（trade::proxy_shopping_delivery）。
 //!
 //! 两个端点均先执行 Java 校验（「请选择用户」等），再返回明确「未迁移」业务错误：
 //! O2O 配送距离计算 / 运费模板引擎尚未迁移，不编造配送数据。
@@ -42,7 +42,7 @@ impl ProxyShoppingDeliveryService {
         Err(Error::biz_msg(MSG_DELIVERY_NOT_MIGRATED))
     }
 
-    /// 店铺配送方式（Java `getStoreShippingType`）：校验用户后返回未迁移错误。
+    /// 店铺配送方式（Java `getStoreShippingType`）。
     pub async fn get_store_shipping_type(
         &self,
         query: &ProxyStoreShippingTypeQuery,
@@ -50,14 +50,37 @@ impl ProxyShoppingDeliveryService {
     ) -> Result<Vec<(i32, Vec<ShippingTypeVO>)>> {
         let user_id = validate_user_id(query.user_id).map_err(Error::Validation)?;
         let effective_shop = query.shop_id.or(shop_id);
-        let _ = self
-            .repo()
-            .sum_cart_quantity(user_id, effective_shop)
-            .await?;
-        if query.flow_type.unwrap_or(CART_TYPE_ADMIN_SHOPPING) != CART_TYPE_ADMIN_SHOPPING {
-            // Java 强制 flowType = TYPE_ADMIN_SHOPPING，入参不生效
+        let check_service = crate::trade::check::CheckService::new(self.repos.clone());
+        let store_query = tigshop_core::models::trade::check::StoreShippingTypeQuery {
+            address_id: query.address_id,
+            flow_type: Some(CART_TYPE_ADMIN_SHOPPING),
+            shop_id: effective_shop,
+            user_id: Some(user_id),
+            pay_type_id: query.pay_type_id,
+            use_point: query.use_point,
+            use_balance: query.use_balance,
+            use_coupon_ids: query.use_coupon_ids.clone(),
+            exclude_quick_product: Some(false),
+        };
+        let map = check_service.store_shipping_types(&store_query).await?;
+        let mut list: Vec<(i32, Vec<ShippingTypeVO>)> = Vec::new();
+        for (sid, types) in map {
+            let vos: Vec<ShippingTypeVO> = types
+                .into_iter()
+                .map(|t| ShippingTypeVO {
+                    shipping_type_id: t.shipping_type_id,
+                    shipping_type_name: t.shipping_type_name.clone(),
+                    origin_shipping_type_name: t.shipping_type_name,
+                    shipping_default_id: Some(0),
+                    shipping_type_desc: Some(String::new()),
+                    shipping_time_desc: Some(String::new()),
+                    is_support_cod: t.is_support_cod,
+                })
+                .collect();
+            list.push((sid, vos));
         }
-        Err(Error::biz_msg(MSG_STORE_SHIPPING_NOT_MIGRATED))
+        list.sort_by_key(|(sid, _)| *sid);
+        Ok(list)
     }
 }
 
@@ -73,6 +96,5 @@ mod tests {
     #[test]
     fn not_migrated_messages_present() {
         assert!(MSG_DELIVERY_NOT_MIGRATED.contains("尚未迁移"));
-        assert!(MSG_STORE_SHIPPING_NOT_MIGRATED.contains("尚未迁移"));
     }
 }
