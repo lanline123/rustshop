@@ -136,7 +136,7 @@ $env:RUST_LOG="info,tigshop=info,sqlx=warn"
 2. **migrations**：`rust/migrations/` 仅有 `001_core_tables.sql`；生产建库仍以 Java dump 为准。
 3. **前端部署**：前端未构建 dist，仓库内无 nginx 配置文件（仅 `RUN-RUST-FRONTEND.md` 示例）；
    需实际配 `/adminapi`→8080、`/api`→8181、`/static`→8080、`/ws`→8181（Upgrade 头）。
-4. **可观测性**：日志已落 `logs/`；Prometheus 依赖存在但**未暴露 `/metrics`**，无告警/链路追踪。
+4. **可观测性**：日志已落 `logs/`；已暴露基础 `/metrics`（存活/版本/uptime），请求量/延迟/DB/调度指标与告警待补。
 5. **测试分层**：仅单元测试（约 4300+ 全绿），**缺 DB 集成测试、接口回放/E2E、前端联调脚本**；
    覆盖率 100% 是「路径/方法存在」口径，不等于行为等价。
 6. **数据准备**：MySQL 为手工实例（无服务托管）；字符集 utf8mb4；每次重新导入 dump 后要执行 signed 转换；

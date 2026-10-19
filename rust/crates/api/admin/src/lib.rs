@@ -119,6 +119,7 @@ pub fn router(state: AdminState) -> Router {
 
     Router::new()
         .route("/health", get(health))
+        .route("/metrics", get(metrics))
         // WebSocket（管理端客服工作台）：`/ws?token=...&platform=admin`
         .route("/ws", get(ws_handler))
         .nest("/adminapi", protected)
@@ -185,6 +186,25 @@ async fn refresh(
 /// `GET /adminapi/health`：健康检查。
 async fn health() -> Json<ApiResponse<&'static str>> {
     Json(ApiResponse::success("UP"))
+}
+
+/// 进程启动时间（首次抓取时初始化，用于 uptime）。
+static PROCESS_START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+
+/// `GET /metrics`：Prometheus 文本指标（无需鉴权，供运维采集）。
+async fn metrics() -> (axum::http::HeaderMap, String) {
+    let start = PROCESS_START.get_or_init(std::time::Instant::now);
+    let uptime = start.elapsed().as_secs();
+    let version = env!("CARGO_PKG_VERSION");
+    let body = format!(
+        "# HELP tigshop_up 服务存活标记\n         # TYPE tigshop_up gauge\n         tigshop_up 1\n         # HELP tigshop_build_info 构建版本\n         # TYPE tigshop_build_info gauge\n         tigshop_build_info{{version=\"{version}\"}} 1\n         # HELP tigshop_uptime_seconds 进程运行秒数\n         # TYPE tigshop_uptime_seconds gauge\n         tigshop_uptime_seconds {uptime}\n"
+    );
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(
+        axum::http::header::CONTENT_TYPE,
+        axum::http::HeaderValue::from_static("text/plain; version=0.0.4; charset=utf-8"),
+    );
+    (headers, body)
 }
 
 /// `GET /adminapi/product/list`：商品分页。

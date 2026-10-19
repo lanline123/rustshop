@@ -42,7 +42,7 @@
      活动会员人群/满赠、限时折扣（`time_discount`）接入结算。
   6. IM 自动回复/MQ；物流平台第三方轨迹（本地兜底轨迹已实现）。
   7. 多租户/权限：会员与营销维度继续贯穿；RBAC `all` scope、权限缓存主动失效。
-  8. 工程化：`/metrics`、Docker compose 初始化修正、nginx + 前端 dist、DB 集成/E2E、生产密钥/CORS/Redis 多实例。
+  8. 工程化：nginx + 前端 dist、DB 集成/E2E、生产密钥/CORS/Redis 多实例；`/metrics` 与 Docker compose 初始化已修正。
 - **任务板**：仍有 6 个 `pending`（task-18/20/34/42/46/54），对应 feature 文件均已存在并已提交，
   属于**状态未回写**；接手后按验收抽查关闭，其中 `member/login` 的微信能力仍依赖凭据。
 - **外部凭据**（微信支付/支付宝/PayPal/微信生态/短信厂商/对象存储/ES/翻译）仍按 §5 表 A 处理。
@@ -340,9 +340,9 @@ Get-ChildItem -Recurse services/src,api -Include *.rs |
 
 ### Wave 7（2–3 天）：部署 / 可观测性 / 测试分层
 
-1. **Docker compose 修正**：当前 `docker-compose.yml` 把 `../java/database` 整个挂到 MySQL initdb，会按字母序执行大量 `*update.sql`/`demo.sql`。改为只初始化 `pure.sql`，再执行 signed-schema/JSON TEXT 转换；本机无 Docker，需在有 Docker 的环境验证。
+1. **Docker compose 修正**：已改为挂载 `deploy/mysql-init/00-pure.sql`（由 `tools/compat/prepare_docker_mysql.py` 从 `pure.sql` 去除 `INT UNSIGNED` 生成），不再执行大量 update/demo 脚本；本机无 Docker，需在有 Docker 的环境验证。
 2. **Nginx + 前端 dist**：配 `/adminapi`→8080、`/api`→8181、`/static`→8080、`/ws`→8181（Upgrade）；实际构建 `java/view/*` 并放 dist。
-3. **可观测性**：暴露 `/metrics`（Prometheus），加基础请求量/延迟/DB 连接/调度任务指标；日志保留策略。
+3. **可观测性**：已暴露 `/metrics`（存活/版本/uptime）；请求量/延迟/DB 连接/调度任务指标与告警待补。
 4. **测试分层**：补 DB 集成测试（可用本机 MySQL + 独立测试库）、接口回放/E2E、前端联调脚本；当前只有单元测试（覆盖率 100% 是路径口径）。
 5. **生产配置**：替换 `jwt.secret`（默认值）、收紧 CORS（现在 Any）、设置上传目录/大小、确认 MySQL/Redis 地址；补 migrations 或明确以 Java dump 建库。
 6. **多实例**：Redis 接管 WS 会话/验证码/登录失败计数/权限缓存；调度任务加分布式锁（或接 MQ）。
