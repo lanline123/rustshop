@@ -1150,8 +1150,19 @@ fn select_shipping_info<'a>(
         .or_else(|| infos.first())
 }
 
-/// 地区是否命中（兼容 `areaRegions` / `area_regions`，数组内任一地区 ID 相交即命中）。
-fn region_match(region_data: Option<&str>, region_ids: &[i32]) -> bool {
+/// 地区是否命中（严格对齐 Java `OrderCheckServiceImpl#fetchRegion`）。
+///
+/// 算法规则：
+/// 1. `region_ids` 为空 -> false；`region_data` 为空/解析失败 -> false
+/// 2. 读取 `areaRegions`（或 `area_regions`），遍历每一条链路 `region`:
+///    - 获取链路末级节点 `last`
+///    - 若 `last == 1`（代表全国/全区域），直接命中返回 true
+///    - 若 `region_ids.contains(last)`，命中返回 true
+/// 3. 若所有区域都不匹配，返回 false。
+pub fn region_match(region_data: Option<&str>, region_ids: &[i32]) -> bool {
+    if region_ids.is_empty() {
+        return false;
+    }
     let Some(raw) = region_data else {
         return false;
     };
@@ -1165,16 +1176,22 @@ fn region_match(region_data: Option<&str>, region_ids: &[i32]) -> bool {
     let Some(areas) = areas else {
         return false;
     };
-    areas.iter().any(|group| {
-        group
-            .as_array()
-            .map(|ids| {
-                ids.iter()
-                    .filter_map(serde_json::Value::as_i64)
-                    .any(|id| region_ids.iter().any(|r| i64::from(*r) == id))
-            })
-            .unwrap_or(false)
-    })
+    for region in areas {
+        if let Some(list) = region.as_array() {
+            if let Some(last_val) = list.last() {
+                if let Some(last_id) = last_val.as_i64() {
+                    // last == 1 代表全国/全部地区
+                    if last_id == 1 {
+                        return true;
+                    }
+                    if region_ids.iter().any(|&r| i64::from(r) == last_id) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    false
 }
 
 /// 解析配置为 Decimal（缺失/非法回退默认值）。

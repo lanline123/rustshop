@@ -53,8 +53,6 @@ impl LogisticsService {
     }
 
     /// 计算运费（简化版：首件/首重 + 续件/续重）。
-    ///
-    /// TODO(域实现者)：接入 shipping_tpl_info 的区域明细与包邮门槛。
     pub fn calc_freight(
         first_price: Decimal,
         next_price: Decimal,
@@ -69,6 +67,59 @@ impl LogisticsService {
         let extra_units = extra.div_euclid(next_qty.max(1))
             + i32::from(extra.rem_euclid(next_qty.max(1)) != 0);
         first_price + next_price * Decimal::from(extra_units)
+    }
+
+    /// 运费模板精确匹配与计费（支持区域精确匹配、默认行回退、包邮与满额包邮判定、件数/重量阶梯计费）。
+    pub async fn match_and_calc_freight(
+        &self,
+        tpl_id: i32,
+        shop_amount: Decimal,
+        quantity: Decimal,
+        weight: Decimal,
+        region_ids: &[i32],
+    ) -> Result<Decimal> {
+        let Some(tpl) = self.repos.logistics.shipping_tpl.find_tpl_by_id(tpl_id).await? else {
+            return Ok(Decimal::ZERO);
+        };
+        if tpl.is_free == 1 {
+            return Ok(Decimal::ZERO);
+        }
+        let infos = self.repos.logistics.shipping_tpl.find_infos_by_tpl(tpl_id).await?;
+        if infos.is_empty() {
+            return Ok(Decimal::ZERO);
+        }
+
+        // 优先匹配收货地址所在区域，无匹配则回退默认行或首条
+        let mut matched = None;
+        if !region_ids.is_empty() {
+            for info in &infos {
+                if crate::trade::check::region_match(info.region_data.as_deref(), region_ids) {
+                    matched = Some(info);
+                    break;
+                }
+            }
+        }
+        let info = matched
+            .or_else(|| infos.iter().find(|i| i.is_default == 1))
+            .or_else(|| infos.first())
+            .unwrap();
+
+        let rule = tigshop_core::models::trade::check::ShippingRule {
+            pricing_type: tpl.pricing_type,
+            is_free: info.is_free == 1 || tpl.is_free == 1,
+            start_number: info.start_number,
+            start_price: info.start_price,
+            add_number: info.add_number,
+            add_price: info.add_price,
+            free_price: info.free_price,
+        };
+
+        Ok(tigshop_core::models::trade::check::calc_shipping_fee(
+            &rule,
+            shop_amount,
+            quantity,
+            weight,
+        ))
     }
 }
 
@@ -127,5 +178,30 @@ mod tests {
         // next_qty = 0 时不应除零 panic（内部以 max(1) 兜底）
         let fee = LogisticsService::calc_freight(money("10"), money("5"), 1, 0, 4);
         assert!(fee > money("10"));
+    }
+
+    #[test]
+    fn test_region_match_matching_cases() {
+        use crate::trade::check::region_match;
+
+        let region_data_json = r#"{
+            "areaRegions": [
+                [110000, 110100, 110101],
+                [440000, 440100, 440106]
+            ]
+        }"#;
+
+        // 匹配天河区 (440106)
+        assert!(region_match(Some(region_data_json), &[440000, 440100, 440106]));
+        // 匹配东城区 (110101)
+        assert!(region_match(Some(region_data_json), &[110101]));
+        // 未匹配的区域
+        assert!(!region_match(Some(region_data_json), &[310000, 310100]));
+        // 全国通配规则 (last == 1)
+        let national_json = r#"{"areaRegions": [[1]]}"#;
+        assert!(region_match(Some(national_json), &[310100]));
+        // 空列表或非法数据
+        assert!(!region_match(Some(region_data_json), &[]));
+        assert!(!region_match(None, &[110101]));
     }
 }

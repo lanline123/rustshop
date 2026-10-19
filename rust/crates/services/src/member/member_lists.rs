@@ -57,16 +57,15 @@ impl MemberService {
         Ok(PageResult::new(total, list, &page))
     }
 
-    /// 增加积分并写流水（原子防负）。
-    pub async fn add_points(&self, user_id: i32, delta: i32, _reason: &str) -> Result<()> {
+    /// 增加积分并写流水（原子防负 + 事务记录流水）。
+    pub async fn add_points(&self, user_id: i32, delta: i32, reason: &str) -> Result<()> {
         if delta == 0 {
             return Err(Error::Validation("积分变动不能为 0".into()));
         }
-        let ok = self.repos.member.member_lists.try_adjust_points(user_id, delta).await?;
+        let ok = self.repos.member.member_lists.adjust_points_with_log(user_id, delta, reason).await?;
         if !ok {
             return Err(Error::biz(400, "积分不足"));
         }
-        // TODO(域实现者)：在同一事务中写 user_points_log 流水。
         Ok(())
     }
 

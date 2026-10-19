@@ -85,6 +85,54 @@ impl MemberRepository {
         Ok((total.0 as u64, rows))
     }
 
+    /// 原子增加/扣减积分并在事务中写流水记录。
+    pub async fn adjust_points_with_log(
+        &self,
+        user_id: i32,
+        delta: i32,
+        reason: &str,
+    ) -> Result<bool> {
+        let mut tx = self.pool.begin().await.map_err(map_err)?;
+
+        let update_sql = if delta >= 0 {
+            "UPDATE `user` SET points = points + ? WHERE user_id = ?"
+        } else {
+            "UPDATE `user` SET points = points + ? WHERE user_id = ? AND points >= ?"
+        };
+        let r = if delta >= 0 {
+            sqlx::query(update_sql).bind(delta).bind(user_id)
+        } else {
+            sqlx::query(update_sql).bind(delta).bind(user_id).bind(-delta)
+        };
+        let res = r.execute(&mut *tx).await.map_err(map_err)?;
+
+        if res.rows_affected() == 0 {
+            return Ok(false);
+        }
+
+        let change_type = if delta >= 0 { 1 } else { 2 };
+        let now_sec = (std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()) as i32;
+
+        sqlx::query(
+            "INSERT INTO user_points_log (user_id, points, change_time, change_desc, change_type, relation_type, relation_id) \
+             VALUES (?, ?, ?, ?, ?, NULL, NULL)"
+        )
+        .bind(user_id)
+        .bind(delta.abs())
+        .bind(now_sec)
+        .bind(reason)
+        .bind(change_type)
+        .execute(&mut *tx)
+        .await
+        .map_err(map_err)?;
+
+        tx.commit().await.map_err(map_err)?;
+        Ok(true)
+    }
+
     /// 原子增加积分（余额不足扣减时返回 false，防负数并发）。
     pub async fn try_adjust_points(&self, user_id: i32, delta: i32) -> Result<bool> {
         let sql = if delta >= 0 {
