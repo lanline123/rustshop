@@ -1,7 +1,7 @@
 # 后续开发交接文档（NEXT AI HANDOFF）
 
 > 生成时间：2026-10-19 19:xx（本地时区 Asia/Shanghai）
-> 代码基线：仓库 `D:/tigshop/java-b2b2b-pro-v5.8.57`，分支 `master`，HEAD `559b6685`
+> 代码基线：仓库 `D:/tigshop/java-b2b2b-pro-v5.8.57`，分支 `master`，最新 HEAD `6ca6fe36`（见 §0.1）
 > Rust 根目录：`D:/tigshop/java-b2b2b-pro-v5.8.57/rust`
 > 本文目标：让接手者在 30 分钟内跑起来，明确**哪些已完成不要重做、哪些必须做、每项怎么验收**。
 > 阅读顺序：本文 → `docs/CAPABILITY-MATRIX.md` → `docs/ARCHITECTURE.md` → 相关 feature 文档。
@@ -16,16 +16,43 @@
 4. 按 §5 的 Wave 顺序做；每个 Wave 的验收命令见 §7。
 5. 没有把握时以 **Java 源码** 为准：`D:/tigshop/java-b2b2b-pro-v5.8.57/java`；前端在 `java/view`。
 
+### 0.1 最新快照（2026-10-19 21:20，优先阅读，§1–§5 为 19:00 快照）
+
+- **HEAD `6ca6fe36`，工作树干净**（原 82 个未提交改动已在 20:xx 全部提交，共 15 个 commit）。
+- `cargo test --workspace` 全绿；四项门禁 PASS；契约覆盖率仍 100%（路由口径）。
+- **行为占位从 96 处降到 66 处**（`services/src` 18 个文件）；另有 67 处 `TODO/暂未实现` 分布 25 个文件，需要逐项 triage。
+- 本轮已完成：多租户 `shop_id` 基础贯穿（JWT/中间件/商品/订单/优惠券隔离）、存储多后端（OSS/COS/S3）、
+  MQ 抽象、结算 v3（发票落库/地区税率/O2O 自提）、运费匹配与代客下单配送、电子卡密 Excel 导入、
+  商品海报/短链、二维码/小程序码/公众号菜单/ openid 绑定、用户订单物流信息结构。
+- **当前真正剩余（按优先级）**：
+  1. 行为占位 66 处：内容域 35（`gallery*` 视频/上传/zip、`decorate_template`、`wechat_menu` 发布、
+     `wechat_live*`/`api_wechat_live`）、会员 9（`login` 微信 OAuth/服务号/手机号快捷登录 7、`user_message_log` 2）、
+     系统 5（`util` 小程序码/二维码 4、`app_version_admin` 1）、商品 4（ES 分词/全量同步）、
+     商户 4（`shop_funds` 入驻流程）、交易 4（物流轨迹、代客配送 O2O）、营销 3（虚拟用户）、IM 2（已读回执/视频上传）。
+  2. 管理审计日志写入：`identity/admin_log` 只有读；品牌/评论/卡密/物流/运费模板/店铺/消息类型等约 10 处
+     `adminLogService.createByLogInfo` 未接线。
+  3. 定时/MQ：仅订单取消/自动收货/拼团过期 3 个循环；保证金到期、账期更新、分账调度、商品定时上下架、
+     微信直播订单同步、售后自动收货/退款结算/自动评价、门店/分销/供应商结算、ES 同步等未接。
+  4. Excel 余量：订单导出、批量发货导入、对账单导出、库存批量导入/调拨等（电子卡密导入已完成）。
+  5. 结算/活动残留：代客整单改价金额、定金尾款超时/取消、拼团退款/虚拟成团/限购、
+     活动会员人群/满赠、限时折扣（`time_discount`）接入结算。
+  6. IM 已读回执/自动回复；物流平台第三方轨迹。
+  7. 多租户/权限：会员与营销维度继续贯穿；RBAC `all` scope、权限缓存主动失效。
+  8. 工程化：`/metrics`、Docker compose 初始化修正、nginx + 前端 dist、DB 集成/E2E、生产密钥/CORS/Redis 多实例。
+- **任务板**：仍有 6 个 `pending`（task-18/20/34/42/46/54），但对应 feature 文件均已存在并已提交，
+  属于**状态未回写**；接手后按验收抽查关闭，其中 `member/login` 的微信能力仍依赖凭据。
+- **外部凭据**（微信支付/支付宝/PayPal/微信生态/短信厂商/对象存储/ES/翻译）仍按 §5 表 A 处理。
+
 ---
 
-## 1. 当前基线（已验证事实）
+## 1. 当前基线（19:00 快照）
 
 | 项 | 值 / 状态 |
 |---|---|
-| git HEAD | `559b6685 feat(activity): groupon order state machine and full-reduction pricing engine` |
+| git HEAD | `6ca6fe36`（19:00 快照为 559b6685；见 §0.1） |
 | git 根目录 | `D:/tigshop/java-b2b2b-pro-v5.8.57`（Rust 在 `rust/` 子目录，提交路径带 `rust/` 前缀） |
-| 未提交改动 | 79 modified + 3 untracked（`template/`、`../_diag/`、`../_page.html`） |
-| 编译 | `cargo check -p tigshop-server` 通过（含未提交改动，2026-10-19 19:00 实测） |
+| 未提交改动 | **0（工作树干净）**；原 82 个改动已提交（见 §0.1） |
+| 编译 | `cargo check -p tigshop-server` / `cargo test --workspace` 通过（2026-10-19 21:20 实测） |
 | 测试 | `cargo test --workspace` 通过（同上） |
 | 门禁 | `check_api_coverage` 100%（未实现 0）、路由冲突 0、SQL 列 PASS、结构 PASS |
 | 服务 | 未运行；二进制 `rust/crates/target/debug/tigshop.exe` 存在 |
@@ -174,15 +201,10 @@ $env:TIG_SCHEDULER__GROUPON_SECS="3"  # 拼团过期扫描（新增）
 
 ---
 
-## 4. 未提交改动（先处理，不要覆盖或 reset）
+## 4. 未提交改动（历史，已在 2026-10-19 20:xx 全部提交）
 
-当前工作树属于另一条并行 lane，**已通过 `cargo check`、`cargo test --workspace`、四项门禁**，但未提交。建议接手者：
-
-1. `git diff` 逐块审阅（重点见下表）；
-2. 跑一遍 §7 门禁确认；
-3. 按逻辑拆 3-5 个 commit（不要一把梭）；
-4. 把 `template/` 与 `Dockerfile` 一起提交（Dockerfile 新增 `COPY template ./template`，模板是 O2O/多商户商品导入 xlsx）；
-5. `../_diag/`、`../_page.html` 是仓库外临时产物，不要提交。
+> 本节保留为历史参考：原 82 个改动已拆成多个 commit（HEAD `6ca6fe36`），当前工作树干净。
+> 如需查看当时的改动：`git log --oneline 559b6685..6ca6fe36`。
 
 | 模块/文件 | 改动内容 | 注意点 |
 |---|---|---|
