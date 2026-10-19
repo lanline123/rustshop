@@ -252,6 +252,66 @@ impl ProductManageRepository {
         .map_err(map_err)
     }
 
+    /// 查询到期的自动上下架任务（`product_auto_status`）。
+    pub async fn find_due_auto_status(
+        &self,
+        now: i64,
+        limit: i64,
+    ) -> Result<Vec<tigshop_core::entities::ProductAutoStatus>> {
+        sqlx::query_as::<_, tigshop_core::entities::ProductAutoStatus>(
+            "SELECT * FROM product_auto_status \
+             WHERE status = 0 AND is_deleted = 0 AND scheduled_time <= ? AND retry_count < 3 \
+             ORDER BY scheduled_time DESC LIMIT ?",
+        )
+        .bind(now)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 更新商品上下架状态（自动任务）。
+    pub async fn update_product_status_auto(
+        &self,
+        product_id: i32,
+        status: i32,
+    ) -> Result<u64> {
+        let res = sqlx::query(
+            "UPDATE product SET product_status = ? WHERE product_id = ? AND is_delete = 0",
+        )
+        .bind(status)
+        .bind(product_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(res.rows_affected())
+    }
+
+    /// 回写自动任务执行结果。
+    pub async fn mark_auto_status(
+        &self,
+        id: i32,
+        status: i32,
+        error_message: Option<&str>,
+        retry_count: i32,
+        execute_time: i64,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE product_auto_status SET status = ?, error_message = ?, retry_count = ?, \
+             execute_time = ?, update_time = ? WHERE id = ?",
+        )
+        .bind(status)
+        .bind(error_message)
+        .bind(retry_count)
+        .bind(execute_time)
+        .bind(execute_time)
+        .bind(id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
     /// 按货号或条形码查询商品（对应 Java `getProductBySn`：
     /// `product_sn = sn OR product_tsn = sn`）。
     pub async fn find_product_by_sn(&self, sn: &str) -> Result<Option<Product>> {

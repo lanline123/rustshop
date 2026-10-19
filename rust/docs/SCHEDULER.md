@@ -10,6 +10,9 @@
 |---|---|---|---|
 | `order_auto_cancel` | 每 60s | 扫描 `pay_status=1 AND order_status=0 AND add_time <= now-autoCancelOrderMinute*60`，调用订单取消（状态条件更新 + 回滚库存） | `config.autoCancelOrderMinute`（分钟） |
 | `order_auto_receive` | 每 300s | 扫描 `order_status=2 AND shipping_time <= now-autoDeliveryDays*86400`，置 `order_status=5`、写 `received_time` | `config.autoDeliveryDays`（天，支持小数） |
+| `groupon_expire` | 每 60s | 扫描待成团且超过截止时间的开团记录，整团置失败并释放 | — |
+| `credit_user_period_update` | 每 3600s | 按授信账期推进 `credit_user.period_start_time` | `TIG_SCHEDULER__CREDIT_PERIOD_SECS` |
+| `product_auto_status` | 每 60s | 扫描 `product_auto_status` 到期任务，执行商品上下架（含卡密组启用校验） | `TIG_SCHEDULER__PRODUCT_AUTO_SECS` |
 
 - 配置为空/≤0 时任务跳过（与 Java 默认关闭一致）。
 - 任务幂等：状态用 `WHERE` 条件更新，重复执行不会重复回滚库存/重复收货。
@@ -22,8 +25,10 @@
 | `TIG_SCHEDULER__DELAY_SECS` | 30 | 启动后首次延迟 |
 | `TIG_SCHEDULER__CANCEL_SECS` | 60 | 取消任务扫描间隔 |
 | `TIG_SCHEDULER__RECEIVE_SECS` | 300 | 自动收货扫描间隔 |
+| `TIG_SCHEDULER__CREDIT_PERIOD_SECS` | 3600 | 授信账期扫描间隔 |
+| `TIG_SCHEDULER__PRODUCT_AUTO_SECS` | 60 | 商品自动上下架扫描间隔 |
 
-启动日志：`定时任务已启动：订单超时取消（每分钟）/ 自动收货（每 5 分钟）`。
+启动日志：`定时任务已启动：订单超时取消 / 自动收货 / 拼团过期 / 账期更新 / 商品自动上下架`。
 
 ## 3. 实测（本地 fixture）
 
@@ -42,9 +47,7 @@
 
 - `WechatLiveOrderSyncTask`（视频号订单同步，依赖微信 API 凭据）
 - `DepositDueCheckTask`（保证金到期扫描，依赖保证金生命周期服务）
-- `CreditUserPeriodUpdateTask`（账期更新）
 - `ProfitSharingScheduleTask`（分账调度，依赖支付渠道）
-- `ProductAutoStatusTask`（商品定时上下架，依赖 `product_auto_status` 配置）
 - 售后自动收货、退款结算、自动评价等 MQ 消费链路
 
 实现时可直接复用 `crates/services/src/system/scheduler.rs` 的轮询框架。

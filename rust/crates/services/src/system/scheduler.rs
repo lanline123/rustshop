@@ -70,7 +70,8 @@ pub fn spawn_all(repos: Arc<Repositories>, order: OrderService) -> Vec<JoinHandl
         tokio::spawn(order_auto_cancel_loop(repos.clone(), order.clone())),
         tokio::spawn(order_auto_receive_loop(repos.clone())),
         tokio::spawn(groupon_expire_loop(repos.clone())),
-        tokio::spawn(credit_user_period_update_loop(repos)),
+        tokio::spawn(credit_user_period_update_loop(repos.clone())),
+        tokio::spawn(product_auto_status_loop(repos)),
     ]
 }
 
@@ -134,6 +135,100 @@ async fn groupon_expire_loop(repos: Arc<Repositories>) {
             Err(e) => tracing::warn!("定时任务：拼团过期处理失败: {e}"),
         }
     }
+}
+
+/// 商品自动上下架循环（`TIG_SCHEDULER__PRODUCT_AUTO_SECS`，默认 60s）。
+async fn product_auto_status_loop(repos: Arc<Repositories>) {
+    tokio::time::sleep(Duration::from_secs(
+        env_secs("TIG_SCHEDULER__DELAY_SECS", 30) + 15,
+    ))
+    .await;
+    let mut ticker = tokio::time::interval(Duration::from_secs(env_secs(
+        "TIG_SCHEDULER__PRODUCT_AUTO_SECS",
+        60,
+    )));
+    loop {
+        ticker.tick().await;
+        match run_product_auto_status(&repos).await {
+            Ok(0) => {}
+            Ok(n) => tracing::info!("定时任务：商品自动上下架执行 {n} 条"),
+            Err(e) => tracing::warn!("定时任务：商品自动上下架失败: {e}"),
+        }
+    }
+}
+
+/// 执行一轮商品自动上下架（对应 Java `ProductAutoStatusServiceImpl#executeAutoStatusTasks`）。
+pub async fn run_product_auto_status(repos: &Repositories) -> Result<u64> {
+    let now = tigshop_common::utils::now_seconds();
+    let tasks = repos
+        .catalog
+        .product_manage
+        .find_due_auto_status(now, 50)
+        .await?;
+    let mut executed = 0u64;
+    for task in tasks {
+        let product = repos
+            .catalog
+            .product_manage
+            .find_product(task.product_id)
+            .await?;
+        let Some(product) = product else {
+            repos
+                .catalog
+                .product_manage
+                .mark_auto_status(task.id, 2, Some("商品不存在"), task.retry_count + 1, now)
+                .await?;
+            continue;
+        };
+        if product.is_delete != 0 {
+            repos
+                .catalog
+                .product_manage
+                .mark_auto_status(task.id, 2, Some("商品不存在"), task.retry_count + 1, now)
+                .await?;
+            continue;
+        }
+        let online = task.operation_type == 1;
+        if online && product.product_type == Some(3) && product.card_group_id > 0 {
+            if let Some(group) = repos
+                .catalog
+                .e_card_group
+                .find_by_id(product.card_group_id)
+                .await?
+            {
+                if group.is_use == 0 {
+                    let msg = format!(
+                        "电子卡卷组【{}】未启用，请先启用电子卡卷组！",
+                        group.group_name
+                    );
+                    repos
+                        .catalog
+                        .product_manage
+                        .mark_auto_status(task.id, 2, Some(&msg), task.retry_count + 1, now)
+                        .await?;
+                    continue;
+                }
+            }
+        }
+        let new_status = i32::from(online);
+        let affected = repos
+            .catalog
+            .product_manage
+            .update_product_status_auto(task.product_id, new_status)
+            .await?;
+        let (status, err) = if affected > 0 {
+            (1, None)
+        } else {
+            (2, Some("商品不存在"))
+        };
+        repos
+            .catalog
+            .product_manage
+            .mark_auto_status(task.id, status, err, task.retry_count + 1, now)
+            .await?;
+        executed += 1;
+    }
+    Ok(executed)
 }
 
 /// 授信会员结算周期更新循环（默认每小时扫描一次，`TIG_SCHEDULER__CREDIT_PERIOD_SECS` 可调，默认 3600s）。
