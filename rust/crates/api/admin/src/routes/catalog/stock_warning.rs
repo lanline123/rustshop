@@ -31,10 +31,7 @@
 //! > `stockWarningUpdateManage` 权限，二者矛盾。Rust 侧这两条与其他 8 条一样
 //! > 挂在需要登录的 `/adminapi` 受保护子路由下（与 Java 实际行为一致）。
 //! >
-//! > **返回形态差异**：`export` / `downloadTemplate` / `import` /
-//! > `getImportErrorData` 在 Java 里是 xlsx 文件流（EasyExcel）；Rust 侧未启用
-//! > xlsx 读写依赖，故：`export` 返回导出行 JSON、`downloadTemplate` 返回列定义
-//! > JSON、两个导入接口返回明确的未实现业务错误（详见 `services::stock_warning`）。
+//! > **返回形态**：`downloadTemplate` 与两个导入错误数据接口返回 xlsx 下载流；`export` 仍返回导出行 JSON。
 //! >
 //! > **分页结构差异**：Java `list` 返回 MyBatis-Plus `Page<StockWarningPageVO>`
 //! > （`records/total/size/current/pages`），Rust 统一使用项目既有的
@@ -418,14 +415,20 @@ async fn stock_warning_import_errors(
     headers: HeaderMap,
     Query(query): Query<SettingQuery>,
     mut multipart: Multipart,
-) -> ApiResult<Vec<StockWarningImportErrorRow>> {
+) -> std::result::Result<axum::response::Response, AppError> {
     let (file, form_shop_id) = read_upload(&mut multipart).await?;
     // Java `@RequestParam("shopId")` 同时接受表单字段与查询串参数
     let owner_shop_id =
         resolve_request_shop(&headers, &auth, form_shop_id.or(query.shop_id))?;
-    ok(state.catalog.stock_warning
-        .get_import_error_data(as_import_file(&file), Some(owner_shop_id))
-        .await?)
+    let bytes = state
+        .catalog
+        .stock_warning
+        .get_import_error_data_xlsx(as_import_file(&file), Some(owner_shop_id))
+        .await?;
+    Ok(crate::support::excel_response::xlsx_response(
+        bytes,
+        "stock_warning_error.xlsx",
+    ))
 }
 
 // ——————————————————————————————————————————————

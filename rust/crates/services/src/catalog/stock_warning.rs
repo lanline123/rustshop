@@ -86,10 +86,6 @@ const TEMPLATE_COLUMNS: [(&str, &str); 4] = [
     ("upperLimit", "上限"),
 ];
 
-/// 导入 / 错误数据导出不可用的统一提示（xlsx 依赖未迁移）。
-const EXCEL_IMPORT_UNSUPPORTED: &str =
-    "库存预警导入功能未实现：当前构建未启用 Excel(xlsx) 解析依赖（本 crate 未声明 calamine）";
-
 /// 上传文件的只读视图（对应 Java `MultipartFile` 在本切片用到的部分）。
 #[derive(Debug, Clone, Copy)]
 pub struct ImportFile<'a> {
@@ -715,46 +711,59 @@ impl StockWarningService {
 
     /// 下载库存预警导入模板（对应 Java `downloadTemplate`）。
     ///
-    /// **未迁移**：Java 用 `ExcelUtils.exportExcelWebByTitle` 输出二进制 xlsx
-    /// （`Content-Disposition: 库存预警导入模板.xlsx`，sheet 名「模板」）。
-    /// Rust 侧无 xlsx 写出依赖，故返回同一份列定义的 JSON 描述
-    /// （见 [`template_payload`]）；接入 xlsx writer 后按 [`TEMPLATE_COLUMNS`]
-    /// 顺序写出即可。
+    /// 路由层直接按 [`TEMPLATE_COLUMNS`] 生成 xlsx；此 JSON 描述保留给
+    /// 前端/脚本读取列定义。
     #[must_use]
     pub fn download_template(&self) -> serde_json::Value {
         template_payload()
     }
 
-    /// 导入库存预警配置（对应 Java `importExcel`）。
-    ///
-    /// **未迁移（诚实声明）**：Java `readImportRows` 用 `ExcelUtils`（EasyExcel）
-    /// 解析 xlsx；本 crate 未启用 xlsx 读取依赖（`Cargo.toml` 由主会话维护，
-    /// 切片不得修改），因此这里只保留 Java 的文件前置校验
-    /// （非空 / `.xlsx` 后缀），随后返回明确的未实现业务错误。
-    ///
-    /// 逐行解析之后的业务规则已完整迁移，见 [`Self::import_rows`]：接入解析器后
-    /// 只需把每个数据行转成 [`StockWarningImportRow`] 再调用它。
+    /// 导入库存预警配置（对应 Java `importExcel`）：解析 xlsx 后逐行导入。
     pub async fn import_excel(
         &self,
         file: Option<ImportFile<'_>>,
-        _shop_id: Option<i32>,
+        shop_id: Option<i32>,
     ) -> Result<StockWarningImportResultVO> {
         Self::check_upload(file)?;
-        Err(Error::biz_msg(EXCEL_IMPORT_UNSUPPORTED))
+        let file = file.expect("check_upload guarantees file");
+        let rows = Self::parse_import_rows(file.bytes)?;
+        self.import_rows(&rows, shop_id).await
     }
 
     /// 获取库存预警导入失败数据（对应 Java `getImportErrorData`）。
-    ///
-    /// **未迁移**：同 [`Self::import_excel`]，xlsx 读取依赖缺失；Java 侧该方法
-    /// 直接把失败明细写成 xlsx 返回，Rust 侧同样无法生成文件。逐行校验逻辑
-    /// 已迁移到 [`Self::collect_import_errors_from_rows`]。
     pub async fn get_import_error_data(
         &self,
         file: Option<ImportFile<'_>>,
-        _shop_id: Option<i32>,
+        shop_id: Option<i32>,
     ) -> Result<Vec<StockWarningImportErrorRow>> {
         Self::check_upload(file)?;
-        Err(Error::biz_msg(EXCEL_IMPORT_UNSUPPORTED))
+        let file = file.expect("check_upload guarantees file");
+        let rows = Self::parse_import_rows(file.bytes)?;
+        self.collect_import_errors_from_rows(&rows, shop_id).await
+    }
+
+    /// 失败数据导出为 xlsx 字节（路由层回写下载流）。
+    pub async fn get_import_error_data_xlsx(
+        &self,
+        file: Option<ImportFile<'_>>,
+        shop_id: Option<i32>,
+    ) -> Result<Vec<u8>> {
+        let rows = self.get_import_error_data(file, shop_id).await?;
+        let headers = ["商品编码", "SKU编码", "下限", "上限", "错误信息"];
+        let data: Vec<Vec<String>> = rows
+            .iter()
+            .map(|row| {
+                vec![
+                    row.product_sn.clone().unwrap_or_default(),
+                    row.sku_sn.clone().unwrap_or_default(),
+                    row.lower_limit.clone().unwrap_or_default(),
+                    row.upper_limit.clone().unwrap_or_default(),
+                    row.error_msg.clone(),
+                ]
+            })
+            .collect();
+        crate::system::excel::build_xlsx(&headers, &data, "错误数据")
+            .map_err(|e| Error::Internal(format!("库存预警失败数据 Excel 生成失败: {e}")))
     }
 
     /// 处理已解析出的导入行（对应 Java `importRows`）。
@@ -843,6 +852,30 @@ impl StockWarningService {
     }
 
     /// 文件前置校验（Java `readImportRows` 的前两步）。
+    /// 解析库存预警导入 xlsx（首行表头；列序与 TEMPLATE_COLUMNS 一致）。
+    fn parse_import_rows(bytes: &[u8]) -> Result<Vec<StockWarningImportRow>> {
+        let sheet = crate::system::excel::read_xlsx(bytes)?;
+        let mut rows = Vec::new();
+        for line in sheet.iter().skip(1) {
+            let get = |i: usize| {
+                line.get(i)
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string)
+            };
+            let row = StockWarningImportRow {
+                product_sn: get(0),
+                sku_sn: get(1),
+                lower_limit: get(2),
+                upper_limit: get(3),
+            };
+            if !is_blank_row(&row) {
+                rows.push(row);
+            }
+        }
+        Ok(rows)
+    }
+
     fn check_upload(file: Option<ImportFile<'_>>) -> Result<()> {
         let Some(file) = file else {
             return Err(Error::biz_msg("请上传文件"));
