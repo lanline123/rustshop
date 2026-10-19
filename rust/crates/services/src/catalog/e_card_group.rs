@@ -158,6 +158,21 @@ impl ECardGroupService {
             .repos.catalog.e_card_group
             .delete(group_id)
             .await?;
+        let log_info = format!("删除电子卡券分组信息：id:{group_id}");
+        let _ = self
+            .repos
+            .identity
+            .admin_log
+            .insert_log(
+                now_seconds() as i32,
+                0,
+                "admin",
+                0,
+                &log_info,
+                "127.0.0.1",
+                None,
+            )
+            .await;
         tracing::info!("删除电子卡券组: id={group_id}, deleted={deleted}");
         Ok(())
     }

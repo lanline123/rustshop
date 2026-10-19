@@ -84,7 +84,21 @@ impl MailTemplatesService {
             tracing::warn!("更新邮件模板未命中任何行: template_id={template_id}");
         }
         // Java：adminLogService.createByLogInfo(StrUtil.format("更新邮件模板设置:{}", 主题))
-        //      其中主题由 getTemplateSubject(templateId) 从库中查得。
+        let log_info = format!("更新邮件模板设置:{}", patch.template_subject);
+        let _ = self
+            .repos
+            .identity
+            .admin_log
+            .insert_log(
+                tigshop_common::utils::now_seconds() as i32,
+                0,
+                "admin",
+                0,
+                &log_info,
+                "127.0.0.1",
+                None,
+            )
+            .await;
         tracing::info!(
             "更新邮件模板设置: template_id={template_id}, template_subject={}",
             patch.template_subject

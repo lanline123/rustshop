@@ -182,6 +182,32 @@ impl AdminLogRepository {
         let rows = q.fetch_all(&self.pool).await.map_err(map_err)?;
         Ok(rows.into_iter().map(AdminLogRequestLogVO::from).collect())
     }
+
+    /// 插入管理日志记录（对应 Java AdminLogService#createByLogInfo / save）。
+    pub async fn insert_log(
+        &self,
+        log_time: i32,
+        user_id: i32,
+        scope_type: &str,
+        scope_id: i32,
+        log_info: &str,
+        ip_address: &str,
+        request_log_id: Option<i32>,
+    ) -> Result<i32> {
+        let sql = "INSERT INTO admin_log (log_time, user_id, scope_type, scope_id, log_info, ip_address, request_log_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
+        let res = sqlx::query(sql)
+            .bind(log_time)
+            .bind(user_id)
+            .bind(scope_type)
+            .bind(scope_id)
+            .bind(log_info)
+            .bind(ip_address)
+            .bind(request_log_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(res.last_insert_id() as i32)
+    }
 }
 
 /// `request_log` 行（列顺序与上面 SELECT 一致）。

@@ -245,6 +245,22 @@ impl ShippingTplService {
         let rows = build_info_rows(&checked, &tpl);
         let inserted = self.repo().insert_infos(&rows).await?;
 
+        let log_info = format!("创建运费模板:{}", v.name);
+        let _ = self
+            .repos
+            .identity
+            .admin_log
+            .insert_log(
+                tigshop_common::utils::now_seconds() as i32,
+                0,
+                if shop_id.unwrap_or(0) > 0 { "shop" } else { "admin" },
+                shop_id.unwrap_or(0),
+                &log_info,
+                "127.0.0.1",
+                None,
+            )
+            .await;
+
         tracing::info!(
             "创建运费模板: id={tpl_id}, name={}, 运送方式 {} 组, 内容行 {}",
             v.name,
@@ -345,6 +361,22 @@ impl ShippingTplService {
             .ok_or_else(|| Error::Validation(MSG_SHIPPING_TPL_NOT_FOUND.into()))?;
         let rows = build_info_rows(&checked, &tpl);
         let inserted = self.repo().insert_infos(&rows).await?;
+
+        let log_info = format!("修改运费模板:{}", dto.shipping_tpl_name.as_deref().unwrap_or(""));
+        let _ = self
+            .repos
+            .identity
+            .admin_log
+            .insert_log(
+                tigshop_common::utils::now_seconds() as i32,
+                0,
+                if dto.shop_id.unwrap_or(0) > 0 { "shop" } else { "admin" },
+                dto.shop_id.unwrap_or(0),
+                &log_info,
+                "127.0.0.1",
+                None,
+            )
+            .await;
 
         tracing::info!(
             "修改运费模板: id={id}, name={:?}, 影响 {affected} 行, 内容行 {}",
@@ -564,6 +596,22 @@ impl ShippingTplService {
         self.repo().clear_default_flag(shop_id.or(Some(tpl.shop_id))).await?;
         // 4. 再把目标置 1
         let affected = self.repo().mark_default(id).await?;
+
+        let log_info = format!("设置默认运费模板:{}", tpl.shipping_tpl_name);
+        let _ = self
+            .repos
+            .identity
+            .admin_log
+            .insert_log(
+                tigshop_common::utils::now_seconds() as i32,
+                0,
+                if tpl.shop_id > 0 { "shop" } else { "admin" },
+                tpl.shop_id,
+                &log_info,
+                "127.0.0.1",
+                None,
+            )
+            .await;
 
         tracing::info!("设置默认运费模板: id={id}, name={}, 影响 {affected} 行", tpl.shipping_tpl_name);
         Ok(affected > 0)

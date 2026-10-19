@@ -136,6 +136,34 @@ impl AdminLogService {
         let logs = self.repo().request_logs_by_ids(&ids).await?;
         Ok(logs.into_iter().map(|l| (l.request_log_id, l)).collect())
     }
+
+    /// 记录管理员操作日志（对应 Java `AdminLogService#createByLogInfo` / `save`）。
+    pub async fn record_log(
+        &self,
+        user_id: i32,
+        scope_type: &str,
+        scope_id: i32,
+        log_info: &str,
+        ip_address: Option<&str>,
+        request_log_id: Option<i32>,
+    ) -> Result<i32> {
+        let now = tigshop_common::utils::now_seconds() as i32;
+        let ip = ip_address.unwrap_or("127.0.0.1");
+        self.repo()
+            .insert_log(now, user_id, scope_type, scope_id, log_info, ip, request_log_id)
+            .await
+    }
+
+    /// 根据日志文本记录操作日志（对应 Java `adminLogService.createByLogInfo(logInfo)`）。
+    pub async fn create_by_log_info(
+        &self,
+        user_id: i32,
+        scope_type: &str,
+        scope_id: i32,
+        log_info: &str,
+    ) -> Result<i32> {
+        self.record_log(user_id, scope_type, scope_id, log_info, None, None).await
+    }
 }
 
 #[cfg(test)]
