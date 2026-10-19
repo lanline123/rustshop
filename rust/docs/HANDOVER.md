@@ -1,5 +1,8 @@
 # 交接文档（HANDOVER）
 
+> **最新接手文档**：本文部分内容已过时；请先读 [`NEXT-AI-HANDOFF.md`](./NEXT-AI-HANDOFF.md)
+> （2026-10-19 基线、未提交改动、剩余 Wave 任务、验收命令与已知坑）。本文保留环境/评审/历史背景。
+>
 > 更新时间：2026-10-19 · 代码基线：`rust/` @ `2ee16bdb`（工作树干净）
 > 当前环境：MySQL 8.4（`D:\igshop-mysql\data`，库 `tigshop-java`）+ Rust 服务运行中（8080/8181 均 200）
 > 能力总览：[`CAPABILITY-MATRIX.md`](./CAPABILITY-MATRIX.md)；运行手册：[`RUN-RUST-FRONTEND.md`](./RUN-RUST-FRONTEND.md)

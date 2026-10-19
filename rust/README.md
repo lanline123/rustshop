@@ -6,6 +6,9 @@
 > **数据库零迁移**：Rust 版直接复用原 Java 系统的 MySQL 库表结构与数据
 > （字段名通过 `#[sqlx(rename_all = "snake_case")]` 严格对齐）。
 
+> **接手/继续开发请先读**：[`docs/NEXT-AI-HANDOFF.md`](docs/NEXT-AI-HANDOFF.md)
+> （当前基线、未提交改动、剩余 Wave 任务、验收命令、已知坑）。
+
 ## 目录结构
 
 ```
