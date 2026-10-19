@@ -209,32 +209,30 @@ struct ImportQuery {
     group_id: Option<i32>,
 }
 
-/// `POST /adminapi/product/eCardGroup/import`：Excel 批量导入（**未迁移**）。
+/// `POST /adminapi/product/eCardGroup/import`：Excel 批量导入。
 ///
 /// Java：`file == null` ⇒「文件不能为空」；否则解析 xlsx 并批量插卡券。
-/// Rust 侧无 xlsx 解析依赖，因此完成文件非空校验后返回明确业务错误。
 async fn e_card_group_import(
     State(state): State<AdminState>,
     Query(q): Query<ImportQuery>,
     mut multipart: Multipart,
 ) -> ApiResult<()> {
-    let (form_group_id, file_present, file_name) = read_import_form(&mut multipart).await?;
+    let (form_group_id, file_present, file_bytes) = read_import_form(&mut multipart).await?;
     state
         .catalog
         .e_card_group
-        .batch_import(form_group_id.or(q.group_id), file_present, file_name.as_deref())
+        .batch_import(form_group_id.or(q.group_id), file_present, file_bytes.as_deref())
         .await?;
     ok(())
 }
 
-/// 读取 multipart 表单：`groupId` 文本字段 + `file` 是否存在。
-///
-/// 发现 `file` 字段即返回（不读取文件内容 —— 本域 Excel 未迁移，读取 19GB
-/// 级上传只会浪费内存）。返回 `(groupId, file 是否存在, 文件名)`。
+/// 读取 multipart 表单：`groupId` 文本字段 + `file` 数据。
 async fn read_import_form(
     multipart: &mut Multipart,
-) -> Result<(Option<i32>, bool, Option<String>), Error> {
+) -> Result<(Option<i32>, bool, Option<Vec<u8>>), Error> {
     let mut group_id: Option<i32> = None;
+    let mut file_present = false;
+    let mut file_bytes: Option<Vec<u8>> = None;
     while let Some(field) = multipart
         .next_field()
         .await
@@ -242,7 +240,13 @@ async fn read_import_form(
     {
         let name = field.name().unwrap_or_default().to_string();
         if name == "file" {
-            return Ok((group_id, true, field.file_name().map(str::to_string)));
+            file_present = true;
+            let bytes = field
+                .bytes()
+                .await
+                .map_err(|e| Error::Validation(format!("读取上传文件失败: {e}")))?;
+            file_bytes = Some(bytes.to_vec());
+            continue;
         }
         let text = field
             .text()
@@ -252,7 +256,7 @@ async fn read_import_form(
             group_id = text.trim().parse::<i32>().ok();
         }
     }
-    Ok((group_id, false, None))
+    Ok((group_id, file_present, file_bytes))
 }
 
 // ——————————————————————————————————————————————

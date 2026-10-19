@@ -251,6 +251,31 @@ impl ECardGroupRepository {
         let res = qb.build().execute(&self.pool).await.map_err(map_err)?;
         Ok(res.rows_affected())
     }
+
+    /// 批量插入电子卡券（Java `eCardService.saveBatch(eCards)`）。
+    pub async fn insert_e_cards(&self, group_id: i32, cards: &[(String, String)], now: i32) -> Result<usize> {
+        if cards.is_empty() {
+            return Ok(0);
+        }
+        let mut count = 0;
+        for chunk in cards.chunks(500) {
+            let mut qb: QueryBuilder<'_, MySql> = QueryBuilder::new(
+                "INSERT INTO e_card (group_id, card_number, card_pwd, is_use, order_id, order_item_id, add_time) ",
+            );
+            qb.push_values(chunk, |mut b, (num, pwd)| {
+                b.push_bind(group_id)
+                    .push_bind(num)
+                    .push_bind(pwd)
+                    .push_bind(0)
+                    .push_bind(0)
+                    .push_bind(0)
+                    .push_bind(now);
+            });
+            let res = qb.build().execute(&self.pool).await.map_err(map_err)?;
+            count += res.rows_affected() as usize;
+        }
+        Ok(count)
+    }
 }
 
 fn map_err(e: sqlx::Error) -> Error {

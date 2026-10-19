@@ -210,24 +210,60 @@ impl ECardGroupService {
     /// Java 流程：`file == null` ⇒ 抛「文件不能为空」；否则解析 xlsx
     /// （列：卡券名称 / 卡号密码）→ 逐条构造 `ECard`（`groupId` 来自参数、
     /// `addTime` = now）→ `saveBatch`。
-    ///
-    /// Rust 侧未启用 xlsx 解析依赖，因此：
-    /// - 文件缺失 ⇒ 业务 500「文件不能为空」（与 Java 一致）
-    /// - 文件存在 ⇒ 业务 500 [`EXCEL_IMPORT_UNMIGRATED_MSG`]（如实标注，
-    ///   不伪造导入结果）
     pub async fn batch_import(
         &self,
         group_id: Option<i32>,
         file_present: bool,
-        file_name: Option<&str>,
+        file_bytes: Option<&[u8]>,
     ) -> Result<()> {
-        if file_present {
-            tracing::warn!(
-                "电子卡券组 Excel 导入未迁移: group_id={group_id:?}, file={file_name:?}"
-            );
-        }
-        import_guard(file_present)
+        let group_id = validate_import_args(group_id, file_present, file_bytes)?;
+        let bytes = file_bytes.unwrap();
+
+        let sheet = crate::system::excel::read_xlsx(bytes)
+            .map_err(|e| Error::biz(500, format!("Excel 解析失败: {e}")))?;
+
+        let cards = parse_e_card_rows(sheet);
+
+        let now = now_seconds() as i32;
+        let count = self
+            .repos
+            .catalog
+            .e_card_group
+            .insert_e_cards(group_id, &cards, now)
+            .await?;
+        tracing::info!("电子卡券批量导入成功: group_id={group_id}, count={count}");
+        Ok(())
     }
+}
+
+/// 解析电子卡券 Excel 数据行（第一列：卡券名称，第二列：卡号密码，跳过表头）
+pub fn parse_e_card_rows(sheet: Vec<Vec<String>>) -> Vec<(String, String)> {
+    let mut cards = Vec::new();
+    for row in sheet.into_iter().skip(1) {
+        let card_number = row.first().map(String::as_str).unwrap_or("").trim();
+        let card_pwd = row.get(1).map(String::as_str).unwrap_or("").trim();
+        if !card_number.is_empty() {
+            cards.push((card_number.to_string(), card_pwd.to_string()));
+        }
+    }
+    cards
+}
+
+/// `import` 入参及非空校验
+pub fn validate_import_args(
+    group_id: Option<i32>,
+    file_present: bool,
+    file_bytes: Option<&[u8]>,
+) -> Result<i32> {
+    if !file_present {
+        return Err(Error::biz(500, FILE_REQUIRED));
+    }
+    let group_id = group_id.ok_or_else(|| Error::Validation(GROUP_ID_REQUIRED.into()))?;
+    let bytes = file_bytes
+        .filter(|b| !b.is_empty())
+        .ok_or_else(|| Error::biz(500, FILE_REQUIRED))?;
+    let _ = bytes;
+    Ok(group_id)
 }
 
 /// 分组名称必填 + 长度校验（Java `@NotNull` + `@Size(max = 255)`）。
@@ -299,15 +335,6 @@ fn batch_delete_ids(dto: &BatchDTO) -> Result<Option<&[i32]>> {
     Ok(Some(ids))
 }
 
-/// `import` 的纯守卫逻辑（Java `batchImport` 的前两个可观测分支）：
-/// - 没有文件 ⇒ 业务 500「文件不能为空」
-/// - 有文件 ⇒ 业务 500「Excel 批量导入功能尚未迁移」（Rust 侧无 xlsx 解析）
-fn import_guard(file_present: bool) -> Result<()> {
-    if !file_present {
-        return Err(Error::biz(500, FILE_REQUIRED));
-    }
-    Err(Error::biz_msg(EXCEL_IMPORT_UNMIGRATED_MSG))
-}
 
 #[cfg(test)]
 mod tests {
@@ -413,18 +440,36 @@ mod tests {
         assert_eq!(batch_delete_ids(&del).unwrap(), Some(&[1, 2][..]));
     }
 
-    // ———————————————— import 守卫 ————————————————
+    // ———————————————— import 校验与解析 ————————————————
 
     #[test]
-    fn import_requires_file_then_reports_unmigrated() {
-        // 缺文件 ⇒ 「文件不能为空」（Java `file == null` 分支）
-        let err = import_guard(false).unwrap_err();
+    fn import_args_validation() {
+        // 缺文件 ⇒ 「文件不能为空」
+        let err = validate_import_args(Some(1), false, None).unwrap_err();
         assert!(err.to_string().contains("文件不能为空"), "实际: {err}");
-        // 有文件 ⇒ 明确报「未迁移」，不伪造导入结果
-        let err = import_guard(true).unwrap_err();
-        assert!(
-            err.to_string().contains("Excel 批量导入功能尚未迁移"),
-            "实际: {err}"
-        );
+
+        let err = validate_import_args(Some(1), true, Some(&[])).unwrap_err();
+        assert!(err.to_string().contains("文件不能为空"), "实际: {err}");
+
+        // 缺 groupId
+        let err = validate_import_args(None, true, Some(b"dummy")).unwrap_err();
+        assert!(err.to_string().contains("电子卡券组id不能为空"), "实际: {err}");
+
+        // 正常
+        assert_eq!(validate_import_args(Some(123), true, Some(b"dummy")).unwrap(), 123);
+    }
+
+    #[test]
+    fn parse_e_card_rows_skips_header_and_empty() {
+        let sheet = vec![
+            vec!["卡券名称".to_string(), "卡号密码".to_string()],
+            vec!["CARD001".to_string(), "PWD123".to_string()],
+            vec!["".to_string(), "PWD456".to_string()], // empty card number skipped
+            vec!["CARD002".to_string(), "PWD789".to_string()],
+        ];
+        let cards = parse_e_card_rows(sheet);
+        assert_eq!(cards.len(), 2);
+        assert_eq!(cards[0], ("CARD001".to_string(), "PWD123".to_string()));
+        assert_eq!(cards[1], ("CARD002".to_string(), "PWD789".to_string()));
     }
 }
