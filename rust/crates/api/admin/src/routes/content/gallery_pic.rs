@@ -19,8 +19,7 @@
 //! > 多租户 scope 取自 Java `HeaderUtils.getShopId()/getVendorId()`
 //! > （`x-admin-type` / `x-shop-id` / `x-vendor-id`），见 [`resolve_scope`]。
 //!
-//! > `uploadImg`（对象存储）与 `batchDownload`（zip/远程下载）依赖未迁移能力，
-//! > 服务层完成本地校验后返回明确「未迁移」业务错误。
+//! > `uploadImg` 写本地存储并落库；`batchDownload` 将素材打包为 zip 下载。
 
 use axum::{
     extract::{Multipart, Query, State},
@@ -38,6 +37,7 @@ use tigshop_core::models::content::gallery_pic::{
 use tigshop_openapi::RouteDoc;
 use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 
+use crate::support::download_response::zip_response;
 use crate::AdminState;
 
 /// 本域全部 10 条路由（去掉 `/adminapi` 前缀后的路径 + 原 Java 方法名）。
@@ -300,9 +300,9 @@ async fn batch_del(
 async fn batch_download(
     State(state): State<AdminState>,
     Json(dto): Json<GalleryPicBatchDTO>,
-) -> ApiResult<()> {
-    state.content.gallery_pic.batch_download(&dto).await?;
-    ok(())
+) -> Result<axum::response::Response, AppError> {
+    let (file_name, bytes) = state.content.gallery_pic.batch_download(&dto).await?;
+    Ok(zip_response(bytes, &file_name))
 }
 
 /// `POST /adminapi/setting/galleryPic/createFromExternal`：外部直链创建图片。

@@ -1,7 +1,7 @@
 //! 相册图片域服务（content::gallery_pic）。
 //!
 //! 对应原 Java `com.tigshop.service.setting.impl.GalleryPicServiceImpl` 的 10 个
-//! 管理端端点（`uploadImg` / `batchDownload` 因对象存储 / zip 未迁移返回明确业务错误）。
+//! 管理端端点（`uploadImg` 接本地存储，`batchDownload` 打包 zip 下载）。
 //!
 //! # 迁移要点（逐条对照 Java 源）
 //!
@@ -15,8 +15,8 @@
 //! - `sort`：按 ids 顺序写 `pic_sort = i + 1`（单事务）。
 //! - `transfer` / `batchDel`：`type=video` 走 `gallery_video_info`，否则 `gallery_pic`。
 //! - `createFromExternal`：URL 前缀/黑名单/扩展名校验后落库（`source = external`）。
-//! - `uploadImg`：完成文件类型/大小本地校验后返回「对象存储未迁移」业务错误。
-//! - `batchDownload`：完成 ids/素材存在性校验后返回「zip/对象存储未迁移」业务错误。
+//! - `uploadImg`：校验文件类型/大小后写入本地存储并落库 `gallery_pic`。
+//! - `batchDownload`：读取本地/远程素材并打包为 zip。
 //!
 //! # 未迁移 / 偏差
 //!
@@ -192,32 +192,39 @@ impl GalleryPicService {
         Ok(())
     }
 
-    /// 批量下载素材（Java `batchDownload`）。
+    /// 批量下载素材（Java `batchDownload`）：本地/远程取文件后打包 zip。
     ///
-    /// **未迁移**：完成 ids/素材存在性校验后返回明确业务错误（不伪造成功）。
-    pub async fn batch_download(&self, dto: &GalleryPicBatchDTO) -> Result<()> {
+    /// 返回 `(下载文件名, zip 字节)`；调用方以 `application/zip` 回写。
+    pub async fn batch_download(&self, dto: &GalleryPicBatchDTO) -> Result<(String, Vec<u8>)> {
         let ids = dto
             .ids
             .as_deref()
             .filter(|ids| !ids.is_empty())
             .ok_or_else(|| Error::Validation(ERR_IDS_REQUIRED.into()))?;
-        let has_downloadable = if is_video_type(dto.r#type.as_deref()) {
-            self.repo()
-                .find_videos_by_ids(ids)
-                .await?
-                .iter()
-                .any(|video: &GalleryVideoInfo| !video.video_url.trim().is_empty())
+        let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+        if is_video_type(dto.r#type.as_deref()) {
+            for video in self.repo().find_videos_by_ids(ids).await? {
+                if video.video_url.trim().is_empty() {
+                    continue;
+                }
+                let name = safe_file_name(&video.video_name, video.id, "mp4");
+                let bytes = read_url_bytes(&video.video_url).await?;
+                files.push((unique_name(&files, name), bytes));
+            }
         } else {
-            self.repo()
-                .find_pics_by_ids(ids)
-                .await?
-                .iter()
-                .any(|pic: &GalleryPic| !pic.pic_url.trim().is_empty())
-        };
-        if !has_downloadable {
+            for pic in self.repo().find_pics_by_ids(ids).await? {
+                if pic.pic_url.trim().is_empty() {
+                    continue;
+                }
+                let name = safe_file_name(&pic.pic_name, pic.pic_id, "jpg");
+                let bytes = read_url_bytes(&pic.pic_url).await?;
+                files.push((unique_name(&files, name), bytes));
+            }
+        }
+        if files.is_empty() {
             return Err(Error::biz_msg(ERR_NO_DOWNLOADABLE));
         }
-        Err(Error::biz_msg(ERR_DOWNLOAD_NOT_MIGRATED))
+        Ok(("素材下载.zip".to_string(), build_zip(&files)))
     }
 
     /// 通过外部链接创建图片（Java `createFromExternal`，完整 DB 实现）。
@@ -341,6 +348,140 @@ impl GalleryPicService {
     }
 }
 
+/// 下载文件名兜底（保留原扩展名，避免中文/路径穿越）。
+fn safe_file_name(name: &str, id: i32, default_ext: &str) -> String {
+    let trimmed = name.trim();
+    let stem = trimmed
+        .rsplit(['/', '\\'])
+        .next()
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| format!("file_{id}"));
+    let has_ext = std::path::Path::new(&stem).extension().is_some();
+    if has_ext {
+        stem
+    } else {
+        format!("{stem}.{default_ext}")
+    }
+}
+
+fn unique_name(files: &[(String, Vec<u8>)], name: String) -> String {
+    if files.iter().all(|(n, _)| n != &name) {
+        return name;
+    }
+    let path = std::path::Path::new(&name);
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("file");
+    let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+    for i in 1.. {
+        let candidate = if ext.is_empty() {
+            format!("{stem}_{i}")
+        } else {
+            format!("{stem}_{i}.{ext}")
+        };
+        if files.iter().all(|(n, _)| n != &candidate) {
+            return candidate;
+        }
+    }
+    name
+}
+
+/// 读取素材地址：`/static/...` 读本地 uploads，其它按 HTTP 拉取。
+async fn read_url_bytes(url: &str) -> Result<Vec<u8>> {
+    let url = url.trim();
+    if let Some(rel) = url.strip_prefix("/static/") {
+        let root = tigshop_infrastructure::storage::upload_root();
+        let path = std::path::Path::new(&root).join(rel);
+        return tokio::fs::read(&path)
+            .await
+            .map_err(|e| Error::Database(format!("读取素材文件失败: {e}")));
+    }
+    let resp = reqwest::get(url)
+        .await
+        .map_err(|e| Error::Database(format!("下载素材失败: {e}")))?;
+    if !resp.status().is_success() {
+        return Err(Error::Database(format!("下载素材失败: HTTP {}", resp.status())));
+    }
+    resp.bytes()
+        .await
+        .map(|b| b.to_vec())
+        .map_err(|e| Error::Database(format!("读取素材响应失败: {e}")))
+}
+
+/// 生成 store 方式（无压缩）的 zip（避免引入额外依赖）。
+fn build_zip(files: &[(String, Vec<u8>)]) -> Vec<u8> {
+    let mut out = Vec::new();
+    let mut central = Vec::new();
+    for (name, data) in files {
+        let name_bytes = name.as_bytes();
+        let crc = crc32(data);
+        let size = u32::try_from(data.len()).unwrap_or(u32::MAX);
+        let offset = u32::try_from(out.len()).unwrap_or(u32::MAX);
+
+        // local file header
+        out.extend_from_slice(&0x0403_4b50u32.to_le_bytes());
+        out.extend_from_slice(&20u16.to_le_bytes());
+        out.extend_from_slice(&0u16.to_le_bytes());
+        out.extend_from_slice(&0u16.to_le_bytes()); // store
+        out.extend_from_slice(&0u16.to_le_bytes());
+        out.extend_from_slice(&0u16.to_le_bytes());
+        out.extend_from_slice(&crc.to_le_bytes());
+        out.extend_from_slice(&size.to_le_bytes());
+        out.extend_from_slice(&size.to_le_bytes());
+        out.extend_from_slice(&u16::try_from(name_bytes.len()).unwrap_or(0).to_le_bytes());
+        out.extend_from_slice(&0u16.to_le_bytes());
+        out.extend_from_slice(name_bytes);
+        out.extend_from_slice(data);
+
+        // central directory header
+        central.extend_from_slice(&0x0201_4b50u32.to_le_bytes());
+        central.extend_from_slice(&20u16.to_le_bytes());
+        central.extend_from_slice(&20u16.to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&crc.to_le_bytes());
+        central.extend_from_slice(&size.to_le_bytes());
+        central.extend_from_slice(&size.to_le_bytes());
+        central.extend_from_slice(&u16::try_from(name_bytes.len()).unwrap_or(0).to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&0u32.to_le_bytes());
+        central.extend_from_slice(&offset.to_le_bytes());
+        central.extend_from_slice(name_bytes);
+    }
+    let central_offset = u32::try_from(out.len()).unwrap_or(u32::MAX);
+    let central_size = u32::try_from(central.len()).unwrap_or(u32::MAX);
+    out.extend_from_slice(&central);
+    // end of central directory
+    out.extend_from_slice(&0x0605_4b50u32.to_le_bytes());
+    out.extend_from_slice(&0u16.to_le_bytes());
+    out.extend_from_slice(&0u16.to_le_bytes());
+    out.extend_from_slice(&u16::try_from(files.len()).unwrap_or(0).to_le_bytes());
+    out.extend_from_slice(&u16::try_from(files.len()).unwrap_or(0).to_le_bytes());
+    out.extend_from_slice(&central_size.to_le_bytes());
+    out.extend_from_slice(&central_offset.to_le_bytes());
+    out.extend_from_slice(&0u16.to_le_bytes());
+    out
+}
+
+fn crc32(data: &[u8]) -> u32 {
+    let mut crc = 0xffff_ffffu32;
+    for &b in data {
+        crc ^= u32::from(b);
+        for _ in 0..8 {
+            let mask = (crc & 1).wrapping_neg();
+            crc = (crc >> 1) ^ (0xedb8_8320 & mask);
+        }
+    }
+    !crc
+}
+
 /// 外部直链允许的扩展名（模型常量本地引用，避免长路径）。
 fn extensions() -> [&'static str; 5] {
     tigshop_core::models::content::gallery_pic::ALLOWED_IMAGE_EXTENSIONS
@@ -409,5 +550,18 @@ mod tests {
     fn page_params_default() {
         let (page, size) = tigshop_core::models::content::gallery_pic::page_params(None, None);
         assert_eq!((page, size), (1, 15));
+    }
+
+    #[test]
+    fn zip_builder_emits_valid_signature_and_entries() {
+        let files = vec![
+            ("a.jpg".to_string(), vec![1, 2, 3]),
+            ("b.jpg".to_string(), vec![4, 5]),
+        ];
+        let zip = build_zip(&files);
+        assert_eq!(&zip[..4], &[0x50, 0x4b, 0x03, 0x04]);
+        assert!(zip.windows(5).any(|w| w == b"a.jpg"));
+        assert!(zip.windows(5).any(|w| w == b"b.jpg"));
+        assert_eq!(crc32(b"123456789"), 0xcbf4_3926);
     }
 }
