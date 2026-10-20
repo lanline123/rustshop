@@ -10,12 +10,20 @@ import json
 import urllib.error
 import urllib.request
 
-BACKEND = "http://127.0.0.1:8080"
+BACKEND_ADMIN = "http://127.0.0.1:8080"
+BACKEND_API = "http://127.0.0.1:8181"
 PANEL_PATH = "/adminapi/panel/panel/index"
 LOGISTICS_PATHS = {
     "/adminapi/setting/logisticsCompany/list",
     "/adminapi/setting/logisticsCompanyConfig/list",
 }
+API_PATHS = {
+    "/api/common/recommend/guessLike",
+}
+
+
+def backend_for(path):
+    return BACKEND_API if path in API_PATHS else BACKEND_ADMIN
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -23,7 +31,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split("?", 1)[0]
-        if path != PANEL_PATH and path not in LOGISTICS_PATHS:
+        if path != PANEL_PATH and path not in LOGISTICS_PATHS and path not in API_PATHS:
             self.send_response(404)
             self.send_header("Content-Length", "0")
             self.end_headers()
@@ -42,7 +50,7 @@ class Handler(BaseHTTPRequestHandler):
             if value:
                 headers[key] = value
 
-        req = urllib.request.Request(BACKEND + self.path, headers=headers)
+        req = urllib.request.Request(backend_for(path) + self.path, headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=20) as resp:
                 body = resp.read()
@@ -57,7 +65,11 @@ class Handler(BaseHTTPRequestHandler):
         try:
             obj = json.loads(body)
             data = obj.get("data") if isinstance(obj, dict) else None
-            if path in LOGISTICS_PATHS and isinstance(data, list):
+            if path in API_PATHS and isinstance(data, dict) and isinstance(data.get("records"), list):
+                # 原版前端对 guessLike 直接执行 (result || []).filter(...)
+                obj["data"] = data["records"]
+                body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+            elif path in LOGISTICS_PATHS and isinstance(data, list):
                 records = []
                 for item in data:
                     if not isinstance(item, dict):
