@@ -20,24 +20,23 @@ pub async fn render_app(uri: Uri) -> impl IntoResponse {
         .map(|pq| pq.as_str())
         .unwrap_or("/")
         .to_string();
-    let html = view! {
-        {
-            provide_context(RequestUrl::new(&path));
-            view! { <App/> }
-        }
-    }
-    .to_html();
+    let owner = Owner::new();
+    let html = owner.with(|| {
+        provide_context(RequestUrl::new(&path));
+        view! { <App/> }.to_html()
+    });
     Html(html)
 }
 
 /// 构建 PC 前端 Axum 路由器，支持 Leptos SSR 服务端直出渲染与静态资源托管
 pub fn router() -> Router {
     Router::new()
-        // 静态资源托管: /static/*
+        // 静态资源托管: /static/*，支持在项目根目录、rust目录或pc-web目录下自适应定位
         .nest_service(
             "/static",
-            ServeDir::new("crates/pc-web/public")
-                .fallback(ServeDir::new("rust/crates/pc-web/public")),
+            ServeDir::new("rust/crates/pc-web/public")
+                .fallback(ServeDir::new("crates/pc-web/public"))
+                .fallback(ServeDir::new("public")),
         )
         // 所有前端页面路由统一走 Leptos SSR 直出渲染
         .fallback(render_app)
@@ -50,13 +49,11 @@ mod tests {
 
     #[test]
     fn test_ssr_html_rendering() {
-        let html = view! {
-            {
-                provide_context(RequestUrl::new("/"));
-                view! { <App/> }
-            }
-        }
-        .to_html();
+        let owner = Owner::new();
+        let html = owner.with(|| {
+            provide_context(RequestUrl::new("/"));
+            view! { <App/> }.to_html()
+        });
         assert!(html.contains("<!DOCTYPE html>"), "Should contain doctype");
         assert!(html.contains("mall.css"), "Should link mall.css stylesheet");
         assert!(html.contains("TigShop"), "Should contain brand name");

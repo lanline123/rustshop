@@ -175,6 +175,11 @@ impl CategoryFeeRuleService {
                 self.save_targets(rule_id, targets).await?;
             }
         }
+        let log_info = format!("创建费率规则: {}", rule.rule_name);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log("admin", 0, &log_info).await {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
         tracing::info!("创建费率规则: id={rule_id}, name={}", rule.rule_name);
         Ok(Vec::new())
     }
@@ -200,7 +205,7 @@ impl CategoryFeeRuleService {
         let now = now_datetime();
         let rule = CategoryServiceFeeRule {
             id,
-            rule_name,
+            rule_name: rule_name.clone(),
             target_type,
             scope_type: dto.scope_type.unwrap_or_default(),
             service_fee_rate: dto.service_fee_rate.unwrap_or(Decimal::ZERO),
@@ -219,6 +224,11 @@ impl CategoryFeeRuleService {
             if let Some(targets) = dto.target_ids.as_deref().filter(|v| !v.is_empty()) {
                 self.save_targets(id, targets).await?;
             }
+        }
+        let log_info = format!("编辑费率规则: {}", rule_name);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log("admin", 0, &log_info).await {
+            tracing::warn!("写管理操作日志失败: {e}");
         }
         tracing::info!("更新费率规则: id={id}");
         Ok(Vec::new())
@@ -260,6 +270,11 @@ impl CategoryFeeRuleService {
             self.assert_no_conflict(&chk, chk.category_ids.clone()).await?;
         }
         self.repo().update_status(id, status, &now_datetime()).await?;
+        let log_info = format!("更新费率规则状态 id={id} status={status}");
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log("admin", 0, &log_info).await {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
         tracing::info!("更新费率规则状态: id={id}, status={status}");
         Ok(Vec::new())
     }
@@ -274,6 +289,11 @@ impl CategoryFeeRuleService {
         let now = now_datetime();
         for rid in &ids {
             self.repo().soft_delete(*rid, &now).await?;
+        }
+        let log_info = format!("删除费率规则 ids={ids:?}");
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log("admin", 0, &log_info).await {
+            tracing::warn!("写管理操作日志失败: {e}");
         }
         tracing::info!("删除费率规则: {ids:?}");
         Ok(())

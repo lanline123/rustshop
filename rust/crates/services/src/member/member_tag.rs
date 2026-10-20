@@ -214,6 +214,14 @@ impl MemberTagService {
             .repos.member.member_tag
             .insert_tag(shop_id, group_id, &tag_name, now, None, None)
             .await?;
+        let log_info = format!("新增标签：{}", tag_name);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log
+            .record_current_log(if shop_id > 0 { "shop" } else { "admin" }, shop_id, &log_info)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
         tracing::info!("新增会员标签成功: id={id}, shopId={shop_id}, groupId={group_id}");
         Ok(id)
     }
@@ -257,6 +265,14 @@ impl MemberTagService {
             .repos.member.member_tag
             .update_tag_name(id, &tag_name, now_secs(), None, None)
             .await?;
+        let log_info = format!("更新标签：{}", tag_name);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log
+            .record_current_log(if shop_id > 0 { "shop" } else { "admin" }, shop_id, &log_info)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
         tracing::info!("更新会员标签: id={id}, 影响 {affected} 行");
         Ok(affected > 0)
     }
@@ -301,6 +317,14 @@ impl MemberTagService {
             .await?;
         // 5. 逻辑删除标签
         let deleted = self.repos.member.member_tag.logical_delete_tag(id).await?;
+        let log_info = format!("删除标签：{}", id);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log
+            .record_current_log(if shop_id > 0 { "shop" } else { "admin" }, shop_id, &log_info)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
         tracing::info!("删除会员标签: id={id}, 清理关联 {links} 行, 逻辑删除 {deleted} 行");
         Ok(DelOutcome {
             removed_links: links,

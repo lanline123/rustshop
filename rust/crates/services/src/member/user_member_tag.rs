@@ -110,6 +110,14 @@ impl UserMemberTagService {
         self.repo()
             .bind_tags(shop_id, user_id, &delete_ids, &insert_ids, now_seconds())
             .await?;
+        let log_info = format!("给用户打标签：{}", user_id);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log
+            .record_current_log(if shop_id > 0 { "shop" } else { "admin" }, shop_id, &log_info)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
         tracing::info!("用户打标签: shop_id={shop_id}, user_id={user_id}");
         Ok(())
     }
@@ -121,6 +129,14 @@ impl UserMemberTagService {
         self.repo()
             .unbind_tags(shop_id, user_id, &param.tag_ids)
             .await?;
+        let log_info = format!("取消用户标签：{}", user_id);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log
+            .record_current_log(if shop_id > 0 { "shop" } else { "admin" }, shop_id, &log_info)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
         tracing::info!("取消用户标签: shop_id={shop_id}, user_id={user_id}");
         Ok(())
     }
@@ -145,6 +161,14 @@ impl UserMemberTagService {
         self.repo()
             .batch_bind_tags(shop_id, &param.user_ids, &delete_map, &insert_map, now_seconds())
             .await?;
+        let log_info = format!("批量给用户打标签：{:?}", param.user_ids);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log
+            .record_current_log(if shop_id > 0 { "shop" } else { "admin" }, shop_id, &log_info)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
         tracing::info!(
             "批量用户打标签: shop_id={shop_id}, users={}",
             param.user_ids.len()
@@ -163,6 +187,14 @@ impl UserMemberTagService {
         self.repo()
             .batch_unbind_tags(shop_id, &param.user_ids, &param.tag_ids)
             .await?;
+        let log_info = format!("批量取消用户标签：{:?}", param.user_ids);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log
+            .record_current_log(if shop_id > 0 { "shop" } else { "admin" }, shop_id, &log_info)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
         tracing::info!(
             "批量取消用户标签: shop_id={shop_id}, users={}",
             param.user_ids.len()

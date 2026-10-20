@@ -302,6 +302,15 @@ impl MemberTagGroupService {
             .await
             .map_err(|e| Error::Database(e.to_string()))?;
 
+        let log_info = format!("新增标签组：{}", group_name);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log
+            .record_current_log(if shop_id > 0 { "shop" } else { "admin" }, shop_id, &log_info)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
+
         tracing::info!(
             "新增会员标签组成功: id={group_id}, shopId={shop_id}, 标签数={}",
             tag_names.len()
@@ -399,6 +408,15 @@ impl MemberTagGroupService {
             .await
             .map_err(|e| Error::Database(e.to_string()))?;
 
+        let log_info = format!("更新标签组：{}", group_name);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log
+            .record_current_log(if shop_id > 0 { "shop" } else { "admin" }, shop_id, &log_info)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
+
         let outcome = UpdateOutcome {
             group_id: id,
             deleted: u64::try_from(plan.delete_ids.len()).unwrap_or(u64::MAX),
@@ -488,6 +506,15 @@ impl MemberTagGroupService {
             .await
             .map_err(|e| Error::Database(e.to_string()))?;
 
+        let log_info = format!("删除标签组：{}", id);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log
+            .record_current_log(if shop_id > 0 { "shop" } else { "admin" }, shop_id, &log_info)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
+
         tracing::info!(
             "删除会员标签组: id={id}, 标签 {deleted_tags} 个, 清理关联 {removed_links} 行"
         );
@@ -556,6 +583,15 @@ impl MemberTagGroupService {
             .await
             .map_err(|e| Error::Database(e.to_string()))?;
 
+        let log_info = format!("置顶标签组：{}", id);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log
+            .record_current_log(if shop_id > 0 { "shop" } else { "admin" }, shop_id, &log_info)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
+
         tracing::info!("置顶会员标签组: id={id}, isTop={top}, shopId={shop_id}");
         Ok(top)
     }
@@ -603,6 +639,15 @@ impl MemberTagGroupService {
         tx.commit()
             .await
             .map_err(|e| Error::Database(e.to_string()))?;
+
+        let log_info = format!("取消置顶标签组：{}", id);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log
+            .record_current_log(if shop_id > 0 { "shop" } else { "admin" }, shop_id, &log_info)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
 
         tracing::info!("取消置顶会员标签组: id={id}, shopId={shop_id}");
         Ok(affected)

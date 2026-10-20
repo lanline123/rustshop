@@ -18,6 +18,7 @@ serde_json = { workspace = true }
 tracing = { workspace = true }
 rust_decimal = "1.36"
 chrono = { workspace = true }
+anyhow = { workspace = true }
 
 # Workspace crates
 tigshop-core = { path = "../core" }

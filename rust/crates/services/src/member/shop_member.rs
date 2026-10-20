@@ -81,6 +81,11 @@ impl ShopMemberService {
         if let Some(v) = param.shop_member_allow_import {
             self.write_int(CONFIG_ALLOW_IMPORT, v).await?;
         }
+        let log_info = format!("保存店铺会员总开关：{}", enabled);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log("admin", 0, &log_info).await {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
         tracing::info!(
             "保存店铺会员开关: enabled={}, desensitize={:?}, allowAdd={:?}, allowImport={:?}",
             enabled,
@@ -241,6 +246,14 @@ impl ShopMemberService {
         self.repo()
             .insert_member(context_shop_id, user.user_id, now_seconds())
             .await?;
+        let log_info = format!("店铺新增客户：{}", mobile);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log
+            .record_current_log(if context_shop_id > 0 { "shop" } else { "admin" }, context_shop_id, &log_info)
+            .await
+        {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
         tracing::info!("店铺新增客户: shop_id={context_shop_id}, user_id={}", user.user_id);
         Ok(user.user_id)
     }
