@@ -25,6 +25,7 @@ use tigshop_core::models::marketing::seckill::{
 };
 use tigshop_core::types::{PageQuery, PageResult};
 use tigshop_core::{Error, Result};
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 /// 秒杀库存不足时的业务提示（与原 Java 文案一致）。
@@ -50,7 +51,7 @@ impl SeckillService {
         let now = utils::now_seconds() as i32;
         let (total, rows) = self
             .repos.marketing.seckill
-            .paginate(q.keyword.as_deref(), q.shop_id, &page)
+            .paginate(q.keyword.as_deref(), scoped_list_shop_id(q.shop_id), &page)
             .await?;
 
         let mut list = Vec::with_capacity(rows.len());
@@ -67,6 +68,8 @@ impl SeckillService {
             .find_by_id(seckill_id)
             .await?
             .ok_or_else(|| Error::NotFound("秒杀活动不存在".into()))?;
+        // 多租户：店铺账号只能查看本店活动
+        TenantScope::current_ensure_access(s.shop_id)?;
         self.to_vo(&s, utils::now_seconds() as i32).await
     }
 
@@ -89,7 +92,8 @@ impl SeckillService {
             seckill_end_time: dto.seckill_end_time,
             seckill_limit_num: dto.seckill_limit_num,
             product_id: dto.product_id,
-            shop_id: dto.shop_id.unwrap_or(0),
+            // 多租户：店铺账号强制落本店；平台账号可指定/落平台级（0）
+            shop_id: TenantScope::current().write_shop_id(dto.shop_id)?,
             ..Default::default()
         };
         let seckill_id = self.repos.marketing.seckill.insert(&seckill).await?;
@@ -125,11 +129,15 @@ impl SeckillService {
         let base = &dto.base;
         self.validate_create(base)?;
 
-        // 活动必须存在
-        self.repos.marketing.seckill
+        // 活动必须存在；并校验归属（多租户）
+        let existing = self
+            .repos
+            .marketing
+            .seckill
             .find_by_id(dto.seckill_id)
             .await?
             .ok_or_else(|| Error::NotFound("秒杀活动不存在".into()))?;
+        TenantScope::current_ensure_access(existing.shop_id)?;
 
         let start = base.seckill_start_time.unwrap_or_default();
         let end = base.seckill_end_time.unwrap_or_default();
@@ -141,7 +149,8 @@ impl SeckillService {
             seckill_end_time: base.seckill_end_time,
             seckill_limit_num: base.seckill_limit_num,
             product_id: base.product_id,
-            shop_id: base.shop_id.unwrap_or(0),
+            // 多租户：店铺账号强制落本店
+            shop_id: TenantScope::current().write_shop_id(base.shop_id)?,
         };
         self.repos.marketing.seckill.update(&seckill).await?;
 
@@ -172,10 +181,15 @@ impl SeckillService {
 
     /// 删除秒杀活动（连同明细）。
     pub async fn delete(&self, seckill_id: i32) -> Result<()> {
-        self.repos.marketing.seckill
+        let existing = self
+            .repos
+            .marketing
+            .seckill
             .find_by_id(seckill_id)
             .await?
             .ok_or_else(|| Error::NotFound("秒杀活动不存在".into()))?;
+        // 多租户：删除前校验归属
+        TenantScope::current_ensure_access(existing.shop_id)?;
         self.repos.marketing.seckill.delete(seckill_id).await?;
         tracing::info!("删除秒杀活动: id={seckill_id}");
         Ok(())
@@ -558,6 +572,11 @@ fn to_promotion_vo(it: &SeckillItem, now: i32) -> SeckillPromotionVO {
     }
 }
 
+/// 列表店铺过滤：店铺账号强制本店；平台账号可用请求值精确过滤（None = 全部）。
+fn scoped_list_shop_id(requested: Option<i32>) -> Option<i32> {
+    TenantScope::current_list_filter().or(requested.filter(|id| *id > 0))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -626,5 +645,34 @@ mod tests {
         let vo = to_item_vo(&SeckillItem::default());
         assert_eq!(vo.rec_id, 0);
         assert_eq!(vo.seckill_price, Decimal::ZERO);
+    }
+
+    #[tokio::test]
+    async fn tenant_scope_scopes_list_and_blocks_cross_shop_writes() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::{
+            with_tenant_scope, TenantScope,
+        };
+        let shop = TenantScope::for_shop(8);
+        let (filter, write_shop, blocked) = with_tenant_scope(shop, async {
+            (
+                scoped_list_shop_id(None),
+                TenantScope::current().write_shop_id(None).unwrap_or(-1),
+                TenantScope::current_ensure_access(9).is_err(),
+            )
+        })
+        .await;
+        assert_eq!(filter, Some(8));
+        assert_eq!(write_shop, 8);
+        assert!(blocked);
+        // 平台账号：列表不过滤、写入可指定店铺
+        let (filter, write_shop) = with_tenant_scope(TenantScope::platform(), async {
+            (
+                scoped_list_shop_id(Some(9)),
+                TenantScope::current().write_shop_id(Some(9)).unwrap_or(-1),
+            )
+        })
+        .await;
+        assert_eq!(filter, Some(9));
+        assert_eq!(write_shop, 9);
     }
 }

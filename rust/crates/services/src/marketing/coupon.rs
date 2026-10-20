@@ -21,6 +21,7 @@ use tigshop_core::models::{
 };
 use tigshop_core::types::{PageQuery, PageResult};
 use tigshop_core::{Error, Result};
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 /// 用户券来源：普通领取。
@@ -51,7 +52,7 @@ impl CouponService {
             .paginate(
                 q.keyword.as_deref(),
                 q.status,
-                q.shop_id,
+                scoped_list_shop_id(q.shop_id),
                 now,
                 &page,
             )
@@ -70,8 +71,12 @@ impl CouponService {
     /// 管理端各状态券数量统计。
     pub async fn status_count(&self, shop_id: Option<i32>) -> Result<CouponStatusCountVO> {
         let now = now_seconds();
-        let (processing, pending, expired) =
-            self.repos.marketing.coupon.count_by_status(shop_id, now).await?;
+        let (processing, pending, expired) = self
+            .repos
+            .marketing
+            .coupon
+            .count_by_status(scoped_list_shop_id(shop_id), now)
+            .await?;
         Ok(CouponStatusCountVO {
             processing,
             pending,
@@ -81,10 +86,16 @@ impl CouponService {
 
     /// 优惠券详情（管理端）。
     pub async fn detail(&self, coupon_id: i32) -> Result<Coupon> {
-        self.repos.marketing.coupon
+        let coupon = self
+            .repos
+            .marketing
+            .coupon
             .find_by_id(coupon_id)
             .await?
-            .ok_or_else(|| Error::NotFound("优惠券不存在".into()))
+            .ok_or_else(|| Error::NotFound("优惠券不存在".into()))?;
+        // 多租户：店铺账号只能查看本店券
+        TenantScope::current_ensure_access(coupon.shop_id.unwrap_or(0))?;
+        Ok(coupon)
     }
 
     /// 优惠券详情（含派生状态与已领取数量）。
@@ -592,6 +603,11 @@ impl CouponService {
     }
 }
 
+/// 列表店铺过滤：店铺账号强制本店；平台账号可用请求值精确过滤（None = 全部）。
+fn scoped_list_shop_id(requested: Option<i32>) -> Option<i32> {
+    TenantScope::current_list_filter().or(requested.filter(|id| *id > 0))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -690,5 +706,29 @@ mod tests {
         let vo = to_client_vo(&c, 1);
         assert_eq!(vo.send_range_data, vec![7, 8]);
         assert_eq!(vo.is_receive, 0);
+    }
+
+    #[tokio::test]
+    async fn tenant_scope_forces_shop_list_filter_and_blocks_cross_shop_detail() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::{
+            with_tenant_scope, TenantScope,
+        };
+        let shop = TenantScope::for_shop(8);
+        let (filter, blocked) = with_tenant_scope(shop, async {
+            (
+                scoped_list_shop_id(None),
+                TenantScope::current_ensure_access(9).is_err(),
+            )
+        })
+        .await;
+        // 店铺账号：列表强制本店，即使未传 shopId
+        assert_eq!(filter, Some(8));
+        assert!(blocked);
+        // 平台账号：列表不强制，但可用请求值精确过滤
+        let filter = with_tenant_scope(TenantScope::platform(), async {
+            scoped_list_shop_id(Some(9))
+        })
+        .await;
+        assert_eq!(filter, Some(9));
     }
 }

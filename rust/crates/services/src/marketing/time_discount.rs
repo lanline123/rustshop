@@ -28,6 +28,7 @@ use tigshop_core::models::marketing::time_discount::{
 };
 use tigshop_core::types::{PageQuery, PageResult};
 use tigshop_core::{Error, Result};
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 /// 商品已在其他限时折扣活动中的提示（与原 Java 文案一致）。
@@ -55,7 +56,7 @@ impl TimeDiscountService {
         let now = utils::now_seconds() as i32;
         let (total, rows) = self
             .repos.marketing.time_discount
-            .paginate(q.keyword.as_deref(), q.shop_id, &page)
+            .paginate(q.keyword.as_deref(), scoped_list_shop_id(q.shop_id), &page)
             .await?;
 
         let mut list = Vec::with_capacity(rows.len());
@@ -72,6 +73,8 @@ impl TimeDiscountService {
             .find_by_id(discount_id)
             .await?
             .ok_or_else(|| Error::NotFound("限时折扣活动不存在".into()))?;
+        // 多租户：店铺账号只能查看本店活动
+        TenantScope::current_ensure_access(d.shop_id)?;
         self.to_vo(&d, utils::now_seconds() as i32).await
     }
 
@@ -92,7 +95,7 @@ impl TimeDiscountService {
             promotion_name: dto.promotion_name.clone().unwrap_or_default(),
             start_time: start,
             end_time: end,
-            shop_id: dto.shop_id.unwrap_or(0),
+            shop_id: TenantScope::current().write_shop_id(dto.shop_id)?,
             add_time: Some(utils::now_seconds() as i32),
             ..Default::default()
         };
@@ -124,10 +127,15 @@ impl TimeDiscountService {
     pub async fn update(&self, dto: &TimeDiscountUpdateDTO) -> Result<()> {
         let (start, end) = self.validate(&dto.base)?;
 
-        self.repos.marketing.time_discount
+        let existing = self
+            .repos
+            .marketing
+            .time_discount
             .find_by_id(dto.discount_id)
             .await?
             .ok_or_else(|| Error::NotFound("限时折扣活动不存在".into()))?;
+        // 多租户：更新前校验归属
+        TenantScope::current_ensure_access(existing.shop_id)?;
 
         let product_ids = collect_product_ids(&dto.base);
         self.check_conflicts(&product_ids, start, end, Some(dto.discount_id))
@@ -138,7 +146,8 @@ impl TimeDiscountService {
             promotion_name: dto.base.promotion_name.clone().unwrap_or_default(),
             start_time: start,
             end_time: end,
-            shop_id: dto.base.shop_id.unwrap_or(0),
+            // 多租户：店铺账号强制落本店
+            shop_id: TenantScope::current().write_shop_id(dto.base.shop_id)?,
             ..Default::default()
         };
         self.repos.marketing.time_discount.update(&activity).await?;
@@ -167,10 +176,15 @@ impl TimeDiscountService {
 
     /// 删除活动（连同明细）。
     pub async fn delete(&self, discount_id: i32) -> Result<()> {
-        self.repos.marketing.time_discount
+        let existing = self
+            .repos
+            .marketing
+            .time_discount
             .find_by_id(discount_id)
             .await?
             .ok_or_else(|| Error::NotFound("限时折扣活动不存在".into()))?;
+        // 多租户：删除前校验归属
+        TenantScope::current_ensure_access(existing.shop_id)?;
         self.repos.marketing.time_discount.delete(discount_id).await?;
         tracing::info!("删除限时折扣活动: id={discount_id}");
         Ok(())
@@ -549,6 +563,11 @@ fn to_promotion_vo(it: &TimeDiscountItem, now: i32) -> TimeDiscountPromotionVO {
     }
 }
 
+/// 列表店铺过滤：店铺账号强制本店；平台账号可用请求值精确过滤（None = 全部）。
+fn scoped_list_shop_id(requested: Option<i32>) -> Option<i32> {
+    TenantScope::current_list_filter().or(requested.filter(|id| *id > 0))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -740,5 +759,27 @@ mod tests {
         let vo = to_promotion_vo(&it, 40);
         assert!(!vo.started);
         assert_eq!(vo.remain_seconds, 60);
+    }
+
+    #[tokio::test]
+    async fn tenant_scope_scopes_list_and_blocks_cross_shop_access() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::{
+            with_tenant_scope, TenantScope,
+        };
+        let shop = TenantScope::for_shop(8);
+        let (filter, blocked) = with_tenant_scope(shop, async {
+            (
+                scoped_list_shop_id(None),
+                TenantScope::current_ensure_access(9).is_err(),
+            )
+        })
+        .await;
+        assert_eq!(filter, Some(8));
+        assert!(blocked);
+        let filter = with_tenant_scope(TenantScope::platform(), async {
+            scoped_list_shop_id(Some(9))
+        })
+        .await;
+        assert_eq!(filter, Some(9));
     }
 }
