@@ -39,6 +39,7 @@
 //! > 详见 `tigshop_services::system::area_code` 模块头与 `uncertain_points`。
 
 use axum::{
+    extract::Extension,
     extract::{Query, State},
     routing::{get, post},
     Json, Router,
@@ -49,7 +50,7 @@ use tigshop_core::models::system::area_code::{
     UpdateFieldDTO,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AuthUser, AppError};
 
 use crate::AdminState;
 
@@ -72,6 +73,16 @@ const ROUTE_TABLE: [(&str, &str, &str); 7] = [
 ];
 
 /// 区号管理域路由（挂载于 `/adminapi` 下，全局 `require_auth` 已生效）。
+/// 区号写操作仅平台账号可执行（读接口保持所有后台账号可用）。
+fn require_platform(auth: &AuthUser) -> Result<(), AppError> {
+    if !auth.is_platform() {
+        return Err(AppError(tigshop_core::Error::Forbidden(
+            "仅平台账号可修改区号配置".into(),
+        )));
+    }
+    Ok(())
+}
+
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new()
@@ -144,8 +155,10 @@ async fn detail(
 /// （与 shop_manage / pc_cat_floor 的处理方式一致）。
 async fn create(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<AreaCodeSaveDTO>,
 ) -> ApiResult<serde_json::Value> {
+    require_platform(&auth)?;
     let id = state.system.area_code.create(&dto).await?;
     ok(serde_json::json!({ "id": id }))
 }
@@ -157,8 +170,10 @@ async fn create(
 /// Java 返回 `void`，这里回传是否命中记录。
 async fn update(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<AreaCodeEditDTO>,
 ) -> ApiResult<bool> {
+    require_platform(&auth)?;
     ok(state.system.area_code.update(&dto).await?)
 }
 
@@ -169,7 +184,12 @@ async fn update(
 ///
 /// ⚠️ Java 删不存在的 id 也返回成功（`removeById` 返回 `false` 但不报错），
 /// 本实现保持这一语义，回传删除是否命中。
-async fn del(State(state): State<AdminState>, Json(dto): Json<OperateDTO>) -> ApiResult<bool> {
+async fn del(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(dto): Json<OperateDTO>,
+) -> ApiResult<bool> {
+    require_platform(&auth)?;
     ok(state.system.area_code.del(&dto).await?)
 }
 
@@ -181,8 +201,10 @@ async fn del(State(state): State<AdminState>, Json(dto): Json<OperateDTO>) -> Ap
 /// （`{code, name, is_available, is_default}`）。
 async fn update_field(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<bool> {
+    require_platform(&auth)?;
     ok(state.system.area_code.update_field(&dto).await?)
 }
 
@@ -191,7 +213,12 @@ async fn update_field(
 /// 对应 Java `AreaCodeController.batch(@RequestBody @Validated BatchDTO dto)`
 /// → `BaseServiceImpl#batch`：`type != "del"` 时**静默返回 `false`**
 /// （HTTP 200，不是报错）。
-async fn batch(State(state): State<AdminState>, Json(dto): Json<BatchDTO>) -> ApiResult<bool> {
+async fn batch(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(dto): Json<BatchDTO>,
+) -> ApiResult<bool> {
+    require_platform(&auth)?;
     ok(state.system.area_code.batch(&dto).await?)
 }
 
@@ -250,5 +277,20 @@ mod tests {
         for (_, path, java) in ROUTE_TABLE {
             assert!(java.starts_with("AreaCodeController."), "{path} 缺少 Java 对照");
         }
+    }
+}
+
+#[cfg(test)]
+mod tenant_tests {
+    use super::*;
+
+    #[test]
+    fn shop_account_is_rejected_by_platform_guard() {
+        let admin = AuthUser::new(1, "a".into(), None, Some("admin".into()), Some(0));
+        assert!(require_platform(&admin).is_ok());
+        let shop = AuthUser::new(2, "s".into(), None, Some("shop".into()), Some(7));
+        assert!(require_platform(&shop).is_err());
+        assert_eq!(shop.scoped_shop_id(), Some(7));
+        assert_eq!(admin.scoped_shop_id(), None);
     }
 }

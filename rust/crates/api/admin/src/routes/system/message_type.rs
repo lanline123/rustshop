@@ -32,6 +32,7 @@
 //! > 详见 `crates/services/src/message_type.rs` 的 `uncertain_points` 说明。
 
 use axum::{
+    extract::Extension,
     extract::{Query, State},
     routing::{get, post},
     Json, Router,
@@ -40,11 +41,35 @@ use serde::Deserialize;
 use tigshop_core::models::catalog::category_all::UpdateFieldDTO;
 use tigshop_core::models::system::message_type::{MessageTypeDetailDTO, MessageTypeListQuery, MessageTypeListVO};
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AuthUser, AppError};
 
 use crate::AdminState;
 
 /// 消息分类域路由（挂载于 `/adminapi` 下）。
+/// 系统级配置域（源表无 `shop_id` 列）：仅平台账号可访问/修改。
+async fn platform_only(
+    Extension(auth): Extension<AuthUser>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Result<axum::response::Response, AppError> {
+    if !auth.is_platform() {
+        return Err(AppError(tigshop_core::Error::Forbidden(
+            "仅平台账号可管理系统配置".into(),
+        )));
+    }
+    Ok(next.run(req).await)
+}
+
+/// 平台账号判定（供中间件与单测复用）。
+fn require_platform(auth: &AuthUser) -> Result<(), AppError> {
+    if !auth.is_platform() {
+        return Err(AppError(tigshop_core::Error::Forbidden(
+            "仅平台账号可管理系统配置".into(),
+        )));
+    }
+    Ok(())
+}
+
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new()
@@ -60,6 +85,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
             "/setting/messageType/wechatMessageTemplate",
             post(wechat_message_template),
         )
+        .layer(axum::middleware::from_fn(platform_only))
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。
@@ -238,5 +264,20 @@ mod tests {
             .collect();
         assert_eq!(stripped[0], "/setting/messageType/list");
         assert_eq!(stripped[5], "/setting/messageType/wechatMessageTemplate");
+    }
+}
+
+#[cfg(test)]
+mod tenant_tests {
+    use super::*;
+
+    #[test]
+    fn shop_account_is_rejected_by_platform_guard() {
+        let admin = AuthUser::new(1, "a".into(), None, Some("admin".into()), Some(0));
+        assert!(require_platform(&admin).is_ok());
+        let shop = AuthUser::new(2, "s".into(), None, Some("shop".into()), Some(7));
+        assert!(require_platform(&shop).is_err());
+        assert_eq!(shop.scoped_shop_id(), Some(7));
+        assert_eq!(admin.scoped_shop_id(), None);
     }
 }

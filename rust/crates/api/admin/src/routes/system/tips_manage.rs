@@ -16,7 +16,7 @@
 use axum::{extract::Query, extract::State, routing::get, Extension, Router};
 use tigshop_core::models::system::tips_manage::{TipsManageQuery, TipsVO};
 use tigshop_openapi::RouteDoc;
-use tigshop_security::web::{ok, ApiResult, AuthUser};
+use tigshop_security::web::{ok, ApiResult, AuthUser, AppError};
 
 use crate::AdminState;
 
@@ -28,9 +28,34 @@ const ROUTE_TABLE: [(&str, &str, &str); 1] = [(
 )];
 
 /// 提示管理域路由（挂载于 `/adminapi` 下，外层统一套 `require_auth`）。
+/// 系统级配置域（源表无 `shop_id` 列）：仅平台账号可访问/修改。
+async fn platform_only(
+    Extension(auth): Extension<AuthUser>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Result<axum::response::Response, AppError> {
+    if !auth.is_platform() {
+        return Err(AppError(tigshop_core::Error::Forbidden(
+            "仅平台账号可管理系统配置".into(),
+        )));
+    }
+    Ok(next.run(req).await)
+}
+
+/// 平台账号判定（供中间件与单测复用）。
+fn require_platform(auth: &AuthUser) -> Result<(), AppError> {
+    if !auth.is_platform() {
+        return Err(AppError(tigshop_core::Error::Forbidden(
+            "仅平台账号可管理系统配置".into(),
+        )));
+    }
+    Ok(())
+}
+
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new().route("/common/tipsManage/list", get(list))
+        .layer(axum::middleware::from_fn(platform_only))
 }
 
 /// 本模块已实现路由（用于 `/openapi/coverage` 覆盖率统计，完整契约路径）。
@@ -91,5 +116,20 @@ mod tests {
             serde_json::from_str(r#"{"url":"https://admin.example.com/x"}"#).unwrap();
         assert_eq!(q.url, "https://admin.example.com/x");
         assert!(serde_json::from_str::<TipsManageQuery>("{}").is_err());
+    }
+}
+
+#[cfg(test)]
+mod tenant_tests {
+    use super::*;
+
+    #[test]
+    fn shop_account_is_rejected_by_platform_guard() {
+        let admin = AuthUser::new(1, "a".into(), None, Some("admin".into()), Some(0));
+        assert!(require_platform(&admin).is_ok());
+        let shop = AuthUser::new(2, "s".into(), None, Some("shop".into()), Some(7));
+        assert!(require_platform(&shop).is_err());
+        assert_eq!(shop.scoped_shop_id(), Some(7));
+        assert_eq!(admin.scoped_shop_id(), None);
     }
 }
