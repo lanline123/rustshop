@@ -54,11 +54,11 @@
 //!    本实现恒为 `None`。**说明**：本域的列表接口（`/product/getProduct`）
 //!    把 `saleMode` 强制为 0，因此前端在该流程中通常不会拿到预售商品；
 //!    但 `getProductAvailability` 的 `id` 是前端自选的，仍可能命中预售商品。
-//! 7. **O2O 门店覆盖未迁移**：Java `getProductDetail` 在 O2O 且传了
-//!    `shopId > 0` 时会用 `store_product` / `store_product_sku` 覆盖价与库存；
-//!    门店距离 `distance` 依赖 `user_address` + 门店经纬度 + 自营门店配置。
-//!    本实现只读平台数据，`distance` 恒 `None`（`shopId` / `addressId` /
-//!    `userId` 仅做日志）。
+//! 7. **O2O 门店覆盖/会员折扣/距离已实现**：
+//!    - `shopId > 0` 时用 `store_product` / `store_product_sku` 覆盖价与库存；
+//!    - `userId > 0` 时套会员等级折扣；
+//!    - 传 `addressId` 时按用户地址与门店/自营店经纬度算 Haversine 距离。
+//!    促销（秒杀/限时折扣/拼团）仍未迁移，见第 2 条。
 //! 8. **权限未迁移**：Java 类级
 //!    `@PreAuthorize("@pms.hasPermission('proxyShoppingManage')")`，
 //!    Rust 侧权限矩阵尚未实现，`require_auth` 只校验登录态

@@ -15,7 +15,7 @@
 //! - `confirmReceipt`：归属校验（非本人订单静默返回，与控制器 count 判断一致）→
 //!   `availableActions.confirmReceipt`（处理中）→ 完成订单 + 日志。
 //! - `shippingInfo`：订单/单号/物流公司缺失 → `null`（Java 返回 null）；
-//!   物流平台对接未迁移 → 明确业务错误。
+//!   当前激活快递鸟时实时查询 1002，其它情况返回运单快照。
 //! - `buyAgain`：订单商品仍在售 → 命中同商品同规格购物车行则累加数量，否则加购；
 //!   价格取订单快照（Java 会走 `addProductToCart` 的价格/活动重算，本实现未迁移）。
 //!
@@ -24,7 +24,7 @@
 //! - `confirmReceipt` 的奖金/分销结算、店铺结算、积分赠送、会员成长值、
 //!   管理员消息、MQ 通知等自动化流程均未迁移。
 //! - `buyAgain` 的价格/库存/活动重算、秒杀/拼团校验、购物车改价清理未迁移。
-//! - `shippingInfo` 的快递100/快递鸟等第三方物流查询未迁移。
+//! - 快递100 查询仍未接入；快递鸟查询仅在激活服务商为快递鸟时启用。
 //! - `delOrder`/`confirmReceipt` 的 `orderLogService.quickCreate` 已按 order_log 表落库。
 
 use std::sync::Arc;

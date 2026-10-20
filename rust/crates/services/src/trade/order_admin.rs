@@ -2520,9 +2520,9 @@ impl OrderAdminService {
     ///
     /// 对应 Java `getShippingInfo`：无运单号 / 物流公司不存在返回 `null`。
     ///
-    /// ⚠️ **降级**：Java 通过 `logisticsProviderRouter` 实时查询快递鸟/快递100；
-    /// Rust 未迁移第三方 HTTP 客户端与密钥配置，返回订单自身运单快照
-    /// （`success = "0"` 表示未接入第三方查询，`traces` 为空）。
+    /// 当前激活服务商为快递鸟且配置完整时，实时调用 1002 查询轨迹；
+    /// 快递鸟失败/未配置或激活快递100 时回退为订单运单快照
+    /// （`success = "0"` 表示未接入对应第三方查询）。
     pub async fn shipping_info(
         &self,
         id: i32,
