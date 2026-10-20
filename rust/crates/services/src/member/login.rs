@@ -61,7 +61,6 @@ use tigshop_core::models::member::login::{
     CODE_INVALID, CODE_TTL_SECS, EMAIL_REQUIRED, IDENTITY_REQUIRED, MEMBER_TOKEN_TYPE,
     MOBILE_REQUIRED, PASSWORD_REQUIRED, PASSWORD_UPDATE_FAILED, REGISTER_CLOSED,
     RESET_TOKEN_INVALID, SERVICE_DATA_ERROR, SWITCH_OFF, USER_STATUS_OK, WECHAT_NOT_BOUND,
-    WECHAT_NOT_MIGRATED, WECHAT_SERVER_NOT_MIGRATED,
 };
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::cache::CacheService;
@@ -480,7 +479,7 @@ impl LoginService {
             return self.wechat_pc_qr_login().await;
         }
         if client_type != "wechat" {
-            return Err(Error::biz(SERVICE_DATA_ERROR, WECHAT_NOT_MIGRATED));
+            return Err(Error::biz(SERVICE_DATA_ERROR, "不支持的终端类型"));
         }
         let app_id = self
             .repo()

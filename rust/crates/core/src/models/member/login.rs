@@ -98,11 +98,7 @@ pub const CODE_PARAM_REQUIRED: &str = "code不能为空";
 /// `ConfigServiceImpl#getQuickLoginSetting` 使用 `x-client-type`。
 pub const CLIENT_TYPE_HEADER: &str = "x-client-type";
 
-// —— 未迁移能力（WeChat / 行为验证）的统一错误文案 ——
-/// 微信开放平台接口未迁移。
-pub const WECHAT_NOT_MIGRATED: &str = "微信开放平台接口未迁移：本构建未接入公众号/小程序 OAuth（code2Session、扫码事件、小程序手机号），无法完成该微信登录链路";
-/// 微信公众号服务器回调未迁移。
-pub const WECHAT_SERVER_NOT_MIGRATED: &str = "微信公众号服务器消息回调未迁移：依赖微信生态验签与消息路由";
+// —— 未迁移能力（行为验证）的统一错误文案 ——
 /// 行为验证未迁移。
 pub const CAPTCHA_NOT_MIGRATED: &str = "行为验证（AJ-Captcha）未迁移：本构建无法校验 verifyToken，已按 Java 同款流程跳过该步（见模块文档）";
 /// Redis 不可用（服务以 `Option<CacheService>` 降级）。
