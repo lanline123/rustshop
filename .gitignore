@@ -1,0 +1,5 @@
+/rust/crates/target/
+/rust/crates/target-verify/
+**/uploads/
+*.apk
+*.log

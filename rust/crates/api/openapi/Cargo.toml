@@ -1,0 +1,23 @@
+[package]
+name = "tigshop-openapi"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "TigShop API 契约：Java 源系统接口清单 + Rust 实现覆盖率"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+axum.workspace = true
+tracing.workspace = true
+
+[build-dependencies]
+serde_json.workspace = true
+
+[dev-dependencies]
+tower.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,346 @@
+﻿//! 入驻申请域服务（merchant::merchant_apply）。
+//!
+//! 构造签名固定 `pub fn new(repos: Arc<Repositories>) -> Self`；
+//! 仓储访问为**嵌套**命名：`self.repos.merchant.merchant_apply.<method>()`。
+//!
+//! 对应原 Java `com.tigshop.service.merchant.impl.MerchantApplyServiceImpl`。
+//!
+//! # 已实现
+//!
+//! - `list`：分页 + 状态过滤 + 关键字（companyName/contactName LIKE）+ 默认主键降序；
+//!   批量补会员展示信息与审核管理员名称、状态文案、时间格式化（与 Java 一致）。
+//! - `detail`：`getById` → 不存在「商户申请信息不存在」；JSON 申请资料反序列化返回。
+//! - `update`：Java `MerchantApplyUpdateDTO` 是空类 → 本实现同样无操作成功。
+//! - `del` / `batch`（`type=del`）/ `updateField`（白名单 `GENERAL_FIELDS`）：
+//!   `BaseServiceImpl` 语义，字段先映射列名再比对白名单。
+//! - `audit`：仅允许「待审核(1)」→ 通过(10)/不通过(20)；写状态、审核备注、审核时间、
+//!   审核管理员；**通过时创建 `merchant` 行**（Java `merchantService.save`）。
+//! - `config`：状态参数列表（待审核/审核通过/审核未通过）。
+//!
+//! # 未迁移（审核通过后的完整开店链路，见 Java `MerchantApplyServiceImpl#audit`）
+//!
+//! Java 审核通过后还会：创建后台管理员（`adminUserService.providerCreate`，初始密码
+//! `PASSWORD`、角色 `ROLE_ID`）、创建 `merchant_user` 关联、创建店铺 `shop` 与店铺
+//! 管理员/员工关联、初始化保证金账户与规则、发送站内信/短信通知。
+//! 这些跨 `identity` / `merchant` / `deposit` 多域，本实现**未迁移**，仅落地
+//! `merchant_apply` 状态与 `merchant` 主记录；调用方不应把本接口视为「开店完成」。
+//! 审核不通过的通知（`messageService.sendMerchantApplyResultMessage`）同样未迁移。
+
+use std::sync::Arc;
+
+use serde_json::Value;
+use tigshop_common::utils::now_seconds;
+use tigshop_core::models::merchant::merchant_apply::{
+    apply_field_to_column, format_time, is_general_field, status_options, status_text,
+    valid_audit_status, MerchantApplyAuditParam, MerchantApplyListQuery, MerchantApplyUpdateDTO,
+    MerchantApplyVO, AUDIT_STATUS_INVALID, MERCHANT_APPLY_NOT_EXIST, MOBILE_NOT_BOUND,
+    RESOURCE_NOT_FOUND, SERVICE_DATA_ERROR, STATUS_PASS, STATUS_PENDING,
+};
+use tigshop_core::types::PageResult;
+use tigshop_core::{Error, Result};
+use tigshop_infrastructure::db::repo::merchant::merchant_apply::MerchantApplyRepository;
+use tigshop_infrastructure::db::Repositories;
+
+/// 入驻申请域服务。
+pub struct MerchantApplyService {
+    repos: Arc<Repositories>,
+}
+
+impl MerchantApplyService {
+    #[must_use]
+    pub fn new(repos: Arc<Repositories>) -> Self {
+        Self { repos }
+    }
+
+    /// 本特性仓储（嵌套访问）。
+    #[must_use]
+    pub fn repo(&self) -> &MerchantApplyRepository {
+        &self.repos.merchant.merchant_apply
+    }
+
+    /// 申请分页（Java `MerchantApplyServiceImpl#list`）。
+    ///
+    /// # Errors
+    /// 数据库失败 → `Error::Database`。
+    pub async fn list(&self, q: &MerchantApplyListQuery) -> Result<PageResult<MerchantApplyVO>> {
+        let (total, rows) = self.repo().paginate(q).await?;
+        let page = tigshop_core::types::PageQuery {
+            page: q.page_params().0,
+            page_size: q.page_params().1,
+        };
+        if rows.is_empty() {
+            return Ok(PageResult::empty(&page));
+        }
+
+        let user_ids: Vec<i32> = rows.iter().filter_map(|r| r.user_id).collect();
+        let users = self.repo().find_users(&user_ids).await?;
+        let user_map: std::collections::HashMap<i32, (String, String, String)> = users
+            .into_iter()
+            .map(|(id, username, nickname, mobile, avatar)| {
+                let user_json = serde_json::json!({
+                    "userId": id,
+                    "username": username,
+                    "nickname": nickname,
+                    "mobile": mobile,
+                    "avatar": avatar,
+                })
+                .to_string();
+                (
+                    id,
+                    (
+                        username,
+                        nickname.unwrap_or_default(),
+                        user_json,
+                    ),
+                )
+            })
+            .collect();
+
+        let admin_ids: Vec<i32> = rows.iter().filter_map(|r| r.audit_admin_id).collect();
+        let admin_map: std::collections::HashMap<i32, String> = self
+            .repo()
+            .admin_usernames(&admin_ids)
+            .await?
+            .into_iter()
+            .collect();
+
+        let mut list = Vec::with_capacity(rows.len());
+        for (idx, row) in rows.iter().enumerate() {
+            let user = user_map.get(&row.user_id.unwrap_or(0)).and_then(|u| {
+                serde_json::from_str::<Value>(&u.2).ok()
+            });
+            let audit_admin_id = row.audit_admin_id.unwrap_or(0);
+            let mut vo = to_vo(row);
+            vo.user = user;
+            vo.audit_admin_name = admin_map
+                .get(&audit_admin_id)
+                .cloned()
+                .unwrap_or_default();
+            // 防御：保留索引便于调试
+            let _ = idx;
+            list.push(vo);
+        }
+        Ok(PageResult::new(total, list, &page))
+    }
+
+    /// 申请详情（Java `#detail`）。
+    ///
+    /// # Errors
+    /// 不存在 → 「商户申请信息不存在」；数据库失败 → `Error::Database`。
+    pub async fn detail(&self, id: i32) -> Result<MerchantApplyVO> {
+        let row = self
+            .repo()
+            .find_by_id(id)
+            .await?
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, MERCHANT_APPLY_NOT_EXIST))?;
+        let mut vo = to_vo(&row);
+        if let Some(user_id) = row.user_id {
+            if let Some((uid, username, nickname, mobile, avatar)) =
+                self.repo().find_users(&[user_id]).await?.into_iter().next()
+            {
+                vo.user = Some(serde_json::json!({
+                    "userId": uid,
+                    "username": username,
+                    "nickname": nickname,
+                    "mobile": mobile,
+                    "avatar": avatar,
+                }));
+            }
+        }
+        vo.audit_admin_name = if row.audit_admin_id.unwrap_or(0) > 0 {
+            self.repo()
+                .admin_usernames(&[row.audit_admin_id.unwrap_or(0)])
+                .await?
+                .into_iter()
+                .next()
+                .map(|(_, name)| name)
+                .unwrap_or_default()
+        } else {
+            String::new()
+        };
+        Ok(vo)
+    }
+
+    /// 更新（Java `#update`；DTO 为空类 → 无操作成功）。
+    ///
+    /// # Errors
+    /// 恒成功（保留 Java 行为）。
+    pub fn update(&self, _dto: &MerchantApplyUpdateDTO) -> Result<()> {
+        Ok(())
+    }
+
+    /// 删除（Java `#del` / `BaseServiceImpl#del`）。
+    ///
+    /// # Errors
+    /// id 缺失或不存在 → 「商户申请信息不存在」；数据库失败 → `Error::Database`。
+    pub async fn del(&self, id: Option<i32>) -> Result<()> {
+        let id = id.ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, MERCHANT_APPLY_NOT_EXIST))?;
+        if !self.repo().delete(id).await? {
+            return Err(Error::biz(SERVICE_DATA_ERROR, MERCHANT_APPLY_NOT_EXIST));
+        }
+        Ok(())
+    }
+
+    /// 字段更新（Java `#updateField(updateField, GENERAL_FIELDS)`）。
+    ///
+    /// 先按 `getColumnByPropertyName` 映射列名，再与 `GENERAL_FIELDS` 比对。
+    ///
+    /// # Errors
+    /// id/字段/值缺失 → 对应文案；字段不在白名单 → 「field 的值有误」。
+    pub async fn update_field(
+        &self,
+        id: Option<i32>,
+        field: Option<&str>,
+        val: Option<&str>,
+    ) -> Result<bool> {
+        let id = id.ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "id不能为空"))?;
+        let column = apply_field_to_column(field);
+        if !is_general_field(column) {
+            return Err(Error::biz(SERVICE_DATA_ERROR, "field 的值有误"));
+        }
+        self.repo().update_field(id, column, val).await
+    }
+
+    /// 批量操作（Java `BaseServiceImpl#batch`：仅 `del` 生效）。
+    ///
+    /// # Errors
+    /// 数据库失败 → `Error::Database`。
+    pub async fn batch(&self, ids: Option<&[i32]>, op_type: Option<&str>) -> Result<bool> {
+        if op_type != Some("del") {
+            return Ok(false);
+        }
+        let Some(ids) = ids.filter(|i| !i.is_empty()) else {
+            return Ok(false);
+        };
+        self.repo().delete_many(ids).await?;
+        Ok(true)
+    }
+
+    /// 审核（Java `#audit`）。
+    ///
+    /// 1. 申请必须存在（否则「资源不存在」）且状态为待审核（否则「审核状态不正确」）；
+    /// 2. 目标状态只能是 10/20；
+    /// 3. 通过时校验会员已绑定手机号（「请先绑定手机号」），并创建 `merchant` 行；
+    /// 4. 写回状态/备注/审核时间/审核人。
+    ///
+    /// ⚠️ 审核通过后的开店链路（管理员/店铺/保证金/通知）未迁移，见模块文档。
+    ///
+    /// # Errors
+    /// 上述业务错误或数据库失败。
+    pub async fn audit(&self, param: &MerchantApplyAuditParam, audit_admin_id: i32) -> Result<()> {
+        let id = param
+            .merchant_apply_id
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "id不能为空"))?;
+        let status = param
+            .status
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, AUDIT_STATUS_INVALID))?;
+        if !valid_audit_status(status) {
+            return Err(Error::biz(SERVICE_DATA_ERROR, AUDIT_STATUS_INVALID));
+        }
+        let apply = self
+            .repo()
+            .find_by_id(id)
+            .await?
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, RESOURCE_NOT_FOUND))?;
+        if apply.status != Some(STATUS_PENDING) {
+            return Err(Error::biz(SERVICE_DATA_ERROR, AUDIT_STATUS_INVALID));
+        }
+
+        let now = i32::try_from(now_seconds()).unwrap_or(0);
+        self.repo()
+            .update_audit(
+                id,
+                status,
+                param.audit_remark.as_deref(),
+                now,
+                audit_admin_id,
+            )
+            .await?;
+
+        if status == STATUS_PASS {
+            // Java `Assert.isTrue(user mobile)` → 「请先绑定手机号」
+            let user_id = apply.user_id.unwrap_or(0);
+            let users = self.repo().find_users(&[user_id]).await?;
+            let mobile = users.first().map(|u| u.3.clone()).unwrap_or_default();
+            if mobile.trim().is_empty() {
+                return Err(Error::biz(SERVICE_DATA_ERROR, MOBILE_NOT_BOUND));
+            }
+            self.repo()
+                .insert_merchant_from_apply(
+                    id,
+                    user_id,
+                    now,
+                    apply.base_data.as_deref(),
+                    apply.shop_data.as_deref(),
+                    apply.merchant_data.as_deref(),
+                    apply.r#type.unwrap_or(1),
+                    apply.company_name.as_deref(),
+                    apply.corporate_name.as_deref(),
+                )
+                .await?;
+        }
+        Ok(())
+    }
+
+    /// 状态参数（Java `#config`）。
+    #[must_use]
+    pub fn config(&self) -> Value {
+        status_options()
+    }
+}
+
+/// 实体 → VO（Java `BeanUtils.copyProperties` + 文案/时间处理）。
+fn to_vo(row: &tigshop_core::entities::MerchantApply) -> MerchantApplyVO {
+    MerchantApplyVO {
+        merchant_apply_id: row.merchant_apply_id,
+        user_id: row.user_id.unwrap_or(0),
+        shop_title: row.shop_title.clone(),
+        status: row.status.unwrap_or(0),
+        r#type: row.r#type.unwrap_or(1),
+        contact_name: row.contact_name.clone(),
+        contact_mobile: row.contact_mobile.clone(),
+        shop_data: row.shop_data.as_deref().and_then(|s| serde_json::from_str(s).ok()),
+        base_data: row.base_data.as_deref().and_then(|s| serde_json::from_str(s).ok()),
+        merchant_data: row.merchant_data.as_deref().and_then(|s| serde_json::from_str(s).ok()),
+        company_name: row.company_name.clone(),
+        corporate_name: row.corporate_name.clone(),
+        audit_remark: row.audit_remark.clone(),
+        user: None,
+        status_text: status_text(row.status.unwrap_or(0)).to_string(),
+        add_time: format_time(row.add_time),
+        audit_time: format_time(row.audit_time),
+        audit_admin_id: row.audit_admin_id.unwrap_or(0),
+        audit_admin_name: String::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tigshop_core::models::merchant::merchant_apply::{
+        apply_field_to_column, is_general_field, status_text, valid_audit_status, STATUS_REJECT,
+    };
+
+    #[test]
+    fn audit_status_guard_matches_java_enum() {
+        assert!(valid_audit_status(STATUS_PASS));
+        assert!(valid_audit_status(STATUS_REJECT));
+        assert!(!valid_audit_status(STATUS_PENDING));
+        assert_eq!(status_text(STATUS_REJECT), "审核未通过");
+    }
+
+    #[test]
+    fn update_field_whitelist_is_general_fields() {
+        // GENERAL_FIELDS = is_show / sort_order / status；merchant_apply 只有 status 列
+        assert!(is_general_field(&apply_field_to_column(Some("status"))));
+        assert!(!is_general_field(&apply_field_to_column(Some("shopTitle"))));
+        assert!(!is_general_field(&apply_field_to_column(Some("unknown"))));
+    }
+
+    #[test]
+    fn update_dto_is_empty_like_java() {
+        // Java MerchantApplyUpdateDTO 无字段：反序列化任意 JSON 都是空对象
+        let dto: MerchantApplyUpdateDTO = serde_json::from_str(r#"{"anything":1}"#).unwrap();
+        let _ = dto;
+    }
+}

@@ -1,0 +1,71 @@
+name: build-rust-backend
+
+# 在 GitHub Actions 上构建 Linux x86_64 版 tigshop 后端，并发布到 Release（无需 artifact 权限即可下载）。
+# 关键点：用 rockylinux:8 容器（glibc 2.28），与目标服务器
+# Alibaba Cloud Linux 3（AL8 / glibc 2.28）一致，产物可直接运行。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'rust/crates/**'
+      - '.github/workflows/build-rust.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    container: rockylinux:8
+    steps:
+      - name: Install git & build deps
+        run: |
+          dnf install -y git gcc gcc-c++ make pkgconfig openssl-devel perl which tar xz curl
+          dnf clean all
+
+      - uses: actions/checkout@v4
+
+      - name: Install Rust 1.99.0
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+            | sh -s -- -y --profile minimal --default-toolchain 1.99.0
+          . "$HOME/.cargo/env"
+          rustc --version
+          cargo --version
+
+      - name: Build release binary
+        working-directory: rust/crates
+        env:
+          PKG_CONFIG_PATH: /usr/lib64/pkgconfig:/usr/share/pkgconfig
+          CARGO_BUILD_JOBS: "4"
+        run: |
+          . "$HOME/.cargo/env"
+          cargo build --release -p tigshop-server
+
+      - name: Package & publish release
+        working-directory: rust/crates
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          mkdir -p /tmp/out
+          cp target/release/tigshop /tmp/out/tigshop
+          chmod 755 /tmp/out/tigshop
+          strip /tmp/out/tigshop || true
+          sha256sum /tmp/out/tigshop | tee /tmp/out/tigshop.sha256
+          ls -lh /tmp/out
+
+          TAG="build-${GITHUB_RUN_NUMBER}"
+          echo "creating release $TAG"
+          curl -sS -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases" \
+            -d "{\"tag_name\":\"${TAG}\",\"name\":\"${TAG}\",\"body\":\"commit ${GITHUB_SHA} / rockylinux:8 glibc 2.28\"}"
+
+          echo "uploading asset"
+          curl -sS -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @/tmp/out/tigshop \
+            "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}/assets?name=tigshop"
+
+          echo "done: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}"
