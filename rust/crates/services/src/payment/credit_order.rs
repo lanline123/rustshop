@@ -72,6 +72,7 @@ impl CreditOrderListQuery {
                 .as_deref()
                 .and_then(parse_day_start),
             order_time_end: self.order_time_end.as_deref().and_then(parse_day_end),
+            shop_scope: None,
         }
     }
 }
@@ -109,9 +110,15 @@ impl CreditOrderService {
     }
 
     /// `GET /adminapi/credit/order/list`：账期订单分页。
-    pub async fn list(&self, q: &CreditOrderListQuery) -> Result<PageResult<CreditOrderVO>> {
+    /// `shop_scope`：平台 `None`（全平台），店铺 `Some(shop_id)`（仅本店会员）。
+    pub async fn list(
+        &self,
+        q: &CreditOrderListQuery,
+        shop_scope: Option<i32>,
+    ) -> Result<PageResult<CreditOrderVO>> {
         let page = q.page_query();
-        let filter = q.to_filter();
+        let mut filter = q.to_filter();
+        filter.shop_scope = shop_scope;
         let (total, rows) = self
             .repos
             .payment

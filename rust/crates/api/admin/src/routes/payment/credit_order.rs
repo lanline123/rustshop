@@ -4,13 +4,14 @@
 //! （`@RequestMapping("/adminapi/credit/order")`）：`GET /list`。
 
 use axum::{
+    extract::Extension,
     extract::{Query, State},
     routing::get,
     Router,
 };
 use tigshop_core::types::PageResult;
 use tigshop_openapi::RouteDoc;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AuthUser};
 use tigshop_services::payment::credit_order::{CreditOrderListQuery, CreditOrderVO};
 
 use crate::AdminState;
@@ -38,9 +39,14 @@ pub fn implemented_routes() -> Vec<RouteDoc> {
 
 async fn list(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<CreditOrderListQuery>,
 ) -> ApiResult<PageResult<CreditOrderVO>> {
-    ok(state.payment.credit_order.list(&q).await?)
+    ok(state
+        .payment
+        .credit_order
+        .list(&q, auth.scoped_shop_id())
+        .await?)
 }
 
 #[cfg(test)]
@@ -60,5 +66,22 @@ mod tests {
     fn route_table_slice_is_exact() {
         assert_eq!(ROUTE_TABLE.len(), 1);
         assert_eq!(ROUTE_TABLE[0].1, "/credit/order/list");
+    }
+}
+#[cfg(test)]
+mod tenant_tests {
+    use super::*;
+
+    #[test]
+    fn shop_scope_is_trusted() {
+        use tigshop_core::Error;
+        let shop = AuthUser::new(1, "s".into(), None, Some("shop".into()), Some(7));
+        assert_eq!(shop.scoped_shop_id(), Some(7));
+        assert!(matches!(
+            shop.resolve_shop_scope(Some(9)),
+            Err(Error::Forbidden(_))
+        ));
+        let admin = AuthUser::new(2, "a".into(), None, Some("admin".into()), Some(0));
+        assert_eq!(admin.scoped_shop_id(), None);
     }
 }

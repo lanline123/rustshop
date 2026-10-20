@@ -15,6 +15,7 @@
 //! > 权限矩阵未迁移（Rust 只校验登录态）；`list` 返回项目 `PageResult`。
 
 use axum::{
+    extract::Extension,
     extract::{Query, State},
     routing::{get, post},
     Json, Router,
@@ -25,7 +26,7 @@ use tigshop_core::models::payment::order_invoice::{
     OrderInvoiceVO, UpdateFieldDTO,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 
 use crate::AdminState;
 
@@ -91,53 +92,101 @@ struct IdQuery {
     id: i32,
 }
 
+/// 发票申请归属校验：店铺账号只能操作本店会员的发票。
+async fn ensure_invoice_access(
+    state: &AdminState,
+    auth: &AuthUser,
+    invoice_id: Option<i32>,
+) -> Result<(), AppError> {
+    if auth.scoped_shop_id().is_some() {
+        let id = invoice_id.ok_or_else(|| {
+            AppError(tigshop_core::Error::Validation("发票ID不能为空".into()))
+        })?;
+        state
+            .payment
+            .order_invoice
+            .ensure_scope(id, auth.scoped_shop_id())
+            .await
+            .map_err(AppError)?;
+    }
+    Ok(())
+}
+
 async fn list(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<OrderInvoicePageQuery>,
 ) -> ApiResult<PageResult<OrderInvoiceVO>> {
-    ok(state.payment.order_invoice.list(&q).await?)
+    ok(state
+        .payment
+        .order_invoice
+        .list(&q, auth.scoped_shop_id())
+        .await?)
 }
 
 async fn detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<OrderInvoiceVO> {
+    ensure_invoice_access(&state, &auth, Some(q.id)).await?;
     ok(state.payment.order_invoice.detail(q.id).await?)
 }
 
 async fn create(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<OrderInvoiceSaveParam>,
 ) -> ApiResult<()> {
+    state
+        .payment
+        .order_invoice
+        .ensure_user_scope(param.user_id, auth.scoped_shop_id())
+        .await?;
     let _id = state.payment.order_invoice.create(&param).await?;
     ok(())
 }
 
 async fn update(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<OrderInvoiceEditParam>,
 ) -> ApiResult<()> {
+    ensure_invoice_access(&state, &auth, param.id).await?;
     state.payment.order_invoice.update(&param).await?;
     ok(())
 }
 
 async fn del(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<()> {
+    ensure_invoice_access(&state, &auth, dto.id).await?;
     state.payment.order_invoice.delete(&dto).await?;
     ok(())
 }
 
 async fn update_field(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<()> {
+    ensure_invoice_access(&state, &auth, dto.id).await?;
     state.payment.order_invoice.update_field(&dto).await?;
     ok(())
 }
 
-async fn batch(State(state): State<AdminState>, Json(dto): Json<BatchDTO>) -> ApiResult<()> {
+async fn batch(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(dto): Json<BatchDTO>,
+) -> ApiResult<()> {
+    if let Some(ids) = dto.ids.as_deref() {
+        for id in ids {
+            ensure_invoice_access(&state, &auth, Some(*id)).await?;
+        }
+    }
     state.payment.order_invoice.batch(&dto).await?;
     ok(())
 }
@@ -188,5 +237,22 @@ mod tests {
         for (m, p) in paths {
             assert!(ROUTE_TABLE.iter().any(|(mm, pp, _)| *mm == m && *pp == p));
         }
+    }
+}
+#[cfg(test)]
+mod tenant_tests {
+    use super::*;
+
+    #[test]
+    fn shop_scope_is_trusted_for_invoice() {
+        use tigshop_core::Error;
+        let shop = AuthUser::new(1, "s".into(), None, Some("shop".into()), Some(7));
+        assert_eq!(shop.scoped_shop_id(), Some(7));
+        assert!(matches!(
+            shop.resolve_shop_scope(Some(9)),
+            Err(Error::Forbidden(_))
+        ));
+        let admin = AuthUser::new(2, "a".into(), None, Some("admin".into()), Some(0));
+        assert_eq!(admin.scoped_shop_id(), None);
     }
 }

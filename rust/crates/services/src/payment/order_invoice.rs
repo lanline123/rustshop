@@ -56,10 +56,11 @@ impl OrderInvoiceService {
     pub async fn list(
         &self,
         q: &OrderInvoicePageQuery,
+        shop_scope: Option<i32>,
     ) -> Result<PageResult<OrderInvoiceVO>> {
         let page = to_page_query(q.page, q.size);
         let (limit, offset) = q.limit_offset();
-        let (total, rows) = self.repo().paginate(q, limit, offset).await?;
+        let (total, rows) = self.repo().paginate(q, shop_scope, limit, offset).await?;
         if rows.is_empty() {
             return Ok(PageResult::empty(&page));
         }
@@ -87,6 +88,42 @@ impl OrderInvoiceService {
     }
 
     /// 详情（Java `OrderInvoiceServiceImpl#detail`）。
+    /// 校验会员归属（create 用）。
+    pub async fn ensure_user_scope(
+        &self,
+        user_id: Option<i32>,
+        shop_scope: Option<i32>,
+    ) -> Result<()> {
+        let Some(shop_id) = shop_scope else {
+            return Ok(());
+        };
+        let user_id = user_id.ok_or_else(|| Error::Validation("会员ID不能为空".into()))?;
+        if !self.repo().user_in_shop(user_id, shop_id).await? {
+            return Err(Error::Forbidden(format!(
+                "无权访问店铺 {shop_id} 的会员 {user_id}"
+            )));
+        }
+        Ok(())
+    }
+
+    /// 校验发票申请归属：店铺账号只能访问本店会员的发票。
+    pub async fn ensure_scope(&self, id: i32, shop_scope: Option<i32>) -> Result<()> {
+        let Some(shop_id) = shop_scope else {
+            return Ok(());
+        };
+        let row = self
+            .repo()
+            .find_by_id(id)
+            .await?
+            .ok_or_else(|| Error::biz(500, MSG_NOT_EXISTS))?;
+        if !self.repo().user_in_shop(row.user_id, shop_id).await? {
+            return Err(Error::Forbidden(format!(
+                "无权访问店铺 {shop_id} 的发票申请 {id}"
+            )));
+        }
+        Ok(())
+    }
+
     pub async fn detail(&self, id: i32) -> Result<OrderInvoiceVO> {
         let row = self
             .repo()

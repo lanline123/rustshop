@@ -29,6 +29,8 @@ pub struct CreditOrderFilter {
     pub settlement_id: Option<i32>,
     pub order_time_start: Option<i64>,
     pub order_time_end: Option<i64>,
+    /// 店铺作用域（`Some(shop_id)` 时仅该店铺会员的账期订单）
+    pub shop_scope: Option<i32>,
 }
 
 #[derive(Clone)]
@@ -65,6 +67,11 @@ impl CreditOrderRepository {
     }
 
     fn push_filters<'a>(&self, qb: &mut QueryBuilder<'a, MySql>, q: &CreditOrderFilter) {
+        if let Some(shop) = q.shop_scope {
+            qb.push(" AND EXISTS (SELECT 1 FROM shop_member m WHERE m.user_id = credit_order.user_id AND m.shop_id = ");
+            qb.push_bind(shop);
+            qb.push(" AND m.is_del = 0)");
+        }
         if let Some(sn) = q.order_sn.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
             qb.push(" AND order_sn LIKE ");
             qb.push_bind(format!("%{sn}%"));

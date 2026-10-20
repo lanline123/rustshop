@@ -44,6 +44,19 @@ impl OrderInvoiceRepository {
     // ————————————————————— 查询 —————————————————————
 
     /// 按主键查询（Java `getById`）。
+    /// 发票申请人是否属于指定店铺（`shop_member` 有效关联）。
+    pub async fn user_in_shop(&self, user_id: i32, shop_id: i32) -> Result<bool> {
+        let row: Option<(i32,)> = sqlx::query_as(
+            "SELECT 1 FROM shop_member WHERE user_id = ? AND shop_id = ? AND is_del = 0 LIMIT 1",
+        )
+        .bind(user_id)
+        .bind(shop_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.is_some())
+    }
+
     pub async fn find_by_id(&self, id: i32) -> Result<Option<OrderInvoice>> {
         sqlx::query_as::<_, OrderInvoice>(&format!("{INVOICE_SELECT} WHERE id = ? LIMIT 1"))
             .bind(id)
@@ -62,6 +75,7 @@ impl OrderInvoiceRepository {
     pub async fn paginate(
         &self,
         q: &OrderInvoicePageQuery,
+        shop_scope: Option<i32>,
         limit: i64,
         offset: i64,
     ) -> Result<(i64, Vec<OrderInvoice>)> {
@@ -73,7 +87,7 @@ impl OrderInvoiceRepository {
 
         let mut cq: QueryBuilder<'_, MySql> =
             QueryBuilder::new("SELECT COUNT(*) FROM order_invoice WHERE 1 = 1");
-        Self::push_filters(&mut cq, q, keyword, &user_ids);
+        Self::push_filters(&mut cq, q, keyword, &user_ids, shop_scope);
         let total: (i64,) = cq
             .build_query_as()
             .fetch_one(&self.pool)
@@ -82,7 +96,7 @@ impl OrderInvoiceRepository {
 
         let mut rq: QueryBuilder<'_, MySql> =
             QueryBuilder::new(format!("{INVOICE_SELECT} WHERE 1 = 1"));
-        Self::push_filters(&mut rq, q, keyword, &user_ids);
+        Self::push_filters(&mut rq, q, keyword, &user_ids, shop_scope);
         rq.push(q.order_clause());
         rq.push(format!(" LIMIT {limit} OFFSET {offset}"));
         let rows: Vec<OrderInvoice> = rq
@@ -98,7 +112,13 @@ impl OrderInvoiceRepository {
         q: &OrderInvoicePageQuery,
         keyword: Option<&str>,
         user_ids: &[i32],
+        shop_scope: Option<i32>,
     ) {
+        if let Some(shop) = shop_scope {
+            qb.push(" AND EXISTS (SELECT 1 FROM shop_member m WHERE m.user_id = order_invoice.user_id AND m.shop_id = ");
+            qb.push_bind(shop);
+            qb.push(" AND m.is_del = 0)");
+        }
         if let Some(keyword) = keyword {
             // Java：`(u.username LIKE ? OR oi.company_name LIKE ?)`
             qb.push(" AND (company_name LIKE ");
