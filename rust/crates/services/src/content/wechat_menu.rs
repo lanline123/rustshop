@@ -172,11 +172,11 @@ mod tests {
     use tigshop_core::models::content::wechat_menu::{click_rule, leaf_node, WxMenuTree};
 
     #[test]
-    fn save_and_publish_validates_before_not_migrated() {
+    fn save_and_publish_validates_menu_structure() {
         // 空菜单 → 校验错误（不是未迁移）
         let err = validate_menu(&WxMenuSaveDTO::default()).unwrap_err();
         assert_eq!(err, "菜单结构不能为空");
-        // 合法菜单 → 校验通过（后续由 service 返回未迁移）
+        // 合法菜单 → 本地校验通过
         let dto = WxMenuSaveDTO {
             tree: Some(WxMenuTree {
                 buttons: vec![leaf_node("资讯", click_rule("MENU_1", "欢迎"))],

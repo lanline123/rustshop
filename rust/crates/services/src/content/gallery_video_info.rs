@@ -283,7 +283,7 @@ mod tests {
     }
 
     #[test]
-    fn upload_validation_blocks_before_not_migrated() {
+    fn upload_validation_rejects_empty_files() {
         assert_eq!(
             validate_upload_file(None, None).unwrap_err(),
             MSG_FILE_EMPTY
