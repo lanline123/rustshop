@@ -49,7 +49,7 @@ use tigshop_core::models::trade::proxy_shopping_order_check::{
     AvailablePaymentTypeQuery, OrderCheckParam, PaymentTypeVO, PickupListVO, PickupPageQuery,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult, AuthUser};
+use tigshop_security::web::{ok, ApiResult, AuthUser, TenantContext};
 use tigshop_services::trade::proxy_shopping_order_check::RequestContext;
 
 use crate::AdminState;
@@ -180,8 +180,13 @@ async fn get_available_payment_type(
 /// `longitude` / `latitude` / `keyword`）。
 async fn pickup_list(
     State(state): State<AdminState>,
-    Query(q): Query<PickupPageQuery>,
+    Extension(tenant): Extension<TenantContext>,
+    Query(mut q): Query<PickupPageQuery>,
 ) -> ApiResult<PageResult<PickupListVO>> {
+    // 多租户：店铺/门店/POS 账号只能查询自己门店的自提点；平台可传 shopId 过滤。
+    if let Some(scope) = tenant.shop_scope() {
+        q.shop_id = Some(scope);
+    }
     ok(state.trade.proxy_shopping_order_check.pickup_list(&q).await?)
 }
 

@@ -32,9 +32,13 @@ impl OrderLogService {
     }
 
     /// 分页（Java `OrderLogController.list`）。
-    pub async fn list(&self, q: &OrderLogListQuery) -> Result<PageResult<OrderLogVO>> {
+    pub async fn list(
+        &self,
+        q: &OrderLogListQuery,
+        shop_scope: Option<i32>,
+    ) -> Result<PageResult<OrderLogVO>> {
         let page = q.page_query();
-        let (total, rows) = self.repo().paginate(q).await?;
+        let (total, rows) = self.repo().paginate(q, shop_scope).await?;
         if rows.is_empty() {
             return Ok(PageResult::empty(&page));
         }

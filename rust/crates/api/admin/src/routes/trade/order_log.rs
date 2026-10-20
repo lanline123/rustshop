@@ -12,13 +12,13 @@
 use axum::{
     extract::{Query, State},
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use tigshop_core::models::trade::order_log::{
     OrderLogCreateDTO, OrderLogListQuery, OrderLogVO,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AuthUser, TenantContext};
 
 use crate::AdminState;
 
@@ -48,16 +48,29 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 /// `GET /adminapi/order/orderLog/list`
 async fn list(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<OrderLogListQuery>,
 ) -> ApiResult<PageResult<OrderLogVO>> {
-    ok(state.trade.order_log.list(&q).await?)
+    // 多租户：店铺账号强制过滤本店日志；平台可见全部。
+    ok(state
+        .trade
+        .order_log
+        .list(&q, tenant.shop_scope())
+        .await?)
 }
 
 /// `POST /adminapi/order/orderLog/create`
 async fn create(
     State(state): State<AdminState>,
-    Json(dto): Json<OrderLogCreateDTO>,
+    Extension(tenant): Extension<TenantContext>,
+    Extension(auth): Extension<AuthUser>,
+    Json(mut dto): Json<OrderLogCreateDTO>,
 ) -> ApiResult<()> {
+    // 多租户：店铺账号的日志只能落本店；平台账号沿用请求体 shopId。
+    if let Some(scope) = tenant.shop_scope() {
+        dto.shop_id = Some(scope);
+    }
+    dto.admin_id.get_or_insert(auth.id);
     state.trade.order_log.create(&dto).await?;
     ok(())
 }
@@ -79,5 +92,14 @@ mod tests {
     fn methods_match_java() {
         assert_eq!(ROUTE_TABLE[0].0, "GET");
         assert_eq!(ROUTE_TABLE[1].0, "POST");
+    }
+
+    /// 店铺账号的日志范围来自 JWT，请求体 shopId 被覆盖。
+    #[test]
+    fn log_scope_is_forced_for_shop_account() {
+        let shop = TenantContext::new(Some("shop".into()), Some(9), None);
+        assert_eq!(shop.shop_scope(), Some(9));
+        let platform = TenantContext::new(Some("admin".into()), None, None);
+        assert_eq!(platform.shop_scope(), None);
     }
 }

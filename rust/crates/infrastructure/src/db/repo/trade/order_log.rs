@@ -52,9 +52,15 @@ impl OrderLogRepository {
     pub async fn paginate(
         &self,
         q: &OrderLogListQuery,
+        shop_scope: Option<i32>,
     ) -> Result<(u64, Vec<OrderLogRow>)> {
         let mut conds: Vec<String> = Vec::new();
         let mut binds: Vec<Bind> = Vec::new();
+        // 多租户：店铺账号只能看本店日志；平台账号不限制。
+        if let Some(shop_id) = shop_scope.filter(|v| *v > 0) {
+            conds.push("shop_id = ?".to_string());
+            binds.push(Bind::I32(shop_id));
+        }
         if let Some(order_id) = q.order_id.filter(|v| *v > 0) {
             conds.push("order_id = ?".to_string());
             binds.push(Bind::I32(order_id));
