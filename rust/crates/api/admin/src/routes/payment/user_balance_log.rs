@@ -38,6 +38,8 @@ use tigshop_core::models::payment::user_balance_log::{UserBalanceLogListQuery, U
 use tigshop_core::types::PageResult;
 use tigshop_security::web::{ok, ApiResult};
 
+use crate::support::tenant::platform_only;
+
 use crate::AdminState;
 
 /// 本域 1 条路由（去 `/adminapi` 前缀的路径 + 原 Java handler）。
@@ -55,6 +57,7 @@ const ROUTE_TABLE: [(&str, &str, &str); 1] = [(
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new().route("/finance/userBalanceLog/list", get(user_balance_log_list))
+        .layer(axum::middleware::from_fn(platform_only))
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。
