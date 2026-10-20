@@ -18,10 +18,10 @@
 //! - `uploadImg`：校验文件类型/大小后写入本地存储并落库 `gallery_pic`。
 //! - `batchDownload`：读取本地/远程素材并打包为 zip。
 //!
-//! # 未迁移 / 偏差
+//! # 已实现 / 偏差
 //!
-//! - `uploadImg`：OSS/COS/七牛/S3/本地存储、图片尺寸解析、素材命名配置均未迁移；
-//!   本实现只做本地校验并**明确报错**，不伪造上传成功。
+//! - `uploadImg`：已完成文件校验、写入全局存储后端（配置 OSS 时走 OSS）、落库；
+//!   图片宽高仍返回 0（尺寸解析未接入）。
 //! - `batchDownload`：zip 打包 + 远程下载未迁移，明确报错。
 //! - `selectFile` / `translateProductPic`：非本控制器端点，不实现。
 //! - `picOwerId` 取 JWT `AuthUser.id`（替代 `SecurityUtils.getCurrentAdminId()`）。
@@ -342,11 +342,11 @@ impl GalleryPicService {
 
     /// 上传图片（Java `uploadImg`）。
     ///
-    /// **未迁移**：完成文件类型/大小本地校验后返回明确业务错误（不伪造成功）。
+    /// 校验文件类型/大小后写入全局存储（本地或 OSS），并落 `gallery_pic` 表。
     ///
     /// # Errors
     /// - 文件为空 / 类型非法 / 超过配置上限 → `Biz(1001, ..)`（同 Java `SERVICE_DATA_ERROR`）
-    /// - 校验通过 → `Biz(1001, 未迁移提示)`
+    /// - 存储或数据库失败 → 对应内部错误
     #[allow(clippy::too_many_arguments)]
     pub async fn upload_img(
         &self,

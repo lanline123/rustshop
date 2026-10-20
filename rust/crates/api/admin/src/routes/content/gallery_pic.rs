@@ -185,7 +185,7 @@ struct UploadQuery {
 
 /// `POST /adminapi/setting/galleryPic/uploadImg`：上传图片（multipart `file`）。
 ///
-/// 完成本地校验后由服务层返回「对象存储未迁移」业务错误。
+/// 完成本地校验后写入全局存储（OSS/本地）并落库。
 async fn upload_img(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
