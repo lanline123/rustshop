@@ -153,7 +153,7 @@ async fn send_warning(
 }
 
 async fn run_due_check(State(state): State<AdminState>) -> ApiResult<()> {
-    state.merchant.deposit_account.run_due_check()?;
+    state.merchant.deposit_account.run_due_check().await?;
     ok(())
 }
 

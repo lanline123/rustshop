@@ -29,6 +29,7 @@
 | `TIG_SCHEDULER__CREDIT_PERIOD_SECS` | 3600 | 授信账期扫描间隔 |
 | `TIG_SCHEDULER__PRODUCT_AUTO_SECS` | 60 | 商品自动上下架扫描间隔 |
 | `TIG_SCHEDULER__AFTERSALES_RECEIPT_SECS` | 3600 | 售后自动确认收货扫描间隔 |
+| `TIG_SCHEDULER__DEPOSIT_DUE_SECS` | 86400 | 保证金到期扫描间隔 |
 
 启动日志：`定时任务已启动：订单超时取消 / 自动收货 / 拼团过期 / 账期更新 / 商品自动上下架`。
 
@@ -48,7 +49,7 @@
 仍依赖外部能力的任务保持未迁移或仅有接口占位：
 
 - `WechatLiveOrderSyncTask`（视频号订单同步，依赖微信 API 凭据）
-- `DepositDueCheckTask`（保证金到期扫描，依赖保证金生命周期服务）
+- ✅ `DepositDueCheckTask`（已实现基础双缓冲扫描：处罚/恢复/全店下架）
 - `ProfitSharingScheduleTask`（分账调度，依赖支付渠道）
 - 退款结算、自动评价等 MQ 消费链路（售后自动确认收货已完成）
 

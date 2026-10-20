@@ -98,6 +98,37 @@ impl DepositAccountRepository {
     }
 
     /// 按持有者查账户（Java `getByOwner`）。
+    /// 全部保证金账户（Java `shopDepositMapper.selectList(null)`）。
+    pub async fn list_all_accounts(
+        &self,
+    ) -> Result<Vec<tigshop_core::entities::deposit::ShopDeposit>> {
+        sqlx::query_as::<_, tigshop_core::entities::deposit::ShopDeposit>(
+            "SELECT * FROM shop_deposit",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 更新惩罚状态（0 正常 / 1 限制上架 / 2 全店下架）。
+    pub async fn update_penalty_status(
+        &self,
+        shop_deposit_id: i32,
+        penalty_status: i32,
+        now: i32,
+    ) -> Result<u64> {
+        let res = sqlx::query(
+            "UPDATE shop_deposit SET penalty_status = ?, update_time = ? WHERE shop_deposit_id = ?",
+        )
+        .bind(penalty_status)
+        .bind(now)
+        .bind(shop_deposit_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(res.rows_affected())
+    }
+
     pub async fn find_by_owner(&self, owner_type: i32, owner_id: i32) -> Result<Option<AccountRow>> {
         sqlx::query_as::<_, AccountRow>(
             "SELECT shop_deposit_id, owner_type, owner_id, paid, required_manual, required_snapshot, penalty_status, add_time FROM shop_deposit WHERE owner_type = ? AND owner_id = ? LIMIT 1",

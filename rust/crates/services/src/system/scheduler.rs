@@ -72,7 +72,8 @@ pub fn spawn_all(repos: Arc<Repositories>, order: OrderService) -> Vec<JoinHandl
         tokio::spawn(groupon_expire_loop(repos.clone())),
         tokio::spawn(credit_user_period_update_loop(repos.clone())),
         tokio::spawn(product_auto_status_loop(repos.clone())),
-        tokio::spawn(aftersales_auto_receive_loop(repos)),
+        tokio::spawn(aftersales_auto_receive_loop(repos.clone())),
+        tokio::spawn(deposit_due_check_loop(repos)),
     ]
 }
 
@@ -134,6 +135,26 @@ async fn groupon_expire_loop(repos: Arc<Repositories>) {
             Ok(0) => {}
             Ok(n) => tracing::info!("定时任务：拼团过期置失败 {n} 团"),
             Err(e) => tracing::warn!("定时任务：拼团过期处理失败: {e}"),
+        }
+    }
+}
+
+/// 保证金到期扫描循环（`TIG_SCHEDULER__DEPOSIT_DUE_SECS`，默认 86400s）。
+async fn deposit_due_check_loop(repos: Arc<Repositories>) {
+    tokio::time::sleep(Duration::from_secs(
+        env_secs("TIG_SCHEDULER__DELAY_SECS", 30) + 90,
+    ))
+    .await;
+    let mut ticker = tokio::time::interval(Duration::from_secs(env_secs(
+        "TIG_SCHEDULER__DEPOSIT_DUE_SECS",
+        86_400,
+    )));
+    loop {
+        ticker.tick().await;
+        let service = crate::merchant::deposit_account::DepositAccountService::new(repos.clone());
+        match service.run_due_check().await {
+            Ok(()) => {}
+            Err(e) => tracing::warn!("定时任务：保证金到期扫描失败: {e}"),
         }
     }
 }

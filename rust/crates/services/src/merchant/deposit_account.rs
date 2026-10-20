@@ -254,9 +254,97 @@ impl DepositAccountService {
         ))
     }
 
-    /// `GET /adminapi/deposit/account/runDueCheck`（**未迁移**：生命周期扫描，空操作成功）。
-    pub fn run_due_check(&self) -> Result<()> {
-        tracing::info!("deposit runDueCheck 被调用：生命周期扫描（DepositDueCheckTask）未迁移，本次为空操作");
+    /// 保证金双缓冲到期扫描（Java `DepositLifecycleService#runDueCheck`）。
+    ///
+    /// 基础实现：功能关闭 → 跳过；待补缴 ≤0 且已处罚 → 恢复为正常；
+    /// 待补缴 >0 且缓冲到期 → 按配置动作首次处罚（已处罚不升级）；
+    /// 全店下架动作会下架店铺在售商品。供应商维度暂不物理下架。
+    pub async fn run_due_check(&self) -> Result<()> {
+        use chrono::TimeZone as _;
+        use tigshop_core::models::merchant::deposit_setting::DepositSetting;
+        let setting = crate::merchant::deposit_setting::DepositSettingService::new(
+            self.repos.clone(),
+        )
+        .detail()
+        .await?;
+        if setting.deposit_enable != Some(1) {
+            tracing::info!("保证金功能未开启，跳过到期扫描");
+            return Ok(());
+        }
+        let collect_action = setting.deposit_collect_buffer_action.unwrap_or(1);
+        let supplement_action = setting.deposit_supplement_buffer_action.unwrap_or(1);
+        let accounts = self.repo().list_all_accounts().await?;
+        let now = tigshop_common::utils::now_seconds() as i32;
+        let mut penalized = 0u32;
+        let mut restored = 0u32;
+        for account in accounts {
+            let required = account
+                .required_manual
+                .unwrap_or(account.required_snapshot);
+            let pending = tigshop_core::models::merchant::deposit_account::pending_amount(
+                account.paid,
+                required,
+            );
+            if pending <= rust_decimal::Decimal::ZERO {
+                if account.penalty_status != 0 {
+                    self.repo()
+                        .update_penalty_status(account.shop_deposit_id, 0, now)
+                        .await?;
+                    restored += 1;
+                }
+                continue;
+            }
+            if account.penalty_status != 0 {
+                // 首次处罚后冻结，不随后到期升级
+                continue;
+            }
+            let collect_expired =
+                account.collect_due_time > 0 && now >= account.collect_due_time;
+            let supplement_expired =
+                account.supplement_due_time > 0 && now >= account.supplement_due_time;
+            let action = match (collect_expired, supplement_expired) {
+                (false, false) => 0,
+                (true, false) => collect_action,
+                (false, true) => supplement_action,
+                (true, true) => {
+                    if account.collect_due_time < account.supplement_due_time {
+                        collect_action
+                    } else if account.supplement_due_time < account.collect_due_time {
+                        supplement_action
+                    } else {
+                        collect_action.max(supplement_action)
+                    }
+                }
+            };
+            if action == 0 {
+                continue;
+            }
+            self.repo()
+                .update_penalty_status(account.shop_deposit_id, action, now)
+                .await?;
+            penalized += 1;
+            if action == 2 && account.owner_type == 1 {
+                match self
+                    .repos
+                    .merchant
+                    .shop_manage
+                    .off_shelf_shop_products(account.owner_id)
+                    .await
+                {
+                    Ok(n) => tracing::info!(
+                        "保证金全店下架: owner_id={}, 商品 {n} 行",
+                        account.owner_id
+                    ),
+                    Err(e) => tracing::warn!(
+                        "保证金全店下架失败: owner_id={}, {e}",
+                        account.owner_id
+                    ),
+                }
+            }
+        }
+        tracing::info!(
+            "保证金到期扫描完成: 处罚 {penalized}, 恢复 {restored}"
+        );
         Ok(())
     }
 
