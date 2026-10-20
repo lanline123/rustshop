@@ -16,7 +16,7 @@
 4. 按 §5 的 Wave 顺序做；每个 Wave 的验收命令见 §7。
 5. 没有把握时以 **Java 源码** 为准：`D:/tigshop/java-b2b2b-pro-v5.8.57/java`；前端在 `java/view`。
 
-### 0.1 最新快照（2026-10-20 09:50，优先阅读，§1–§5 为 19:00 快照）
+### 0.1 最新快照（2026-10-20 11:30，优先阅读，§1–§5 为 19:00 快照）
 
 - **HEAD `b1b92cdc`，工作树干净**；`cargo test -p tigshop-services -p tigshop-core -p tigshop-infrastructure` 全绿，
   四项门禁 PASS，契约覆盖率 100%（路由口径）。
@@ -42,8 +42,10 @@
   1. 分账调度（`ProfitSharingScheduleTask` 全部依赖微信/支付宝分账 API 与进件、提现状态）；
   2. 拼团退款**实际执行**（售后单已自动创建，扣款/退款需支付渠道）；
   3. 定金尾款超时/取消：已核对 Java 后端**没有**自动取消/超时任务，支付窗口由前端与支付接口控制；
-  4. 多租户：会员列表为平台口径、营销按请求头 `shopId` 过滤、RBAC `all` 已实现；
-     更细的店铺后台数据隔离需按接口逐个评审（无统一缺口清单）。
+  4. 多租户：**已完成**（见 `docs/MULTI-TENANT.md`）：JWT 租户声明 + 可信头覆写 +
+     `AuthUser/TenantContext/TenantScope` 统一作用域，覆盖 identity/catalog/logistics/trade/
+     merchant/marketing/content/im/member/payment/system/analytics；RBAC `all` 已实现。
+     剩余仅少量 N/A/边界项（product_manage_client、admin_msg.msgCount、public 端点）。
 - **工程化仍需环境**：前端 dist + Docker/DB E2E 实测（本机无 Docker，MySQL 未启动）。
 - **任务板**：pending/in_progress 已清零。
 
