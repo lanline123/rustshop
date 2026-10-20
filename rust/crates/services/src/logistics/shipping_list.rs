@@ -1,4 +1,4 @@
-//! 物流服务：运费模板/配送方式/物流公司。
+﻿//! 物流服务：运费模板/配送方式/物流公司。
 //! 对应原 Java `ShippingTplServiceImpl` / `LogisticsCompanyServiceImpl` 等。
 //!
 //! TODO(域实现者)：对照 Java 源补全运费计算（按重量/件数、区域首续费用）。
@@ -21,15 +21,30 @@ impl LogisticsService {
         Self { repos }
     }
 
-    /// 运费模板分页。
-    pub async fn tpl_list(&self, q: &ShippingTplListQuery) -> Result<PageResult<ShippingTpl>> {
+    /// 运费模板分页（按登录态店铺过滤：`None` = 平台不过滤，`Some(shop)` = 本店）。
+    pub async fn tpl_list(
+        &self,
+        q: &ShippingTplListQuery,
+        shop_id: Option<i32>,
+    ) -> Result<PageResult<ShippingTpl>> {
         let page = PageQuery {
             page: q.page.unwrap_or(1),
             page_size: q.page_size.unwrap_or(20),
         };
+        // 复用 shipping_tpl 仓储的带店铺过滤分页（shop_id: Option<i32>）。
+        // 两处 `ShippingTplListQuery` 分属不同 slice（shipping_list / shipping_tpl），
+        // 这里按字段映射后再调用，避免把页面级 query 直接传给另一 slice 的仓储。
+        let scoped_q = tigshop_core::models::logistics::shipping_tpl::ShippingTplListQuery {
+            keyword: q.keyword.clone(),
+            page: q.page,
+            size: q.page_size,
+            ..Default::default()
+        };
         let (total, list) = self
-            .repos.logistics.shipping_list
-            .paginate_tpls(q.keyword.as_deref(), &page)
+            .repos
+            .logistics
+            .shipping_tpl
+            .paginate_tpl(&scoped_q, shop_id)
             .await?;
         Ok(PageResult::new(total, list, &page))
     }

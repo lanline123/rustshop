@@ -67,6 +67,7 @@ use tigshop_core::models::logistics::shipping_tpl::{
 use tigshop_security::web::{client_ip, ok, ApiResult, AuthUser};
 
 use crate::AdminState;
+use super::tenant;
 
 /// 运费模板域管理端路由（挂载于 `/adminapi` 下）。
 ///
@@ -142,8 +143,9 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 /// 鉴权中间件补齐后，这里改为从 `AdminState` / 请求扩展中读取即可，
 /// **服务层与仓储层无需改动**（它们的签名已经是 `Option<i32>`）。
 #[inline]
-fn current_shop_id() -> Option<i32> {
-    None
+fn current_shop_id(auth: &AuthUser) -> Option<i32> {
+    // 店铺/门店/POS 账号 → 本店；平台账号 → None（Java HeaderUtils.getShopId() 平台为 null）
+    auth.scoped_shop_id()
 }
 
 /// `GET /adminapi/setting/shippingTpl/detail?id=`：运费模板详情。
@@ -155,8 +157,14 @@ fn current_shop_id() -> Option<i32> {
 /// 本实现映射为同文案的校验错误（与 order_admin/005/017 的既有约定一致）。
 async fn detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<DetailQuery>,
 ) -> ApiResult<ShippingTplVO> {
+    let id = q
+        .id
+        .ok_or_else(|| tigshop_core::Error::Validation("运费模板ID不能为空".into()))?;
+    let owner = state.logistics.shipping_tpl.shop_id_of(id).await?;
+    tenant::ensure_row_shop_opt(&auth, owner)?;
     ok(state.logistics.shipping_tpl.detail(&q).await?)
 }
 
@@ -174,7 +182,7 @@ async fn create(
     ok(state
         .logistics
         .shipping_tpl
-        .create(&dto, current_shop_id(), auth.id, &client_ip(&headers))
+        .create(&dto, current_shop_id(&auth), auth.id, &client_ip(&headers))
         .await?)
 }
 
@@ -196,7 +204,7 @@ async fn update(
     ok(state
         .logistics
         .shipping_tpl
-        .update(&dto, current_shop_id(), auth.id, &client_ip(&headers))
+        .update(&dto, current_shop_id(&auth), auth.id, &client_ip(&headers))
         .await?)
 }
 
@@ -207,7 +215,16 @@ async fn update(
 ///
 /// ⚠️ Java 不级联删除 `shipping_tpl_info` 子表记录（留下孤儿行），
 /// 本实现逐字复刻。
-async fn del(State(state): State<AdminState>, Json(dto): Json<OperateDTO>) -> ApiResult<bool> {
+async fn del(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(dto): Json<OperateDTO>,
+) -> ApiResult<bool> {
+    let id = dto
+        .id
+        .ok_or_else(|| tigshop_core::Error::Validation("运费模板ID不能为空".into()))?;
+    let owner = state.logistics.shipping_tpl.shop_id_of(id).await?;
+    tenant::ensure_row_shop_opt(&auth, owner)?;
     ok(state.logistics.shipping_tpl.del(&dto).await?)
 }
 
@@ -221,8 +238,14 @@ async fn del(State(state): State<AdminState>, Json(dto): Json<OperateDTO>) -> Ap
 /// `Unknown column`（500）。本实现提前返回 `字段值不合法`（400）。
 async fn update_field(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<bool> {
+    let id = dto
+        .id
+        .ok_or_else(|| tigshop_core::Error::Validation("运费模板ID不能为空".into()))?;
+    let owner = state.logistics.shipping_tpl.shop_id_of(id).await?;
+    tenant::ensure_row_shop_opt(&auth, owner)?;
     ok(state.logistics.shipping_tpl.update_field(&dto).await?)
 }
 
@@ -230,7 +253,17 @@ async fn update_field(
 ///
 /// 对应 Java `ShippingTplController.batch`（`@RequestBody BatchDTO`）→
 /// `BaseServiceImpl#batch`。仅 `type == "del"` 生效，其余**静默返回 false**。
-async fn batch(State(state): State<AdminState>, Json(dto): Json<BatchDTO>) -> ApiResult<bool> {
+async fn batch(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(dto): Json<BatchDTO>,
+) -> ApiResult<bool> {
+    if dto.r#type == "del" {
+        for id in &dto.ids {
+            let owner = state.logistics.shipping_tpl.shop_id_of(*id).await?;
+            tenant::ensure_row_shop_opt(&auth, owner)?;
+        }
+    }
     ok(state.logistics.shipping_tpl.batch(&dto).await?)
 }
 
@@ -244,8 +277,11 @@ async fn batch(State(state): State<AdminState>, Json(dto): Json<BatchDTO>) -> Ap
 /// 本实现逐字复刻（不查库），以免 Rust 与 Java 行为不一致；
 /// 「查库的真实实现」保留在
 /// `ShippingTplService::config_from_db`，待产品确认后一行切换。
-async fn config(State(state): State<AdminState>) -> ApiResult<Vec<ShippingTypeVO>> {
-    ok(state.logistics.shipping_tpl.config(current_shop_id())?)
+async fn config(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+) -> ApiResult<Vec<ShippingTypeVO>> {
+    ok(state.logistics.shipping_tpl.config(current_shop_id(&auth))?)
 }
 
 /// `POST /adminapi/setting/shippingTpl/setDefault?id=`：设置默认运费模板。
@@ -264,7 +300,7 @@ async fn set_default(
     ok(state
         .logistics
         .shipping_tpl
-        .set_default(&q, current_shop_id(), auth.id, &client_ip(&headers))
+        .set_default(&q, current_shop_id(&auth), auth.id, &client_ip(&headers))
         .await?)
 }
 
@@ -328,7 +364,13 @@ mod tests {
 
     /// 多租户占位：鉴权中间件未接入前恒为 `None`（平台账号语义）。
     #[test]
-    fn shop_id_placeholder_is_platform_semantics() {
-        assert_eq!(current_shop_id(), None);
+    fn shipping_tpl_scope_comes_from_auth() {
+        let platform = AuthUser { id: 1, username: "admin".into(), role_id: None,
+            admin_type: Some("admin".into()), shop_id: Some(0) };
+        assert_eq!(current_shop_id(&platform), None);
+        let shop = AuthUser { id: 2, username: "shop".into(), role_id: None,
+            admin_type: Some("shop".into()), shop_id: Some(6) };
+        assert_eq!(current_shop_id(&shop), Some(6));
+        assert!(tenant::ensure_row_shop_opt(&shop, Some(9)).is_err());
     }
 }

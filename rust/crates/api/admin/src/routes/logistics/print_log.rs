@@ -30,15 +30,16 @@
 //! （`list/total/totalPage/pageSize/page`），与同域其它列表接口一致。
 
 use axum::{
-    extract::{Query, State},
+    extract::{Extension, Query, State},
     routing::get,
     Router,
 };
 use tigshop_core::models::logistics::print_log::{PrintLogPageQuery, PrintLogVO};
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AuthUser};
 
 use crate::AdminState;
+use super::tenant;
 
 /// 本域全部 1 条路由（去掉 `/adminapi` 前缀后的路径 + 原 Java handler）。
 ///
@@ -74,12 +75,13 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 /// → `PrintLogServiceImpl#page`。
 async fn print_log_list(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<PrintLogPageQuery>,
 ) -> ApiResult<PageResult<PrintLogVO>> {
     ok(state
         .logistics
         .print_log
-        .page(&q, default_shop_id())
+        .page(&q, tenant::platform_or_shop_id(&auth))
         .await?)
 }
 
@@ -89,6 +91,7 @@ async fn print_log_list(
 /// Rust 侧鉴权中间件尚未注入 `shop_id`，故统一按平台账号处理。
 /// 待中间件补齐后，此处改为从 `AdminState` / 请求扩展里取真实店铺 ID 即可，
 /// 服务层签名（`shop_id: i32`）无需改动。
+#[allow(dead_code)]
 const fn default_shop_id() -> i32 {
     tigshop_core::models::logistics::print_config::DEFAULT_SHOP_ID
 }
@@ -162,9 +165,14 @@ mod tests {
         assert_eq!(q.page_size, Some(15));
     }
 
-    /// 默认店铺 ID 是平台 0（Java `HeaderUtils.getShopId()` 在 `admin` 下取 0）。
+    /// 店铺日志列表按登录态店铺强制过滤（平台为 0）。
     #[test]
-    fn default_shop_id_is_platform() {
-        assert_eq!(default_shop_id(), 0);
+    fn print_log_list_uses_auth_shop_scope() {
+        let platform = AuthUser { id: 1, username: "admin".into(), role_id: None,
+            admin_type: Some("admin".into()), shop_id: Some(0) };
+        assert_eq!(tenant::platform_or_shop_id(&platform), 0);
+        let shop = AuthUser { id: 3, username: "shop".into(), role_id: None,
+            admin_type: Some("shop".into()), shop_id: Some(7) };
+        assert_eq!(tenant::platform_or_shop_id(&shop), 7);
     }
 }

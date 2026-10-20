@@ -34,7 +34,7 @@
 //! > `void` ⇒ 本模块返回 `data: null`。
 
 use axum::{
-    extract::{Query, State},
+    extract::{Extension, Query, State},
     routing::{get, post},
     Json, Router,
 };
@@ -45,8 +45,10 @@ use tigshop_core::models::catalog::product_group::{
 };
 use tigshop_core::types::PageResult;
 use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::AuthUser;
 
 use crate::AdminState;
+use super::tenant;
 
 /// 商品分组域全部 8 条路由（去掉 `/adminapi` 前缀后的路径 + 原 Java 方法名）。
 ///
@@ -142,9 +144,12 @@ struct IdQuery {
 
 async fn product_group_detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<ProductGroupVO> {
-    ok(state.catalog.product_group.detail(q.id).await?)
+    let detail = state.catalog.product_group.detail(q.id).await?;
+    tenant::ensure_row_shop_opt(&auth, detail.shop_id)?;
+    ok(detail)
 }
 
 /// `POST /adminapi/product/productGroup/create`：创建分组。
@@ -168,8 +173,17 @@ async fn product_group_create(
 /// `BeanUtils.copyProperties` 语义，不读请求头）。
 async fn product_group_update(
     State(state): State<AdminState>,
-    Json(dto): Json<ProductGroupUpdateDTO>,
+    Extension(auth): Extension<AuthUser>,
+    Json(mut dto): Json<ProductGroupUpdateDTO>,
 ) -> ApiResult<()> {
+    let id = dto
+        .product_group_id
+        .ok_or_else(|| tigshop_core::Error::Validation("分组ID不能为空".into()))?;
+    let detail = state.catalog.product_group.detail(id).await?;
+    tenant::ensure_row_shop_opt(&auth, detail.shop_id)?;
+    // Java `BeanUtils.copyProperties` 会把 DTO.shopId 写进实体；这里用登录态收敛：
+    // 店铺账号固定本店（传他店 → 403），平台账号保留请求值/不覆盖。
+    dto.shop_id = auth.resolve_shop_scope(dto.shop_id)?;
     state.catalog.product_group.update(&dto).await?;
     ok(())
 }
@@ -179,8 +193,13 @@ async fn product_group_update(
 /// 对应 Java `del(OperateDTO)` → `removeById(id)`；`id` 为 null 时静默成功。
 async fn product_group_del(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<()> {
+    if let Some(id) = dto.id {
+        let detail = state.catalog.product_group.detail(id).await?;
+        tenant::ensure_row_shop_opt(&auth, detail.shop_id)?;
+    }
     state.catalog.product_group.delete(&dto).await?;
     ok(())
 }
@@ -192,8 +211,13 @@ async fn product_group_del(
 /// 「field 的值有误」——本实现如实复刻（见服务层模块注释）。
 async fn product_group_update_field(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<()> {
+    if let Some(id) = dto.id {
+        let detail = state.catalog.product_group.detail(id).await?;
+        tenant::ensure_row_shop_opt(&auth, detail.shop_id)?;
+    }
     state.catalog.product_group.update_field(&dto).await?;
     ok(())
 }
@@ -201,8 +225,15 @@ async fn product_group_update_field(
 /// `POST /adminapi/product/productGroup/batch`：批量操作（仅 `type = "del"`）。
 async fn product_group_batch(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<()> {
+    if dto.r#type.as_deref() == Some("del") {
+        for id in dto.ids.as_deref().unwrap_or(&[]) {
+            let detail = state.catalog.product_group.detail(*id).await?;
+            tenant::ensure_row_shop_opt(&auth, detail.shop_id)?;
+        }
+    }
     state.catalog.product_group.batch(&dto).await?;
     ok(())
 }
@@ -373,4 +404,21 @@ mod tests {
             0
         );
     }
+    /// 多租户：分组详情/更新/删除必须校验归属（跨店 403；列表由请求头强制过滤）。
+    #[test]
+    fn tenant_scope_isolation() {
+        let shop = AuthUser { id: 3, username: "shop".into(), role_id: None,
+            admin_type: Some("shop".into()), shop_id: Some(5) };
+        assert_eq!(shop_id_from_headers_from_auth(&shop), Some(5));
+        assert!(tenant::ensure_row_shop_opt(&shop, Some(5)).is_ok());
+        assert!(tenant::ensure_row_shop_opt(&shop, Some(7)).is_err());
+        let platform = AuthUser { id: 1, username: "admin".into(), role_id: None,
+            admin_type: Some("admin".into()), shop_id: Some(0) };
+        assert!(tenant::ensure_row_shop_opt(&platform, Some(7)).is_ok());
+    }
+
+    fn shop_id_from_headers_from_auth(auth: &AuthUser) -> Option<i32> {
+        auth.scoped_shop_id()
+    }
+
 }

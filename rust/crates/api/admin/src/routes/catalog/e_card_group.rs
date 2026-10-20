@@ -48,6 +48,7 @@ use tigshop_core::Error;
 use tigshop_security::web::{ApiResult, AuthUser, client_ip, ok};
 
 use crate::AdminState;
+use super::tenant;
 
 /// 电子卡券组域全部 8 条路由（去掉 `/adminapi` 前缀后的路径 + 原 Java 方法名）。
 ///
@@ -140,9 +141,12 @@ struct IdQuery {
 
 async fn e_card_group_detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<ECardGroupVO> {
-    ok(state.catalog.e_card_group.detail(q.id).await?)
+    let detail = state.catalog.e_card_group.detail(q.id).await?;
+    tenant::ensure_row_shop(&auth, detail.shop_id)?;
+    ok(detail)
 }
 
 /// `POST /adminapi/product/eCardGroup/create`：创建电子卡券组。
@@ -161,8 +165,14 @@ async fn e_card_group_create(
 /// `POST /adminapi/product/eCardGroup/update`：更新电子卡券组（Java 返回 void）。
 async fn e_card_group_update(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<ECardGroupUpdateDTO>,
 ) -> ApiResult<()> {
+    let id = dto
+        .group_id
+        .ok_or_else(|| Error::Validation(ID_REQUIRED.into()))?;
+    let detail = state.catalog.e_card_group.detail(id).await?;
+    tenant::ensure_row_shop(&auth, detail.shop_id)?;
     state.catalog.e_card_group.update(&dto).await?;
     ok(())
 }
@@ -179,6 +189,8 @@ async fn e_card_group_del(
     let id = dto
         .id
         .ok_or_else(|| Error::Validation(ID_REQUIRED.into()))?;
+    let detail = state.catalog.e_card_group.detail(id).await?;
+    tenant::ensure_row_shop(&auth, detail.shop_id)?;
     state
         .catalog
         .e_card_group
@@ -192,16 +204,28 @@ async fn e_card_group_del(
 /// Java 返回 `boolean`（服务层 `update` 的结果），本模块原样返回。
 async fn e_card_group_update_field(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<bool> {
+    if let Some(id) = dto.id {
+        let detail = state.catalog.e_card_group.detail(id).await?;
+        tenant::ensure_row_shop(&auth, detail.shop_id)?;
+    }
     ok(state.catalog.e_card_group.update_field(&dto).await?)
 }
 
 /// `POST /adminapi/product/eCardGroup/batch`：批量操作（仅 `type = "del"`）。
 async fn e_card_group_batch(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<()> {
+    if dto.r#type.as_deref() == Some("del") {
+        for id in dto.ids.as_deref().unwrap_or(&[]) {
+            let detail = state.catalog.e_card_group.detail(*id).await?;
+            tenant::ensure_row_shop(&auth, detail.shop_id)?;
+        }
+    }
     state.catalog.e_card_group.batch(&dto).await?;
     ok(())
 }
@@ -420,4 +444,16 @@ mod tests {
         let q: ImportQuery = serde_json::from_str(r#"{}"#).unwrap();
         assert_eq!(q.group_id, None);
     }
+    /// 多租户：电子卡券组详情/更新/删除跨店 403。
+    #[test]
+    fn tenant_scope_isolation() {
+        let shop = AuthUser { id: 3, username: "shop".into(), role_id: None,
+            admin_type: Some("shop".into()), shop_id: Some(5) };
+        assert!(tenant::ensure_row_shop(&shop, 5).is_ok());
+        assert!(tenant::ensure_row_shop(&shop, 6).is_err());
+        let platform = AuthUser { id: 1, username: "admin".into(), role_id: None,
+            admin_type: Some("admin".into()), shop_id: Some(0) };
+        assert!(tenant::ensure_row_shop(&platform, 6).is_ok());
+    }
+
 }

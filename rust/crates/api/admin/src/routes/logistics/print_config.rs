@@ -62,7 +62,7 @@
 //! [`tigshop_services::logistics::print_config`] 模块头与 `uncertain_points`。
 
 use axum::{
-    extract::{Query, State},
+    extract::{Extension, Query, State},
     routing::{get, post},
     Json, Router,
 };
@@ -70,9 +70,10 @@ use serde::Deserialize;
 use tigshop_core::models::logistics::print_config::{
     PrintConfigUpdateDTO, PrintConfigVO, PrintOrdersDTO, MSG_PRINT_ID_REQUIRED,
 };
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AuthUser};
 
 use crate::AdminState;
+use super::tenant;
 
 /// 本域全部 3 条路由（去掉 `/adminapi` 前缀后的路径 + 原 Java handler）。
 ///
@@ -149,11 +150,20 @@ struct PrintIdQuery {
 /// 已在服务层文档与 `uncertain_points` 中记录。
 async fn get_configs_by_print_id(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<PrintIdQuery>,
 ) -> ApiResult<Option<PrintConfigVO>> {
     let print_id = q
         .print_id
         .ok_or_else(|| tigshop_core::Error::Validation(MSG_PRINT_ID_REQUIRED.into()))?;
+    let shop_id = tenant::platform_or_shop_id(&auth);
+    let owned = state
+        .logistics
+        .print
+        .repo()
+        .find_by_id_and_shop(print_id, shop_id)
+        .await?;
+    owned.ok_or_else(|| tigshop_core::Error::Forbidden("无权访问该打印机配置".into()))?;
     ok(state.logistics.print_config.get_configs_by_print_id(print_id).await?)
 }
 
@@ -168,8 +178,27 @@ async fn get_configs_by_print_id(
 /// 兜底成 58mm，与「字段缺失」不同 —— 见 `uncertain_points`。
 async fn update(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<PrintConfigUpdateDTO>,
 ) -> ApiResult<bool> {
+    let config_id = dto
+        .id
+        .ok_or_else(|| tigshop_core::Error::Validation("打印配置ID不能为空".into()))?;
+    let config = state
+        .logistics
+        .print_config
+        .repo()
+        .find_config_by_id(config_id)
+        .await?
+        .ok_or_else(|| tigshop_core::Error::Validation("打印配置不存在".into()))?;
+    let shop_id = tenant::platform_or_shop_id(&auth);
+    let owned = state
+        .logistics
+        .print
+        .repo()
+        .find_by_id_and_shop(config.print_id, shop_id)
+        .await?;
+    owned.ok_or_else(|| tigshop_core::Error::Forbidden("无权修改该打印配置".into()))?;
     ok(state.logistics.print_config.update_config(&dto).await?)
 }
 
@@ -183,9 +212,10 @@ async fn update(
 /// 见模块头「打印任务投递说明」）。Java 返回 `true`，此处原样透传。
 async fn print(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<PrintOrdersDTO>,
 ) -> ApiResult<bool> {
-    ok(state.logistics.print_config.print_orders(&dto, default_shop_id()).await?)
+    ok(state.logistics.print_config.print_orders(&dto, tenant::platform_or_shop_id(&auth)).await?)
 }
 
 /// 本模块当前使用的店铺 ID。
@@ -194,6 +224,7 @@ async fn print(
 /// Rust 侧鉴权中间件尚未注入 `shop_id`，故统一按平台账号处理。
 /// 待中间件补齐后，此处改为从 `AdminState` / 请求扩展里取真实店铺 ID 即可，
 /// 服务层签名（`shop_id: i32`）无需改动。
+#[allow(dead_code)]
 const fn default_shop_id() -> i32 {
     tigshop_core::models::logistics::print_config::DEFAULT_SHOP_ID
 }

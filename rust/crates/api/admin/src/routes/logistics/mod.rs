@@ -9,6 +9,8 @@ pub mod shipping_list;
 pub mod shipping_tpl;
 pub mod shipping_type;
 
+pub(crate) mod tenant;
+
 use axum::Router;
 
 use super::super::AdminState;

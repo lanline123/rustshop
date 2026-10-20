@@ -15,7 +15,7 @@
 //! > Rust JWT 无 `shop_id`，改由查询参数 `shopId` 表达（见服务层不确定点）。
 
 use axum::{
-    extract::{Query, State},
+    extract::{Extension, Query, State},
     routing::get,
     Router,
 };
@@ -25,8 +25,10 @@ use tigshop_core::models::catalog::product_inventory_log::{
 use tigshop_core::types::PageResult;
 use tigshop_openapi::RouteDoc;
 use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::AuthUser;
 
 use crate::AdminState;
+use super::tenant;
 
 /// 本域全部路由（`/adminapi` 前缀之后的路径 + 原 Java 方法名）。
 const ROUTE_TABLE: [(&str, &str, &str); 1] = [(
@@ -53,8 +55,11 @@ pub fn implemented_routes() -> Vec<RouteDoc> {
 /// `GET /adminapi/product/productInventoryLog/list`：库存日志分页。
 async fn list(
     State(state): State<AdminState>,
-    Query(q): Query<ProductInventoryLogQuery>,
+    Extension(auth): Extension<AuthUser>,
+    Query(mut q): Query<ProductInventoryLogQuery>,
 ) -> ApiResult<PageResult<ProductInventoryLogVO>> {
+    // 店铺账号强制本店；平台账号可用 shopId 筛选（留空不过滤）
+    q.shop_id = tenant::list_scope(&auth, q.shop_id)?;
     ok(state.catalog.product_inventory_log.list(&q).await?)
 }
 
@@ -88,4 +93,16 @@ mod tests {
             assert_ne!((unique[i - 1].0, unique[i - 1].1), (unique[i].0, unique[i].1));
         }
     }
+    /// 多租户：库存日志列表按登录态店铺强制过滤（跨店 shopId 403）。
+    #[test]
+    fn tenant_scope_forces_shop_filter() {
+        let shop = AuthUser { id: 3, username: "shop".into(), role_id: None,
+            admin_type: Some("shop".into()), shop_id: Some(5) };
+        assert_eq!(tenant::list_scope(&shop, None).unwrap(), Some(5));
+        assert!(tenant::list_scope(&shop, Some(7)).is_err());
+        let platform = AuthUser { id: 1, username: "admin".into(), role_id: None,
+            admin_type: Some("admin".into()), shop_id: Some(0) };
+        assert_eq!(tenant::list_scope(&platform, Some(7)).unwrap(), Some(7));
+    }
+
 }

@@ -207,6 +207,30 @@ struct SetDefaultQuery {
     id: Option<i32>,
 }
 
+/// 配置归属校验：店铺账号仅可访问本店配置；供应商账号仅可访问本方配置；
+/// 平台账号（`shop_id == 0 && vendor_id == 0`）放行（列表已按平台 0 过滤）。
+///
+/// `scope` 为 `None`（配置不存在）时直接放行，由服务层返回原有「配置记录不存在」语义。
+fn ensure_config_access(
+    tenant: &TenantScope,
+    scope: Option<(i32, i32)>,
+) -> Result<(), tigshop_core::Error> {
+    let Some((shop_id, vendor_id)) = scope else {
+        return Ok(());
+    };
+    if tenant.shop_id > 0 && shop_id != tenant.shop_id {
+        return Err(tigshop_core::Error::Forbidden(format!(
+            "无权访问店铺 {shop_id} 的物流配置"
+        )));
+    }
+    if tenant.vendor_id > 0 && vendor_id != tenant.vendor_id {
+        return Err(tigshop_core::Error::Forbidden(format!(
+            "无权访问供应商 {vendor_id} 的物流配置"
+        )));
+    }
+    Ok(())
+}
+
 // ——————————————————————————————————————————————
 // Handlers
 // ——————————————————————————————————————————————
@@ -232,8 +256,20 @@ async fn list(
 /// `id` 缺失或记录不存在时返回 `data: null`（与 Java 返回 `null` 一致）。
 async fn detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    headers: HeaderMap,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<Option<LogisticsCompanyConfigVO>> {
+    let tenant = resolve_tenant(&headers, &auth);
+    let scope = match q.id {
+        Some(id) => state
+            .logistics
+            .logistics_company_config
+            .scope_of(id)
+            .await?,
+        None => None,
+    };
+    ensure_config_access(&tenant, scope)?;
     ok(state.logistics.logistics_company_config.detail(q.id).await?)
 }
 
@@ -258,8 +294,20 @@ async fn create(
 /// 对应 Java `LogisticsCompanyConfigController.update(@RequestBody UpdateDTO)`。
 async fn update(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    headers: HeaderMap,
     Json(dto): Json<LogisticsCompanyConfigUpdateDTO>,
 ) -> ApiResult<&'static str> {
+    let id = dto
+        .id
+        .ok_or_else(|| tigshop_core::Error::Validation("配置ID不能为空".into()))?;
+    let tenant = resolve_tenant(&headers, &auth);
+    let scope = state
+        .logistics
+        .logistics_company_config
+        .scope_of(id)
+        .await?;
+    ensure_config_access(&tenant, scope)?;
     state.logistics.logistics_company_config.update(&dto).await?;
     ok("更新成功")
 }
@@ -269,8 +317,20 @@ async fn update(
 /// 对应 Java `LogisticsCompanyConfigController.del(@RequestBody OperateDTO)`。
 async fn del(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    headers: HeaderMap,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<&'static str> {
+    let tenant = resolve_tenant(&headers, &auth);
+    let scope = match dto.id {
+        Some(id) => state
+            .logistics
+            .logistics_company_config
+            .scope_of(id)
+            .await?,
+        None => None,
+    };
+    ensure_config_access(&tenant, scope)?;
     state.logistics.logistics_company_config.delete(dto.id).await?;
     ok("删除成功")
 }
@@ -281,11 +341,20 @@ async fn del(
 /// —— 注意入参是**查询串**而非 JSON body。
 async fn set_default(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    headers: HeaderMap,
     Query(q): Query<SetDefaultQuery>,
 ) -> ApiResult<&'static str> {
     let id = q
         .id
         .ok_or_else(|| tigshop_core::Error::Validation("配置ID不能为空".into()))?;
+    let tenant = resolve_tenant(&headers, &auth);
+    let scope = state
+        .logistics
+        .logistics_company_config
+        .scope_of(id)
+        .await?;
+    ensure_config_access(&tenant, scope)?;
     state.logistics.logistics_company_config.set_default(id).await?;
     ok("设置成功")
 }
@@ -296,8 +365,20 @@ async fn set_default(
 /// 白名单为控制器常量 `CONFIG_UPDATE_FIELDS = {"is_enabled", "sort_order"}`。
 async fn update_field(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    headers: HeaderMap,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<&'static str> {
+    let id = dto
+        .id
+        .ok_or_else(|| tigshop_core::Error::Validation("配置ID不能为空".into()))?;
+    let tenant = resolve_tenant(&headers, &auth);
+    let scope = state
+        .logistics
+        .logistics_company_config
+        .scope_of(id)
+        .await?;
+    ensure_config_access(&tenant, scope)?;
     state.logistics.logistics_company_config.update_field(&dto).await?;
     ok("更新成功")
 }
@@ -448,4 +529,16 @@ mod tests {
         let q: SetDefaultQuery = serde_json::from_str("{}").unwrap();
         assert_eq!(q.id, None);
     }
+    /// 跨店物流配置访问必须被拒；平台账号放行。
+    #[test]
+    fn config_scope_isolation() {
+        let shop_tenant = TenantScope { shop_id: 6, vendor_id: 0 };
+        assert!(ensure_config_access(&shop_tenant, Some((6, 0))).is_ok());
+        assert!(ensure_config_access(&shop_tenant, Some((9, 0))).is_err());
+        // 配置不存在：交给服务层原有语义
+        assert!(ensure_config_access(&shop_tenant, None).is_ok());
+        let platform = TenantScope { shop_id: 0, vendor_id: 0 };
+        assert!(ensure_config_access(&platform, Some((9, 0))).is_ok());
+    }
+
 }

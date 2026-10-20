@@ -19,6 +19,8 @@ pub mod search_admin;
 pub mod services;
 pub mod stock_warning;
 
+pub(crate) mod tenant;
+
 use axum::Router;
 
 use super::super::AdminState;

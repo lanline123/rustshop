@@ -42,6 +42,7 @@ use tigshop_openapi::RouteDoc;
 use tigshop_security::web::{ok, ApiResult, AuthUser};
 
 use crate::AdminState;
+use super::tenant;
 
 /// 评价域全部 8 条路由（`/adminapi` 前缀之后的路径 + 原 Java 方法名）。
 ///
@@ -104,17 +105,22 @@ struct IdQuery {
 /// `Page`，Rust 统一使用项目既有分页结构，与 product_manage/brand 一致）。
 async fn comment_list(
     State(state): State<AdminState>,
-    Query(q): Query<CommentListQuery>,
+    Extension(auth): Extension<AuthUser>,
+    Query(mut q): Query<CommentListQuery>,
 ) -> ApiResult<PageResult<CommentVO>> {
+    q.shop_id = tenant::list_scope(&auth, q.shop_id)?;
     ok(state.catalog.comment.list(&q).await?)
 }
 
 /// `GET /adminapi/product/comment/detail?id=`：评价详情（含子回复）。
 async fn comment_detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<CommentVO> {
-    ok(state.catalog.comment.detail(q.id).await?)
+    let detail = state.catalog.comment.detail(q.id).await?;
+    tenant::ensure_row_shop_opt(&auth, detail.shop_id)?;
+    ok(detail)
 }
 
 /// `POST /adminapi/product/comment/create`：新增评价（Java 返回 void）。
@@ -129,8 +135,14 @@ async fn comment_create(
 /// `POST /adminapi/product/comment/update`：编辑评价（Java 返回 void）。
 async fn comment_update(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<CommentUpdateDTO>,
 ) -> ApiResult<()> {
+    let id = dto
+        .comment_id
+        .ok_or_else(|| tigshop_core::Error::Validation("评价管理id不能为空".into()))?;
+    let detail = state.catalog.comment.detail(id).await?;
+    tenant::ensure_row_shop_opt(&auth, detail.shop_id)?;
     state.catalog.comment.update(&dto).await?;
     ok(())
 }
@@ -140,11 +152,14 @@ async fn comment_update(
 /// 对应 Java `CommentController#del(OperateDTO)`（物理删除）。
 async fn comment_del(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<()> {
     let id = dto
         .id
         .ok_or_else(|| tigshop_core::Error::Validation("id不能为空".into()))?;
+    let detail = state.catalog.comment.detail(id).await?;
+    tenant::ensure_row_shop_opt(&auth, detail.shop_id)?;
     state.catalog.comment.delete(id).await?;
     ok(())
 }
@@ -152,8 +167,14 @@ async fn comment_del(
 /// `POST /adminapi/product/comment/updateField`：更新单个字段（白名单）。
 async fn comment_update_field(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<()> {
+    let id = dto
+        .id
+        .ok_or_else(|| tigshop_core::Error::Validation("id不能为空".into()))?;
+    let detail = state.catalog.comment.detail(id).await?;
+    tenant::ensure_row_shop_opt(&auth, detail.shop_id)?;
     state.catalog.comment.update_field(&dto).await?;
     ok(())
 }
@@ -161,8 +182,15 @@ async fn comment_update_field(
 /// `POST /adminapi/product/comment/batch`：批量操作（仅 `type = "del"`）。
 async fn comment_batch(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<()> {
+    if dto.r#type.as_deref() == Some("del") {
+        for id in dto.ids.as_deref().unwrap_or(&[]) {
+            let detail = state.catalog.comment.detail(*id).await?;
+            tenant::ensure_row_shop_opt(&auth, detail.shop_id)?;
+        }
+    }
     state.catalog.comment.batch(&dto).await?;
     ok(())
 }
@@ -177,6 +205,11 @@ async fn comment_reply(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<CommentReplyDTO>,
 ) -> ApiResult<()> {
+    let parent_id = dto
+        .comment_id
+        .ok_or_else(|| tigshop_core::Error::Validation("评价管理id不能为空".into()))?;
+    let detail = state.catalog.comment.detail(parent_id).await?;
+    tenant::ensure_row_shop_opt(&auth, detail.shop_id)?;
     state
         .catalog
         .comment
@@ -295,4 +328,17 @@ mod tests {
             }
         }
     }
+    /// 多租户隔离：列表强制过滤 + 跨店详情被拒。
+    #[test]
+    fn tenant_scope_isolation() {
+        let shop = AuthUser { id: 4, username: "shop".into(), role_id: None,
+            admin_type: Some("shop".into()), shop_id: Some(2) };
+        assert_eq!(tenant::list_scope(&shop, None).unwrap(), Some(2));
+        assert!(tenant::list_scope(&shop, Some(8)).is_err());
+        assert!(tenant::ensure_row_shop_opt(&shop, Some(8)).is_err());
+        let platform = AuthUser { id: 1, username: "admin".into(), role_id: None,
+            admin_type: Some("admin".into()), shop_id: Some(0) };
+        assert!(tenant::ensure_row_shop_opt(&platform, Some(8)).is_ok());
+    }
+
 }

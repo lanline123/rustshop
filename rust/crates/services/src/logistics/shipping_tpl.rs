@@ -99,6 +99,14 @@ impl ShippingTplService {
         &self.repos.logistics.shipping_tpl
     }
 
+    /// 模板归属店铺（多租户校验用；模板不存在返回 `None`）。
+    ///
+    /// 路由层在 `detail` / `del` / `updateField` / `batch` 前调用，
+    /// 配合 `AuthUser::ensure_shop_access` 阻断跨店读写。
+    pub async fn shop_id_of(&self, id: i32) -> Result<Option<i32>> {
+        Ok(self.repo().find_tpl_by_id(id).await?.map(|t| t.shop_id))
+    }
+
     // ————————————————————— 详情 —————————————————————
 
     /// 运费模板详情（对应 Java `ShippingTplServiceImpl#detail`）。

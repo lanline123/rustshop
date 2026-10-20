@@ -1,4 +1,4 @@
-//! 管理端全局搜索路由（catalog::search_admin，2 条）。
+﻿//! 管理端全局搜索路由（catalog::search_admin，2 条）。
 //!
 //! 对应原 Java `com.tigshop.adminapi.controller.search.SearchController`
 //! （`@RequestMapping("/adminapi/search")`，类级
@@ -30,13 +30,16 @@ use axum::{
 // `AdminProductListQuery` 含数组字段（`productTypes` / `idList` / `brandIds` …），
 // axum 内置 serde_urlencoded 不支持序列类型；与 product_manage 一致改用
 // axum-extra 的 serde_html_form Query。
+use axum::extract::Extension;
 use axum_extra::extract::Query;
 use tigshop_core::models::catalog::product_manage::{AdminProductListQuery, ProductListItemVO};
 use tigshop_core::types::PageResult;
 use tigshop_openapi::RouteDoc;
 use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::AuthUser;
 
 use crate::AdminState;
+use super::tenant;
 
 /// 综合搜索商品预览默认条数（Java `AGGREGATE_PRODUCT_PREVIEW_SIZE`）。
 pub const AGGREGATE_PRODUCT_PREVIEW_SIZE: u64 = 5;
@@ -70,21 +73,25 @@ pub fn implemented_routes() -> Vec<RouteDoc> {
 /// `page=1, size=5, isDelete=0`，其余过滤条件透传 `ProductListDTO`。
 async fn aggregate(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(mut q): Query<AdminProductListQuery>,
 ) -> ApiResult<PageResult<ProductListItemVO>> {
     q.page = Some(1);
     q.page_size = Some(AGGREGATE_PRODUCT_PREVIEW_SIZE);
     q.is_delete = Some(0);
+    q.shop_id = tenant::list_scope(&auth, q.shop_id)?;
     ok(state.catalog.product_manage.admin_list(&q).await?)
 }
 
 /// `GET /adminapi/search/product`：商品搜索（分页透传）。
 async fn product(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(mut q): Query<AdminProductListQuery>,
 ) -> ApiResult<PageResult<ProductListItemVO>> {
     // Java `applySearchScope`：搜索范围仅排除回收站
     q.is_delete = Some(0);
+    q.shop_id = tenant::list_scope(&auth, q.shop_id)?;
     ok(state.catalog.product_manage.admin_list(&q).await?)
 }
 
@@ -131,4 +138,16 @@ mod tests {
     fn aggregate_preview_size_matches_java_constant() {
         assert_eq!(AGGREGATE_PRODUCT_PREVIEW_SIZE, 5);
     }
+    /// 多租户：店铺账号搜索必须强制本店过滤。
+    #[test]
+    fn tenant_scope_forces_shop_filter() {
+        let shop = AuthUser { id: 3, username: "shop".into(), role_id: None,
+            admin_type: Some("shop".into()), shop_id: Some(5) };
+        assert_eq!(tenant::list_scope(&shop, None).unwrap(), Some(5));
+        assert!(tenant::list_scope(&shop, Some(7)).is_err());
+        let platform = AuthUser { id: 1, username: "admin".into(), role_id: None,
+            admin_type: Some("admin".into()), shop_id: Some(0) };
+        assert_eq!(tenant::list_scope(&platform, None).unwrap(), None);
+    }
+
 }

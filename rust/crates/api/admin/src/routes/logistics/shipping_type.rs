@@ -36,12 +36,13 @@
 //! > 本实现同样以请求头为准，见 [`shop_id_from_headers`]。
 
 use axum::{
-    extract::{Query, State},
+    extract::{Extension, Query, State},
     http::HeaderMap,
     routing::{get, post},
     Json, Router,
 };
 use serde::Deserialize;
+use tigshop_security::web::AuthUser;
 use tigshop_core::models::logistics::shipping_type::{
     BatchDTO, OperateDTO, ShippingTypeCreateDTO, ShippingTypeListQuery, ShippingTypeUpdateDTO,
     ShippingTypeVO, UpdateFieldDTO, MSG_ID_REQUIRED,
@@ -50,6 +51,7 @@ use tigshop_core::types::PageResult;
 use tigshop_security::web::{ok, ApiResult, AppError};
 
 use crate::AdminState;
+use super::tenant;
 
 /// 本域全部 7 条路由（去掉 `/adminapi` 前缀后的路径 + 原 Java handler）。
 ///
@@ -135,10 +137,11 @@ struct IdQuery {
 /// `shopId` 参数存在但**被忽略**（Java 用请求头）。
 async fn list(
     State(state): State<AdminState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<ShippingTypeListQuery>,
 ) -> ApiResult<PageResult<ShippingTypeVO>> {
-    let shop_id = shop_id_from_headers(&headers);
+    // 店铺账号强制本店；平台账号 shop_id=0（Java HeaderUtils.getShopId() 平台 0）
+    let shop_id = tenant::platform_or_shop_id(&auth);
     ok(state.logistics.shipping_type.list(&q, shop_id).await?)
 }
 
@@ -149,9 +152,15 @@ async fn list(
 ///
 /// Java 记录不存在时返回全 null VO（不报错）；本实现返回 404 + 文案
 /// （项目内 order_admin/005/017/075/163 的既有约定，见 `uncertain_points`）。
-async fn detail(State(state): State<AdminState>, Query(q): Query<IdQuery>) -> ApiResult<ShippingTypeVO> {
+async fn detail(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Query(q): Query<IdQuery>,
+) -> ApiResult<ShippingTypeVO> {
     let id = require_positive_id(q.id)?;
-    ok(state.logistics.shipping_type.detail(id).await?)
+    let vo = state.logistics.shipping_type.detail(id).await?;
+    tenant::ensure_row_shop(&auth, vo.shop_id)?;
+    ok(vo)
 }
 
 /// `POST /adminapi/setting/shippingType/create`：新增配送类型。
@@ -163,10 +172,11 @@ async fn detail(State(state): State<AdminState>, Query(q): Query<IdQuery>) -> Ap
 /// 请求体里的 `shopId` 被忽略。
 async fn create(
     State(state): State<AdminState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<ShippingTypeCreateDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let shop_id = shop_id_from_headers(&headers);
+    // 写操作强制落到当前登录店铺（平台 0）
+    let shop_id = tenant::platform_or_shop_id(&auth);
     let id = state.logistics.shipping_type.create(&dto, shop_id).await?;
     ok(serde_json::json!({ "shippingTypeId": id }))
 }
@@ -180,8 +190,12 @@ async fn create(
 /// 记录不存在时影响 0 行也**不报错**，本实现保持一致）。
 async fn update(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<ShippingTypeUpdateDTO>,
 ) -> ApiResult<serde_json::Value> {
+    let id = require_positive_id(dto.id)?;
+    let vo = state.logistics.shipping_type.detail(id).await?;
+    tenant::ensure_row_shop(&auth, vo.shop_id)?;
     let affected = state.logistics.shipping_type.update(&dto).await?;
     ok(serde_json::json!({ "affected": affected }))
 }
@@ -192,9 +206,12 @@ async fn update(
 /// → `ShippingTypeServiceImpl#del`（继承 `BaseServiceImpl#del`）→ `removeById`。
 async fn del(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<serde_json::Value> {
     let id = require_positive_id(dto.id)?;
+    let vo = state.logistics.shipping_type.detail(id).await?;
+    tenant::ensure_row_shop(&auth, vo.shop_id)?;
     let deleted = state.logistics.shipping_type.del(id).await?;
     ok(serde_json::json!({ "deleted": deleted }))
 }
@@ -210,8 +227,12 @@ async fn del(
 /// （详见 models 模块头与 `uncertain_points`）。
 async fn update_field(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<serde_json::Value> {
+    let id = require_positive_id(dto.id)?;
+    let vo = state.logistics.shipping_type.detail(id).await?;
+    tenant::ensure_row_shop(&auth, vo.shop_id)?;
     let affected = state.logistics.shipping_type.update_field(&dto).await?;
     ok(serde_json::json!({ "affected": affected }))
 }
@@ -227,8 +248,15 @@ async fn update_field(
 /// del 类型按是否删到行为准。
 async fn batch(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<serde_json::Value> {
+    if dto.is_delete() {
+        for id in dto.ids.as_deref().unwrap_or(&[]) {
+            let vo = state.logistics.shipping_type.detail(*id).await?;
+            tenant::ensure_row_shop(&auth, vo.shop_id)?;
+        }
+    }
     let affected = state.logistics.shipping_type.batch(&dto).await?;
     let success = dto.is_delete() && affected > 0;
     ok(serde_json::json!({ "success": success, "affected": affected }))
@@ -394,4 +422,18 @@ mod tests {
     fn route_table_size_is_seven() {
         assert_eq!(ROUTE_TABLE.len(), 7);
     }
+    /// 店铺账号跨店读写必须被拒（detail/update/del 均先做归属校验）。
+    #[test]
+    fn cross_shop_access_is_rejected() {
+        let shop = AuthUser { id: 2, username: "shop".into(), role_id: None,
+            admin_type: Some("shop".into()), shop_id: Some(6) };
+        assert!(tenant::ensure_row_shop(&shop, 9).is_err());
+        assert!(tenant::ensure_row_shop(&shop, 6).is_ok());
+        let platform = AuthUser { id: 1, username: "admin".into(), role_id: None,
+            admin_type: Some("admin".into()), shop_id: Some(0) };
+        assert!(tenant::ensure_row_shop(&platform, 9).is_ok());
+        assert_eq!(tenant::platform_or_shop_id(&shop), 6);
+        assert_eq!(tenant::platform_or_shop_id(&platform), 0);
+    }
+
 }

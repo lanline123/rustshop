@@ -194,6 +194,15 @@ impl LogisticsCompanyConfigService {
         &self.repos.logistics.logistics_company_config
     }
 
+    /// 配置归属 `(shop_id, vendor_id)`（多租户校验用；不存在返回 `None`）。
+    pub async fn scope_of(&self, config_id: i32) -> Result<Option<(i32, i32)>> {
+        Ok(self
+            .repo()
+            .find_config_by_id(config_id)
+            .await?
+            .map(|c| (c.shop_id, c.vendor_id)))
+    }
+
     // ————————————————————— 管理端 —————————————————————
 
     /// 当前租户的物流公司配置分页。

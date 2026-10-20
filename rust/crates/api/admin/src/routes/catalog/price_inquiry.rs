@@ -44,6 +44,7 @@ use tigshop_security::web::{ok, ApiResult, AuthUser};
 use tigshop_services::catalog::price_inquiry::AdminOperator;
 
 use crate::AdminState;
+use super::tenant;
 
 /// 商品询价域全部 5 条路由（去掉 `/adminapi` 前缀后的路径 + 原 Java 方法名）。
 ///
@@ -116,9 +117,12 @@ struct IdQuery {
 
 async fn price_inquiry_detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<PriceInquiryVO> {
-    ok(state.catalog.price_inquiry.detail(q.id).await?)
+    let detail = state.catalog.price_inquiry.detail(q.id).await?;
+    tenant::ensure_row_shop(&auth, detail.shop_id)?;
+    ok(detail)
 }
 
 /// `POST /adminapi/product/priceInquiry/reply`：商家回复。
@@ -130,6 +134,11 @@ async fn price_inquiry_reply(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<PriceInquiryReplyDTO>,
 ) -> ApiResult<()> {
+    let inquiry_id = dto
+        .id
+        .ok_or_else(|| tigshop_core::Error::Validation("询价ID不能为空".into()))?;
+    let detail = state.catalog.price_inquiry.detail(inquiry_id).await?;
+    tenant::ensure_row_shop(&auth, detail.shop_id)?;
     let operator = AdminOperator::new(auth.id, auth.username.clone());
     state.catalog.price_inquiry.reply(&dto, &operator).await?;
     ok(())
@@ -143,9 +152,12 @@ async fn price_inquiry_reply(
 /// 因此本 handler 在 `id` 缺失时也静默成功（不报参数错误）。
 async fn price_inquiry_del(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<()> {
     if let Some(id) = dto.id {
+        let detail = state.catalog.price_inquiry.detail(id).await?;
+        tenant::ensure_row_shop(&auth, detail.shop_id)?;
         state.catalog.price_inquiry.delete(id).await?;
     }
     ok(())
@@ -156,8 +168,15 @@ async fn price_inquiry_del(
 /// 对应 Java `batch(@RequestBody @Valid BatchDTO)`。
 async fn price_inquiry_batch(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<()> {
+    if dto.r#type.as_deref() == Some("del") {
+        for id in dto.ids.as_deref().unwrap_or(&[]) {
+            let detail = state.catalog.price_inquiry.detail(*id).await?;
+            tenant::ensure_row_shop(&auth, detail.shop_id)?;
+        }
+    }
     state.catalog.price_inquiry.batch(&dto).await?;
     ok(())
 }
@@ -314,4 +333,16 @@ mod tests {
             None
         );
     }
+    /// 多租户：店铺账号的询价归属校验（跨店 403）。
+    #[test]
+    fn tenant_scope_isolation() {
+        let shop = AuthUser { id: 3, username: "shop".into(), role_id: None,
+            admin_type: Some("shop".into()), shop_id: Some(5) };
+        assert!(tenant::ensure_row_shop(&shop, 5).is_ok());
+        assert!(tenant::ensure_row_shop(&shop, 6).is_err());
+        let platform = AuthUser { id: 1, username: "admin".into(), role_id: None,
+            admin_type: Some("admin".into()), shop_id: Some(0) };
+        assert!(tenant::ensure_row_shop(&platform, 6).is_ok());
+    }
+
 }

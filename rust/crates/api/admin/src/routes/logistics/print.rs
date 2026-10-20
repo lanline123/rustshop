@@ -54,7 +54,7 @@
 //! - `devicePrinters`：Java 返回 `List<PrintPageVO>`。
 
 use axum::{
-    extract::{Query, State},
+    extract::{Extension, Query, State},
     routing::{get, post},
     Json, Router,
 };
@@ -64,9 +64,10 @@ use tigshop_core::models::logistics::print::{
     MSG_ID_REQUIRED, MSG_OPERATE_ID_REQUIRED,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AuthUser};
 
 use crate::AdminState;
+use super::tenant;
 
 /// 本域全部 8 条路由（去掉 `/adminapi` 前缀后的路径 + 原 Java handler）。
 ///
@@ -141,9 +142,10 @@ struct DevicePrintersQuery {
 /// → `PrintServiceImpl#list`。
 async fn print_list(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<PrintPageQuery>,
 ) -> ApiResult<PageResult<PrintVO>> {
-    ok(state.logistics.print.list(&q, default_shop_id()).await?)
+    ok(state.logistics.print.list(&q, tenant::platform_or_shop_id(&auth)).await?)
 }
 
 /// `GET /adminapi/print/print/detail?id=`：打印机详情。
@@ -153,12 +155,13 @@ async fn print_list(
 /// （裸 `i32` 会被 axum 用自家 400 文案兜底，与 Java 不一致）。
 async fn print_detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<PrintDetailVO> {
     let id = q
         .id
         .ok_or_else(|| tigshop_core::Error::Validation(MSG_ID_REQUIRED.into()))?;
-    ok(state.logistics.print.detail(id, default_shop_id()).await?)
+    ok(state.logistics.print.detail(id, tenant::platform_or_shop_id(&auth)).await?)
 }
 
 /// `POST /adminapi/print/print/create`：新增打印机。
@@ -167,9 +170,10 @@ async fn print_detail(
 /// 返回 `Boolean`（`save` 是否成功）。
 async fn print_create(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<PrintAddDTO>,
 ) -> ApiResult<bool> {
-    ok(state.logistics.print.create(&dto, default_shop_id()).await?)
+    ok(state.logistics.print.create(&dto, tenant::platform_or_shop_id(&auth)).await?)
 }
 
 /// `POST /adminapi/print/print/update`：编辑打印机。
@@ -177,9 +181,10 @@ async fn print_create(
 /// 对应 Java `PrintController.update(@RequestBody @Valid PrintUpdateParam)`。
 async fn print_update(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<PrintUpdateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.logistics.print.update(&dto, default_shop_id()).await?)
+    ok(state.logistics.print.update(&dto, tenant::platform_or_shop_id(&auth)).await?)
 }
 
 /// `POST /adminapi/print/print/updateField`：更新单个字段。
@@ -188,9 +193,10 @@ async fn print_update(
 /// → `PrintServiceImpl#updateField(dto, PRINT_FIELDS)`。
 async fn print_update_field(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<bool> {
-    ok(state.logistics.print.update_field(&dto, default_shop_id()).await?)
+    ok(state.logistics.print.update_field(&dto, tenant::platform_or_shop_id(&auth)).await?)
 }
 
 /// `POST /adminapi/print/print/del`：删除打印机。
@@ -201,20 +207,24 @@ async fn print_update_field(
 /// Java 返回 `void`，故 Rust 用 `ApiResult<()>`：`data` 为 `null`。
 async fn print_del(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<()> {
     let id = dto
         .id
         .ok_or_else(|| tigshop_core::Error::Validation(MSG_OPERATE_ID_REQUIRED.into()))?;
-    state.logistics.print.delete(id, default_shop_id()).await?;
+    state.logistics.print.delete(id, tenant::platform_or_shop_id(&auth)).await?;
     ok(())
 }
 
 /// `POST /adminapi/print/print/hasEnabled`：本店是否存在启用的打印机。
 ///
 /// 对应 Java `PrintController.hasEnabled()`（无请求体，返回 `boolean`）。
-async fn print_has_enabled(State(state): State<AdminState>) -> ApiResult<bool> {
-    ok(state.logistics.print.has_enabled(default_shop_id()).await?)
+async fn print_has_enabled(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+) -> ApiResult<bool> {
+    ok(state.logistics.print.has_enabled(tenant::platform_or_shop_id(&auth)).await?)
 }
 
 /// `GET /adminapi/print/print/devicePrinters?deviceCode=`：
@@ -224,12 +234,13 @@ async fn print_has_enabled(State(state): State<AdminState>) -> ApiResult<bool> {
 /// → `PrintServiceImpl#devicePrinters`。
 async fn print_device_printers(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<DevicePrintersQuery>,
 ) -> ApiResult<Vec<PrintVO>> {
     ok(state
         .logistics
         .print
-        .device_printers(q.device_code.as_deref(), default_shop_id())
+        .device_printers(q.device_code.as_deref(), tenant::platform_or_shop_id(&auth))
         .await?)
 }
 
@@ -239,6 +250,7 @@ async fn print_device_printers(
 /// Rust 侧鉴权中间件尚未注入 `shop_id`，故统一按平台账号处理。
 /// 待中间件补齐后，此处改为从 `AdminState` / 请求扩展里取真实店铺 ID 即可，
 /// 服务层签名（`shop_id: i32`）无需改动。
+#[allow(dead_code)]
 const fn default_shop_id() -> i32 {
     tigshop_core::models::logistics::print_config::DEFAULT_SHOP_ID
 }
@@ -405,9 +417,14 @@ mod tests {
         assert_eq!(some.device_code.as_deref(), Some("POS-A"));
     }
 
-    /// 默认店铺 ID 是平台 0（Java `HeaderUtils.getShopId()` 在 `admin` 下取 0）。
+    /// 租户店铺 ID 由 AuthUser 决定：平台 0、店铺本店。
     #[test]
-    fn default_shop_id_is_platform() {
-        assert_eq!(default_shop_id(), 0);
+    fn tenant_shop_id_from_auth() {
+        let platform = AuthUser { id: 1, username: "admin".into(), role_id: None,
+            admin_type: Some("admin".into()), shop_id: Some(0) };
+        assert_eq!(tenant::platform_or_shop_id(&platform), 0);
+        let shop = AuthUser { id: 2, username: "shop".into(), role_id: None,
+            admin_type: Some("shop".into()), shop_id: Some(9) };
+        assert_eq!(tenant::platform_or_shop_id(&shop), 9);
     }
 }

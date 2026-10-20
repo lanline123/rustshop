@@ -1,4 +1,4 @@
-//! 管理端品牌路由。
+﻿//! 管理端品牌路由。
 //! 对应原 Java `com.tigshop.adminapi.controller.product.BrandController`
 //! （`@RequestMapping("/adminapi/product/brand")`）。
 //!
@@ -76,7 +76,7 @@
 //! > 一致。
 
 use axum::{
-    extract::{Query, State},
+    extract::{Extension, Query, State},
     routing::{get, post},
     Json, Router,
 };
@@ -87,8 +87,10 @@ use tigshop_core::models::catalog::brand::{
 };
 use tigshop_core::types::PageResult;
 use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::AuthUser;
 
 use crate::AdminState;
+use super::tenant;
 
 /// 品牌域全部 12 条路由（去掉 `/adminapi` 前缀后的路径 + 原 Java 方法名）。
 ///
@@ -164,8 +166,11 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 #[allow(dead_code)] // 品牌列表的权威实现（主会话已从 catalog.rs 去重并启用本实现）
 async fn brand_list(
     State(state): State<AdminState>,
-    Query(q): Query<BrandListQuery>,
+    Extension(auth): Extension<AuthUser>,
+    Query(mut q): Query<BrandListQuery>,
 ) -> ApiResult<PageResult<BrandVO>> {
+    // 店铺账号强制本店；平台账号可用 shopId 筛选（resolve_shop_scope 内已做 403）
+    q.shop_id = tenant::list_scope(&auth, q.shop_id)?;
     ok(state.catalog.brand.list(&q).await?)
 }
 
@@ -180,9 +185,12 @@ struct IdQuery {
 
 async fn brand_detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<BrandDTO> {
-    ok(state.catalog.brand.detail(q.id).await?)
+    let detail = state.catalog.brand.detail(q.id).await?;
+    tenant::ensure_row_shop_opt(&auth, detail.shop_id)?;
+    ok(detail)
 }
 
 /// `POST /adminapi/product/brand/del`：删除品牌。
@@ -190,11 +198,14 @@ async fn brand_detail(
 /// 对应 Java `BrandController.del`（`OperateDTO`，取 `id`）。
 async fn brand_del(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<&'static str> {
     let id = dto
         .id
         .ok_or_else(|| tigshop_core::Error::Validation("ID不能为空".into()))?;
+    let detail = state.catalog.brand.detail(id).await?;
+    tenant::ensure_row_shop_opt(&auth, detail.shop_id)?;
     state.catalog.brand.delete(id).await?;
     ok("删除成功")
 }
@@ -206,11 +217,12 @@ async fn brand_del(
 /// Java 语义由 `HeaderUtils.getShopId()` 决定，见模块头的多租户说明）。
 async fn brand_create(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<BrandDTO>,
 ) -> ApiResult<String> {
-    // JWT 尚未携带 shop_id：店铺自建品牌显式传 shopId（前端已带），
-    // 未传视为平台操作（shop_id = 0）
-    let shop_id = dto.shop_id.unwrap_or(0);
+    // 写操作归属由登录态决定：店铺账号固定本店（请求体他店 → 403）；
+    // 平台账号可用请求体 shopId 代建，未传则平台品牌 shop_id = 0。
+    let shop_id = auth.resolve_shop_scope(dto.shop_id)?.unwrap_or(0);
     state.catalog.brand.create(&dto, shop_id).await?;
     ok(if shop_id > 0 {
         "添加成功,等待管理员审核".to_string()
@@ -230,9 +242,15 @@ async fn brand_create(
 /// 且 `updateById` 里的 `shopId` 来自请求头。见模块头多租户说明。
 async fn brand_update(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<BrandDTO>,
 ) -> ApiResult<&'static str> {
-    let shop_id = dto.shop_id.unwrap_or(0);
+    let id = dto
+        .brand_id
+        .ok_or_else(|| tigshop_core::Error::Validation("ID不能为空".into()))?;
+    let detail = state.catalog.brand.detail(id).await?;
+    tenant::ensure_row_shop_opt(&auth, detail.shop_id)?;
+    let shop_id = auth.resolve_shop_scope(dto.shop_id)?.unwrap_or(0);
     state.catalog.brand.update(&dto, shop_id).await?;
     ok(if shop_id > 0 {
         "修改成功,等待管理员审核"
@@ -247,11 +265,14 @@ async fn brand_update(
 /// `BRAND_FIELDS` 白名单）。
 async fn brand_update_field(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<bool> {
     let id = dto
         .id
         .ok_or_else(|| tigshop_core::Error::Validation("ID不能为空".into()))?;
+    let detail = state.catalog.brand.detail(id).await?;
+    tenant::ensure_row_shop_opt(&auth, detail.shop_id)?;
     let field = dto
         .field
         .ok_or_else(|| tigshop_core::Error::Validation("字段名不能为空".into()))?;
@@ -266,9 +287,16 @@ async fn brand_update_field(
 /// 对应 Java `BrandController.batch`（`BatchDTO`，仅支持 `type = "del"`）。
 async fn brand_batch(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<u64> {
     let ids = dto.ids.unwrap_or_default();
+    if dto.r#type.as_deref() == Some("del") {
+        for id in &ids {
+            let detail = state.catalog.brand.detail(*id).await?;
+            tenant::ensure_row_shop_opt(&auth, detail.shop_id)?;
+        }
+    }
     ok(state.catalog.brand.batch(&ids, dto.r#type.as_deref()).await?)
 }
 
@@ -286,7 +314,11 @@ async fn brand_search(State(state): State<AdminState>) -> ApiResult<BrandSearchV
 /// 不影响契约结构（`data` 为对象而非 void）。
 async fn brand_update_first_word(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
 ) -> ApiResult<serde_json::Value> {
+    if !auth.is_platform() {
+        return Err(tigshop_core::Error::Forbidden("仅平台账号可重算品牌首字母".into()).into());
+    }
     let updated = state.catalog.brand.update_first_word().await?;
     ok(serde_json::json!({ "updated": updated }))
 }
@@ -297,8 +329,10 @@ async fn brand_update_first_word(
 /// 强制 `isAudit = 1`（只看店铺品牌）。
 async fn brand_audit_list(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(mut q): Query<BrandListQuery>,
 ) -> ApiResult<PageResult<BrandVO>> {
+    q.shop_id = tenant::list_scope(&auth, q.shop_id)?;
     q.is_audit = Some(1);
     ok(state.catalog.brand.list(&q).await?)
 }
@@ -308,8 +342,12 @@ async fn brand_audit_list(
 /// 对应 Java `BrandController.audit`（`BrandAuditDTO`）。
 async fn brand_audit(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<BrandAuditDTO>,
 ) -> ApiResult<&'static str> {
+    if !auth.is_platform() {
+        return Err(tigshop_core::Error::Forbidden("仅平台账号可审核品牌".into()).into());
+    }
     state.catalog.brand.audit(&dto).await?;
     ok("审核成功")
 }
@@ -417,4 +455,19 @@ mod tests {
             assert!(registered.contains(p), "{p} 未在 routes() 中注册");
         }
     }
+    /// 多租户隔离：店铺账号跨店 shopId 必须 403，列表强制本店过滤。
+    #[test]
+    fn tenant_scope_rejects_cross_shop_and_forces_list_filter() {
+        let shop = AuthUser { id: 7, username: "shop".into(), role_id: None,
+            admin_type: Some("shop".into()), shop_id: Some(3) };
+        assert_eq!(tenant::list_scope(&shop, None).unwrap(), Some(3));
+        assert!(tenant::list_scope(&shop, Some(9)).is_err());
+        assert!(tenant::ensure_row_shop_opt(&shop, Some(9)).is_err());
+        assert!(tenant::ensure_row_shop_opt(&shop, Some(3)).is_ok());
+        let platform = AuthUser { id: 1, username: "admin".into(), role_id: None,
+            admin_type: Some("admin".into()), shop_id: Some(0) };
+        assert_eq!(tenant::list_scope(&platform, None).unwrap(), None);
+        assert_eq!(tenant::list_scope(&platform, Some(9)).unwrap(), Some(9));
+    }
+
 }

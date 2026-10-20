@@ -9,15 +9,16 @@
 //! 物流公司增删改。
 
 use axum::{
-    extract::{Query, State},
+    extract::{Extension, Query, State},
     routing::get,
     Router,
 };
 use tigshop_core::models::{ShippingTplListQuery, ShippingTplVO};
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AuthUser};
 
 use crate::AdminState;
+use super::tenant;
 
 /// 物流域路由（挂载于 `/adminapi` 下）。
 pub fn routes(state: &AdminState) -> Router<AdminState> {
@@ -42,13 +43,18 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 /// `GET /adminapi/setting/shippingTpl/list`：运费模板分页。
 async fn tpl_list(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<ShippingTplListQuery>,
 ) -> ApiResult<PageResult<ShippingTplVO>> {
     let page_query = tigshop_core::types::PageQuery {
         page: q.page.unwrap_or(1),
         page_size: q.page_size.unwrap_or(20),
     };
-    let page = state.logistics.shipping_list.tpl_list(&q).await?;
+    let page = state
+        .logistics
+        .shipping_list
+        .tpl_list(&q, auth.scoped_shop_id())
+        .await?;
     let list: Vec<ShippingTplVO> = page.list.iter().map(ShippingTplVO::from).collect();
     ok(PageResult::new(page.total, list, &page_query))
 }
