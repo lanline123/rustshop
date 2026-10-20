@@ -89,27 +89,34 @@ struct IdShopQuery {
 
 async fn list(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<AdminUserShopPageQuery>,
 ) -> ApiResult<PageResult<AdminUserShopVO>> {
+    // 多租户：店铺账号只能列自己店铺的员工；平台账号可用可选 shopId 过滤。
+    let scope = auth.resolve_shop_scope(q.shop_id)?;
     ok(state
         .merchant
         .admin_user_shop
-        .list(&q, q.shop_id)
+        .list(&q, scope)
         .await?)
 }
 
 async fn detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<IdShopQuery>,
 ) -> ApiResult<AdminUserShopVO> {
-    ok(state.merchant.admin_user_shop.detail(q.id, q.shop_id).await?)
+    let scope = auth.resolve_shop_scope(q.shop_id)?;
+    ok(state.merchant.admin_user_shop.detail(q.id, scope).await?)
 }
 
 async fn info(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<IdShopQuery>,
 ) -> ApiResult<AdminUserShopVO> {
-    ok(state.merchant.admin_user_shop.info(q.id, q.shop_id).await?)
+    let scope = auth.resolve_shop_scope(q.shop_id)?;
+    ok(state.merchant.admin_user_shop.info(q.id, scope).await?)
 }
 
 async fn check_is_admin(
@@ -117,10 +124,12 @@ async fn check_is_admin(
     Extension(auth): Extension<AuthUser>,
     Query(q): Query<ShopQuery>,
 ) -> ApiResult<Value> {
+    let _ = &q;
+    // 只可信身份：店铺账号固定自身店铺；平台账号不指定店铺（返回 false）。
     let is_admin = state
         .merchant
         .admin_user_shop
-        .check_is_admin(auth.id, q.shop_id)
+        .check_is_admin(auth.id, auth.scoped_shop_id())
         .await?;
     let body: Value = serde_json::json!({ "isAdmin": is_admin });
     ok(body)
@@ -128,26 +137,31 @@ async fn check_is_admin(
 
 async fn create(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<ShopQuery>,
     Json(dto): Json<AdminUserShopCreateDTO>,
 ) -> ApiResult<()> {
+    // 写操作必须落到具体店铺：店铺账号固定自身，平台账号必须显式 shopId。
+    let scope = auth.require_shop_scope(q.shop_id)?;
     state
         .merchant
         .admin_user_shop
-        .create(&dto, q.shop_id)
+        .create(&dto, Some(scope))
         .await?;
     ok(())
 }
 
 async fn update(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<ShopQuery>,
     Json(dto): Json<AdminUserShopUpdateDTO>,
 ) -> ApiResult<()> {
+    let scope = auth.require_shop_scope(q.shop_id)?;
     state
         .merchant
         .admin_user_shop
-        .update(&dto, q.shop_id)
+        .update(&dto, Some(scope))
         .await?;
     ok(())
 }
@@ -159,10 +173,11 @@ async fn del(
     Json(dto): Json<Value>,
 ) -> ApiResult<()> {
     let id = dto.get("id").and_then(Value::as_i64).map(|v| v as i32);
+    let scope = auth.require_shop_scope(q.shop_id)?;
     state
         .merchant
         .admin_user_shop
-        .del(id, auth.id, q.shop_id)
+        .del(id, auth.id, Some(scope))
         .await?;
     ok(())
 }
@@ -180,23 +195,26 @@ async fn batch(
             .collect()
     });
     let op_type = dto.get("type").and_then(Value::as_str);
+    let scope = auth.require_shop_scope(q.shop_id)?;
     state
         .merchant
         .admin_user_shop
-        .batch(ids.as_deref(), op_type, auth.id, q.shop_id)
+        .batch(ids.as_deref(), op_type, auth.id, Some(scope))
         .await?;
     ok(())
 }
 
 async fn modify_user(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<ShopQuery>,
     Json(dto): Json<AdminUserShopModifyDTO>,
 ) -> ApiResult<()> {
+    let scope = auth.require_shop_scope(q.shop_id)?;
     state
         .merchant
         .admin_user_shop
-        .modify_user(&dto, q.shop_id)
+        .modify_user(&dto, Some(scope))
         .await?;
     ok(())
 }
@@ -204,6 +222,36 @@ async fn modify_user(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn shop_account(shop_id: i32) -> AuthUser {
+        AuthUser::new(1, "shop".into(), None, Some("shop".into()), Some(shop_id))
+    }
+
+    fn platform() -> AuthUser {
+        AuthUser::new(2, "admin".into(), None, Some("admin".into()), Some(0))
+    }
+
+    /// 店铺账号列表被强制收敛到自身店铺；平台账号可显式过滤。
+    #[test]
+    fn list_scope_is_forced_for_shop_account() {
+        let auth = shop_account(9);
+        assert_eq!(auth.resolve_shop_scope(None).unwrap(), Some(9));
+        assert!(auth.resolve_shop_scope(Some(8)).is_err());
+        let admin = platform();
+        assert_eq!(admin.resolve_shop_scope(None).unwrap(), None);
+        assert_eq!(admin.resolve_shop_scope(Some(8)).unwrap(), Some(8));
+    }
+
+    /// 写操作（create/update/del/batch/modifyUser）必须落到当前店铺。
+    #[test]
+    fn writes_require_shop_scope() {
+        let auth = shop_account(9);
+        assert_eq!(auth.require_shop_scope(None).unwrap(), 9);
+        assert!(auth.require_shop_scope(Some(8)).is_err());
+        // 平台账号未指定 shopId → 拒绝写操作（不再静默落到 0 号店铺）
+        assert!(platform().require_shop_scope(None).is_err());
+        assert_eq!(platform().require_shop_scope(Some(3)).unwrap(), 3);
+    }
 
     #[test]
     fn implemented_routes_match_contract_exactly() {

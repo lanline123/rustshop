@@ -8,15 +8,14 @@
 
 use axum::{
     extract::{Query, State},
-    http::HeaderMap,
     routing::get,
-    Router,
+    Extension, Router,
 };
 use tigshop_core::models::trade::proxy_shopping_delivery::{
     DeliveryOptionVO, DeliveryOptionsQuery, ProxyStoreShippingTypeQuery, ShippingTypeVO,
 };
 use tigshop_openapi::RouteDoc;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AuthUser};
 
 use crate::AdminState;
 
@@ -57,31 +56,22 @@ pub fn implemented_routes() -> Vec<RouteDoc> {
         .collect()
 }
 
-/// 解析 Java `HeaderUtils.getShopId()`（admin→0；shop/pos→x-shop-id；其它 None）。
+/// 当前账号的店铺范围（**仅来自认证身份**，不信任请求头/查询参数）。
+///
+/// - 店铺/门店/POS 账号 → `Some(自身店铺)`；
+/// - 平台账号 → `None`（不按店铺过滤）。
 #[must_use]
-fn shop_id_from_headers(headers: &HeaderMap) -> Option<i32> {
-    let header_str = |name: &str| {
-        headers
-            .get(name)
-            .and_then(|v| v.to_str().ok())
-            .map(ToString::to_string)
-    };
-    match header_str("x-admin-type").as_deref() {
-        Some("admin") => Some(0),
-        Some("shop" | "pos") => {
-            header_str("x-shop-id").and_then(|v| v.trim().parse::<i32>().ok())
-        }
-        _ => None,
-    }
+fn shop_scope(auth: &AuthUser) -> Option<i32> {
+    auth.scoped_shop_id()
 }
 
 /// `GET /adminapi/proxyShopping/delivery/getDeliveryOptions`：配送选项（未迁移）。
 async fn get_delivery_options(
     State(state): State<AdminState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<DeliveryOptionsQuery>,
 ) -> ApiResult<DeliveryOptionVO> {
-    let shop_id = shop_id_from_headers(&headers);
+    let shop_id = shop_scope(&auth);
     ok(state
         .trade
         .proxy_shopping_delivery
@@ -92,10 +82,10 @@ async fn get_delivery_options(
 /// `GET /adminapi/proxyShopping/delivery/getStoreShippingType`：店铺配送方式（未迁移）。
 async fn get_store_shipping_type(
     State(state): State<AdminState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<ProxyStoreShippingTypeQuery>,
 ) -> ApiResult<Vec<(i32, Vec<ShippingTypeVO>)>> {
-    let shop_id = shop_id_from_headers(&headers);
+    let shop_id = shop_scope(&auth);
     ok(state
         .trade
         .proxy_shopping_delivery
@@ -106,17 +96,13 @@ async fn get_store_shipping_type(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::http::HeaderValue;
 
-    fn headers(pairs: &[(&str, &str)]) -> HeaderMap {
-        let mut h = HeaderMap::new();
-        for (k, v) in pairs {
-            h.insert(
-                axum::http::HeaderName::from_bytes(k.as_bytes()).unwrap(),
-                HeaderValue::from_str(v).unwrap(),
-            );
-        }
-        h
+    fn shop_account(shop_id: i32) -> AuthUser {
+        AuthUser::new(1, "shop".into(), None, Some("shop".into()), Some(shop_id))
+    }
+
+    fn platform() -> AuthUser {
+        AuthUser::new(2, "admin".into(), None, Some("admin".into()), Some(0))
     }
 
     #[test]
@@ -143,12 +129,13 @@ mod tests {
     }
 
     #[test]
-    fn header_scope_matches_header_utils() {
-        assert_eq!(shop_id_from_headers(&headers(&[("x-admin-type", "admin")])), Some(0));
-        assert_eq!(
-            shop_id_from_headers(&headers(&[("x-admin-type", "shop"), ("x-shop-id", "9")])),
-            Some(9)
-        );
-        assert_eq!(shop_id_from_headers(&headers(&[])), None);
+    fn shop_scope_is_derived_from_auth_only() {
+        // 店铺账号 → 强制自身店铺
+        assert_eq!(shop_scope(&shop_account(9)), Some(9));
+        // 平台账号 → 不过滤
+        assert_eq!(shop_scope(&platform()), None);
+        // 缺 shop_id 的非平台账号 → None（不会退化为“全平台可见”以外的越权）
+        let broken = AuthUser::new(3, "shop2".into(), None, Some("shop".into()), None);
+        assert_eq!(shop_scope(&broken), None);
     }
 }

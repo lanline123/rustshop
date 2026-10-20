@@ -1,4 +1,4 @@
-//! 代客下单订单结算路由（trade::proxy_shopping_order_check）。
+﻿//! 代客下单订单结算路由（trade::proxy_shopping_order_check）。
 //!
 //! 对应原 Java `com.tigshop.adminapi.controller.proxyshopping.ProxyShoppingOrderCheckController`
 //! （`@RequestMapping("/adminapi/proxyShopping/order/check")`，
@@ -56,46 +56,17 @@ use crate::AdminState;
 
 // ————————————————————— 请求头 → RequestContext（替代 Java HeaderUtils） ——————————
 
-/// 解析当前组织 ID（等价 Java `HeaderUtils.getShopId()`，
-/// `HeaderUtils.java:133-147`）。
+/// 认证身份 → 服务层 [`RequestContext`]。
 ///
-/// - `x-admin-type: admin` → `Some(0)`（平台）
-/// - `x-admin-type: shop|pos` → `x-shop-id`（缺失/非数字 → `None`）
-/// - 其他/缺失 → `None`
+/// **仅信任 JWT 身份**（认证中间件已写入 [`AuthUser`]）：
+/// - 店铺/门店/POS 账号：`shop_id = Some(自身店铺)`，服务层按店铺过滤/落库；
+/// - 平台账号：`shop_id = None`（服务层归一为 `0`，不按店铺过滤）；
+/// - `admin_type` 直接来自 JWT。
 ///
-/// ⚠️ Java 对脏 `x-shop-id` 会抛 `NumberFormatException`（→500）；
-/// 本实现按 product_stock 的既有约定返回 `None`（服务层归一为 `0`）。
+/// 请求头 `x-shop-id` / `x-admin-type` 不再参与身份判定（客户端可伪造）。
 #[must_use]
-pub fn shop_id_from_headers(headers: &axum::http::HeaderMap) -> Option<i32> {
-    match header_str(headers, "x-admin-type").as_deref() {
-        Some("admin") => Some(0),
-        Some("shop" | "pos") => header_str(headers, "x-shop-id")
-            .and_then(|v| v.trim().parse::<i32>().ok()),
-        _ => None,
-    }
-}
-
-/// 解析账号类型（等价 Java `HeaderUtils.getAdminType()` 的**简化版**）。
-///
-/// Java 在 `adminType == "shop"` 时还会看 `x-shop-type` 属性把 `shop`
-/// 细分为 `store`/`pickup`；本控制器只关心 `"admin"` 与非 `"admin"`
-/// （`fillUsePointAndBalance`），故不引入该细分（不影响本域判定）。
-#[must_use]
-pub fn admin_type_from_headers(headers: &axum::http::HeaderMap) -> Option<String> {
-    header_str(headers, "x-admin-type").filter(|v| !v.is_empty())
-}
-
-/// 请求头 → 服务层 [`RequestContext`]。
-#[must_use]
-pub fn request_context_from_headers(headers: &axum::http::HeaderMap) -> RequestContext {
-    RequestContext::new(shop_id_from_headers(headers), admin_type_from_headers(headers))
-}
-
-fn header_str(headers: &axum::http::HeaderMap, name: &str) -> Option<String> {
-    headers
-        .get(name)
-        .and_then(|v| v.to_str().ok())
-        .map(ToString::to_string)
+pub fn request_context_from_auth(auth: &AuthUser) -> RequestContext {
+    RequestContext::new(auth.scoped_shop_id(), auth.admin_type.clone())
 }
 
 /// 本域 8 条路由（去 `/adminapi` 前缀的路径 + 原 Java handler）。
@@ -217,15 +188,15 @@ async fn pickup_list(
 /// `POST /adminapi/proxyShopping/order/check/index`：获取结算页信息。
 ///
 /// 对应 Java `ProxyShoppingOrderCheckController.index`（`:73-88`）。
-/// `shopId` 取自请求头 `x-admin-type` / `x-shop-id`（Java `HeaderUtils.getShopId()`）。
+/// `shopId` 取自认证身份（Java 用请求头，Rust 改为 `AuthUser::scoped_shop_id()`）。
 ///
 /// ⚠️ 依赖 `getOrderCheckData`（未迁移）→ 当前返回明确业务错误。
 async fn check_index(
     State(state): State<AdminState>,
-    headers: axum::http::HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<OrderCheckParam>,
 ) -> ApiResult<tigshop_core::models::trade::check::OrderCheckVO> {
-    let ctx = request_context_from_headers(&headers);
+    let ctx = request_context_from_auth(&auth);
     let vo = state.trade.proxy_shopping_order_check.check_index(&param, &ctx).await?;
     ok(vo)
 }
@@ -235,10 +206,10 @@ async fn check_index(
 /// 对应 Java `ProxyShoppingOrderCheckController.update`（`:111-126`）。
 async fn check_update(
     State(state): State<AdminState>,
-    headers: axum::http::HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<OrderCheckParam>,
 ) -> ApiResult<tigshop_core::models::trade::check::OrderCheckVO> {
-    let ctx = request_context_from_headers(&headers);
+    let ctx = request_context_from_auth(&auth);
     let vo = state.trade.proxy_shopping_order_check.check_update(&param, &ctx).await?;
     ok(vo)
 }
@@ -248,10 +219,10 @@ async fn check_update(
 /// 对应 Java `ProxyShoppingOrderCheckController.updateCoupon`（`:128-138`）。
 async fn check_update_coupon(
     State(state): State<AdminState>,
-    headers: axum::http::HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<OrderCheckParam>,
 ) -> ApiResult<tigshop_core::models::trade::check::OrderCheckVO> {
-    let ctx = request_context_from_headers(&headers);
+    let ctx = request_context_from_auth(&auth);
     let vo = state.trade.proxy_shopping_order_check.check_update_coupon(&param, &ctx).await?;
     ok(vo)
 }
@@ -261,10 +232,10 @@ async fn check_update_coupon(
 /// 对应 Java `ProxyShoppingOrderCheckController.changePrice`（`:140-152`）。
 async fn check_change_price(
     State(state): State<AdminState>,
-    headers: axum::http::HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<OrderCheckParam>,
 ) -> ApiResult<tigshop_core::models::trade::check::OrderCheckVO> {
-    let ctx = request_context_from_headers(&headers);
+    let ctx = request_context_from_auth(&auth);
     let vo = state.trade.proxy_shopping_order_check.change_price(&param, &ctx).await?;
     ok(vo)
 }
@@ -274,10 +245,10 @@ async fn check_change_price(
 /// 对应 Java `ProxyShoppingOrderCheckController.changePriceShow`（`:154-171`）。
 async fn check_change_price_show(
     State(state): State<AdminState>,
-    headers: axum::http::HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<OrderCheckParam>,
 ) -> ApiResult<tigshop_core::models::trade::check::OrderCheckVO> {
-    let ctx = request_context_from_headers(&headers);
+    let ctx = request_context_from_auth(&auth);
     let vo = state.trade.proxy_shopping_order_check.change_price_show(&param, &ctx).await?;
     ok(vo)
 }
@@ -291,10 +262,39 @@ async fn check_change_price_show(
 async fn check_submit(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    headers: axum::http::HeaderMap,
     Json(param): Json<OrderCheckParam>,
 ) -> ApiResult<()> {
-    let ctx = request_context_from_headers(&headers);
+    let ctx = request_context_from_auth(&auth);
     state.trade.proxy_shopping_order_check.submit(&param, &ctx, auth.id).await?;
     ok(())
+}
+
+#[cfg(test)]
+mod tenant_tests {
+    use super::*;
+    use tigshop_security::web::AuthUser;
+
+    fn shop_account(shop_id: i32) -> AuthUser {
+        AuthUser::new(1, "shop".into(), None, Some("shop".into()), Some(shop_id))
+    }
+
+    fn platform() -> AuthUser {
+        AuthUser::new(2, "admin".into(), None, Some("admin".into()), Some(0))
+    }
+
+    /// 请求上下文只来自认证身份：店铺账号被强制到自身店铺。
+    #[test]
+    fn context_shop_scope_is_forced_for_shop_account() {
+        let ctx = request_context_from_auth(&shop_account(9));
+        assert_eq!(ctx.shop_id, Some(9));
+        assert_eq!(ctx.admin_type.as_deref(), Some("shop"));
+    }
+
+    /// 平台账号上下文不带店铺过滤（服务层按平台处理）。
+    #[test]
+    fn context_is_unfiltered_for_platform() {
+        let ctx = request_context_from_auth(&platform());
+        assert_eq!(ctx.shop_id, None);
+        assert_eq!(ctx.admin_type.as_deref(), Some("admin"));
+    }
 }

@@ -38,7 +38,6 @@
 
 use axum::{
     extract::{Query, State},
-    http::HeaderMap,
     routing::{get, post},
     Extension, Json, Router,
 };
@@ -180,26 +179,16 @@ impl RequestScope {
     }
 }
 
-/// 读取请求头文本值（缺失或非 UTF-8 时返回 `None`）。
-fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
-    headers
-        .get(name)
-        .and_then(|v| v.to_str().ok())
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(ToString::to_string)
-}
-
-/// 解析当前请求的账号视角。
+/// 解析当前请求的账号视角（**仅使用认证身份**，不信任请求头/查询参数）。
 ///
-/// `adminType` 优先取请求头 `x-admin-type`（Java 只认请求头），缺失时回退 JWT 的
-/// `admin_type`；`x-shop-id` / `x-vendor-id` 按 Java `HeaderUtils` 的账号类型限制读取。
-fn resolve_scope(headers: &HeaderMap, auth: &AuthUser) -> RequestScope {
-    let admin_type = header_str(headers, "x-admin-type").or_else(|| auth.admin_type.clone());
+/// - `admin_type`：JWT 的 `admin_type`；
+/// - `shop_id`：`AuthUser::scoped_shop_id()`（店铺/门店/POS 强制自身店铺，平台为 `None`）；
+/// - `vendor_id`：JWT 未签发供应商 ID → `None`（供应商视角过滤未迁移，见报告）。
+fn resolve_scope(auth: &AuthUser) -> RequestScope {
     RequestScope {
-        admin_type,
-        shop_id: header_str(headers, "x-shop-id").and_then(|v| v.parse::<i32>().ok()),
-        vendor_id: header_str(headers, "x-vendor-id").and_then(|v| v.parse::<i32>().ok()),
+        admin_type: auth.admin_type.clone(),
+        shop_id: auth.scoped_shop_id(),
+        vendor_id: None,
     }
 }
 
@@ -234,9 +223,8 @@ async fn aftersales_apply_type(
 async fn aftersales_return_goods_status(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
 ) -> ApiResult<std::collections::BTreeMap<i32, String>> {
-    let scope = resolve_scope(&headers, &auth);
+    let scope = resolve_scope(&auth);
     ok(state.trade.aftersales.return_goods_status(scope.admin_type.as_deref()))
 }
 
@@ -252,10 +240,9 @@ async fn aftersales_return_goods_status(
 async fn aftersales_list(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
     Query(query): Query<AftersalesListQuery>,
 ) -> ApiResult<PageResult<AftersalesVO>> {
-    let scope = resolve_scope(&headers, &auth);
+    let scope = resolve_scope(&auth);
     ok(state.trade.aftersales
         .list(
             &query,
@@ -288,9 +275,25 @@ impl IdQuery {
 
 async fn aftersales_detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(query): Query<IdQuery>,
 ) -> ApiResult<AftersalesVO> {
-    ok(state.trade.aftersales.detail(query.resolved_id()?).await?)
+    let vo = state.trade.aftersales.detail(query.resolved_id()?).await?;
+    // 多租户：店铺账号只能查看本店售后单。
+    auth.ensure_shop_access(vo.shop_id)?;
+    ok(vo)
+}
+
+/// 校验某售后单是否属于当前账号可访问的店铺（写操作前置校验）。
+async fn ensure_aftersales_access(
+    state: &AdminState,
+    auth: &AuthUser,
+    id: Option<i32>,
+) -> ApiResult<()> {
+    let id = id.ok_or_else(|| tigshop_core::Error::Validation("售后ID不能为空".into()))?;
+    let vo = state.trade.aftersales.detail(id).await?;
+    auth.ensure_shop_access(vo.shop_id)?;
+    ok(())
 }
 
 // ——————————————————————————————————————————————
@@ -309,8 +312,24 @@ async fn aftersales_detail(
 /// **未迁移依赖**：微信直播订单同步（`wechatLiveOrderSyncService.onAftersaleChanged`）。
 async fn aftersales_create(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<AftersalesCreateParam>,
 ) -> ApiResult<serde_json::Value> {
+    // 多租户：店铺账号只能为**本店订单**创建售后单；平台账号不限。
+    if let Some(scope) = auth.scoped_shop_id() {
+        let order_id = param
+            .order_id
+            .filter(|id| *id > 0)
+            .ok_or_else(|| tigshop_core::Error::Forbidden("店铺账号创建售后必须指定本店订单".into()))?;
+        let order = state.trade.order_admin.detail(order_id).await?;
+        if order.shop_id != scope {
+            return Err(tigshop_core::Error::Forbidden(format!(
+                "无权访问店铺 {} 的数据",
+                order.shop_id
+            ))
+            .into());
+        }
+    }
     let aftersale_id = state.trade.aftersales.create(&param).await?;
     ok(serde_json::json!({ "aftersaleId": aftersale_id }))
 }
@@ -326,8 +345,10 @@ async fn aftersales_create(
 /// 此处返回提示文案（项目内既有约定）。
 async fn aftersales_update(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<AftersalesEditParam>,
 ) -> ApiResult<&'static str> {
+    ensure_aftersales_access(&state, &auth, param.id).await?;
     state.trade.aftersales.update(&param).await?;
     ok("操作成功")
 }
@@ -338,8 +359,10 @@ async fn aftersales_update(
 /// ——Java 直接读 `data.get("id")`，此处用同构的 `{ "id": n }` 结构体承接。
 async fn aftersales_receive(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<AftersalesReceiveParam>,
 ) -> ApiResult<&'static str> {
+    ensure_aftersales_access(&state, &auth, param.id).await?;
     state.trade.aftersales.receive(&param).await?;
     ok("确认收货成功")
 }
@@ -350,8 +373,10 @@ async fn aftersales_receive(
 /// AfterSalesRejectReceiveDTO dto)`（权限 `aftersalesModifyManage`）。
 async fn aftersales_reject_receive(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<AfterSalesRejectReceiveParam>,
 ) -> ApiResult<&'static str> {
+    ensure_aftersales_access(&state, &auth, param.id).await?;
     state.trade.aftersales.reject_receive(&param).await?;
     ok("拒收成功")
 }
@@ -366,6 +391,7 @@ async fn aftersales_record(
     Extension(auth): Extension<AuthUser>,
     Json(param): Json<AftersalesRecordCreateParam>,
 ) -> ApiResult<&'static str> {
+    ensure_aftersales_access(&state, &auth, param.aftersale_id).await?;
     state.trade.aftersales
         .submit_record(&param, Some(auth.id), current_username(&auth))
         .await?;
@@ -377,8 +403,10 @@ async fn aftersales_record(
 /// 对应 Java `AftersalesController.complete(@RequestBody AfterSalesCompleteDTO)`。
 async fn aftersales_complete(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<AfterSalesCompleteParam>,
 ) -> ApiResult<&'static str> {
+    ensure_aftersales_access(&state, &auth, param.resolved_id()).await?;
     state.trade.aftersales.complete(&param).await?;
     ok("售后已关闭")
 }

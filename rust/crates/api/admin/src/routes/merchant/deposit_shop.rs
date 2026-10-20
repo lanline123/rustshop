@@ -18,7 +18,7 @@
 use axum::{
     extract::{Query, State},
     routing::get,
-    Router,
+    Extension, Router,
 };
 use serde::Deserialize;
 use tigshop_core::models::merchant::deposit_shop::{
@@ -27,7 +27,7 @@ use tigshop_core::models::merchant::deposit_shop::{
 };
 use tigshop_core::types::PageResult;
 use tigshop_openapi::RouteDoc;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 use tigshop_services::merchant::deposit_shop::DepositShopService;
 
 use crate::AdminState;
@@ -81,37 +81,45 @@ pub fn implemented_routes() -> Vec<RouteDoc> {
         .collect()
 }
 
-/// 店铺上下文查询参数（Java `X-Shop-Id` 请求头的替身）。
+/// 店铺上下文查询参数（Java `X-Shop-Id` 请求头的替身；**不再可信**）。
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct ShopContextQuery {
     shop_id: Option<i32>,
 }
 
+/// 解析并校验店铺上下文：店铺账号强制自身店铺，平台账号必须显式 shopId。
+fn scoped_shop(auth: &AuthUser, requested: Option<i32>) -> Result<i32, AppError> {
+    Ok(auth.require_shop_scope(requested)?)
+}
+
 /// `GET /adminapi/deposit/shop/overview`：保证金总览。
 async fn overview(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(ctx): Query<ShopContextQuery>,
 ) -> ApiResult<DepositShopOverviewVO> {
-    let shop_id = DepositShopService::resolve_shop_id(ctx.shop_id)?;
+    let shop_id = scoped_shop(&auth, ctx.shop_id)?;
     ok(state.merchant.deposit_shop.overview(shop_id).await?)
 }
 
 /// `GET /adminapi/deposit/shop/logList`：店铺端交易流水。
 async fn log_list(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<DepositShopLogQuery>,
 ) -> ApiResult<PageResult<DepositShopLogVO>> {
-    let shop_id = DepositShopService::resolve_shop_id(q.shop_id)?;
+    let shop_id = scoped_shop(&auth, q.shop_id)?;
     ok(state.merchant.deposit_shop.log_list(shop_id, &q).await?)
 }
 
 /// `GET /adminapi/deposit/shop/frozenDetailList`：冻结明细。
 async fn frozen_detail_list(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<DepositShopLogQuery>,
 ) -> ApiResult<PageResult<DepositShopFrozenDetailVO>> {
-    let shop_id = DepositShopService::resolve_shop_id(q.shop_id)?;
+    let shop_id = scoped_shop(&auth, q.shop_id)?;
     ok(state
         .merchant
         .deposit_shop
@@ -122,9 +130,10 @@ async fn frozen_detail_list(
 /// `GET /adminapi/deposit/shop/warning`：首页保证金预警横幅。
 async fn warning(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(ctx): Query<ShopContextQuery>,
 ) -> ApiResult<DepositShopWarningVO> {
-    let shop_id = DepositShopService::resolve_shop_id(ctx.shop_id)?;
+    let shop_id = scoped_shop(&auth, ctx.shop_id)?;
     ok(state.merchant.deposit_shop.warning(shop_id).await?)
 }
 
@@ -136,6 +145,28 @@ async fn protocol(State(state): State<AdminState>) -> ApiResult<DepositShopProto
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn shop_account(shop_id: i32) -> AuthUser {
+        AuthUser::new(1, "shop".into(), None, Some("shop".into()), Some(shop_id))
+    }
+
+    fn platform() -> AuthUser {
+        AuthUser::new(2, "admin".into(), None, Some("admin".into()), Some(0))
+    }
+
+    /// 店铺账号上下文强制自身店铺；跨店 shopId 被拒。
+    #[test]
+    fn shop_context_is_forced_for_shop_account() {
+        assert_eq!(shop_account(9).require_shop_scope(None).unwrap(), 9);
+        assert!(shop_account(9).require_shop_scope(Some(8)).is_err());
+    }
+
+    /// 平台账号必须显式指定店铺，避免误查 0 号店铺。
+    #[test]
+    fn platform_must_specify_shop() {
+        assert!(platform().require_shop_scope(None).is_err());
+        assert_eq!(platform().require_shop_scope(Some(3)).unwrap(), 3);
+    }
 
     #[test]
     fn implemented_routes_match_contract_exactly() {

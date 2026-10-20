@@ -44,9 +44,8 @@
 
 use axum::{
     extract::{Query, State},
-    http::HeaderMap,
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use tigshop_core::models::catalog::product_manage::{
     AdminProductListQuery, ClientProductDetailVO, ProductListItemVO,
@@ -55,7 +54,7 @@ use tigshop_core::models::trade::proxy_shopping_product::{
     ProductAvailabilityVO, ProxyProductAvailabilityQuery, ProxyProductDetailQuery,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AuthUser};
 
 use crate::AdminState;
 
@@ -111,35 +110,13 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
         .collect()
 }
 
-/// 解析当前组织 ID（等价 Java `HeaderUtils.getShopId()`）。
+/// 当前账号的店铺范围（**仅来自认证身份**，不信任请求头/查询参数）。
 ///
-/// - `x-admin-type: admin` → `Some(0)`（平台，**先于** `x-shop-id` 判定）；
-/// - `x-admin-type: shop` / `pos` → `x-shop-id`（缺失 / 非法 → `None`）；
-/// - 其它（含请求头缺失）→ `None`。
-///
-/// ⚠️ 与 `routes/product_stock.rs::shop_id_from_headers`（返回 `i32`、缺失回退 0）
-/// 的差别：Java `HeaderUtils.getShopId()` 在**最后两个分支返回 `null`**，
-/// 而 `list` 是 `DTO.setShopId(null)` → 查询**不加** `shop_id` 条件；
-/// 若回退成 0 会错误地把结果限制在平台自营商品上，因此这里保留 `Option`。
-/// （该三态语义与 im::im_config / marketing::buyer_show_group 的 `resolve_scope` 一致。）
+/// - 店铺/门店/POS 账号 → `Some(自身店铺)`（列表强制过滤、详情参数被覆盖为本店）；
+/// - 平台账号 → `None`（不加 `shop_id` 条件，可见全部）。
 #[must_use]
-pub fn shop_id_from_headers(headers: &HeaderMap) -> Option<i32> {
-    let admin_type = header_str(headers, "x-admin-type");
-    match admin_type.as_deref() {
-        Some("admin") => Some(0),
-        Some("shop" | "pos") => header_str(headers, "x-shop-id")
-            .and_then(|v| v.trim().parse::<i32>().ok()),
-        _ => None,
-    }
-}
-
-fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
-    headers
-        .get(name)
-        .and_then(|v| v.to_str().ok())
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(ToString::to_string)
+pub fn shop_scope(auth: &AuthUser) -> Option<i32> {
+    auth.scoped_shop_id()
 }
 
 /// `GET /adminapi/proxyShopping/product/productDetail`：商品详情。
@@ -149,8 +126,13 @@ fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
 /// 返回结构与前台 `/api/product/product/detail` 一致（复用 catalog::product_manage 的实现）。
 async fn proxy_product_detail(
     State(state): State<AdminState>,
-    Query(q): Query<ProxyProductDetailQuery>,
+    Extension(auth): Extension<AuthUser>,
+    Query(mut q): Query<ProxyProductDetailQuery>,
 ) -> ApiResult<ClientProductDetailVO> {
+    // 多租户：店铺账号只能查看本店商品（覆盖客户端传入的 O2O shopId）。
+    if let Some(scope) = shop_scope(&auth) {
+        q.shop_id = Some(scope);
+    }
     ok(state.trade.proxy_shopping_product.product_detail(&q).await?)
 }
 
@@ -167,8 +149,12 @@ async fn proxy_product_detail(
 /// 传了 `extraAttrIds` 时 Java 抛 NPE，本实现改为返回 400。
 async fn proxy_get_product_availability(
     State(state): State<AdminState>,
-    Query(q): Query<ProxyProductAvailabilityQuery>,
+    Extension(auth): Extension<AuthUser>,
+    Query(mut q): Query<ProxyProductAvailabilityQuery>,
 ) -> ApiResult<ProductAvailabilityVO> {
+    if let Some(scope) = shop_scope(&auth) {
+        q.shop_id = Some(scope);
+    }
     ok(state.trade.proxy_shopping_product.get_product_availability(&q).await?)
 }
 
@@ -182,27 +168,22 @@ async fn proxy_get_product_availability(
 /// 里的组织 ID，其余覆盖在服务层完成（见 `ProxyShoppingProductService::product_list`）。
 async fn proxy_product_list(
     State(state): State<AdminState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<AdminProductListQuery>,
 ) -> ApiResult<PageResult<ProductListItemVO>> {
-    let shop_id = shop_id_from_headers(&headers);
+    let shop_id = shop_scope(&auth);
     ok(state.trade.proxy_shopping_product.product_list(&dto, shop_id).await?)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::http::{HeaderMap, HeaderValue};
+    fn shop_account(shop_id: i32) -> AuthUser {
+        AuthUser::new(1, "shop".into(), None, Some("shop".into()), Some(shop_id))
+    }
 
-    fn headers(pairs: &[(&str, &str)]) -> HeaderMap {
-        let mut h = HeaderMap::new();
-        for (k, v) in pairs {
-            h.insert(
-                axum::http::HeaderName::from_bytes(k.as_bytes()).unwrap(),
-                HeaderValue::from_str(v).unwrap(),
-            );
-        }
-        h
+    fn platform() -> AuthUser {
+        AuthUser::new(2, "admin".into(), None, Some("admin".into()), Some(0))
     }
 
     #[test]
@@ -236,40 +217,16 @@ mod tests {
     }
 
     #[test]
-    fn shop_id_follows_java_header_utils() {
-        // 平台账号强制 0（且优先于 x-shop-id）
-        assert_eq!(
-            shop_id_from_headers(&headers(&[("x-admin-type", "admin"), ("x-shop-id", "9")])),
-            Some(0)
-        );
-        // 店铺 / 收银台账号取 x-shop-id
-        assert_eq!(
-            shop_id_from_headers(&headers(&[("x-admin-type", "shop"), ("x-shop-id", "9")])),
-            Some(9)
-        );
-        assert_eq!(
-            shop_id_from_headers(&headers(&[("x-admin-type", "pos"), ("x-shop-id", "3")])),
-            Some(3)
-        );
-        // 店铺账号缺 x-shop-id / 非法值 → Java 返回 null（不是 0）
-        assert_eq!(
-            shop_id_from_headers(&headers(&[("x-admin-type", "shop")])),
-            None
-        );
-        assert_eq!(
-            shop_id_from_headers(&headers(&[("x-admin-type", "shop"), ("x-shop-id", "abc")])),
-            None
-        );
-        // 请求头缺失 / 未知类型 → null（查询不加 shop_id 条件）
-        assert_eq!(shop_id_from_headers(&headers(&[])), None);
-        assert_eq!(
-            shop_id_from_headers(&headers(&[("x-admin-type", "vendor")])),
-            None
-        );
-        // 空白值按缺失处理（Java `StrUtil.isEmpty`）
-        assert_eq!(
-            shop_id_from_headers(&headers(&[("x-admin-type", "shop"), ("x-shop-id", "   ")])),
-            None
-        );
+    fn shop_scope_is_derived_from_auth_only() {
+        // 店铺账号 → 强制自身店铺（列表过滤 + 详情参数覆盖）
+        assert_eq!(shop_scope(&shop_account(9)), Some(9));
+        // pos 账号同样是店铺范围
+        let pos = AuthUser::new(3, "pos".into(), None, Some("pos".into()), Some(3));
+        assert_eq!(shop_scope(&pos), Some(3));
+        // 平台账号 → None（可见全部，不按店铺过滤）
+        assert_eq!(shop_scope(&platform()), None);
+        // 店铺账号缺 shop_id → 不会伪装成平台可见
+        let broken = AuthUser::new(4, "shop2".into(), None, Some("shop".into()), None);
+        assert_eq!(shop_scope(&broken), None);
     }
 }

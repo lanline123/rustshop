@@ -1,4 +1,4 @@
-//! 管理端订单管理路由（trade::order_admin）。
+﻿//! 管理端订单管理路由（trade::order_admin）。
 //!
 //! 对应原 Java `com.tigshop.adminapi.controller.order.OrderController`
 //! （`@RequestMapping("/adminapi/order/order")`，34 条接口：wave1 已实现 4 条 +
@@ -314,6 +314,9 @@ async fn set_admin_note(
     Extension(auth): Extension<AuthUser>,
     Json(param): Json<OrderAdminNoteParam>,
 ) -> ApiResult<()> {
+    if let Some(id) = param.id {
+        ensure_order_access(&state, &auth, id).await?;
+    }
     state
         .trade
         .order_admin
@@ -325,9 +328,25 @@ async fn set_admin_note(
 /// `GET /adminapi/order/order/parentDetail?id=`：父订单详情。
 async fn parent_detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<Option<ParentOrderDetailVO>> {
+    ensure_order_access(&state, &auth, q.id).await?;
     ok(state.trade.order_admin.parent_detail(q.id).await?)
+}
+
+/// 校验订单归属：店铺账号只能读写本店订单；平台账号放行。
+///
+/// 所有订单写操作（改价/改收货人/发货/确认/取消/删除/状态流转/打印/催发货/售后关单）
+/// 都必须先经过这里，避免仅靠列表过滤造成越权写。
+async fn ensure_order_access(
+    state: &AdminState,
+    auth: &AuthUser,
+    id: i32,
+) -> Result<(), AppError> {
+    let order = state.trade.order_admin.detail(id).await?;
+    auth.ensure_shop_access(order.shop_id)?;
+    Ok(())
 }
 
 // ————————————————————— 状态流转 —————————————————————
@@ -335,22 +354,26 @@ async fn parent_detail(
 /// `POST /adminapi/order/order/setConfirm`：设置订单确认。
 async fn set_confirm(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<OrderIdParam>,
 ) -> ApiResult<bool> {
     let id = param
         .id
         .ok_or_else(|| AppError(tigshop_core::Error::Validation("订单 ID不能为空".into())))?;
+    ensure_order_access(&state, &auth, id).await?;
     ok(state.trade.order_admin.set_confirm(id).await?)
 }
 
 /// `POST /adminapi/order/order/splitStoreOrder`：订单拆分。
 async fn split_store_order(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<OrderIdParam>,
 ) -> ApiResult<serde_json::Value> {
     let id = param
         .id
         .ok_or_else(|| AppError(tigshop_core::Error::Validation("订单 ID不能为空".into())))?;
+    ensure_order_access(&state, &auth, id).await?;
     let split = state.trade.order_admin.split_store_order(id).await?;
     ok(serde_json::json!({ "split": split }))
 }
@@ -360,11 +383,13 @@ async fn split_store_order(
 /// 返回值与 Java 一致：`true` 表示订单已拆单（父单被删除），`false` 表示未拆单。
 async fn set_paid(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<OrderIdParam>,
 ) -> ApiResult<bool> {
     let id = param
         .id
         .ok_or_else(|| AppError(tigshop_core::Error::Validation("订单 ID不能为空".into())))?;
+    ensure_order_access(&state, &auth, id).await?;
     ok(state
         .trade
         .order_admin
@@ -381,6 +406,7 @@ async fn cancel_order(
     let id = param
         .id
         .ok_or_else(|| AppError(tigshop_core::Error::Validation("订单 ID不能为空".into())))?;
+    ensure_order_access(&state, &auth, id).await?;
     state
         .trade
         .order_admin
@@ -398,6 +424,7 @@ async fn del_order(
     let id = param
         .id
         .ok_or_else(|| AppError(tigshop_core::Error::Validation("订单 ID不能为空".into())))?;
+    ensure_order_access(&state, &auth, id).await?;
     state.trade.order_admin.del_order(id, auth.id).await?;
     ok(())
 }
@@ -408,6 +435,9 @@ async fn modify_money(
     Extension(auth): Extension<AuthUser>,
     Json(param): Json<OrderModifyMoneyParam>,
 ) -> ApiResult<()> {
+    if let Some(id) = param.id {
+        ensure_order_access(&state, &auth, id).await?;
+    }
     state
         .trade
         .order_admin
@@ -422,6 +452,9 @@ async fn modify_consignee(
     Extension(auth): Extension<AuthUser>,
     Json(param): Json<OrderModifyConsigneeParam>,
 ) -> ApiResult<()> {
+    if let Some(id) = param.id {
+        ensure_order_access(&state, &auth, id).await?;
+    }
     state
         .trade
         .order_admin
@@ -439,6 +472,7 @@ async fn confirm_receipt(
     let id = param
         .id
         .ok_or_else(|| AppError(tigshop_core::Error::Validation("订单 ID不能为空".into())))?;
+    ensure_order_access(&state, &auth, id).await?;
     state
         .trade
         .order_admin
@@ -453,6 +487,9 @@ async fn modify_shipping(
     Extension(auth): Extension<AuthUser>,
     Json(param): Json<OrderModifyShippingParam>,
 ) -> ApiResult<()> {
+    if let Some(id) = param.id {
+        ensure_order_access(&state, &auth, id).await?;
+    }
     state
         .trade
         .order_admin
@@ -467,6 +504,9 @@ async fn modify_product(
     Extension(auth): Extension<AuthUser>,
     Json(param): Json<OrderModifyProductParam>,
 ) -> ApiResult<()> {
+    if let Some(id) = param.id {
+        ensure_order_access(&state, &auth, id).await?;
+    }
     state
         .trade
         .order_admin
@@ -487,8 +527,12 @@ async fn get_add_product_info(
 /// `POST /adminapi/order/order/deliver`：发货（wave1 已实现，保留字节级路径）。
 async fn order_deliver(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<DeliverOrderParam>,
 ) -> ApiResult<&'static str> {
+    if let Some(id) = param.id {
+        ensure_order_access(&state, &auth, id).await?;
+    }
     state.trade.order_admin.deliver(&param).await?;
     ok("发货成功")
 }
@@ -498,9 +542,11 @@ async fn order_deliver(
 /// `GET /adminapi/order/order/orderPrint?id=`：打印订单信息。
 async fn order_print(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     headers: HeaderMap,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<OrderVO> {
+    ensure_order_access(&state, &auth, q.id).await?;
     ok(state
         .trade
         .order_admin
@@ -511,17 +557,23 @@ async fn order_print(
 /// `GET /adminapi/order/order/orderPrintBill?id=`：打印电子面单。
 async fn order_print_bill(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<Option<LogisticsApiLogVO>> {
+    ensure_order_access(&state, &auth, q.id).await?;
     ok(state.trade.order_admin.order_print_bill(q.id).await?)
 }
 
 /// `GET /adminapi/order/order/severalDetail?ids=1,2`：批量详情。
 async fn several_detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<IdsQuery>,
 ) -> ApiResult<Vec<OrderVO>> {
     let ids = q.parse()?;
+    for id in &ids {
+        ensure_order_access(&state, &auth, *id).await?;
+    }
     ok(state.trade.order_admin.several_detail(&ids).await?)
 }
 
@@ -531,6 +583,11 @@ async fn batch_operation(
     Extension(auth): Extension<AuthUser>,
     Json(param): Json<OrderBatchParam>,
 ) -> ApiResult<()> {
+    if let Some(ids) = param.ids.as_deref() {
+        for id in ids {
+            ensure_order_access(&state, &auth, *id).await?;
+        }
+    }
     state
         .trade
         .order_admin
@@ -542,10 +599,14 @@ async fn batch_operation(
 /// `GET /adminapi/order/order/printSeveral?ids=1,2`：批量打印。
 async fn print_several(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     headers: HeaderMap,
     Query(q): Query<IdsQuery>,
 ) -> ApiResult<Vec<OrderVO>> {
     let ids = q.parse()?;
+    for id in &ids {
+        ensure_order_access(&state, &auth, *id).await?;
+    }
     ok(state
         .trade
         .order_admin
@@ -604,6 +665,7 @@ async fn shipping_info(
     Extension(auth): Extension<AuthUser>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<Option<ShippingInfoVO>> {
+    ensure_order_access(&state, &auth, q.id).await?;
     ok(state.trade.order_admin.shipping_info(q.id, auth.id).await?)
 }
 
@@ -620,6 +682,9 @@ async fn change_order_status(
     Extension(auth): Extension<AuthUser>,
     Json(param): Json<OrderChangeStatusParam>,
 ) -> ApiResult<()> {
+    if let Some(id) = param.id {
+        ensure_order_access(&state, &auth, id).await?;
+    }
     state
         .trade
         .order_admin
@@ -634,6 +699,7 @@ async fn remind_deliver(
     Extension(auth): Extension<AuthUser>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<()> {
+    ensure_order_access(&state, &auth, q.id).await?;
     state
         .trade
         .order_admin
@@ -648,6 +714,9 @@ async fn order_cancel_by_admin(
     Extension(auth): Extension<AuthUser>,
     Json(param): Json<AftersalesApplyAdminParam>,
 ) -> ApiResult<serde_json::Value> {
+    if let Some(id) = param.order_id {
+        ensure_order_access(&state, &auth, id).await?;
+    }
     let aftersale_id = state
         .trade
         .order_admin
@@ -957,5 +1026,39 @@ mod tests {
                 "wave1 路径被破坏: {m} {p}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tenant_tests {
+    use super::*;
+
+    fn shop_account(shop_id: i32) -> AuthUser {
+        AuthUser::new(1, "shop".into(), None, Some("shop".into()), Some(shop_id))
+    }
+
+    fn platform() -> AuthUser {
+        AuthUser::new(2, "admin".into(), None, Some("admin".into()), Some(0))
+    }
+
+    /// 列表/计数被强制过滤到自身店铺（路由层覆盖 `q.shop_id`）。
+    #[test]
+    fn list_scope_is_forced_for_shop_account() {
+        let auth = shop_account(9);
+        assert_eq!(auth.scoped_shop_id(), Some(9));
+        assert!(!platform_view(&auth));
+        // 平台账号不过滤
+        assert!(platform_view(&platform()));
+        assert_eq!(platform().scoped_shop_id(), None);
+    }
+
+    /// 订单写操作归属校验：跨店被拒、本店/平台放行。
+    #[test]
+    fn cross_shop_order_is_forbidden() {
+        let auth = shop_account(9);
+        assert!(auth.ensure_shop_access(9).is_ok());
+        let err = auth.ensure_shop_access(8).unwrap_err();
+        assert!(err.to_string().contains("无权访问店铺 8"));
+        assert!(platform().ensure_shop_access(8).is_ok());
     }
 }

@@ -53,13 +53,17 @@ impl ProxyShoppingCartService {
     }
 
     /// 购物车列表（按门店分组；不含优惠/活动计算）。
+    ///
+    /// `shop_scope` 必须来自认证身份（[`crate::trade::proxy_shopping_cart`] 路由层已用
+    /// `AuthUser::resolve_shop_scope` 收敛）；店铺账号一定为 `Some(自身店铺)`，平台账号
+    /// 可为 `None`（全部店铺）或显式 `shopId` 过滤。
     pub async fn list(
         &self,
         dto: &ProxyCartListDTO,
-        header_shop_id: Option<i32>,
+        shop_scope: Option<i32>,
     ) -> Result<CartListByStoreVO> {
         let user_id = validate_user_id(dto.user_id).map_err(Error::Validation)?;
-        let shop_id = header_shop_id.or(dto.shop_id);
+        let shop_id = shop_scope;
         let rows = self
             .repo()
             .list_carts(user_id, shop_id, dto.product_id, dto.is_checked)
@@ -109,7 +113,7 @@ impl ProxyShoppingCartService {
     pub async fn add_to_cart(
         &self,
         dto: &ProxyAddToCartDTO,
-        header_shop_id: i32,
+        shop_scope: Option<i32>,
     ) -> Result<ExchangeProductToCartVO> {
         let user_id = validate_user_id(dto.user_id).map_err(Error::Validation)?;
         let repo = self.repo();
@@ -122,6 +126,15 @@ impl ProxyShoppingCartService {
         };
         if product.is_delete != 0 {
             return Err(Error::biz_msg(MSG_PRODUCT_NOT_EXIST));
+        }
+        // 多租户：店铺账号只能代客购买自己店铺的商品（跨店商品 403，不泄露存在性以外的数据）。
+        if let Some(scope) = shop_scope {
+            if product.shop_id != scope {
+                return Err(Error::Forbidden(format!(
+                    "无权操作店铺 {} 的商品",
+                    product.shop_id
+                )));
+            }
         }
         validate_product_type(Some(product.product_type)).map_err(Error::biz_msg)?;
         if product.product_status != PRODUCT_STATUS_ON_SALE {
@@ -156,7 +169,7 @@ impl ProxyShoppingCartService {
             }
         }
         // 单买商品冲突校验（Java isCanAddToCart）
-        let carts = repo.list_existing_carts(user_id, header_shop_id).await?;
+        let carts = repo.list_existing_carts(user_id, shop_scope).await?;
         if let Some(first) = carts.iter().find(|row| is_single_buy(row.product_type)) {
             let same_product = first.product_id == product.product_id;
             let same_sku = first.sku_id.max(0) == sku_id;
@@ -192,25 +205,43 @@ impl ProxyShoppingCartService {
     }
 
     /// 清空购物车（Java `clearCart`）。
-    pub async fn clear_cart(&self, dto: &ProxyClearCartDTO) -> Result<()> {
+    ///
+    /// `shop_scope` 由路由层从认证身份取得：店铺账号只会清空自己店铺的行。
+    pub async fn clear_cart(
+        &self,
+        dto: &ProxyClearCartDTO,
+        shop_scope: Option<i32>,
+    ) -> Result<()> {
         let user_id = validate_user_id(dto.user_id).map_err(Error::Validation)?;
         self.repo()
-            .clear_carts(user_id, CART_TYPE_ADMIN_SHOPPING)
+            .clear_carts(user_id, CART_TYPE_ADMIN_SHOPPING, shop_scope)
             .await?;
         Ok(())
     }
 
     /// 删除购物车商品（Java `removeBatchByIds`；空列表为无操作）。
-    pub async fn remove_item(&self, dto: &ProxyRemoveItemDTO) -> Result<()> {
+    ///
+    /// 店铺账号只能删除本店铺的购物车行（SQL 层 `shop_id` 过滤，越权行不产生删除效果）。
+    pub async fn remove_item(
+        &self,
+        dto: &ProxyRemoveItemDTO,
+        shop_scope: Option<i32>,
+    ) -> Result<()> {
         let Some(ids) = dto.cart_ids.as_deref().filter(|ids| !ids.is_empty()) else {
             return Ok(());
         };
-        self.repo().delete_by_ids(ids).await?;
+        self.repo().delete_by_ids(ids, shop_scope).await?;
         Ok(())
     }
 
     /// 更新购物车数量（Java `updateCartItem`）。
-    pub async fn update_item(&self, dto: &ProxyUpdateItemDTO) -> Result<()> {
+    ///
+    /// 先按 id 读行，再用 [`ensure_cart_scope`] 校验归属，最后带 `shop_id` 条件更新。
+    pub async fn update_item(
+        &self,
+        dto: &ProxyUpdateItemDTO,
+        shop_scope: Option<i32>,
+    ) -> Result<()> {
         let quantity = dto
             .data
             .as_ref()
@@ -228,6 +259,7 @@ impl ProxyShoppingCartService {
         let Some(cart) = rows.first() else {
             return Err(Error::biz_msg(MSG_CART_ITEM_NOT_EXIST));
         };
+        ensure_cart_scope(shop_scope, cart.shop_id)?;
         // 库存校验（Java assertCartCanChangeQuantity）
         let sku_id = cart.sku_id.unwrap_or(0);
         let stock = if sku_id > 0 {
@@ -242,12 +274,18 @@ impl ProxyShoppingCartService {
                 return Err(Error::biz_msg(MSG_STOCK_INSUFFICIENT));
             }
         }
-        repo.update_quantity(cart_id, quantity, now_i32()).await?;
+        repo.update_quantity(cart_id, quantity, now_i32(), shop_scope).await?;
         Ok(())
     }
 
     /// 更新选中状态（Java `updateCheck`；空 data 无操作）。
-    pub async fn update_check(&self, dto: &ProxyUpdateCheckDTO) -> Result<()> {
+    ///
+    /// 逐行校验 `user_id` 与店铺归属；店铺账号无法勾选其它店铺的行。
+    pub async fn update_check(
+        &self,
+        dto: &ProxyUpdateCheckDTO,
+        shop_scope: Option<i32>,
+    ) -> Result<()> {
         let user_id = validate_user_id(dto.user_id).map_err(Error::Validation)?;
         let Some(items) = dto.data.as_deref() else {
             return Ok(());
@@ -265,7 +303,8 @@ impl ProxyShoppingCartService {
             let rows = repo.find_carts_by_ids(&[cart_id]).await?;
             match rows.first() {
                 Some(cart) if cart.user_id == user_id => {
-                    repo.update_checked(cart_id, checked).await?;
+                    ensure_cart_scope(shop_scope, cart.shop_id)?;
+                    repo.update_checked(cart_id, checked, shop_scope).await?;
                 }
                 _ => return Err(Error::biz_msg(MSG_CART_ITEM_NOT_EXIST)),
             }
@@ -273,11 +312,26 @@ impl ProxyShoppingCartService {
         Ok(())
     }
 
-    /// 购物车商品数量（Java `getCount`）。
-    pub async fn get_count(&self, q: &ProxyCartCountQuery) -> Result<i32> {
+    /// 购物车商品数量（Java `getCount`）。`shop_scope` 由认证身份解析。
+    pub async fn get_count(
+        &self,
+        q: &ProxyCartCountQuery,
+        shop_scope: Option<i32>,
+    ) -> Result<i32> {
         let user_id = validate_user_id(q.user_id).map_err(Error::Validation)?;
-        let total = self.repo().sum_quantity(user_id, q.shop_id).await?;
+        let total = self.repo().sum_quantity(user_id, shop_scope).await?;
         Ok(i32::try_from(total).unwrap_or(i32::MAX))
+    }
+}
+
+/// 校验购物车行归属：店铺账号（`Some(scope)`）只能操作本店铺行；
+/// 平台账号（`None`）不受限。
+fn ensure_cart_scope(shop_scope: Option<i32>, row_shop_id: i32) -> Result<()> {
+    match shop_scope {
+        Some(scope) if scope != row_shop_id => Err(Error::Forbidden(format!(
+            "无权操作店铺 {row_shop_id} 的购物车数据"
+        ))),
+        _ => Ok(()),
     }
 }
 
@@ -299,5 +353,21 @@ mod tests {
     fn cart_type_mapping_available() {
         assert_eq!(cart_type_from_product_type(2), 6);
         assert_eq!(CART_TYPE_ADMIN_SHOPPING, 15);
+    }
+
+    #[test]
+    fn shop_account_cannot_touch_other_shop_cart() {
+        // 店铺账号（scope=9）操作自己店铺行 → 允许
+        assert!(ensure_cart_scope(Some(9), 9).is_ok());
+        // 操作其它店铺行 → 403 Forbidden
+        let err = ensure_cart_scope(Some(9), 8).unwrap_err();
+        assert!(matches!(err, Error::Forbidden(_)));
+        assert!(err.to_string().contains("无权操作店铺 8"));
+    }
+
+    #[test]
+    fn platform_account_can_touch_any_shop_cart() {
+        assert!(ensure_cart_scope(None, 8).is_ok());
+        assert!(ensure_cart_scope(None, 0).is_ok());
     }
 }

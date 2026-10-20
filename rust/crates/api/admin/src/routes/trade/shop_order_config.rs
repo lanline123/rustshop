@@ -6,13 +6,13 @@
 use axum::{
     extract::{Query, State},
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use tigshop_core::models::trade::shop_order_config::{
     OrderConfigDTO, OrderConfigDetailQuery,
 };
 use tigshop_openapi::RouteDoc;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AuthUser};
 
 use crate::AdminState;
 
@@ -42,20 +42,27 @@ pub fn implemented_routes() -> Vec<RouteDoc> {
 /// `GET /adminapi/order/config/detail`：配置详情。
 async fn detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<OrderConfigDetailQuery>,
 ) -> ApiResult<Option<serde_json::Value>> {
+    // 多租户：店铺账号只能读本店配置；平台账号可用可选 shopId 过滤。
+    let scope = auth.resolve_shop_scope(q.shop_id)?;
     ok(state
         .trade
         .shop_order_config
-        .detail(q.shop_id, q.code.as_deref())
+        .detail(scope, q.code.as_deref())
         .await?)
 }
 
 /// `POST /adminapi/order/config/save`：保存配置。
 async fn save(
     State(state): State<AdminState>,
-    Json(dto): Json<OrderConfigDTO>,
+    Extension(auth): Extension<AuthUser>,
+    Json(mut dto): Json<OrderConfigDTO>,
 ) -> ApiResult<()> {
+    // 写操作必须落到具体店铺：店铺账号强制自身店铺，平台账号必须显式 shopId。
+    let scope = auth.require_shop_scope(dto.shop_id)?;
+    dto.shop_id = Some(scope);
     state.trade.shop_order_config.save(&dto).await?;
     ok(())
 }
@@ -63,6 +70,28 @@ async fn save(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn shop_account(shop_id: i32) -> AuthUser {
+        AuthUser::new(1, "shop".into(), None, Some("shop".into()), Some(shop_id))
+    }
+
+    fn platform() -> AuthUser {
+        AuthUser::new(2, "admin".into(), None, Some("admin".into()), Some(0))
+    }
+
+    /// 店铺账号的读/写范围被强制收敛到自身店铺；平台必须显式指定店铺写入。
+    #[test]
+    fn tenant_scope_is_enforced() {
+        let auth = shop_account(9);
+        assert_eq!(auth.resolve_shop_scope(None).unwrap(), Some(9));
+        assert!(auth.resolve_shop_scope(Some(8)).is_err());
+        assert_eq!(auth.require_shop_scope(None).unwrap(), 9);
+        assert!(auth.require_shop_scope(Some(8)).is_err());
+        let admin = platform();
+        assert_eq!(admin.resolve_shop_scope(None).unwrap(), None);
+        assert!(admin.require_shop_scope(None).is_err());
+        assert_eq!(admin.require_shop_scope(Some(3)).unwrap(), 3);
+    }
 
     #[test]
     fn implemented_routes_match_contract() {

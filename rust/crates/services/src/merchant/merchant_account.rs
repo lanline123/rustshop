@@ -179,9 +179,15 @@ impl MerchantAccountService {
     ///
     /// # Errors
     /// 主键缺失 → 「数据不存在」；数据库失败 → `Error::Database`。
-    pub async fn update(&self, dto: &MerchantAccountUpdateDTO) -> Result<()> {
+    pub async fn update(
+        &self,
+        dto: &MerchantAccountUpdateDTO,
+        shop_scope: Option<i32>,
+    ) -> Result<()> {
         let id = dto.resolved_id().ok_or_else(|| biz(DATA_NOT_EXIST))?;
-        self.repo()
+        // 多租户：店铺账号只能更新本店账户（repo 以 `shop_id` 条件兜底）。
+        let updated = self
+            .repo()
             .update(
                 id,
                 dto.account_type,
@@ -189,8 +195,12 @@ impl MerchantAccountService {
                 dto.account_no.as_deref(),
                 dto.bank_name.as_deref(),
                 dto.bank_branch.as_deref(),
+                shop_scope,
             )
             .await?;
+        if !updated {
+            return Err(biz(DATA_NOT_EXIST));
+        }
         Ok(())
     }
 
@@ -198,21 +208,30 @@ impl MerchantAccountService {
     ///
     /// # Errors
     /// 主键缺失 → 「数据不存在」。
-    pub async fn del(&self, id: Option<i32>) -> Result<()> {
+    pub async fn del(&self, id: Option<i32>, shop_scope: Option<i32>) -> Result<()> {
         let id = id.ok_or_else(|| biz(DATA_NOT_EXIST))?;
-        self.repo().delete(id).await?;
+        // 多租户：越权 id（非本店账户）不会产生删除效果 → 数据不存在。
+        if !self.repo().delete(id, shop_scope).await? {
+            return Err(biz(DATA_NOT_EXIST));
+        }
         Ok(())
     }
 
     /// 批量操作（Java `BaseServiceImpl#batch`：仅 `type=del` 生效）。
-    pub async fn batch(&self, ids: Option<&[i32]>, op_type: Option<&str>) -> Result<bool> {
+    pub async fn batch(
+        &self,
+        ids: Option<&[i32]>,
+        op_type: Option<&str>,
+        shop_scope: Option<i32>,
+    ) -> Result<bool> {
         if op_type != Some("del") {
             return Ok(false);
         }
         let Some(ids) = ids.filter(|i| !i.is_empty()) else {
             return Ok(false);
         };
-        self.repo().delete_many(ids).await?;
+        // 多租户：店铺账号批量删除仅作用于本店账户。
+        self.repo().delete_many(ids, shop_scope).await?;
         Ok(true)
     }
 }

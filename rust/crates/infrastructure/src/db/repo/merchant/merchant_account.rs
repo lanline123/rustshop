@@ -1,4 +1,4 @@
-﻿//! 商户账户域仓储（merchant::merchant_account）。
+//! 商户账户域仓储（merchant::merchant_account）。
 //!
 //! 表：`merchant_account`（账户）/ `shop`（店铺→商户）/ `merchant`（商户存在性）/
 //! `admin_user`（归属校验）/ `config`（提现方式白名单）。
@@ -139,6 +139,7 @@ impl MerchantAccountRepository {
         account_no: Option<&str>,
         bank_name: Option<&str>,
         bank_branch: Option<&str>,
+        shop_scope: Option<i32>,
     ) -> Result<bool> {
         let mut sets: Vec<&str> = Vec::new();
         if account_type.is_some() {
@@ -159,8 +160,9 @@ impl MerchantAccountRepository {
         if sets.is_empty() {
             return Ok(false);
         }
+        // 多租户：店铺账号的更新语句追加 `shop_id` 条件。
         let sql = format!(
-            "UPDATE merchant_account SET {} WHERE account_id = ?",
+            "UPDATE merchant_account SET {} WHERE account_id = ? AND (? IS NULL OR shop_id = ?)",
             sets.join(", ")
         );
         let mut q = sqlx::query(&sql);
@@ -179,7 +181,13 @@ impl MerchantAccountRepository {
         if let Some(v) = bank_branch {
             q = q.bind(v);
         }
-        let r = q.bind(id).execute(&self.pool).await.map_err(map_err)?;
+        let r = q
+            .bind(id)
+            .bind(shop_scope)
+            .bind(shop_scope)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
         Ok(r.rows_affected() > 0)
     }
 
@@ -187,9 +195,14 @@ impl MerchantAccountRepository {
     ///
     /// # Errors
     /// 数据库失败 → `Error::Database`。
-    pub async fn delete(&self, id: i32) -> Result<bool> {
-        let r = sqlx::query("DELETE FROM merchant_account WHERE account_id = ?")
-            .bind(id)
+    pub async fn delete(&self, id: i32, shop_scope: Option<i32>) -> Result<bool> {
+        // 多租户：店铺账号只能删除本店账户。
+        let r = sqlx::query(
+            "DELETE FROM merchant_account WHERE account_id = ? AND (? IS NULL OR shop_id = ?)",
+        )
+        .bind(id)
+        .bind(shop_scope)
+        .bind(shop_scope)
             .execute(&self.pool)
             .await
             .map_err(map_err)?;
@@ -200,16 +213,20 @@ impl MerchantAccountRepository {
     ///
     /// # Errors
     /// 数据库失败 → `Error::Database`。
-    pub async fn delete_many(&self, ids: &[i32]) -> Result<u64> {
+    pub async fn delete_many(&self, ids: &[i32], shop_scope: Option<i32>) -> Result<u64> {
         if ids.is_empty() {
             return Ok(0);
         }
+        // 多租户：店铺账号批量删除仅作用于本店账户。
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!("DELETE FROM merchant_account WHERE account_id IN ({ph})");
+        let sql = format!(
+            "DELETE FROM merchant_account WHERE account_id IN ({ph}) AND (? IS NULL OR shop_id = ?)"
+        );
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(*id);
         }
+        q = q.bind(shop_scope).bind(shop_scope);
         Ok(q.execute(&self.pool).await.map_err(map_err)?.rows_affected())
     }
 

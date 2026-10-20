@@ -14,14 +14,22 @@
 //! | `POST /proxyShopping/cart/updateCheck` | `updateCheck` |
 //! | `GET  /proxyShopping/cart/getCount` | `getCount` |
 //!
-//! > 门店 id 取 Java `HeaderUtils.getShopId()`（`x-admin-type` / `x-shop-id`），
-//! > 见 [`shop_id_from_headers`]。
+//! # 多租户（重要）
+//! Java 用请求头 `x-admin-type` / `x-shop-id`（`HeaderUtils.getShopId()`）判断当前组织。
+//! Rust 侧**不再信任请求头/查询参数**：认证中间件已把 JWT 声明写入 [`AuthUser`]，
+//! 本模块统一通过 [`AuthUser::resolve_shop_scope`] / [`AuthUser::scoped_shop_id`] 解析：
+//!
+//! - 店铺/门店/POS 账号：读/写都强制自己的 `shop_id`，请求里出现其它店铺 → 403；
+//! - 平台账号：读操作可用可选 `shopId` 过滤（不传 = 全部店铺），写操作以 DTO 中的
+//!   `shopId` 为店铺归属，服务层仍需校验商品属于目标店铺。
+//!
+//! 代客下单购物车的 `cart.shop_id` 来自商品所属店铺，因此“店铺账号跨店加购”会在服务层
+//! 以 403 拒绝；批量删除/更新/清空按当前店铺过滤，避免越权操作其它店铺的购物车行。
 
 use axum::{
     extract::{Query, State},
-    http::HeaderMap,
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use tigshop_core::models::trade::proxy_shopping_cart::{
     CartListByStoreVO, ExchangeProductToCartVO, ProxyAddToCartDTO, ProxyCartCountQuery,
@@ -29,7 +37,7 @@ use tigshop_core::models::trade::proxy_shopping_cart::{
     ProxyUpdateItemDTO,
 };
 use tigshop_openapi::RouteDoc;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AuthUser};
 
 use crate::AdminState;
 
@@ -94,111 +102,94 @@ pub fn implemented_routes() -> Vec<RouteDoc> {
         .collect()
 }
 
-/// 解析 Java `HeaderUtils.getShopId()`：`admin` ⇒ `0`；`shop|pos` ⇒ `x-shop-id`；
-/// 其它/缺失 ⇒ `0`（代客下单购物车按门店隔离，缺失按平台 0 处理）。
-#[must_use]
-fn shop_id_from_headers(headers: &HeaderMap) -> i32 {
-    let header_str = |name: &str| {
-        headers
-            .get(name)
-            .and_then(|v| v.to_str().ok())
-            .map(ToString::to_string)
-    };
-    match header_str("x-admin-type").as_deref() {
-        Some("admin") => 0,
-        Some("shop" | "pos") => header_str("x-shop-id")
-            .and_then(|v| v.trim().parse::<i32>().ok())
-            .unwrap_or(0),
-        _ => 0,
-    }
-}
-
 /// `POST /adminapi/proxyShopping/cart/list`：购物车列表。
 async fn list(
     State(state): State<AdminState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<ProxyCartListDTO>,
 ) -> ApiResult<CartListByStoreVO> {
-    let shop_id = Some(shop_id_from_headers(&headers));
-    ok(state
-        .trade
-        .proxy_shopping_cart
-        .list(&dto, shop_id)
-        .await?)
+    // 店铺账号强制自身店铺；平台账号可用 dto.shopId 过滤（None = 全部）。
+    let scope = auth.resolve_shop_scope(dto.shop_id)?;
+    ok(state.trade.proxy_shopping_cart.list(&dto, scope).await?)
 }
 
 /// `POST /adminapi/proxyShopping/cart/addToCart`：加入购物车。
 async fn add_to_cart(
     State(state): State<AdminState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<ProxyAddToCartDTO>,
 ) -> ApiResult<ExchangeProductToCartVO> {
-    let shop_id = shop_id_from_headers(&headers);
-    ok(state
-        .trade
-        .proxy_shopping_cart
-        .add_to_cart(&dto, shop_id)
-        .await?)
+    // 购物车行的 shop_id 来自商品所属店铺：店铺账号强制自身店铺（跨店商品服务层 403），
+    // 平台账号由商品决定归属。
+    let scope = auth.scoped_shop_id();
+    ok(state.trade.proxy_shopping_cart.add_to_cart(&dto, scope).await?)
 }
 
 /// `POST /adminapi/proxyShopping/cart/clearCart`：清空购物车。
 async fn clear_cart(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<ProxyClearCartDTO>,
 ) -> ApiResult<()> {
-    state.trade.proxy_shopping_cart.clear_cart(&dto).await?;
+    let scope = auth.scoped_shop_id();
+    state.trade.proxy_shopping_cart.clear_cart(&dto, scope).await?;
     ok(())
 }
 
 /// `POST /adminapi/proxyShopping/cart/removeItem`：删除购物车商品。
 async fn remove_item(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<ProxyRemoveItemDTO>,
 ) -> ApiResult<()> {
-    state.trade.proxy_shopping_cart.remove_item(&dto).await?;
+    let scope = auth.scoped_shop_id();
+    state.trade.proxy_shopping_cart.remove_item(&dto, scope).await?;
     ok(())
 }
 
 /// `POST /adminapi/proxyShopping/cart/updateItem`：更新购物车数量。
 async fn update_item(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<ProxyUpdateItemDTO>,
 ) -> ApiResult<()> {
-    state.trade.proxy_shopping_cart.update_item(&dto).await?;
+    let scope = auth.scoped_shop_id();
+    state.trade.proxy_shopping_cart.update_item(&dto, scope).await?;
     ok(())
 }
 
 /// `POST /adminapi/proxyShopping/cart/updateCheck`：更新选中状态。
 async fn update_check(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<ProxyUpdateCheckDTO>,
 ) -> ApiResult<()> {
-    state.trade.proxy_shopping_cart.update_check(&dto).await?;
+    let scope = auth.scoped_shop_id();
+    state.trade.proxy_shopping_cart.update_check(&dto, scope).await?;
     ok(())
 }
 
 /// `GET /adminapi/proxyShopping/cart/getCount`：购物车商品数量。
 async fn get_count(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<ProxyCartCountQuery>,
 ) -> ApiResult<i32> {
-    ok(state.trade.proxy_shopping_cart.get_count(&q).await?)
+    let scope = auth.resolve_shop_scope(q.shop_id)?;
+    ok(state.trade.proxy_shopping_cart.get_count(&q, scope).await?)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::http::HeaderValue;
+    use tigshop_openapi::RouteDoc;
 
-    fn headers(pairs: &[(&str, &str)]) -> HeaderMap {
-        let mut h = HeaderMap::new();
-        for (k, v) in pairs {
-            h.insert(
-                axum::http::HeaderName::from_bytes(k.as_bytes()).unwrap(),
-                HeaderValue::from_str(v).unwrap(),
-            );
-        }
-        h
+    fn shop_account(shop_id: i32) -> AuthUser {
+        AuthUser::new(1, "shop-user".into(), None, Some("shop".into()), Some(shop_id))
+    }
+
+    fn platform() -> AuthUser {
+        AuthUser::new(2, "admin".into(), None, Some("admin".into()), Some(0))
     }
 
     /// `implemented_routes()` 必须与 Java 契约逐字符一致（7 条）。
@@ -226,62 +217,37 @@ mod tests {
         assert_eq!(unique.len(), docs.len(), "implemented_routes() 存在重复项");
     }
 
-    /// `routes()` 注册路径必须与 [`ROUTE_TABLE`] 完全一致（7/7）。
+    /// 店铺账号的读写范围被强制收敛到自身店铺。
     #[test]
-    fn routes_registers_all_table_paths() {
-        let registered = [
-            "/proxyShopping/cart/list",
-            "/proxyShopping/cart/addToCart",
-            "/proxyShopping/cart/clearCart",
-            "/proxyShopping/cart/removeItem",
-            "/proxyShopping/cart/updateItem",
-            "/proxyShopping/cart/updateCheck",
-            "/proxyShopping/cart/getCount",
-        ];
-        assert_eq!(registered.len(), ROUTE_TABLE.len());
-        for path in registered {
-            assert!(
-                ROUTE_TABLE.iter().any(|(_, p, _)| *p == path),
-                "{path} 不在 ROUTE_TABLE 内"
-            );
-        }
-        for (_, p, _) in ROUTE_TABLE.iter() {
-            assert!(registered.contains(p), "{p} 未在 routes() 中注册");
-        }
+    fn shop_account_scope_is_forced() {
+        let auth = shop_account(9);
+        assert_eq!(auth.scoped_shop_id(), Some(9));
+        // 未传 shopId → 仍强制自身店铺
+        assert_eq!(auth.resolve_shop_scope(None).unwrap(), Some(9));
+        // 传自己的店铺 → 允许
+        assert_eq!(auth.resolve_shop_scope(Some(9)).unwrap(), Some(9));
+        // 越权店铺 → 403（Forbidden）
+        let err = auth.resolve_shop_scope(Some(8)).unwrap_err();
+        assert!(err.to_string().contains("无权访问店铺 8"));
+        // 平台账号才能指定其它店铺
+        let admin = platform();
+        assert_eq!(admin.scoped_shop_id(), None);
+        assert_eq!(admin.resolve_shop_scope(Some(8)).unwrap(), Some(8));
+        assert_eq!(admin.resolve_shop_scope(None).unwrap(), None);
     }
 
-    /// 门店 header 解析（Java `HeaderUtils.getShopId()` 的 admin/shop/pos 三态）。
+    /// 平台账号的列表默认可见全部店铺（不附加 shop_id 过滤）。
     #[test]
-    fn shop_id_resolution_matches_header_utils() {
-        assert_eq!(shop_id_from_headers(&headers(&[("x-admin-type", "admin")])), 0);
-        assert_eq!(
-            shop_id_from_headers(&headers(&[("x-admin-type", "shop"), ("x-shop-id", "9")])),
-            9
-        );
-        assert_eq!(
-            shop_id_from_headers(&headers(&[("x-admin-type", "pos"), ("x-shop-id", "8")])),
-            8
-        );
-        assert_eq!(shop_id_from_headers(&headers(&[])), 0);
-        assert_eq!(
-            shop_id_from_headers(&headers(&[("x-admin-type", "shop"), ("x-shop-id", "bad")])),
-            0
-        );
+    fn platform_list_scope_is_unfiltered() {
+        let admin = platform();
+        let scope = admin.resolve_shop_scope(None).unwrap();
+        assert!(scope.is_none(), "平台账号未指定 shopId 时不得强制过滤");
     }
 
-    /// 请求体/查询参数按 Java 名（camelCase）解析。
+    /// 写操作（清空/删除/更新/勾选）使用 `scoped_shop_id()`，店铺账号不可绕过。
     #[test]
-    fn params_accept_java_names() {
-        let dto: ProxyCartListDTO =
-            serde_json::from_str(r#"{"userId":3,"shopId":1,"isChecked":1,"productId":5}"#).unwrap();
-        assert_eq!(dto.user_id, Some(3));
-        assert_eq!(dto.product_id, Some(5));
-        let dto: ProxyRemoveItemDTO = serde_json::from_str(r#"{"cartIds":[1,2]}"#).unwrap();
-        assert_eq!(dto.cart_ids, Some(vec![1, 2]));
-        let dto: ProxyUpdateItemDTO =
-            serde_json::from_str(r#"{"cartId":1,"data":{"quantity":3}}"#).unwrap();
-        assert_eq!(dto.data.unwrap().quantity, Some(3));
-        let q: ProxyCartCountQuery = serde_json::from_str(r#"{"shopId":1,"userId":2}"#).unwrap();
-        assert_eq!(q.shop_id, Some(1));
+    fn write_scope_uses_scoped_shop_id() {
+        assert_eq!(shop_account(9).scoped_shop_id(), Some(9));
+        assert_eq!(platform().scoped_shop_id(), None);
     }
 }

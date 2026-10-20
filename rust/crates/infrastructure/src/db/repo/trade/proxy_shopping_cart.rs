@@ -210,15 +210,17 @@ impl ProxyShoppingCartRepository {
     pub async fn list_existing_carts(
         &self,
         user_id: i32,
-        shop_id: i32,
+        shop_scope: Option<i32>,
     ) -> Result<Vec<ExistingCart>> {
+        // 多租户：店铺账号强制 shop_scope；平台账号 None 时不过滤。
         let rows = sqlx::query_as::<_, (i32, i32, i32, i32, i32)>(
             "SELECT cart_id, quantity, product_id, sku_id, product_type FROM cart
-             WHERE user_id = ? AND shop_id = ? AND type = ?",
+             WHERE user_id = ? AND type = ? AND (? IS NULL OR shop_id = ?)",
         )
         .bind(user_id)
-        .bind(shop_id)
         .bind(CART_TYPE_ADMIN_SHOPPING)
+        .bind(shop_scope)
+        .bind(shop_scope)
         .fetch_all(&self.pool)
         .await
         .map_err(map_err)?;
@@ -352,13 +354,22 @@ impl ProxyShoppingCartRepository {
     }
 
     /// 更新数量（Java `updateCartItem` 的 `updateById(quantity)`）。
-    pub async fn update_quantity(&self, cart_id: i32, quantity: i32, update_time: i32) -> Result<u64> {
+    pub async fn update_quantity(
+        &self,
+        cart_id: i32,
+        quantity: i32,
+        update_time: i32,
+        shop_scope: Option<i32>,
+    ) -> Result<u64> {
+        // 多租户：店铺账号只能更新自身店铺的购物车行。
         let affected = sqlx::query(
-            "UPDATE cart SET quantity = ?, update_time = ? WHERE cart_id = ?",
+            "UPDATE cart SET quantity = ?, update_time = ? WHERE cart_id = ? AND (? IS NULL OR shop_id = ?)",
         )
         .bind(quantity)
         .bind(update_time)
         .bind(cart_id)
+        .bind(shop_scope)
+        .bind(shop_scope)
         .execute(&self.pool)
         .await
         .map_err(map_err)?
@@ -367,11 +378,21 @@ impl ProxyShoppingCartRepository {
     }
 
     /// 批量更新选中状态（Java `updateCheck` → `updateBatchById`）。
-    pub async fn update_checked(&self, cart_id: i32, is_checked: i32) -> Result<u64> {
-        let affected = sqlx::query("UPDATE cart SET is_checked = ? WHERE cart_id = ?")
-            .bind(is_checked)
-            .bind(cart_id)
-            .execute(&self.pool)
+    pub async fn update_checked(
+        &self,
+        cart_id: i32,
+        is_checked: i32,
+        shop_scope: Option<i32>,
+    ) -> Result<u64> {
+        // 多租户：店铺账号只能更新自身店铺的购物车行。
+        let affected = sqlx::query(
+            "UPDATE cart SET is_checked = ? WHERE cart_id = ? AND (? IS NULL OR shop_id = ?)",
+        )
+        .bind(is_checked)
+        .bind(cart_id)
+        .bind(shop_scope)
+        .bind(shop_scope)
+        .execute(&self.pool)
             .await
             .map_err(map_err)?
             .rows_affected();
@@ -379,18 +400,20 @@ impl ProxyShoppingCartRepository {
     }
 
     /// 按 id 批量删除（Java `removeBatchByIds`）。
-    pub async fn delete_by_ids(&self, cart_ids: &[i32]) -> Result<u64> {
+    pub async fn delete_by_ids(&self, cart_ids: &[i32], shop_scope: Option<i32>) -> Result<u64> {
         if cart_ids.is_empty() {
             return Ok(0);
         }
+        // 多租户：店铺账号只能删除自身店铺的购物车行。
         let sql = format!(
-            "DELETE FROM cart WHERE cart_id IN ({})",
+            "DELETE FROM cart WHERE cart_id IN ({}) AND (? IS NULL OR shop_id = ?)",
             placeholders(cart_ids.len())
         );
         let mut q = sqlx::query(&sql);
         for id in cart_ids {
             q = q.bind(*id);
         }
+        q = q.bind(shop_scope).bind(shop_scope);
         q.execute(&self.pool)
             .await
             .map(|r| r.rows_affected())
@@ -398,10 +421,20 @@ impl ProxyShoppingCartRepository {
     }
 
     /// 清空用户指定类型购物车（Java `clearCart(userId, type)`）。
-    pub async fn clear_carts(&self, user_id: i32, cart_type: i32) -> Result<u64> {
-        let affected = sqlx::query("DELETE FROM cart WHERE user_id = ? AND type = ?")
-            .bind(user_id)
-            .bind(cart_type)
+    pub async fn clear_carts(
+        &self,
+        user_id: i32,
+        cart_type: i32,
+        shop_scope: Option<i32>,
+    ) -> Result<u64> {
+        // 多租户：店铺账号只清空自身店铺的购物车行。
+        let affected = sqlx::query(
+            "DELETE FROM cart WHERE user_id = ? AND type = ? AND (? IS NULL OR shop_id = ?)",
+        )
+        .bind(user_id)
+        .bind(cart_type)
+        .bind(shop_scope)
+        .bind(shop_scope)
             .execute(&self.pool)
             .await
             .map_err(map_err)?

@@ -73,13 +73,12 @@ struct IdQuery {
 
 async fn list(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<MerchantAccountListQuery>,
 ) -> ApiResult<PageResult<MerchantAccountVO>> {
-    ok(state
-        .merchant
-        .merchant_account
-        .list(&q, q.shop_id)
-        .await?)
+    // 多租户：店铺账号只能看到本店收款账户；平台账号可显式过滤。
+    let scope = auth.resolve_shop_scope(q.shop_id)?;
+    ok(state.merchant.merchant_account.list(&q, scope).await?)
 }
 
 async fn config(State(state): State<AdminState>) -> ApiResult<Value> {
@@ -100,35 +99,56 @@ async fn detail(
 
 async fn create(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<ShopQuery>,
     Json(dto): Json<MerchantAccountCreateDTO>,
 ) -> ApiResult<i32> {
+    // 写操作必须落到具体店铺：店铺账号固定自身，平台账号必须显式 shopId。
+    let scope = auth.require_shop_scope(q.shop_id)?;
     ok(state
         .merchant
         .merchant_account
-        .create(&dto, q.shop_id)
+        .create(&dto, Some(scope))
         .await?)
 }
 
 async fn update(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<MerchantAccountUpdateDTO>,
 ) -> ApiResult<()> {
-    state.merchant.merchant_account.update(&dto).await?;
+    // 店铺账号只能改本店账户（SQL 层按 shop_id 过滤，越权行不生效）。
+    state
+        .merchant
+        .merchant_account
+        .update(&dto, auth.scoped_shop_id())
+        .await?;
     ok(())
 }
 
-async fn del(State(state): State<AdminState>, Json(dto): Json<Value>) -> ApiResult<()> {
+async fn del(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(dto): Json<Value>,
+) -> ApiResult<()> {
     let id = dto
         .get("id")
         .and_then(Value::as_i64)
         .or_else(|| dto.get("accountId").and_then(Value::as_i64))
         .map(|v| v as i32);
-    state.merchant.merchant_account.del(id).await?;
+    state
+        .merchant
+        .merchant_account
+        .del(id, auth.scoped_shop_id())
+        .await?;
     ok(())
 }
 
-async fn batch(State(state): State<AdminState>, Json(dto): Json<Value>) -> ApiResult<()> {
+async fn batch(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(dto): Json<Value>,
+) -> ApiResult<()> {
     let ids: Option<Vec<i32>> = dto.get("ids").and_then(Value::as_array).map(|arr| {
         arr.iter()
             .filter_map(Value::as_i64)
@@ -139,7 +159,7 @@ async fn batch(State(state): State<AdminState>, Json(dto): Json<Value>) -> ApiRe
     state
         .merchant
         .merchant_account
-        .batch(ids.as_deref(), op_type)
+        .batch(ids.as_deref(), op_type, auth.scoped_shop_id())
         .await?;
     ok(())
 }
@@ -147,6 +167,31 @@ async fn batch(State(state): State<AdminState>, Json(dto): Json<Value>) -> ApiRe
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn shop_account(shop_id: i32) -> AuthUser {
+        AuthUser::new(1, "shop".into(), None, Some("shop".into()), Some(shop_id))
+    }
+
+    /// 店铺账号列表强制过滤自身店铺；平台账号可见全部（可选过滤）。
+    #[test]
+    fn list_scope_is_forced_for_shop_account() {
+        let auth = shop_account(9);
+        assert_eq!(auth.resolve_shop_scope(None).unwrap(), Some(9));
+        assert!(auth.resolve_shop_scope(Some(8)).is_err());
+        let admin = AuthUser::new(2, "admin".into(), None, Some("admin".into()), Some(0));
+        assert_eq!(admin.resolve_shop_scope(None).unwrap(), None);
+        assert_eq!(admin.resolve_shop_scope(Some(8)).unwrap(), Some(8));
+    }
+
+    /// 越权写操作被拒；平台写操作必须显式 shopId。
+    #[test]
+    fn write_scope_is_enforced() {
+        let auth = shop_account(9);
+        assert_eq!(auth.require_shop_scope(None).unwrap(), 9);
+        assert!(auth.require_shop_scope(Some(8)).is_err());
+        let admin = AuthUser::new(2, "admin".into(), None, Some("admin".into()), Some(0));
+        assert!(admin.require_shop_scope(None).is_err());
+    }
 
     #[test]
     fn implemented_routes_match_contract_exactly() {

@@ -1,4 +1,4 @@
-//! 店铺账户 —— 管理端路由（merchant::shop_account_log）—— wave9。
+﻿//! 店铺账户 —— 管理端路由（merchant::shop_account_log）—— wave9。
 //!
 //! 原 Java `com.tigshop.adminapi.controller.shop.AccountController`
 //! （`@RequestMapping("/adminapi/merchant/shopAccount")`）：
@@ -9,11 +9,10 @@
 
 use axum::{
     extract::{Query, State},
-    http::HeaderMap,
-    routing::get, Router,
+    routing::get, Extension, Router,
 };
 use tigshop_core::models::merchant::shop_account_log::{ShopAccountQuery, ShopAccountVO};
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AuthUser};
 
 use crate::AdminState;
 
@@ -39,21 +38,41 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 }
 
 /// `GET /adminapi/merchant/shopAccount/index?shopId=`
+///
+/// 多租户：`shopId` 只作为**平台账号**的筛选参数；店铺/门店/POS 账号由
+/// `AuthUser::resolve_shop_scope` 强制到自身店铺（越权 shopId → 403）。
 async fn index(
     State(state): State<AdminState>,
-    headers: HeaderMap,
-    Query(q): Query<ShopAccountQuery>,
+    Extension(auth): Extension<AuthUser>,
+    Query(mut q): Query<ShopAccountQuery>,
 ) -> ApiResult<ShopAccountVO> {
-    let header_shop_id = headers
-        .get("x-shop-id")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.parse::<i32>().ok());
-    ok(state.merchant.shop_account_log.index(&q, header_shop_id).await?)
+    let scope = auth.resolve_shop_scope(q.shop_id)?;
+    if auth.scoped_shop_id().is_some() {
+        q.shop_id = scope;
+    }
+    ok(state.merchant.shop_account_log.index(&q, scope).await?)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn shop_account(shop_id: i32) -> AuthUser {
+        AuthUser::new(1, "shop".into(), None, Some("shop".into()), Some(shop_id))
+    }
+
+    fn platform() -> AuthUser {
+        AuthUser::new(2, "admin".into(), None, Some("admin".into()), Some(0))
+    }
+
+    /// 店铺账号列表强制过滤自身店铺；平台账号可见全部。
+    #[test]
+    fn shop_scope_is_forced_for_shop_account() {
+        assert_eq!(shop_account(9).resolve_shop_scope(None).unwrap(), Some(9));
+        assert!(shop_account(9).resolve_shop_scope(Some(8)).is_err());
+        assert_eq!(platform().resolve_shop_scope(None).unwrap(), None);
+        assert_eq!(platform().resolve_shop_scope(Some(8)).unwrap(), Some(8));
+    }
 
     #[test]
     fn route_table_matches_contract() {
