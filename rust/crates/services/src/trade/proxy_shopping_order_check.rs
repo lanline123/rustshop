@@ -801,7 +801,8 @@ impl ProxyShoppingOrderCheckService {
     /// → `posUserId = 当前管理员 id` → `isCartList = true`
     /// → `orderSource = "代客下单"` → `cashAmount = cashChangeAmount = 0`
     /// → `shopId` → `fillUsePointAndBalance`
-    /// → `orderCheckService.submit(param)` —— **未迁移**，见模块头第 4 条。
+    /// → `orderCheckService.submit(param)` —— 本实现复用
+    /// `OrderService::create` 完成下单，见模块头第 4 条。
     ///
     /// `admin_id` 取 JWT 身份（Java `SecurityUtils.getCurrentAdminId()`）。
     pub async fn submit(
