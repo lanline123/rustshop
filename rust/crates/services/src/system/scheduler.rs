@@ -71,7 +71,8 @@ pub fn spawn_all(repos: Arc<Repositories>, order: OrderService) -> Vec<JoinHandl
         tokio::spawn(order_auto_receive_loop(repos.clone())),
         tokio::spawn(groupon_expire_loop(repos.clone())),
         tokio::spawn(credit_user_period_update_loop(repos.clone())),
-        tokio::spawn(product_auto_status_loop(repos)),
+        tokio::spawn(product_auto_status_loop(repos.clone())),
+        tokio::spawn(aftersales_auto_receive_loop(repos)),
     ]
 }
 
@@ -135,6 +136,65 @@ async fn groupon_expire_loop(repos: Arc<Repositories>) {
             Err(e) => tracing::warn!("定时任务：拼团过期处理失败: {e}"),
         }
     }
+}
+
+/// 售后自动确认收货循环（`TIG_SCHEDULER__AFTERSALES_RECEIPT_SECS`，默认 3600s）。
+async fn aftersales_auto_receive_loop(repos: Arc<Repositories>) {
+    tokio::time::sleep(Duration::from_secs(
+        env_secs("TIG_SCHEDULER__DELAY_SECS", 30) + 60,
+    ))
+    .await;
+    let mut ticker = tokio::time::interval(Duration::from_secs(env_secs(
+        "TIG_SCHEDULER__AFTERSALES_RECEIPT_SECS",
+        3600,
+    )));
+    loop {
+        ticker.tick().await;
+        match run_aftersales_auto_receive(&repos).await {
+            Ok(0) => {}
+            Ok(n) => tracing::info!("定时任务：售后自动确认收货 {n} 条"),
+            Err(e) => tracing::warn!("定时任务：售后自动确认收货失败: {e}"),
+        }
+    }
+}
+
+/// 执行一轮售后自动确认收货。
+pub async fn run_aftersales_auto_receive(repos: &Repositories) -> Result<u64> {
+    let raw = repos
+        .catalog
+        .product_manage
+        .config_val("autoConfirmReceiptDays")
+        .await?;
+    let Some(raw) = raw.filter(|s| !s.trim().is_empty()) else {
+        return Ok(0);
+    };
+    let Ok(days) = raw.trim().parse::<f64>() else {
+        return Ok(0);
+    };
+    if days < 1.0 {
+        return Ok(0);
+    }
+    let cutoff = tigshop_common::utils::now_seconds()
+        - (days * 86_400.0) as i64;
+    let cutoff = i32::try_from(cutoff).unwrap_or(i32::MIN);
+    let rows = repos
+        .trade
+        .aftersales
+        .find_due_auto_receive(cutoff, 100)
+        .await?;
+    let service = crate::trade::aftersales::AftersalesService::new(Arc::new(repos.clone()));
+    let mut done = 0u64;
+    for row in rows {
+        match service.auto_receive(row.aftersale_id).await {
+            Ok(true) => done += 1,
+            Ok(false) => {}
+            Err(e) => tracing::warn!(
+                "售后自动确认收货失败: aftersale_id={}, {e}",
+                row.aftersale_id
+            ),
+        }
+    }
+    Ok(done)
 }
 
 /// 商品自动上下架循环（`TIG_SCHEDULER__PRODUCT_AUTO_SECS`，默认 60s）。

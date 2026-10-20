@@ -113,6 +113,25 @@ impl AftersalesRepository {
             .map_err(map_err)
     }
 
+    /// 到期应自动确认收货的售后（Java `AftersalesServiceImpl#autoReceive` 延迟队列的轮询替代）。
+    pub async fn find_due_auto_receive(
+        &self,
+        cutoff: i32,
+        limit: i64,
+    ) -> Result<Vec<Aftersales>> {
+        sqlx::query_as::<_, Aftersales>(
+            "SELECT * FROM aftersales \
+             WHERE status IN (5, 22) AND deal_time > 0 AND deal_time <= ? \
+               AND tracking_no <> '' \
+             ORDER BY deal_time ASC LIMIT ?",
+        )
+        .bind(cutoff)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
     /// 插入售后主单（对应 Java `AftersalesServiceImpl#create` 的 `this.save(aftersales)`），
     /// 返回自增主键。
     pub async fn insert_aftersales(&self, a: &Aftersales) -> Result<i32> {

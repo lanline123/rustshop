@@ -1063,6 +1063,11 @@ impl AftersalesService {
         Ok(())
     }
 
+    /// 系统自动确认收货（Java `AftersalesServiceImpl#autoReceive`）。
+    pub async fn auto_receive(&self, aftersale_id: i32) -> Result<bool> {
+        self.complete_return_aftersales(aftersale_id, true).await
+    }
+
     /// 完结退货售后（对应 Java `AftersalesServiceImpl#completeReturnAftersales`）。
     async fn complete_return_aftersales(
         &self,
