@@ -1,4 +1,4 @@
-﻿//! 商品促销服务（`marketing::product_promotion`，9 个管理端端点）。
+//! 商品促销服务（`marketing::product_promotion`，9 个管理端端点）。
 //!
 //! 对应原 Java `com.tigshop.service.promotion.impl.ProductPromotionServiceImpl`：
 //! `list` / `detail` / `create` / `update` / `del` / `updateField` / `batch` /
@@ -52,6 +52,7 @@ use tigshop_core::models::marketing::product_promotion::{
 use tigshop_core::models::merchant::shop_manage::{BatchDTO, UpdateFieldDTO};
 use tigshop_core::types::PageResult;
 use tigshop_core::{Error, Result};
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 pub struct ProductPromotionService {
@@ -74,7 +75,7 @@ impl ProductPromotionService {
             .repos
             .marketing
             .product_promotion
-            .paginate(q, &page, now)
+            .paginate(q, &page, now, TenantScope::current_list_filter())
             .await?;
         let mut list = Vec::with_capacity(rows.len());
         for row in &rows {
@@ -97,6 +98,8 @@ impl ProductPromotionService {
         else {
             return Ok(None);
         };
+        // 多租户：店铺账号只能查看本店促销
+        TenantScope::current_ensure_access(row.shop_id)?;
         let now = tigshop_common::utils::now_seconds();
         let mut vo = self.convert(&row, now).await?;
         if let Some(promotion) = self
@@ -124,7 +127,8 @@ impl ProductPromotionService {
         dto.validate().map_err(Error::Validation)?;
         let promotion_type = dto.promotion_type.unwrap_or(0);
         let gain = gain_type(promotion_type).map_err(Error::Validation)?;
-        let shop_id = dto.shop_id.unwrap_or(0);
+        // 多租户：店铺账号强制落本店；平台账号可指定/落平台级（0）
+        let shop_id = TenantScope::current().write_shop_id(dto.shop_id)?;
         let start_ts = dto.start_time.as_deref().map(parse_datetime).unwrap_or(0);
         let end_ts = dto.end_time.as_deref().map(parse_datetime).unwrap_or(0);
         let range = dto.range.unwrap_or(0);
@@ -164,10 +168,13 @@ impl ProductPromotionService {
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::biz_msg(PROMOTION_NOT_EXISTS))?;
+        // 多租户：更新前校验归属
+        TenantScope::current_ensure_access(exist.shop_id)?;
         dto.validate().map_err(Error::Validation)?;
         let promotion_type = dto.promotion_type.unwrap_or(exist.promotion_type);
         let gain = gain_type(promotion_type).map_err(Error::Validation)?;
-        let shop_id = dto.shop_id.unwrap_or(exist.shop_id);
+        // 多租户：店铺账号强制落本店；平台账号保留/指定店铺
+        let shop_id = TenantScope::current().write_shop_id(dto.shop_id.or(Some(exist.shop_id)))?;
         let start_ts = dto
             .start_time
             .as_deref()
@@ -220,6 +227,8 @@ impl ProductPromotionService {
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::biz_msg(PROMOTION_NOT_EXISTS))?;
+        // 多租户：删除前校验归属
+        TenantScope::current_ensure_access(entity.shop_id)?;
         if entity.is_available == 1 {
             return Err(Error::biz_msg(CANNOT_DELETE_WHILE_ENABLED));
         }
@@ -266,6 +275,8 @@ impl ProductPromotionService {
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::biz_msg("商品促销不存在"))?;
+        // 多租户：字段更新前校验归属
+        TenantScope::current_ensure_access(entity.shop_id)?;
         // 仅「启用 + 进行中」需要冲突校验（Java 同口径，避免阻止消除冲突的停用操作）
         let now = tigshop_common::utils::now_seconds();
         if column == "is_available"
@@ -311,6 +322,18 @@ impl ProductPromotionService {
         if ids.is_empty() {
             return Err(Error::Validation(PRODUCT_PROMOTION_ID_NOT_NULL.into()));
         }
+        // 多租户：批量删除前逐条校验归属（越权直接 403，不静默跳过）
+        for id in ids {
+            if let Some(entity) = self
+                .repos
+                .marketing
+                .product_promotion
+                .find_by_id(*id)
+                .await?
+            {
+                TenantScope::current_ensure_access(entity.shop_id)?;
+            }
+        }
         self.repos
             .marketing
             .product_promotion
@@ -349,7 +372,8 @@ impl ProductPromotionService {
         q: &ConflictPageQuery,
     ) -> Result<PageResult<ConflictPageVO>> {
         let page = q.page_query();
-        let shop_id = q.shop_id.unwrap_or(0);
+        // 多租户：店铺账号强制本店；平台账号可按请求店铺（缺省 0 = 平台级）
+        let shop_id = TenantScope::current_list_filter().unwrap_or(q.shop_id.unwrap_or(0));
         let mut query = q.clone();
         query.shop_id = Some(shop_id);
         let (total, mut rows) = self
@@ -608,6 +632,11 @@ fn build_entity(
     })
 }
 
+/// 列表店铺过滤：店铺账号强制本店；平台账号不过滤。
+fn scoped_list_shop_id() -> Option<i32> {
+    TenantScope::current_list_filter()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -657,5 +686,26 @@ mod tests {
         assert_eq!(e.max_order_amount, Decimal::ZERO);
         assert!(e.start_time > 0 && e.end_time > e.start_time);
         assert!(e.promotion_type_data.contains("minAmount"));
+    }
+
+    #[tokio::test]
+    async fn tenant_scope_scopes_list_and_blocks_cross_shop_promotion() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::{
+            with_tenant_scope, TenantScope,
+        };
+        let shop = TenantScope::for_shop(8);
+        let (filter, write_shop, blocked) = with_tenant_scope(shop, async {
+            (
+                scoped_list_shop_id(),
+                TenantScope::current().write_shop_id(None).unwrap_or(-1),
+                TenantScope::current_ensure_access(9).is_err(),
+            )
+        })
+        .await;
+        assert_eq!(filter, Some(8));
+        assert_eq!(write_shop, 8);
+        assert!(blocked);
+        let filter = with_tenant_scope(TenantScope::platform(), async { scoped_list_shop_id() }).await;
+        assert_eq!(filter, None);
     }
 }

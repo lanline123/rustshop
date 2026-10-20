@@ -38,12 +38,18 @@ impl SalesmanConfigRepository {
         self.pool.clone()
     }
 
-    /// 按 code 查询配置（Java `eq(code).one()`）。
-    pub async fn find_by_code(&self, code: &str) -> Result<Option<SalesmanConfigRow>> {
+    /// 按 code + shop_id 查询配置（Java `eq(code).eq(shop_id).one()`）。
+    pub async fn find_by_code(
+        &self,
+        code: &str,
+        shop_id: i32,
+    ) -> Result<Option<SalesmanConfigRow>> {
         sqlx::query_as::<_, SalesmanConfigRow>(
-            "SELECT id, shop_id, code, data FROM salesman_config WHERE code = ? LIMIT 1",
+            "SELECT id, shop_id, code, data FROM salesman_config \
+             WHERE code = ? AND shop_id = ? LIMIT 1",
         )
         .bind(code)
+        .bind(shop_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(map_err)
@@ -53,7 +59,7 @@ impl SalesmanConfigRepository {
     ///
     /// 返回记录主键。
     pub async fn upsert(&self, code: &str, shop_id: i32, data: &str) -> Result<i32> {
-        if let Some(row) = self.find_by_code(code).await? {
+        if let Some(row) = self.find_by_code(code, shop_id).await? {
             sqlx::query("UPDATE salesman_config SET data = ?, shop_id = ? WHERE id = ?")
                 .bind(data)
                 .bind(shop_id)

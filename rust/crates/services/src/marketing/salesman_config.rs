@@ -14,7 +14,8 @@
 //! # 差异
 //! 1. Java `SalesmanConfigSaveParam` 有大量强类型子项（等级条件、结算方式等），
 //!    Rust 端以 JSON 形式透传（`flatten` `extra` 保留未知字段），不做逐字段模型。
-//! 2. `shop_id` 多租户取 0（Java `HeaderUtils.getShopId()`）。
+//! 2. `shop_id` 多租户：店铺账号读写本店配置；平台账号读写平台级（`shop_id = 0`），
+//!    与 Java `HeaderUtils.getShopId()`（admin → 0）一致。
 
 use std::sync::Arc;
 
@@ -25,6 +26,7 @@ use tigshop_core::models::marketing::salesman_config::{
 };
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::marketing::salesman_config::SalesmanConfigRepository;
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 /// 配置服务（挂载于 `AdminState.marketing.salesman_config`）。
@@ -48,9 +50,10 @@ impl SalesmanConfigService {
     /// # Errors
     /// 数据库错误 → `Error::Database`。
     pub async fn detail(&self, code: &str) -> Result<Value> {
+        let shop_id = current_config_shop_id();
         let raw = self
             .repo()
-            .find_by_code(code)
+            .find_by_code(code, shop_id)
             .await?
             .and_then(|row| row.data);
         let value = parse_config_data(raw.as_deref());
@@ -82,9 +85,17 @@ impl SalesmanConfigService {
         }
         let data = serde_json::to_string(&value)
             .map_err(|e| Error::Internal(format!("序列化分销配置失败: {e}")))?;
-        self.repo().upsert(code, 0, &data).await?;
+        // 多租户：店铺账号落本店；平台账号落平台级（0）
+        self.repo().upsert(code, current_config_shop_id(), &data).await?;
         Ok(())
     }
+}
+
+/// 当前配置所属店铺：店铺账号 = 本店；平台账号 = 0（平台级配置）。
+///
+/// 对应 Java `HeaderUtils.getShopId()`（admin → 0）。
+fn current_config_shop_id() -> i32 {
+    TenantScope::current().shop_id().unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -103,5 +114,24 @@ mod tests {
         // Java：仅两个已知 code 生效，其余直接返回
         assert_ne!(CODE_SALESMAN_CONFIG, "unknown");
         assert_eq!(CODE_SALESMAN_SETTLEMENT, "salesmanSettlement");
+    }
+
+    #[tokio::test]
+    async fn tenant_scope_selects_shop_or_platform_config_row() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::{
+            with_tenant_scope, TenantScope,
+        };
+        // 店铺账号 → 本店配置行
+        let shop_row = with_tenant_scope(TenantScope::for_shop(8), async {
+            current_config_shop_id()
+        })
+        .await;
+        assert_eq!(shop_row, 8);
+        // 平台账号 → 平台级（0）
+        let platform_row = with_tenant_scope(TenantScope::platform(), async {
+            current_config_shop_id()
+        })
+        .await;
+        assert_eq!(platform_row, 0);
     }
 }

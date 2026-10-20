@@ -41,6 +41,7 @@ use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::marketing::lottery_activity::{
     LotteryActivityRepository, UserBrief,
 };
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 /// 存库的九宫格位置（Java `GridPosition`）。
@@ -78,7 +79,7 @@ impl LotteryActivityService {
         let now = now_seconds();
         let (limit, offset) = q.limit_offset();
         let page = to_page_query(q.page, q.size);
-        let (total, rows) = self.repo().paginate(q, now, limit, offset).await?;
+        let (total, rows) = self.repo().paginate(q, now, scoped_list_shop_id(), limit, offset).await?;
         let mut list = Vec::with_capacity(rows.len());
         for a in &rows {
             let status = activity_status(now, a.start_time, a.end_time);
@@ -172,7 +173,7 @@ impl LotteryActivityService {
             no_win_name: param.no_win_name.clone().unwrap_or_default(),
             no_win_image: param.no_win_image.clone().unwrap_or_default(),
             no_win_tips: param.no_win_tips.clone().unwrap_or_default(),
-            shop_id: 0,
+            shop_id: TenantScope::current().write_shop_id(None)?,
             is_delete: 0,
             create_time: now,
             update_time: now,
@@ -395,6 +396,8 @@ impl LotteryActivityService {
         if a.is_delete == 1 {
             return Err(Error::biz(500, MSG_ACTIVITY_NOT_EXISTS));
         }
+        // 多租户：店铺账号只能操作/查看本店活动
+        TenantScope::current_ensure_access(a.shop_id)?;
         Ok(a)
     }
 
@@ -631,6 +634,11 @@ fn to_page_query(page: Option<i64>, size: Option<i64>) -> PageQuery {
     }
 }
 
+/// 列表店铺过滤：店铺账号强制本店；平台账号不过滤。
+fn scoped_list_shop_id() -> Option<i32> {
+    TenantScope::current_list_filter()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -687,5 +695,24 @@ mod tests {
         let back: Vec<GridPosition> = serde_json::from_str(&raw).unwrap();
         assert_eq!(back[0].position, 0);
         assert_eq!(back[0].probability, Some(Decimal::new(1250, 2)));
+    }
+
+    #[tokio::test]
+    async fn tenant_scope_scopes_list_and_blocks_cross_shop_activity() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::{
+            with_tenant_scope, TenantScope,
+        };
+        let shop = TenantScope::for_shop(8);
+        let (filter, blocked) = with_tenant_scope(shop, async {
+            (
+                scoped_list_shop_id(),
+                TenantScope::current_ensure_access(9).is_err(),
+            )
+        })
+        .await;
+        assert_eq!(filter, Some(8));
+        assert!(blocked);
+        let filter = with_tenant_scope(TenantScope::platform(), async { scoped_list_shop_id() }).await;
+        assert_eq!(filter, None);
     }
 }

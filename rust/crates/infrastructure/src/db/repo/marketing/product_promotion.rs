@@ -33,12 +33,15 @@ impl ProductPromotionRepository {
 
     // ————————————————————— 商品促销 CRUD —————————————————————
 
-    /// 分页（Java `list`：关键词 LIKE + 类型 IN + 店铺 + 时间状态 + 排序白名单）。
+    /// 分页（Java `list`：关键词 LIKE + 类型 IN + 店铺租户 + 时间状态 + 排序白名单）。
+    ///
+    /// `shop_id`：`None`（平台账号）不过滤；`Some(id)` 强制 `WHERE shop_id = ?`。
     pub async fn paginate(
         &self,
         q: &ProductPromotionListQuery,
         page: &PageQuery,
         now: i64,
+        shop_id: Option<i32>,
     ) -> Result<(u64, Vec<ProductPromotion>)> {
         let mut wh = String::from(" WHERE 1 = 1");
         let mut binds: Vec<String> = Vec::new();
@@ -52,9 +55,11 @@ impl ProductPromotionRepository {
             wh.push_str(&format!(" AND promotion_type IN ({placeholders})"));
             binds.extend(types.iter().map(|t| t.to_string()));
         }
-        // Java 恒按店铺过滤（getShopId()；Rust 缺省 0 = 平台）
-        wh.push_str(" AND shop_id = ?");
-        binds.push(q.shop_id.unwrap_or(0).to_string());
+        // 多租户：店铺账号强制过滤（见 `marketing::tenant`）
+        if let Some(shop_id) = shop_id {
+            wh.push_str(" AND shop_id = ?");
+            binds.push(shop_id.to_string());
+        }
         // 时间状态检索（Java `PromotionTimeStatusEnum`）
         if let Some(is_going) = q.is_going.filter(|v| *v > 0) {
             match is_going {

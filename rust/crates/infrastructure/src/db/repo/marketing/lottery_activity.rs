@@ -127,15 +127,17 @@ impl LotteryActivityRepository {
             .map_err(map_err)
     }
 
-    /// 活动分页（Java `getList`：is_delete=0 + keyword/activityName LIKE + 时间状态 + create_time DESC）。
+    /// 活动分页（Java `getList`：is_delete=0 + keyword/activityName LIKE + 时间状态 +
+    /// 店铺租户过滤 + create_time DESC）。
     pub async fn paginate(
         &self,
         q: &LotteryActivityListQuery,
         now: i64,
+        shop_id: Option<i32>,
         limit: i64,
         offset: i64,
     ) -> Result<(i64, Vec<LotteryActivity>)> {
-        let (where_sql, binds) = build_activity_where(q, now);
+        let (where_sql, binds) = build_activity_where(q, now, shop_id);
         let count_sql = format!("SELECT COUNT(*) FROM lottery_activity{where_sql}");
         let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
         for b in &binds {
@@ -499,8 +501,16 @@ impl LotteryActivityRepository {
 
 /// 活动列表 WHERE（Java `getList`）。
 #[must_use]
-pub fn build_activity_where(q: &LotteryActivityListQuery, now: i64) -> (String, Vec<String>) {
+pub fn build_activity_where(
+    q: &LotteryActivityListQuery,
+    now: i64,
+    shop_id: Option<i32>,
+) -> (String, Vec<String>) {
     let mut conds = vec!["is_delete = 0".to_string()];
+    // 多租户：店铺账号强制按 shop_id 过滤（i32 内部值，非用户文本）
+    if let Some(shop_id) = shop_id {
+        conds.push(format!("shop_id = {shop_id}"));
+    }
     let mut binds: Vec<String> = Vec::new();
     if let Some(keyword) = q.keyword.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
         conds.push("activity_name LIKE ?".to_string());
@@ -541,13 +551,14 @@ mod tests {
 
     #[test]
     fn list_where_filters_delete_keywords_and_status() {
-        let (sql, binds) = build_activity_where(&q(serde_json::json!({})), 100);
+        let (sql, binds) = build_activity_where(&q(serde_json::json!({})), 100, None);
         assert_eq!(sql, " WHERE is_delete = 0");
         assert!(binds.is_empty());
 
         let (sql, binds) = build_activity_where(
             &q(serde_json::json!({"keyword": "抽奖", "activityName": "元旦"})),
             100,
+            None,
         );
         assert_eq!(
             sql,
@@ -555,12 +566,18 @@ mod tests {
         );
         assert_eq!(binds, vec!["%抽奖%".to_string(), "%元旦%".to_string()]);
 
-        let (sql, _) = build_activity_where(&q(serde_json::json!({"status": 0})), 100);
+        let (sql, _) = build_activity_where(&q(serde_json::json!({"status": 0})), 100, None);
         assert!(sql.ends_with("start_time > 100"));
-        let (sql, _) = build_activity_where(&q(serde_json::json!({"status": 1})), 100);
+        let (sql, _) = build_activity_where(&q(serde_json::json!({"status": 1})), 100, None);
         assert!(sql.contains("start_time <= 100") && sql.contains("end_time >= 100"));
-        let (sql, _) = build_activity_where(&q(serde_json::json!({"status": 2})), 100);
+        let (sql, _) = build_activity_where(&q(serde_json::json!({"status": 2})), 100, None);
         assert!(sql.ends_with("end_time < 100"));
+    }
+
+    #[test]
+    fn list_where_applies_shop_scope() {
+        let (sql, _) = build_activity_where(&q(serde_json::json!({})), 100, Some(8));
+        assert_eq!(sql, " WHERE is_delete = 0 AND shop_id = 8");
     }
 
     #[test]
