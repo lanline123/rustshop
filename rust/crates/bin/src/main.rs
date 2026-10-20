@@ -861,6 +861,7 @@ async fn main() -> anyhow::Result<()> {
         .layer(TraceLayer::new_for_http());
 
     let public_app = public_router(public_state)
+        .fallback(tigshop_pc_web::render_app)
         .layer(cors)
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http());

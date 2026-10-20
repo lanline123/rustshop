@@ -108,9 +108,10 @@ impl OrderRepository {
               total_amount, paid_amount, unpaid_amount, product_amount, coupon_amount,
               shipping_fee, referrer_user_id, order_source, vendor_id, order_extension,
               email, use_points, points_amount, balance, is_presale, presale_type,
-              discount_amount, tax_rate, tax_rate_amount)
+              discount_amount, tax_rate, tax_rate_amount, parent_order_id, parent_order_sn,
+              is_store_splited, pos_user_id)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(order.order_type.unwrap_or(0))
         .bind(&order.order_sn)
@@ -149,6 +150,10 @@ impl OrderRepository {
         .bind(order.discount_amount)
         .bind(order.tax_rate)
         .bind(order.tax_rate_amount)
+        .bind(order.parent_order_id)
+        .bind(&order.parent_order_sn)
+        .bind(order.is_store_splited)
+        .bind(order.pos_user_id)
         .execute(&mut **tx)
         .await
         .map_err(map_err)?;

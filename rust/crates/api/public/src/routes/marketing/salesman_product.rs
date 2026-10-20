@@ -107,8 +107,7 @@ async fn list(
     q.status = Some(1);
     q.salesman_product_type = Some(TYPE_JOIN);
     q.user_id = Some(current_user_id(&auth));
-    let shop_id = q.shop_id.unwrap_or(0);
-    ok(state.marketing.salesman_product.list(&q, shop_id).await?)
+    ok(state.marketing.salesman_product.list(&q).await?)
 }
 
 async fn detail(

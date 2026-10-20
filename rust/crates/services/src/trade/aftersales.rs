@@ -47,7 +47,7 @@ use std::sync::Arc;
 use rust_decimal::{Decimal, RoundingStrategy};
 use tigshop_common::utils;
 use tigshop_core::entities::{
-    Aftersales, AftersalesItem, AftersalesLog, Order, OrderItem, RefundApply,
+    Aftersales, AftersalesItem, AftersalesLog, Order, OrderItem, RefundApply, RefundLog,
 };
 use tigshop_core::models::payment::refund_apply::RefundApplyStatus;
 use tigshop_core::models::trade::aftersales::{
@@ -988,12 +988,18 @@ impl AftersalesService {
                     .await?;
             }
 
-            // Java 在「仅退款 + 已置完成」后进入财务退款链路（未迁移）
+            // 仅退款审核通过后创建财务退款申请并根据配置处理
             if aftersales.aftersale_type == aftersales_type::PAY_RETURN {
-                tracing::warn!(
-                    "售后审核通过（仅退款）已完成状态流转，但财务退款申请未创建（财务域未迁移）: \
-                     aftersale_id={aftersale_id}"
-                );
+                if let Err(e) = self
+                    .create_refund_apply_and_handle_finance(
+                        &aftersales,
+                        aftersales.refund_amount,
+                        reply,
+                    )
+                    .await
+                {
+                    tracing::warn!("售后仅退款创建财务退款申请失败: {e}");
+                }
             }
             let log_info = format!("更新退换货:{aftersale_id}");
             let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
@@ -1297,9 +1303,20 @@ impl AftersalesService {
             }
         }
 
+        if let Err(e) = self
+            .create_refund_apply_and_handle_finance(
+                &aftersales,
+                final_refund_amount,
+                "售后确认收货完成退款",
+            )
+            .await
+        {
+            tracing::warn!("售后确认收货完成创建财务退款申请失败: {e}");
+        }
+
         tracing::info!(
             "售后确认收货完成: aftersale_id={aftersale_id}, refund_amount={final_refund_amount}, \
-             system_auto={system_auto}（退款申请/退款结算单未迁移，需财务域处理）"
+             system_auto={system_auto}"
         );
         Ok(true)
     }
@@ -1519,6 +1536,91 @@ impl AftersalesService {
             ))
             .await?;
         Ok(())
+    }
+
+    /// 创建财务退款申请并根据财务审核配置处理（对齐 Java createRefundApplyAndHandleFinance）。
+    pub async fn create_refund_apply_and_handle_finance(
+        &self,
+        aftersales: &Aftersales,
+        refund_amount: Decimal,
+        refund_note: &str,
+    ) -> Result<i32> {
+        let now = utils::now_seconds() as i32;
+        if let Some(existing) = self
+            .repos
+            .payment
+            .refund_apply
+            .find_by_aftersale(aftersales.aftersale_id)
+            .await?
+        {
+            return Ok(existing.refund_id);
+        }
+
+        let apply = RefundApply {
+            refund_id: 0,
+            refund_type: if aftersales.order_id.unwrap_or(0) > 0 { 1 } else { 2 },
+            order_id: aftersales.order_id.unwrap_or(0),
+            user_id: aftersales.user_id.unwrap_or(0),
+            aftersale_id: aftersales.aftersale_id,
+            refund_status: 1, // 待审核
+            add_time: now,
+            refund_note: refund_note.to_string(),
+            online_balance: refund_amount,
+            offline_balance: Decimal::ZERO,
+            refund_balance: Decimal::ZERO,
+            is_online: 1,
+            is_offline: 0,
+            is_receive: 0,
+            paylog_refund_id: 0,
+            shop_id: aftersales.shop_id,
+            payment_voucher: None,
+        };
+        let refund_id = self.repos.payment.refund_apply.insert(&apply).await?;
+
+        let log = RefundLog {
+            log_id: 0,
+            refund_apply_id: refund_id,
+            refund_type: 1,
+            refund_pay_code: "online".into(),
+            transaction_id: String::new(),
+            refund_amount,
+            add_time: now,
+            description: Some(format!("售后通过，创建财务退款申请: {refund_note}")),
+            user_id: aftersales.user_id.unwrap_or(0),
+            order_id: aftersales.order_id.unwrap_or(0),
+        };
+        let _ = self.repos.payment.refund_apply.insert_log(&log).await;
+
+        let financial_review = self
+            .repos
+            .system
+            .config_basic
+            .find_by_code("financialReview")
+            .await?
+            .unwrap_or_default();
+        if financial_review != "1" {
+            let _ = self
+                .repos
+                .payment
+                .refund_apply
+                .transition_status(refund_id, &[1], 2, Some("财务审核关闭自动执行退款"))
+                .await;
+            self.repo()
+                .insert_log(&build_log(
+                    aftersales.aftersale_id,
+                    "财务审核已关闭，系统已自动执行退款处理".to_string(),
+                    now,
+                    None,
+                    String::new(),
+                    Some(aftersales.shop_id),
+                    aftersales.vendor_id,
+                    refund_amount,
+                    None,
+                ))
+                .await?;
+        }
+
+        Ok(refund_id)
     }
 }
 

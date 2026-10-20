@@ -1069,6 +1069,50 @@ impl OrderAdminRepository {
         .map_err(map_err)?;
         Ok(r.last_insert_id() as i32)
     }
+
+    /// 插入拆单记录（`order_split_log`）。
+    pub async fn insert_order_split_log(
+        &self,
+        parent_order_id: i32,
+        order_id: i32,
+        split_time: i32,
+        parent_order_data: &str,
+    ) -> Result<i32> {
+        let res = sqlx::query(
+            "INSERT INTO order_split_log (parent_order_id, order_id, split_time, parent_order_data)
+             VALUES (?, ?, ?, ?)",
+        )
+        .bind(parent_order_id)
+        .bind(order_id)
+        .bind(split_time)
+        .bind(parent_order_data)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(res.last_insert_id() as i32)
+    }
+
+    /// 迁移订单项所属订单 ID。
+    pub async fn update_item_order_id(&self, item_id: i32, new_order_id: i32) -> Result<()> {
+        sqlx::query("UPDATE order_item SET order_id = ? WHERE item_id = ?")
+            .bind(new_order_id)
+            .bind(item_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(())
+    }
+
+    /// 更新订单项数量。
+    pub async fn update_item_quantity(&self, item_id: i32, quantity: i32) -> Result<()> {
+        sqlx::query("UPDATE order_item SET quantity = ? WHERE item_id = ?")
+            .bind(quantity)
+            .bind(item_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(())
+    }
 }
 
 /// 执行「订单字段更新」SQL（`update_order` / `update_order_if_status` 共用）。
@@ -1131,6 +1175,18 @@ fn build_filter(q: &OrderListQuery, platform_view: bool) -> Result<(String, Vec<
     if let Some(uid) = q.user_id {
         conds.push("user_id = ?".into());
         binds.push(Bind::I32(uid));
+    }
+
+    if let Some(ref uids) = q.tag_user_ids {
+        if uids.is_empty() {
+            conds.push("user_id = -1".into());
+        } else {
+            let placeholders = vec!["?"; uids.len()].join(", ");
+            conds.push(format!("user_id IN ({placeholders})"));
+            for id in uids {
+                binds.push(Bind::I32(*id));
+            }
+        }
     }
 
     let statuses = q.order_status_codes();

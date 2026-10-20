@@ -75,6 +75,42 @@ impl UserPointsLogRepository {
         .map_err(map_err)?;
         Ok(row.and_then(|r| r.0))
     }
+
+    /// 增加会员积分并记录日志（对齐 Java `UserPointsLogServiceImpl#incPoints`）。
+    pub async fn inc_points(
+        &self,
+        points: i32,
+        user_id: i32,
+        desc: &str,
+        relation_id: Option<i32>,
+    ) -> Result<()> {
+        if points <= 0 {
+            return Ok(());
+        }
+        let now = tigshop_common::utils::now_seconds() as i32;
+        sqlx::query(
+            "UPDATE `user` SET `points` = `points` + ? WHERE `user_id` = ?",
+        )
+        .bind(points)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+
+        sqlx::query(
+            "INSERT INTO `user_points_log` (`user_id`, `points`, `change_time`, `change_desc`, `change_type`, `relation_type`, `relation_id`) VALUES (?, ?, ?, ?, 1, 1, ?)",
+        )
+        .bind(user_id)
+        .bind(points)
+        .bind(now)
+        .bind(desc)
+        .bind(relation_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+
+        Ok(())
+    }
 }
 
 fn map_err(e: sqlx::Error) -> Error {

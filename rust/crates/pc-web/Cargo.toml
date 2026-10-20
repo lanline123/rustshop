@@ -1,0 +1,25 @@
+[package]
+name = "tigshop-pc-web"
+version = "0.1.0"
+edition = "2021"
+authors = ["TigShop Team"]
+description = "TigShop PC Mall Frontend powered by Leptos SSR and Axum"
+
+[dependencies]
+leptos = { workspace = true, features = ["ssr"] }
+leptos_axum = { workspace = true }
+leptos_router = { workspace = true, features = ["ssr"] }
+axum = { workspace = true }
+tokio = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+rust_decimal = "1.36"
+chrono = { workspace = true }
+
+# Workspace crates
+tigshop-core = { path = "../core" }
+tigshop-common = { path = "../common" }
+tigshop-services = { path = "../services" }

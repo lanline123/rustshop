@@ -67,6 +67,12 @@ pub struct OrderCreateDTO {
     /// 随单发票申请信息
     #[serde(default)]
     pub invoice_data: Option<InvoiceDataDTO>,
+    /// 订单来源（如 "web", "代客下单" 等）
+    #[serde(default)]
+    pub order_source: Option<String>,
+    /// POS/代客下单后台管理员ID
+    #[serde(default)]
+    pub pos_user_id: Option<i32>,
 }
 
 /// 兼容前端三种 `useBalance` 入参：数字（余额抵扣金额）、布尔、字符串数字。
@@ -106,6 +112,8 @@ impl Default for OrderCreateDTO {
             use_balance: None,
             use_coupon_ids: None,
             invoice_data: None,
+            order_source: None,
+            pos_user_id: None,
         }
     }
 }
@@ -128,6 +136,12 @@ pub struct OrderCreateVO {
     /// 拼团记录 ID（下单成功时回填）
     #[serde(default)]
     pub groupon_promotion_record_id: Option<i32>,
+    /// 余额支付的金额
+    #[serde(default)]
+    pub balance: Option<Decimal>,
+    /// 是否为次卡兑换的 0 元子订单
+    #[serde(default)]
+    pub is_card_redeem: Option<bool>,
 }
 
 fn default_return_type() -> i32 {

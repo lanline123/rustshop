@@ -87,6 +87,7 @@ ALLOWED_DEPS = {
     "api/admin": {"core", "common", "infrastructure", "security", "services", "api/openapi"},
     "api/public": {"core", "common", "infrastructure", "security", "services", "api/openapi"},
     "api/openapi": set(),
+    "pc-web": {"core", "common"},
     "bin": {
         "core",
         "common",
@@ -96,6 +97,7 @@ ALLOWED_DEPS = {
         "api/admin",
         "api/public",
         "api/openapi",
+        "pc-web",
     },
 }
 

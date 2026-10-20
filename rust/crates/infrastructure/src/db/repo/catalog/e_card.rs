@@ -245,6 +245,44 @@ impl ECardRepository {
         let res = qb.build().execute(&self.pool).await.map_err(map_err)?;
         Ok(res.rows_affected())
     }
+
+    /// 为订单分配未使用的卡密（对应 Java eCardService.getNewCardByGroupId）。
+    pub async fn allocate_cards_to_order_item(
+        &self,
+        group_id: i32,
+        order_id: i32,
+        order_item_id: i32,
+        count: i32,
+    ) -> Result<Vec<ECard>> {
+        let cards: Vec<ECard> = sqlx::query_as(
+            "SELECT card_id, group_id, card_number, card_pwd, is_use, order_id, order_item_id, add_time, up_time FROM e_card WHERE group_id = ? AND is_use = 0 LIMIT ?",
+        )
+        .bind(group_id)
+        .bind(count)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+
+        if cards.len() < count as usize {
+            return Err(Error::biz_msg("电子卡券库存不足"));
+        }
+
+        let now = tigshop_common::utils::now_seconds() as i32;
+        for c in &cards {
+            sqlx::query(
+                "UPDATE e_card SET is_use = 1, order_id = ?, order_item_id = ?, up_time = ? WHERE card_id = ?",
+            )
+            .bind(order_id)
+            .bind(order_item_id)
+            .bind(now)
+            .bind(c.card_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        }
+
+        Ok(cards)
+    }
 }
 
 fn map_err(e: sqlx::Error) -> Error {

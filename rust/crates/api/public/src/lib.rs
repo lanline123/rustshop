@@ -141,11 +141,15 @@ pub fn router(state: PublicState) -> Router {
         .nest("/api", authorized.merge(public_api).merge(public_root))
         .merge(root_public)
         .merge(root_protected)
-        // 本地对象存储（上传文件）；nginx 需把 /static 反代到本服务
+        // 本地对象存储（上传文件）与 PC 商城静态资源托管（CSS / 图标 / 样式资源）
         .nest_service(
             "/static",
             ServeDir::new(
                 std::env::var("TIG_FILE__UPLOAD_DIR").unwrap_or_else(|_| "./uploads".to_string()),
+            )
+            .fallback(
+                ServeDir::new("rust/crates/pc-web/public")
+                    .fallback(ServeDir::new("crates/pc-web/public")),
             ),
         )
         .with_state(state)

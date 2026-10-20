@@ -530,7 +530,8 @@ impl OrderService {
             discount_amount: seckill_discount,
             tax_rate: Some(tax_rate),
             tax_rate_amount: Some(tax_rate_amount),
-            order_source: "web".into(),
+            order_source: dto.order_source.clone().unwrap_or_else(|| "web".into()),
+            pos_user_id: dto.pos_user_id,
             ..Default::default()
         };
 
@@ -818,6 +819,7 @@ impl OrderService {
         // 定金预售：本次只支付定金，余额抵扣留给尾款阶段（避免把定金当全款结算）
         let mut online_amount = if presale_row.is_some() { deposit_now } else { total };
         let mut return_type = 1_i32;
+        let mut final_balance_used = Decimal::ZERO;
         if presale_row.is_none() {
         if let Some(requested) = dto.use_balance {
             if requested > Decimal::ZERO {
@@ -842,6 +844,7 @@ impl OrderService {
                     }
                 }
                 if balance_used > Decimal::ZERO {
+                    final_balance_used = balance_used;
                     let _ = self
                         .repos
                         .trade
@@ -876,7 +879,6 @@ impl OrderService {
                 }
             }
         }
-
         }
 
         let out_trade_no = format!("PAY{order_sn}");
@@ -888,6 +890,8 @@ impl OrderService {
             out_trade_no,
             return_type,
             groupon_promotion_record_id: groupon_record_id.and_then(|v| i32::try_from(v).ok()),
+            balance: if final_balance_used > Decimal::ZERO { Some(final_balance_used) } else { None },
+            is_card_redeem: Some(false),
         })
     }
 
@@ -1021,12 +1025,135 @@ impl OrderService {
             return Ok(()); // 幂等
         }
 
+        let now = utils::now_seconds() as i32;
         self.repos.trade.order
-            .mark_paid(order_id, utils::now_seconds() as i32, paid_amount)
+            .mark_paid(order_id, now, paid_amount)
             .await?;
+
+        // 1. 记录订单日志
+        let _ = self.repos.trade.user_order.insert_order_log(
+            order_id,
+            &order.order_sn,
+            order.user_id,
+            order.shop_id,
+            "订单支付成功",
+            now,
+        ).await;
+
+        // 2. 积分赠送（待发货节点 Node 1）
+        let _ = self.order_success_point(&order, 1).await;
+
+        // 3. 电子卡券分配
+        if let Ok(items) = self.repos.trade.order_admin.find_items(order_id).await {
+            for it in &items {
+                if let Ok(Some(prod)) = self.repos.catalog.product.find_by_id(it.product_id).await {
+                    if prod.card_group_id > 0 {
+                        let gid = prod.card_group_id;
+                        let _ = self.repos.catalog.e_card.allocate_cards_to_order_item(gid, order_id, it.item_id, it.quantity).await;
+                    }
+                }
+            }
+        }
+
+        // 4. 对账单出账流水
+        let output = tigshop_core::entities::StatementOutput {
+            statement_output_id: 0,
+            shop_id: Some(order.shop_id),
+            vendor_id: order.vendor_id,
+            income: Some(paid_amount),
+            expenditure: Some(Decimal::ZERO),
+            gmt_create: Some(now as i64),
+            record_sn: Some(order.order_sn.clone()),
+            record_type: Some(1),
+            record_id: Some(order.order_id),
+            settlement_status: Some(0),
+            real_settlement: Some(0),
+            real_settlement_time: None,
+        };
+        let _ = self.repos.payment.statement.insert_statement_output(&output).await;
+
         if let Some(no) = out_trade_no {
             tracing::info!("订单支付成功: {order_id}, trade_no={no}");
         }
+        Ok(())
+    }
+
+    /// 订单节点赠送积分（对齐 Java OrderServiceImpl#orderSuccessPoint）
+    pub async fn order_success_point(&self, order: &Order, current_node: i32) -> Result<()> {
+        let node_val = self
+            .repos
+            .system
+            .config_basic
+            .find_by_code("orderSendPointNode")
+            .await?
+            .unwrap_or_else(|| "1".into());
+        let config_node = node_val.trim().parse::<i32>().unwrap_or(1);
+        if current_node != config_node {
+            return Ok(());
+        }
+
+        if current_node == 3 {
+            let days_val = self
+                .repos
+                .system
+                .config_basic
+                .find_by_code("orderCompleteSendPointDays")
+                .await?
+                .unwrap_or_default();
+            let delay_days = days_val.trim().parse::<i32>().unwrap_or(0);
+            if delay_days > 0 {
+                tracing::info!(
+                    "订单已完成，积分延迟{}天后赠送: order_id={}",
+                    delay_days,
+                    order.order_id
+                );
+                return Ok(());
+            }
+        }
+
+        let send_point_val = self
+            .repos
+            .system
+            .config_basic
+            .find_by_code("orderSendPoint")
+            .await?
+            .unwrap_or_default();
+        let rate = send_point_val.trim().parse::<Decimal>().unwrap_or(Decimal::ZERO);
+        if rate <= Decimal::ZERO {
+            return Ok(());
+        }
+
+        let integral_name = self
+            .repos
+            .system
+            .config_basic
+            .find_by_code("integralName")
+            .await?
+            .unwrap_or_else(|| "积分".into());
+
+        let base_points = (order.total_amount * rate)
+            .ceil()
+            .to_string()
+            .parse::<i32>()
+            .unwrap_or(0);
+        if base_points <= 0 {
+            return Ok(());
+        }
+
+        let desc = format!("下单送{}", integral_name);
+        self.repos
+            .member
+            .user_points_log
+            .inc_points(base_points, order.user_id, &desc, Some(order.order_id))
+            .await?;
+
+        tracing::info!(
+            "订单节点赠送积分成功: order_id={}, user_id={}, node={}, points={}",
+            order.order_id,
+            order.user_id,
+            current_node,
+            base_points
+        );
         Ok(())
     }
 
@@ -1042,6 +1169,9 @@ impl OrderService {
         self.repos.trade.order
             .update_shipping(order_id, tracking_no, logistics_name, utils::now_seconds() as i32)
             .await?;
+        if let Ok(Some(order)) = self.repos.trade.order.find_by_id(order_id).await {
+            let _ = self.order_success_point(&order, 2).await;
+        }
         tracing::info!("订单已发货: {order_id}, 运单号: {tracking_no}");
         Ok(())
     }

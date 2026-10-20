@@ -642,9 +642,15 @@ pub struct OrderListQuery {
     /// 发票场景：已完成订单或已提交发票申请；接受 `true/false/1/0`
     #[serde(default, deserialize_with = "de::opt_bool")]
     pub invoice_scope: Option<bool>,
-    /// 会员标签ID集合（本切片未迁移，传入即报错，见服务层）
+    /// 会员标签ID集合
     #[serde(default, deserialize_with = "de::opt_i64_list")]
     pub member_tag_ids: Option<Vec<i64>>,
+    /// 会员标签匹配模式：1-全部匹配，其他-任一匹配
+    #[serde(default)]
+    pub member_tag_match_mode: Option<i32>,
+    /// 由会员标签解析出的目标用户ID列表（内部过滤用）
+    #[serde(skip)]
+    pub tag_user_ids: Option<Vec<i32>>,
     /// 导出列（Java `OrderListPageQuery.exportItem`，`@NotBlank`「请选择导出项」，
     /// 逗号分隔的 `getExportItemList` key；仅 `orderExport` 使用）
     pub export_item: Option<String>,

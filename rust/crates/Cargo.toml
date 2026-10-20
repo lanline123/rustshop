@@ -9,6 +9,7 @@ members = [
     "common",
     "infrastructure",
     "security",
+    "pc-web",
     "bin",
 ]
 
@@ -31,6 +32,11 @@ axum = { version = "0.8", features = ["macros", "multipart", "form", "ws"] }
 axum-extra = { version = "0.10", features = ["typed-routing", "query"] }
 tower = { version = "0.5", features = ["full"] }
 tower-http = { version = "0.6", features = ["cors", "trace", "compression-gzip", "fs"] }
+
+# Leptos Fullstack Web
+leptos = { version = "0.7.7" }
+leptos_axum = { version = "0.7.7" }
+leptos_router = { version = "0.7.7" }
 
 # HTTP
 hyper = { version = "1.5", features = ["full"] }

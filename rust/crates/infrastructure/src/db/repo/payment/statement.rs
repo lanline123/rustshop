@@ -1,4 +1,4 @@
-﻿//! 对账单仓储（payment::statement）。
+//! 对账单仓储（payment::statement）。
 //!
 //! 表：`statement` / `statement_download` / `shop` / `vendor`。
 //!
@@ -211,6 +211,41 @@ impl StatementRepository {
         .fetch_optional(&self.pool)
         .await
         .map_err(map_err)
+    }
+
+    /// 插入出账单明细（Java batchSaveStatementOutput）。
+    pub async fn insert_statement_output(&self, row: &tigshop_core::entities::StatementOutput) -> Result<i64> {
+        let r = sqlx::query(
+            "INSERT INTO statement_output (shop_id, vendor_id, income, expenditure, gmt_create, record_sn, record_type, record_id, settlement_status, real_settlement, real_settlement_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(row.shop_id)
+        .bind(row.vendor_id)
+        .bind(row.income)
+        .bind(row.expenditure)
+        .bind(row.gmt_create)
+        .bind(&row.record_sn)
+        .bind(row.record_type)
+        .bind(row.record_id)
+        .bind(row.settlement_status)
+        .bind(row.real_settlement)
+        .bind(row.real_settlement_time)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(r.last_insert_id() as i64)
+    }
+
+    /// 确认收货更新出账单结算状态。
+    pub async fn complete_statement_output_by_order(&self, order_id: i32, now: i32) -> Result<()> {
+        sqlx::query(
+            "UPDATE statement_output SET real_settlement = 1, real_settlement_time = ? WHERE record_id = ? AND record_type = 1",
+        )
+        .bind(now)
+        .bind(order_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
     }
 }
 

@@ -804,10 +804,14 @@ impl ProxyShoppingOrderCheckService {
         param: &OrderCheckParam,
         ctx: &RequestContext,
         admin_id: i32,
-    ) -> Result<()> {
+    ) -> Result<tigshop_core::models::OrderCreateVO> {
         let mut param = param.clone();
         param.flow_type = Some(FLOW_TYPE_ADMIN_SHOPPING);
         validate_submit_address(&param)?;
+        let user_id = param
+            .user_id
+            .filter(|id| *id > 0)
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, MSG_SELECT_USER))?;
         param.pos_user_id = Some(admin_id);
         param.is_cart_list = Some(true);
         param.order_source = Some(ORDER_SOURCE_PROXY_SHOPPING.to_string());
@@ -815,7 +819,87 @@ impl ProxyShoppingOrderCheckService {
         param.cash_change_amount = Some(CASH_AMOUNT_ZERO);
         param.shop_id = Some(ctx.shop_id_or_zero());
         self.apply_admin_settings(&mut param, ctx).await?;
-        Err(Error::biz(SERVICE_DATA_ERROR, MSG_SUBMIT_UNMIGRATED))
+
+        // 查找该用户在代客下单（type=15）中已勾选的购物车行
+        let cart_rows = self
+            .repos
+            .trade
+            .proxy_shopping_cart
+            .list_carts(user_id, None, None, Some(1))
+            .await?;
+        let cart_ids: Vec<i32> = if !cart_rows.is_empty() {
+            cart_rows.into_iter().map(|c| c.cart_id).collect()
+        } else {
+            let all_rows = self
+                .repos
+                .trade
+                .proxy_shopping_cart
+                .list_carts(user_id, None, None, None)
+                .await?;
+            if all_rows.is_empty() {
+                return Err(Error::biz(SERVICE_DATA_ERROR, "请先添加商品到购物车".to_string()));
+            }
+            let ids: Vec<i32> = all_rows.iter().map(|c| c.cart_id).collect();
+            for cid in &ids {
+                let _ = self
+                    .repos
+                    .trade
+                    .proxy_shopping_cart
+                    .update_checked(*cid, 1, None)
+                    .await;
+            }
+            ids
+        };
+
+        let invoice_data = param.invoice_data.as_ref().map(|inv| tigshop_core::models::trade::order::InvoiceDataDTO {
+            invoice_type: inv.invoice_type,
+            title_type: inv.title_type,
+            title: inv.title.clone().or_else(|| inv.company_name.clone()),
+            tax_no: inv.tax_no.clone(),
+            content: inv.content.clone(),
+            tax_phone: inv.tax_phone.clone(),
+            company_name: inv.company_name.clone(),
+            email: None,
+            mobile: None,
+        });
+
+        let create_dto = tigshop_core::models::OrderCreateDTO {
+            cart_ids,
+            address_id: param.address_id,
+            shipping_method: param.delivery_type.or(Some(1)),
+            delivery_type: param.delivery_type,
+            pickup_id: param.pickup_id,
+            pickup_contact_name: param.pickup_contact_name.clone(),
+            pickup_contact_mobile: param.pickup_contact_mobile.clone(),
+            coupon_id: param.use_coupon_ids.as_ref().and_then(|ids| ids.first().copied()),
+            use_points: param.use_point,
+            buyer_note: param.buyer_note.clone(),
+            pay_type_id: param.pay_type_id,
+            use_balance: param.use_balance,
+            use_coupon_ids: param.use_coupon_ids.clone(),
+            invoice_data,
+            order_source: Some(ORDER_SOURCE_PROXY_SHOPPING.to_string()),
+            pos_user_id: Some(admin_id),
+        };
+
+        let product_svc = crate::catalog::product::ProductService::new(self.repos.clone(), None);
+        let cart_svc = crate::trade::cart::CartService::new(self.repos.clone(), product_svc.clone());
+        let order_service = crate::trade::order::OrderService::new(self.repos.clone(), product_svc, cart_svc);
+        let vo = order_service.create(user_id, &create_dto).await?;
+
+        let _ = self
+            .repos
+            .trade
+            .order_admin
+            .update_order(
+                vo.order_id,
+                &tigshop_infrastructure::db::repo::trade::order_admin::OrderPatch::new()
+                    .str_val("order_source", ORDER_SOURCE_PROXY_SHOPPING)
+                    .i32_val("pos_user_id", admin_id),
+            )
+            .await;
+
+        Ok(vo)
     }
 
     /// `fillUsePointAndBalance` 的 DB 部分：取 `adminShoppingUse*` 两个配置后应用。

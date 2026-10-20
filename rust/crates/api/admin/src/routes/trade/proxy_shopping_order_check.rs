@@ -268,10 +268,10 @@ async fn check_submit(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
     Json(param): Json<OrderCheckParam>,
-) -> ApiResult<()> {
+) -> ApiResult<tigshop_core::models::OrderCreateVO> {
     let ctx = request_context_from_auth(&auth);
-    state.trade.proxy_shopping_order_check.submit(&param, &ctx, auth.id).await?;
-    ok(())
+    let vo = state.trade.proxy_shopping_order_check.submit(&param, &ctx, auth.id).await?;
+    ok(vo)
 }
 
 #[cfg(test)]

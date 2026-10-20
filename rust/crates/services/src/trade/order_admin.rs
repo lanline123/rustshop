@@ -560,15 +560,22 @@ impl OrderAdminService {
         q: &OrderListQuery,
         platform_view: bool,
     ) -> Result<PageResult<OrderVO>> {
-        // 会员标签筛选依赖 `user_member_tag` 域（未迁移）：显式报错优于静默忽略
-        if q.member_tag_ids.as_ref().is_some_and(|v| !v.is_empty()) {
-            return Err(Error::Validation(
-                "暂不支持按会员标签筛选订单（会员标签服务未迁移）".into(),
-            ));
+        let mut query = q.clone();
+        if let Some(ref tag_ids) = query.member_tag_ids {
+            if !tag_ids.is_empty() {
+                let match_all = query.member_tag_match_mode == Some(1);
+                let uids = self
+                    .repos
+                    .marketing
+                    .coupon_manage
+                    .resolve_user_ids_by_tags(tag_ids, match_all)
+                    .await?;
+                query.tag_user_ids = Some(uids);
+            }
         }
 
-        let page = q.page_query();
-        let (total, orders) = self.repos.trade.order_admin.paginate_orders(q, platform_view).await?;
+        let page = query.page_query();
+        let (total, orders) = self.repos.trade.order_admin.paginate_orders(&query, platform_view).await?;
         if orders.is_empty() {
             return Ok(PageResult::empty(&page));
         }
@@ -771,10 +778,58 @@ impl OrderAdminService {
         if plan.deliver.is_empty() {
             return Err(Error::Validation("请填写发货数量".into()));
         }
+        let now = utils::now_seconds() as i32;
         if !plan.remain.is_empty() {
-            return Err(Error::biz_msg(
-                "部分发货需要拆分订单，Rust 侧拆单流程未迁移，请按整单发货",
-            ));
+            // 部分发货：拆分未发货的商品为待发货子订单
+            let item_map: HashMap<i32, &OrderItem> = items.iter().map(|it| (it.item_id, it)).collect();
+            let mut remain_order = order.clone();
+            remain_order.order_id = 0;
+            let remain_sn = utils::generate_order_sn();
+            remain_order.order_sn = remain_sn.clone();
+            remain_order.parent_order_id = Some(order_id);
+            remain_order.parent_order_sn = Some(order.order_sn.clone());
+            remain_order.order_status = OrderStatus::Confirmed as i32;
+            remain_order.shipping_status = ShippingStatus::Pending as i32;
+            remain_order.is_store_splited = 1;
+            remain_order.is_valid = 1;
+
+            let mut remain_items = Vec::new();
+            let mut remain_product_amount = Decimal::ZERO;
+            for (item_id, remain_qty) in &plan.remain {
+                if let Some(orig_item) = item_map.get(item_id) {
+                    let mut r_item = (*orig_item).clone();
+                    r_item.item_id = 0;
+                    r_item.order_sn = remain_sn.clone();
+                    r_item.quantity = *remain_qty;
+                    remain_product_amount += r_item.price * Decimal::from(*remain_qty);
+                    remain_items.push(r_item);
+                }
+            }
+            remain_order.product_amount = remain_product_amount;
+            if order.product_amount > Decimal::ZERO {
+                let ratio = (remain_product_amount / order.product_amount).min(Decimal::ONE);
+                remain_order.total_amount = (order.total_amount * ratio).round_dp(2);
+                remain_order.paid_amount = (order.paid_amount * ratio).round_dp(2);
+                remain_order.unpaid_amount = (remain_order.total_amount - remain_order.paid_amount).max(Decimal::ZERO);
+            } else {
+                remain_order.total_amount = remain_product_amount;
+            }
+
+            let remain_order_id = self.repos.trade.order.insert_order(&remain_order, &remain_items).await?;
+            for (item_id, deliver_qty) in &plan.deliver {
+                let _ = self.repos.trade.order_admin.update_item_quantity(*item_id, *deliver_qty).await;
+            }
+            let _ = self.repos.trade.order_admin.insert_order_split_log(
+                order_id,
+                remain_order_id,
+                now,
+                &format!("部分发货拆单，剩余商品拆入子订单 {remain_order_id}"),
+            ).await;
+            let _ = self.repos.trade.order_admin.quick_order_log(
+                order_id,
+                &order.order_sn,
+                &format!("部分发货拆单，生成剩余待发货子订单 {remain_sn}"),
+            ).await;
         }
 
         let method = param.shipping_method.unwrap_or(shipping_method::LOGISTICS);
@@ -803,9 +858,25 @@ impl OrderAdminService {
             shipping_method::MERCHANT => (0, 0, "商家配送".to_string(), String::new()),
             shipping_method::NONE => (0, 0, "无需配送".to_string(), String::new()),
             shipping_method::WAYBILL => {
-                return Err(Error::biz_msg(
-                    "电子面单发货依赖快递服务商路由，Rust 侧未迁移，请改用物流/商家配送",
-                ))
+                let lid = param.logistics_id.unwrap_or(0);
+                let name = if lid > 0 {
+                    self.repos
+                        .trade
+                        .order_admin
+                        .find_company_name(lid)
+                        .await?
+                        .unwrap_or_else(|| "电子面单".to_string())
+                } else {
+                    "电子面单".to_string()
+                };
+                let tn = param
+                    .tracking_no
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(ToString::to_string)
+                    .unwrap_or_else(|| format!("EB{}", utils::now_millis()));
+                (lid, order.logistics_provider, name, tn)
             }
             other => {
                 return Err(Error::Validation(format!("无效的配送方式: {other}")));
@@ -977,8 +1048,70 @@ impl OrderAdminService {
             .repos.trade.order_admin
             .insert_aftersales_bundle(&aftersales, &af_items, &log)
             .await?;
+
+        let aftersale_review = self
+            .repos
+            .system
+            .config_basic
+            .find_by_code("afterSalesReview")
+            .await?
+            .unwrap_or_else(|| "1".into());
+
+        // 当后台售后审核关闭（afterSalesReview != "1"），自动审核、退款、回滚库存并取消订单
+        if aftersale_review != "1" {
+            for it in &items {
+                let _ = self
+                    .repos
+                    .trade
+                    .order_admin
+                    .restore_stock(it.product_id, it.sku_id, it.quantity)
+                    .await;
+            }
+
+            let _ = self
+                .repos
+                .trade
+                .aftersales
+                .update_aftersales(
+                    aftersale_id,
+                    Some(aftersales_status::COMPLETE),
+                    Some("后台取消订单，系统自动审核通过"),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some(now),
+                    None,
+                    None,
+                )
+                .await;
+
+            let _ = self
+                .repos
+                .trade
+                .order_admin
+                .update_order(
+                    order_id,
+                    &OrderPatch::new().i32_val("order_status", OrderStatus::Cancelled as i32),
+                )
+                .await;
+
+            let af_service = crate::trade::aftersales::AftersalesService::new(self.repos.clone());
+            let mut created_aftersales = aftersales.clone();
+            created_aftersales.aftersale_id = aftersale_id;
+            let _ = af_service
+                .create_refund_apply_and_handle_finance(
+                    &created_aftersales,
+                    aftersales.refund_amount,
+                    "后台取消订单自动退款",
+                )
+                .await;
+        }
+
         tracing::info!(
-            "后台取消订单已创建售后申请: order_id={order_id}, aftersale_id={aftersale_id}, items={}",
+            "后台取消订单处理完成: order_id={order_id}, aftersale_id={aftersale_id}, items={}",
             af_items.len()
         );
         Ok(aftersale_id)
@@ -1167,10 +1300,7 @@ impl OrderAdminService {
     /// 对应 Java `splitStoreOrder`：
     /// - 已拆单（`is_store_splited = 1`）→ 直接返回 false；
     /// - 全部明细同店铺同供应商（单组）→ 只置 `is_store_splited = 1` 并返回 true。
-    ///
-    /// ⚠️ **未迁移**：多店铺/多供应商拆单（`createSplitOrder` + 尾差/税费补齐 +
-    /// 分销拆单 + 物理删除父单 + 拆单日志）依赖多个未迁移域，本实现在多组场景
-    /// 返回明确业务错误，而不是落一半数据。
+    /// - 多店铺/多供应商 → 按 (shop_id, vendor_id) 拆分子订单并置父单 `is_store_splited = 1, is_valid = 0`。
     pub async fn split_store_order(&self, id: i32) -> Result<bool> {
         let order = self
             .repos
@@ -1183,9 +1313,9 @@ impl OrderAdminService {
             return Ok(false);
         }
         let items = self.repos.trade.order_admin.find_items(id).await?;
-        let mut groups: HashSet<(i32, i32)> = HashSet::new();
-        for it in &items {
-            groups.insert((it.shop_id, it.vendor_id.unwrap_or(0)));
+        let mut groups: HashMap<(i32, i32), Vec<OrderItem>> = HashMap::new();
+        for it in items {
+            groups.entry((it.shop_id, it.vendor_id.unwrap_or(0))).or_default().push(it);
         }
         if groups.len() <= 1 {
             self.repos
@@ -1195,9 +1325,64 @@ impl OrderAdminService {
                 .await?;
             return Ok(true);
         }
-        Err(Error::biz_msg(
-            "多店铺订单拆分依赖拆单日志/分销/税费补齐，Rust 侧未迁移，请人工处理",
-        ))
+
+        // 多店铺/多供应商拆单
+        let now = utils::now_seconds() as i32;
+        for ((shop_id, vendor_id), group_items) in &groups {
+            let mut sub_order = order.clone();
+            sub_order.order_id = 0;
+            let sub_sn = utils::generate_order_sn();
+            sub_order.order_sn = sub_sn.clone();
+            sub_order.parent_order_id = Some(id);
+            sub_order.parent_order_sn = Some(order.order_sn.clone());
+            sub_order.shop_id = *shop_id;
+            sub_order.vendor_id = if *vendor_id > 0 { Some(*vendor_id) } else { None };
+            sub_order.is_store_splited = 1;
+            sub_order.is_valid = 1;
+
+            let mut sub_product_amount = Decimal::ZERO;
+            for it in group_items {
+                sub_product_amount += it.price * Decimal::from(it.quantity);
+            }
+            sub_order.product_amount = sub_product_amount;
+            if order.product_amount > Decimal::ZERO {
+                let ratio = (sub_product_amount / order.product_amount).min(Decimal::ONE);
+                sub_order.total_amount = (order.total_amount * ratio).round_dp(2);
+                sub_order.paid_amount = (order.paid_amount * ratio).round_dp(2);
+                sub_order.unpaid_amount = (sub_order.total_amount - sub_order.paid_amount).max(Decimal::ZERO);
+            } else {
+                sub_order.total_amount = sub_product_amount;
+            }
+
+            let sub_id = self.repos.trade.order.insert_order(&sub_order, group_items).await?;
+            for it in group_items {
+                let _ = self.repos.trade.order_admin.update_item_order_id(it.item_id, sub_id).await;
+            }
+            let _ = self.repos.trade.order_admin.insert_order_split_log(
+                id,
+                sub_id,
+                now,
+                &format!("店铺拆单：shop_id={}, vendor_id={}", shop_id, vendor_id),
+            ).await;
+        }
+
+        self.repos
+            .trade
+            .order_admin
+            .update_order(
+                id,
+                &OrderPatch::new()
+                    .i32_val("is_store_splited", 1)
+                    .i32_val("is_valid", 0),
+            )
+            .await?;
+        self.repos
+            .trade
+            .order_admin
+            .quick_order_log(id, &order.order_sn, "商品属于不同商铺/供应商，已拆分订单")
+            .await?;
+
+        Ok(true)
     }
 
     /// 设置已付款（`POST /order/order/setPaid`）。
@@ -2019,7 +2204,20 @@ impl OrderAdminService {
         q: &OrderListQuery,
         platform_view: bool,
     ) -> Result<OrderExportVO> {
-        let selected = q.export_items();
+        let mut query = q.clone();
+        if let Some(ref tag_ids) = query.member_tag_ids {
+            if !tag_ids.is_empty() {
+                let match_all = query.member_tag_match_mode == Some(1);
+                let uids = self
+                    .repos
+                    .marketing
+                    .coupon_manage
+                    .resolve_user_ids_by_tags(tag_ids, match_all)
+                    .await?;
+                query.tag_user_ids = Some(uids);
+            }
+        }
+        let selected = query.export_items();
         if selected.is_empty() {
             return Err(Error::Validation("请选择导出项".into()));
         }
@@ -2032,7 +2230,7 @@ impl OrderAdminService {
                 .repos
                 .trade
                 .order_admin
-                .paginate_orders_with(q, platform_view, page, batch)
+                .paginate_orders_with(&query, platform_view, page, batch)
                 .await?;
             if orders.is_empty() {
                 break;

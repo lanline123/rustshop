@@ -152,6 +152,53 @@ impl UserOrderService {
             now_i32(),
         )
         .await?;
+
+        // 1. 积分赠送（已完成节点 Node 3）
+        let product_svc = crate::catalog::product::ProductService::new(self.repos.clone(), None);
+        let cart_svc = crate::trade::cart::CartService::new(self.repos.clone(), product_svc.clone());
+        let order_service = crate::trade::order::OrderService::new(self.repos.clone(), product_svc, cart_svc);
+        if let Ok(Some(full_order)) = self.repos.trade.order.find_by_id(order.order_id).await {
+            let _ = order_service.order_success_point(&full_order, 3).await;
+
+            // 2. 会员成长值累加（对齐 Java userRankService.getRankGrowth）
+            let growth = full_order.total_amount.to_string().parse::<f64>().unwrap_or(0.0) as i32;
+            if growth > 0 {
+                let log = tigshop_core::entities::RankGrowthLog {
+                    id: 0,
+                    user_id,
+                    r#type: 1, // 完成下单
+                    growth_points: growth,
+                    change_type: 1, // 增加
+                    create_time: Some(now_i32()),
+                };
+                let _ = self.repos.member.user_center.insert_rank_growth_log(&log).await;
+                let _ = sqlx::query("UPDATE `user` SET `growth_points` = `growth_points` + ? WHERE `user_id` = ?")
+                    .bind(growth)
+                    .bind(user_id)
+                    .execute(&self.repo().pool_clone())
+                    .await;
+            }
+
+            // 4. 次卡子单完成时推进次卡主订单
+            if let Some(parent_id) = full_order.parent_order_id.filter(|p| *p > 0) {
+                let _ = sqlx::query(
+                    "UPDATE `order` SET `order_status` = 5, `received_time` = ? WHERE `order_id` = ? AND `is_card_order` = 1",
+                )
+                .bind(now_i32())
+                .bind(parent_id)
+                .execute(&self.repo().pool_clone())
+                .await;
+            }
+        }
+
+        // 3. 对账单结算状态更新（real_settlement = 1）
+        let _ = self
+            .repos
+            .payment
+            .statement
+            .complete_statement_output_by_order(order.order_id, now_i32())
+            .await;
+
         tracing::info!(
             "订单确认收货成功: id={}, user_id={user_id}",
             order.order_id
