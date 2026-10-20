@@ -230,6 +230,18 @@ impl AdminUserRepository {
         Ok(affected > 0)
     }
 
+    /// 修改当前管理员手机号（Java `modifyManageAccounts` modifyType=3）。
+    pub async fn update_mobile(&self, admin_id: i32, mobile: &str) -> Result<bool> {
+        let affected = sqlx::query("UPDATE admin_user SET mobile = ? WHERE admin_id = ?")
+            .bind(mobile)
+            .bind(admin_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?
+            .rows_affected();
+        Ok(affected > 0)
+    }
+
     /// 管理员分页（对应 Java `AdminUserServiceImpl#list` 的
     /// `lambdaQuery()...page(...)`）。
     ///

@@ -821,32 +821,100 @@ impl AdminUserService {
                 Ok(())
             }
             3 => {
-                // 修改手机号：Java 先要求「当前手机号已验证」（Redis 标记），
-                // 再校验新手机号短信验证码（Redis）。
+                // 修改手机号：先验证当前手机号，再校验新手机号短信验证码。
+                let cache = tigshop_infrastructure::cache::get_cache();
+                let new_mobile = dto
+                    .mobile
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .ok_or_else(|| Error::biz_msg("手机号不能为空"))?;
                 let current = self
                     .repos.identity.admin_user
                     .find_user(current_admin_id)
                     .await?
                     .ok_or_else(|| Error::biz_msg("未登录"))?;
-                if let Some(current_mobile) = current.mobile.as_deref().filter(|s| !s.is_empty()) {
-                    if dto.mobile.as_deref() == Some(current_mobile) {
+                let current_mobile = current.mobile.as_deref().filter(|s| !s.is_empty());
+                if let Some(current_mobile) = current_mobile {
+                    if new_mobile == current_mobile {
                         return Err(Error::biz_msg("新手机号不能与当前手机号相同"));
                     }
+                    let verified = cache
+                        .get_str(&format!("admin_modify_mobile_verified:{current_admin_id}"))
+                        .await?
+                        .as_deref()
+                        == Some("1");
+                    if !verified {
+                        return Err(Error::biz_msg("请先验证当前绑定的手机号"));
+                    }
                 }
-                // 无论当前是否绑定手机号，后续都要走 Redis 短信校验 → 不可用
-                Err(Error::biz_msg(ERR_VERIFY_UNAVAILABLE))
+                if self
+                    .repos
+                    .identity
+                    .admin_user
+                    .find_by_mobile(new_mobile, None, Some(current_admin_id))
+                    .await?
+                    .is_some()
+                {
+                    return Err(Error::biz_msg("手机号已被其他管理员使用"));
+                }
+                let code = dto
+                    .code
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .ok_or_else(|| Error::biz_msg("短信验证码不能为空"))?;
+                let expected = cache.get_str(&format!("login{new_mobile}")).await?;
+                if expected.as_deref() != Some(code) {
+                    return Err(Error::biz_msg("短信验证码错误或已过期，请重试"));
+                }
+                cache.del(&format!("login{new_mobile}")).await?;
+                if !self
+                    .repos
+                    .identity
+                    .admin_user
+                    .update_mobile(current_admin_id, new_mobile)
+                    .await?
+                {
+                    return Err(Error::biz_msg("管理员名称不存在"));
+                }
+                cache
+                    .del(&format!("admin_modify_mobile_verified:{current_admin_id}"))
+                    .await?;
+                Ok(())
             }
             4 => {
-                // 验证当前绑定手机号：需要短信验证码校验 + 写入已验证标记
+                // 验证当前绑定手机号：校验短信验证码并写入 10 分钟已验证标记。
+                let cache = tigshop_infrastructure::cache::get_cache();
                 let current = self
                     .repos.identity.admin_user
                     .find_user(current_admin_id)
                     .await?
                     .ok_or_else(|| Error::biz_msg("未登录"))?;
-                if current.mobile.as_deref().is_none_or(str::is_empty) {
-                    return Err(Error::biz_msg("当前账号未绑定手机号"));
+                let mobile = current
+                    .mobile
+                    .as_deref()
+                    .filter(|s| !s.is_empty())
+                    .ok_or_else(|| Error::biz_msg("当前账号未绑定手机号"))?;
+                let code = dto
+                    .code
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .ok_or_else(|| Error::biz_msg("短信验证码错误或已过期，请重试"))?;
+                let expected = cache.get_str(&format!("login{mobile}")).await?;
+                if expected.as_deref() != Some(code) {
+                    return Err(Error::biz_msg("短信验证码错误或已过期，请重试"));
                 }
-                Err(Error::biz_msg(ERR_VERIFY_UNAVAILABLE))
+                cache.del(&format!("login{mobile}")).await?;
+                cache
+                    .set_str(
+                        &format!("admin_modify_mobile_verified:{current_admin_id}"),
+                        "1",
+                        600,
+                    )
+                    .await?;
+                Ok(())
             }
             other => Err(Error::biz_msg(format!("不支持的修改类型: {other}"))),
         }
@@ -942,6 +1010,7 @@ impl AdminUserService {
     /// 之后调用 `configService.sendSms`（短信通道 + 模板配置）——**未迁移**，
     /// 故返回明确业务错误，绝不伪造「已发送」。
     pub async fn get_code(&self, q: &GetCodeQuery, current_admin_id: i32) -> Result<()> {
+        let cache = tigshop_infrastructure::cache::get_cache();
         let current = self.repos.identity.admin_user.find_user(current_admin_id).await?;
         let current_mobile = current
             .as_ref()
@@ -952,8 +1021,15 @@ impl AdminUserService {
         if let Some(m) = mobile.as_deref() {
             if let Some(cur) = current_mobile.as_deref() {
                 if m != cur {
-                    // Java：需要 Redis 中的「已验证当前手机号」标记
-                    return Err(Error::biz_msg("请先验证当前绑定的手机号"));
+                    // Java：换绑手机号前必须先在「验证当前手机号」流程写入标记
+                    let verified = cache
+                        .get_str(&format!("admin_modify_mobile_verified:{current_admin_id}"))
+                        .await?
+                        .as_deref()
+                        == Some("1");
+                    if !verified {
+                        return Err(Error::biz_msg("请先验证当前绑定的手机号"));
+                    }
                 }
             }
         }
@@ -961,11 +1037,16 @@ impl AdminUserService {
             Some(m) => m,
             None => return Err(Error::biz_msg("手机号不能为空")),
         };
+        let code = format!("{:06}", (utils::now_seconds() as u64) % 1_000_000);
+        cache
+            .set_str(&format!("login{target}"), &code, 300)
+            .await?;
+        crate::system::notify::send_sms_code(&self.repos, &target, &code).await?;
         tracing::info!(
-            "请求短信验证码: admin_id={current_admin_id}, mobile={target}, type={:?}",
+            "管理员短信验证码已发送: admin_id={current_admin_id}, mobile={target}, type={:?}",
             q.code_type
         );
-        Err(Error::biz_msg(ERR_SMS_UNAVAILABLE))
+        Ok(())
     }
 
     // ————————————————————— API Token —————————————————————
