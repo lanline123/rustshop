@@ -1041,7 +1041,12 @@ mod tests {
         let (loop_total, _) = promotion_discount(1, 0, tier, Decimal::from(600), Decimal::from(600)).unwrap();
         assert_eq!(loop_total, Decimal::from(100));
         // 满折 8.5 折
-        let tier = PromotionTier { min_amount: Decimal::from(100), reduce: Decimal::new(85, 1) };
+        let tier = PromotionTier {
+            min_amount: Decimal::from(100),
+            reduce: Decimal::new(85, 1),
+            gift_id: None,
+            num: 0,
+        };
         let (total, proportion) = promotion_discount(2, 1, &tier, Decimal::from(200), Decimal::from(200)).unwrap();
         assert_eq!(total, Decimal::from(30));
         assert_eq!(proportion, Decimal::new(85, 2));
