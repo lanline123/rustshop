@@ -39,6 +39,7 @@ use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::marketing::salesman_admin::{
     SalesmanAdminRepository, SalesmanUserRow,
 };
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 /// 分销员管理域服务（挂载于 `AdminState.marketing.salesman_admin`）。
@@ -67,6 +68,8 @@ impl SalesmanAdminService {
             .find_salesman(id)
             .await?
             .ok_or_else(|| Error::biz(500, MSG_UNKNOWN_SALESMAN))?;
+        // 多租户：店铺账号只能查看本店分销员
+        TenantScope::current_ensure_access(salesman.shop_id.unwrap_or(0))?;
         let user_ids = [salesman.user_id.unwrap_or(0)];
         let users = self.repo().find_users(&user_ids).await?;
         let base = users.first().map(to_user_base);
@@ -152,7 +155,8 @@ impl SalesmanAdminService {
             group_id: dto.group_id,
             pid: dto.pid.unwrap_or(0),
             add_time: Some(now),
-            shop_id: Some(0),
+            // 多租户：店铺账号落本店；平台账号落平台级（0）
+            shop_id: Some(TenantScope::current().write_shop_id(None)?),
             sale_amount: Some(Decimal::ZERO),
         };
         self.repo().insert_salesman(&entity).await
@@ -169,6 +173,8 @@ impl SalesmanAdminService {
         let Some(mut entity) = self.repo().find_salesman(id).await? else {
             return Err(Error::biz(500, MSG_UNKNOWN_SALESMAN));
         };
+        // 多租户：更新前校验归属
+        TenantScope::current_ensure_access(entity.shop_id.unwrap_or(0))?;
         if let Some(v) = dto.level {
             entity.level = Some(v);
         }
@@ -207,7 +213,7 @@ impl SalesmanAdminService {
         let (total, rows) = self
             .repo()
             .paginate_salesmen(
-                None,
+                TenantScope::current_list_filter(),
                 user_id,
                 q.group_id,
                 q.level,
@@ -305,7 +311,14 @@ impl SalesmanAdminService {
         let (limit, offset) = page.limit_offset();
         let (total, rows) = self
             .repo()
-            .ranking(start, end, q.sort_order.as_deref(), limit, offset)
+            .ranking(
+                start,
+                end,
+                q.sort_order.as_deref(),
+                TenantScope::current_list_filter(),
+                limit,
+                offset,
+            )
             .await?;
         if rows.is_empty() {
             return Ok(PageResult::new(total, Vec::new(), &page));
@@ -348,7 +361,10 @@ impl SalesmanAdminService {
     /// # Errors
     /// 数据库错误 → `Error::Database`。
     pub async fn salesman_list(&self, nickname: Option<&str>) -> Result<PageResult<SalesmanSelectVO>> {
-        let rows = self.repo().select_salesmen(nickname).await?;
+        let rows = self
+            .repo()
+            .select_salesmen(nickname, TenantScope::current_list_filter())
+            .await?;
         let list: Vec<SalesmanSelectVO> = rows
             .into_iter()
             .map(|(s, u)| SalesmanSelectVO {
@@ -373,6 +389,13 @@ impl SalesmanAdminService {
         let salesman_id = q
             .salesman_id
             .ok_or_else(|| Error::Validation(MSG_SALESMAN_ID_REQUIRED.into()))?;
+        // 多租户：客户列表随分销员归属校验
+        let salesman = self
+            .repo()
+            .find_salesman(salesman_id)
+            .await?
+            .ok_or_else(|| Error::biz(500, MSG_UNKNOWN_SALESMAN))?;
+        TenantScope::current_ensure_access(salesman.shop_id.unwrap_or(0))?;
         let page = PageQuery {
             page: q.page.unwrap_or(1),
             page_size: q.page_size.unwrap_or(DEFAULT_PAGE_SIZE).min(MAX_PAGE_SIZE),
@@ -754,6 +777,11 @@ fn today_begin_secs() -> i64 {
         .unwrap_or(now)
 }
 
+/// 列表店铺过滤：店铺账号强制本店；平台账号不过滤。
+fn scoped_list_shop_id() -> Option<i32> {
+    TenantScope::current_list_filter()
+}
+
 #[cfg(test)]
 mod public_tests {
     use super::*;
@@ -819,5 +847,26 @@ mod tests {
         assert_eq!(MSG_SALESMAN_ID_REQUIRED, "salesmanId不能为空");
         assert_eq!(MSG_USER_ALREADY_ADDED, "该用户已添加");
         assert_eq!(MSG_UNKNOWN_SALESMAN, "未知的分销员");
+    }
+
+    #[tokio::test]
+    async fn tenant_scope_scopes_list_and_blocks_cross_shop_salesman() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::{
+            with_tenant_scope, TenantScope,
+        };
+        let shop = TenantScope::for_shop(8);
+        let (filter, write_shop, blocked) = with_tenant_scope(shop, async {
+            (
+                scoped_list_shop_id(),
+                TenantScope::current().write_shop_id(None).unwrap_or(-1),
+                TenantScope::current_ensure_access(9).is_err(),
+            )
+        })
+        .await;
+        assert_eq!(filter, Some(8));
+        assert_eq!(write_shop, 8);
+        assert!(blocked);
+        let filter = with_tenant_scope(TenantScope::platform(), async { scoped_list_shop_id() }).await;
+        assert_eq!(filter, None);
     }
 }

@@ -340,6 +340,7 @@ impl SalesmanAdminRepository {
         start: Option<i64>,
         end: Option<i64>,
         sort_order: Option<&str>,
+        shop_id: Option<i32>,
         limit: u64,
         offset: u64,
     ) -> Result<(u64, Vec<RankingAggRow>)> {
@@ -349,6 +350,12 @@ impl SalesmanAdminRepository {
         }
         if end.is_some() {
             where_parts.push("add_time <= ?".into());
+        }
+        // 多租户：店铺账号只看本店分销员的订单聚合（i32 内部值）
+        if let Some(shop_id) = shop_id {
+            where_parts.push(format!(
+                "salesman_id IN (SELECT salesman_id FROM salesman WHERE shop_id = {shop_id})"
+            ));
         }
         let where_sql = format!("WHERE {}", where_parts.join(" AND "));
         let count_sql = format!(
@@ -389,15 +396,27 @@ impl SalesmanAdminRepository {
 
     /// 下拉列表：`salesman JOIN user`，按 nickname/username/mobile LIKE 过滤
     /// （Java 为全表 user 扫描 + 逐条查询，本实现纠偏为 JOIN，见 models 差异 5）。
-    pub async fn select_salesmen(&self, nickname: Option<&str>) -> Result<Vec<(Salesman, SalesmanUserRow)>> {
+    pub async fn select_salesmen(
+        &self,
+        nickname: Option<&str>,
+        shop_id: Option<i32>,
+    ) -> Result<Vec<(Salesman, SalesmanUserRow)>> {
         let kw = nickname
             .map(str::trim)
             .filter(|s| !s.is_empty())
             .map(|k| format!("%{k}%"));
-        let where_sql = if kw.is_some() {
-            "WHERE u.nickname LIKE ? OR u.username LIKE ? OR u.mobile LIKE ?"
+        let mut conds: Vec<String> = Vec::new();
+        if kw.is_some() {
+            conds.push("(u.nickname LIKE ? OR u.username LIKE ? OR u.mobile LIKE ?)".into());
+        }
+        // 多租户：店铺账号只返回本店分销员（i32 内部值）
+        if let Some(shop_id) = shop_id {
+            conds.push(format!("s.shop_id = {shop_id}"));
+        }
+        let where_sql = if conds.is_empty() {
+            String::new()
         } else {
-            ""
+            format!("WHERE {}", conds.join(" AND "))
         };
         let sql = format!(
             "SELECT s.salesman_id, s.user_id, s.level, s.group_id, s.pid, s.add_time, s.shop_id, s.sale_amount, u.user_id AS uid, u.username AS uname, u.nickname AS unickname, u.mobile AS umobile, u.avatar AS uavatar, u.reg_time AS ureg_time, u.rank_id AS urank_id FROM salesman s JOIN user u ON u.user_id = s.user_id {where_sql} ORDER BY s.salesman_id DESC LIMIT 200"
