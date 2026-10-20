@@ -1597,8 +1597,9 @@ impl OrderAdminService {
     ///
     /// 已补：未付款/兑换订单返还抵扣积分、余额原路返还并写余额日志、
     /// 释放订单/父单优惠券占用、写店铺与供应商后台取消消息、
-    /// 回补秒杀库存/扣回秒杀销量、返还礼品卡组可用库存。
-    /// 仍未迁移：拼团限购恢复、预售尾款校验。
+    /// 回补秒杀库存/扣回秒杀销量、返还礼品卡组可用库存、
+    /// 拼团记录置已取消并恢复明细可售数量。
+    /// 仍未迁移：预售尾款校验。
     pub async fn cancel_order(
         &self,
         id: i32,
@@ -1654,6 +1655,32 @@ impl OrderAdminService {
                                 group_id,
                                 group.availability_stock.unwrap_or(0) + it.quantity,
                             )
+                            .await;
+                    }
+                }
+            }
+        }
+        // 拼团订单取消：待成团记录置已取消，并恢复明细可售数量。
+        if order.order_type == Some(order_type::PIN) {
+            let _ = self
+                .repos
+                .marketing
+                .groupon_promotion_record
+                .cancel_waiting_by_order(i64::from(order.order_id))
+                .await;
+            for it in &items {
+                if it.is_pin == 1 {
+                    if let Some(detail_id) = it
+                        .promotion_data
+                        .as_deref()
+                        .and_then(|raw| serde_json::from_str::<serde_json::Value>(raw).ok())
+                        .and_then(|v| v.get("grouponDetailId").and_then(|x| x.as_i64()))
+                    {
+                        let _ = self
+                            .repos
+                            .marketing
+                            .groupon_promotion
+                            .inc_detail_limit(detail_id, it.quantity)
                             .await;
                     }
                 }

@@ -791,6 +791,23 @@ impl GrouponPromotionRepository {
             .map_err(map_err)
     }
 
+    /// 订单取消：恢复拼团明细可售数量（Java `incLimitNum`）。
+    pub async fn inc_detail_limit(&self, groupon_detail_id: i64, quantity: i32) -> Result<u64> {
+        if quantity <= 0 {
+            return Ok(0);
+        }
+        Ok(sqlx::query(
+            "UPDATE groupon_promotion_detail SET limit_num = limit_num + ? \
+             WHERE groupon_detail_id = ?",
+        )
+        .bind(quantity)
+        .bind(groupon_detail_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?
+        .rows_affected())
+    }
+
     /// 拼团活动下的全部明细（Java `grouponPromotionDetailService.list(eq(promotionId))`，
     /// 活动重开冲突检查用）。
     pub async fn find_details_by_promotion(

@@ -274,6 +274,19 @@ impl GrouponPromotionRecordRepository {
         Ok(affected)
     }
 
+    /// 订单取消：把该订单待成团记录置为已取消（4）。
+    pub async fn cancel_waiting_by_order(&self, order_id: i64) -> Result<u64> {
+        Ok(sqlx::query(
+            "UPDATE groupon_promotion_record SET join_status = 4 \
+             WHERE order_id = ? AND join_status = 1",
+        )
+        .bind(order_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?
+        .rows_affected())
+    }
+
     /// 团员（Java `groupMemberList`：`open_group_record_id = id`）。
     pub async fn members(&self, open_record_id: i64) -> Result<Vec<GrouponPromotionRecord>> {
         sqlx::query_as::<_, GrouponPromotionRecord>(&format!(
