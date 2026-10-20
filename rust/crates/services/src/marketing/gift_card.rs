@@ -165,10 +165,25 @@ impl GiftCardService {
         })
     }
 
-    /// 平台店铺（shopId=0）返回 `(None, None)`：配置服务未迁移（偏差见模块头）。
+    /// 平台店铺（shopId=0）取 `config` 表的 `shopName` / `shopLogo`。
     async fn resolve_shop(&self, shop_id: i32) -> Result<(Option<String>, Option<String>)> {
         if shop_id == 0 {
-            return Ok((None, None));
+            let pairs = self
+                .repos
+                .system
+                .config_basic
+                .find_by_codes(&["shopName", "shopLogo"])
+                .await?;
+            let map: std::collections::HashMap<String, String> = pairs.into_iter().collect();
+            let title = map
+                .get("shopName")
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty());
+            let logo = map
+                .get("shopLogo")
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty());
+            return Ok((title, logo));
         }
         match self.repo().find_shop(shop_id).await? {
             Some((title, logo)) => Ok((title, logo)),
@@ -521,15 +536,10 @@ impl GiftCardService {
             .find_group(card.card_groups_id)
             .await?
             .ok_or_else(|| Error::biz(500, MSG_TRANSFER_GROUP_NOT_FOUND))?;
-        let shop_title = match group.shop_id.unwrap_or(0) {
-            0 => String::new(), // 平台配置 SHOP_NAME 未迁移
-            shop_id => self
-                .repo()
-                .find_shop(shop_id)
-                .await?
-                .and_then(|(title, _)| title)
-                .unwrap_or_default(),
-        };
+        let (shop_title, _) = self
+            .resolve_shop(group.shop_id.unwrap_or(0))
+            .await?;
+        let shop_title = shop_title.unwrap_or_default();
         let base_url = if is_from == Some(TRANSFER_FROM_PC) {
             "/giftCard/transfer/"
         } else {
