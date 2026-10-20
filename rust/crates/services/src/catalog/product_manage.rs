@@ -961,7 +961,58 @@ impl ProductManageService {
         }
 
         let product_id = product.product_id;
-        let skus = self.repos.catalog.product_manage.find_skus(product_id, false).await?;
+        let mut product = product;
+        let mut skus = self.repos.catalog.product_manage.find_skus(product_id, false).await?;
+
+        // O2O：请求带门店（shopId 优先，其次 nearestShopId）时用 store_product /
+        // store_product_sku 覆盖商品名、价格、库存、主图、详情和店铺归属。
+        let store_shop_id = shop_id
+            .filter(|v| *v > 0)
+            .or_else(|| nearest_shop_id.filter(|v| *v > 0));
+        if let Some(store_shop_id) = store_shop_id {
+            if let Some(store) = self
+                .repos
+                .catalog
+                .product_stock
+                .find_store_product(product_id, store_shop_id)
+                .await?
+            {
+                if let Some(name) = store.product_name.as_deref().filter(|s| !s.is_empty()) {
+                    product.product_name = name.to_string();
+                }
+                if let Some(price) = store.product_price {
+                    product.product_price = price;
+                }
+                if let Some(stock) = store.product_stock {
+                    product.product_stock = stock;
+                }
+                product.product_status = store.product_status;
+                product.shop_id = i32::try_from(store.shop_id).unwrap_or(product.shop_id);
+                if let Some(pic) = store.pic_url.as_deref().filter(|s| !s.is_empty()) {
+                    product.pic_url = pic.to_string();
+                }
+                if let Some(desc) = store.product_desc.as_deref().filter(|s| !s.is_empty()) {
+                    product.product_desc = Some(desc.to_string());
+                }
+                for sku in &mut skus {
+                    if let Some(store_sku) = self
+                        .repos
+                        .catalog
+                        .product_stock
+                        .find_store_product_sku(store.store_product_id, sku.sku_id)
+                        .await?
+                    {
+                        if let Some(price) = store_sku.sku_price {
+                            sku.sku_price = Some(price);
+                        }
+                        if let Some(stock) = store_sku.sku_stock {
+                            sku.sku_stock = Some(stock);
+                        }
+                    }
+                }
+            }
+        }
+        let skus = skus;
         let gallery = self.repos.catalog.product_manage.find_gallery(product_id).await?;
         let videos = self.repos.catalog.product_manage.find_videos(product_id).await?;
         let attrs = self.repos.catalog.product_manage.find_attributes(product_id).await?;

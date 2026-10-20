@@ -73,6 +73,7 @@
 
 use std::sync::Arc;
 
+use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use rust_decimal::{Decimal, RoundingStrategy};
 use tigshop_core::entities::{Product, ProductSku};
 use tigshop_core::models::catalog::product_manage::{
@@ -152,6 +153,30 @@ pub fn parse_extra_attr_ids(raw: Option<&str>) -> Vec<i32> {
 pub fn round_price(v: Decimal) -> Decimal {
     v.round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero)
 }
+
+/// Java `GpsDistanceUtil.getDistance`：Haversine，单位米；任一坐标为空返回 0。
+#[must_use]
+pub fn haversine_meters(
+    lng1: Option<Decimal>,
+    lat1: Option<Decimal>,
+    lng2: Option<Decimal>,
+    lat2: Option<Decimal>,
+) -> Decimal {
+    let (Some(lng1), Some(lat1), Some(lng2), Some(lat2)) = (lng1, lat1, lng2, lat2) else {
+        return Decimal::ZERO;
+    };
+    let rad = |v: Decimal| v.to_f64().unwrap_or(0.0).to_radians();
+    let (lng1, lat1, lng2, lat2) = (rad(lng1), rad(lat1), rad(lng2), rad(lat2));
+    let a = lat1 - lat2;
+    let b = lng1 - lng2;
+    let s = 2.0
+        * ((a / 2.0).sin().powi(2)
+            + lat1.cos() * lat2.cos() * (b / 2.0).sin().powi(2))
+        .sqrt()
+        .asin();
+    Decimal::from_f64(6_378_137.0 * s).unwrap_or(Decimal::ZERO)
+}
+
 
 /// 代客下单商品管理服务。
 pub struct ProxyShoppingProductService {
@@ -260,7 +285,7 @@ impl ProxyShoppingProductService {
         let extra_ids = parse_extra_attr_ids(q.extra_attr_ids.as_deref());
 
         // Java：`productDetail` 为空 DTO → `productPrice` 为 null
-        let Some(product) = product else {
+        let Some(mut product) = product else {
             if !extra_ids.is_empty() {
                 // Java `null.add(attrPrice)` → NPE（500）。不制造 panic，
                 // 返回明确业务错误（见模块头第 1 条）。
@@ -282,6 +307,25 @@ impl ProxyShoppingProductService {
             });
         };
 
+        // O2O：门店上下文优先用 store_product / store_product_sku 覆盖价与库存。
+        let store_product = if let Some(store_shop_id) = q.shop_id.filter(|v| *v > 0) {
+            self.repos
+                .catalog
+                .product_stock
+                .find_store_product(product_id, store_shop_id)
+                .await?
+        } else {
+            None
+        };
+        if let Some(store) = &store_product {
+            if let Some(price) = store.product_price {
+                product.product_price = price;
+            }
+            if let Some(stock) = store.product_stock {
+                product.product_stock = stock;
+            }
+        }
+
         // Java `productSkuService.getProductSkusByPid(productId)`：含禁用规格
         let sku_rows = self.repos.catalog.product_manage.find_skus(product_id, true).await?;
         let all_skus: Vec<ProductSkuVO> = sku_rows.iter().map(to_availability_sku_vo).collect();
@@ -292,8 +336,24 @@ impl ProxyShoppingProductService {
             Some(v) => Some(v),
             None => resolve_single_sku_id(&all_skus),
         };
-        let sku: Option<ProductSkuVO> = resolved_sku_id
+        let mut sku: Option<ProductSkuVO> = resolved_sku_id
             .and_then(|id| all_skus.iter().find(|s| s.sku_id == id).cloned());
+        if let (Some(store), Some(s)) = (&store_product, sku.as_mut()) {
+            if let Some(store_sku) = self
+                .repos
+                .catalog
+                .product_stock
+                .find_store_product_sku(store.store_product_id, s.sku_id)
+                .await?
+            {
+                if let Some(price) = store_sku.sku_price {
+                    s.sku_price = Some(price);
+                }
+                if let Some(stock) = store_sku.sku_stock {
+                    s.sku_stock = stock;
+                }
+            }
+        }
 
         // 库存与价格基线（Java：命中规格时用规格价 / 规格库存）
         let (mut stock, mut price, start_price, sku_data) = match &sku {
@@ -312,6 +372,18 @@ impl ProxyShoppingProductService {
         // 卡密 / 礼品卡库存覆盖（模块头第 3、4 条）
         stock = self.stock_by_product_kind(&product, stock).await?;
 
+        // 会员等级折扣（Java `memberBenefitService.resolveDiscount`：
+        // price * discount / 10，HALF_UP 保留 2 位）。积分兑换商品暂不迁移，
+        // 因此这里始终按「非积分兑换商品」套折扣。
+        if let Some(user_id) = q.user_id.filter(|v| *v > 0) {
+            if let Some(discount) = self.member_discount(user_id).await? {
+                if discount > Decimal::ZERO {
+                    price = (price * discount / Decimal::from(10))
+                        .round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero);
+                }
+            }
+        }
+
         // 附加规格价（Java `attrPrice`）
         let attr_price = if extra_ids.is_empty() {
             Decimal::ZERO
@@ -329,14 +401,7 @@ impl ProxyShoppingProductService {
             .build_sku_data(&product, sku_data.as_ref())
             .await?;
 
-        if q.user_id.is_some() || q.shop_id.is_some() || q.address_id.is_some() {
-            tracing::debug!(
-                "代客下单商品可用数据携带 userId={:?} shopId={:?} addressId={:?}：会员折扣 / O2O 门店覆盖 / 距离计算未迁移（按平台数据返回）",
-                q.user_id,
-                q.shop_id,
-                q.address_id
-            );
-        }
+        let distance = self.resolve_distance(q).await?;
 
         let final_price = round_price(price);
         Ok(ProductAvailabilityVO {
@@ -356,11 +421,63 @@ impl ProxyShoppingProductService {
             // 未迁移：促销（秒杀 / 限时折扣 / 拼团）
             promotion: Vec::new(),
             product_id,
-            // 未迁移：O2O 距离
-            distance: None,
+            distance,
             // 未迁移：礼品卡组 ID（Java 在该分支也没有 set，恒为 null）
             gift_card_groups_id: None,
         })
+    }
+
+    /// 会员等级折扣（Java `MemberBenefitService#resolveDiscount`）。
+    async fn member_discount(&self, user_id: i32) -> Result<Option<Decimal>> {
+        let Some(user) = self.repos.member.user_manage.find_user(user_id).await? else {
+            return Ok(None);
+        };
+        let Some(rank) = self
+            .repos
+            .member
+            .user_center
+            .find_user_rank(user.rank_id)
+            .await?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(rank.discount))
+    }
+
+    /// O2O 距离（Java `GpsDistanceUtil.getDistance`，单位米）。
+    ///
+    /// 只有传了 `addressId` 才计算：
+    /// - `shopId > 0`：用户地址经纬度 ↔ 门店经纬度；
+    /// - `shopId` 为空：Java 用自营门店配置经纬度；本实现缺少该配置，
+    ///   在地址存在但无门店时返回 0（与 Java 任一坐标为空时返回 0 一致）。
+    async fn resolve_distance(
+        &self,
+        q: &ProxyProductAvailabilityQuery,
+    ) -> Result<Option<Decimal>> {
+        let Some(address_id) = q.address_id.filter(|v| *v > 0) else {
+            return Ok(None);
+        };
+        let Some(address) = self
+            .repos
+            .member
+            .user_address_client
+            .find_by_id(address_id)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let Some(shop_id) = q.shop_id.filter(|v| *v > 0) else {
+            return Ok(Some(Decimal::ZERO));
+        };
+        let Some(shop) = self.repos.identity.admin_user.find_shop(shop_id).await? else {
+            return Ok(Some(Decimal::ZERO));
+        };
+        Ok(Some(haversine_meters(
+            address.longitude,
+            address.latitude,
+            shop.shop_longitude,
+            shop.shop_latitude,
+        )))
     }
 
     /// 卡密 / 礼品卡的库存覆盖（对应 Java `updateStockByECard`
@@ -730,5 +847,30 @@ mod tests {
         // `sku_stock` 为 NULL → 0（Java `Integer` 为 null 时前端按 0 处理）
         assert_eq!(out[1].sku_stock, 0);
         assert_eq!(out[1].is_enabled, 0);
+    }
+
+    #[test]
+    fn haversine_matches_java_gps_distance() {
+        let d = |s: &str| Decimal::from_str(s).unwrap();
+        assert_eq!(
+            haversine_meters(
+                Some(d("115.857963")),
+                Some(d("28.712094")),
+                Some(d("115.857963")),
+                Some(d("28.712094"))
+            ),
+            Decimal::ZERO
+        );
+        let one_meter = haversine_meters(
+            Some(d("115.857963")),
+            Some(d("28.712094")),
+            Some(d("115.857972")),
+            Some(d("28.712094")),
+        );
+        assert!(one_meter > Decimal::ZERO && one_meter < Decimal::from(2));
+        assert_eq!(
+            haversine_meters(None, Some(d("1")), Some(d("1")), Some(d("1"))),
+            Decimal::ZERO
+        );
     }
 }
