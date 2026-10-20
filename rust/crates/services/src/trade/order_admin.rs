@@ -48,7 +48,7 @@ use tigshop_core::models::trade::order_admin::{
     OrderItemVO, OrderListQuery, OrderModifyConsigneeParam, OrderModifyMoneyParam,
     OrderModifyProductParam, OrderModifyShippingParam, OrderPageConfigVO, OrderShopVO,
     OrderStatus, OrderStatusCountVO, OrderUserVO, OrderVO, ParentOrderDetailVO, PayStatus,
-    ProductAddInfoVO, ShippingInfoVO, ShippingStatus, AftersalesApplyAdminParam,
+    ProductAddInfoVO, ShippingInfoVO, ShippingStatus, ShippingTraceVO, AftersalesApplyAdminParam,
     ORDER_DELIVER_TEMPLATE_DESCRIPTION, ORDER_DELIVER_TEMPLATE_HEADERS,
 };
 use tigshop_core::types::PageResult;
@@ -869,14 +869,43 @@ impl OrderAdminService {
                 } else {
                     "电子面单".to_string()
                 };
-                let tn = param
+                let mut tn = param
                     .tracking_no
                     .as_deref()
                     .map(str::trim)
                     .filter(|s| !s.is_empty())
                     .map(ToString::to_string)
                     .unwrap_or_else(|| format!("EB{}", utils::now_millis()));
-                (lid, order.logistics_provider, name, tn)
+                let mut provider = order.logistics_provider;
+                // 当前激活快递鸟且配置完整时，真正下 1007 电子面单；
+                // 面单失败直接报错，不写入假单号。
+                if lid > 0
+                    && crate::logistics::logistics_company::LogisticsCompanyService::new(
+                        self.repos.clone(),
+                    )
+                    .resolve_active_provider_type()
+                    .await?
+                        == tigshop_core::models::logistics::logistics_company::PROVIDER_KDNIAO
+                {
+                    let waybill = self
+                        .create_kdn_waybill(&order, lid, param.bill_remark.as_deref(), &items)
+                        .await?;
+                    tn = waybill.1.clone();
+                    provider = 1;
+                    self.repos
+                        .trade
+                        .order_admin
+                        .insert_logistics_api_log(
+                            order_id,
+                            1,
+                            &waybill.0,
+                            &waybill.1,
+                            waybill.2.as_deref().unwrap_or(""),
+                            now,
+                        )
+                        .await?;
+                }
+                (lid, provider, name, tn)
             }
             other => {
                 return Err(Error::Validation(format!("无效的配送方式: {other}")));
@@ -2081,6 +2110,120 @@ impl OrderAdminService {
         Ok(out)
     }
 
+    /// 创建快递鸟 1007 电子面单。
+    ///
+    /// 返回 `(OrderCode, LogisticCode, PrintTemplate)`；失败直接返回业务错误。
+    async fn create_kdn_waybill(
+        &self,
+        order: &tigshop_core::entities::Order,
+        logistics_id: i32,
+        remark: Option<&str>,
+        items: &[tigshop_core::entities::OrderItem],
+    ) -> Result<(String, String, Option<String>)> {
+        let company = self
+            .repos
+            .logistics
+            .logistics_company
+            .find_by_id(logistics_id)
+            .await?
+            .ok_or_else(|| Error::biz_msg("物流公司不存在"))?;
+        let exp_type = company
+            .exp_type
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| {
+                Error::biz_msg(format!(
+                    "物流公司[{}]未配置快递类型(ExpType)，请在后台物流公司管理中完善后再发货",
+                    company.logistics_name
+                ))
+            })?
+            .to_string();
+        let client = crate::logistics::kdniao::KdniaoClient::from_repos(&self.repos).await?;
+        let cfg = self
+            .repos
+            .system
+            .config_basic
+            .find_by_codes(&[
+                "sender",
+                "mobile",
+                "provinceName",
+                "cityName",
+                "areaName",
+                "address",
+            ])
+            .await?
+            .into_iter()
+            .collect::<std::collections::HashMap<_, _>>();
+        let get = |key: &str| cfg.get(key).cloned().unwrap_or_default();
+        let region_names: Vec<String> =
+            serde_json::from_str(&order.region_names).unwrap_or_default();
+        let receiver = crate::logistics::kdniao::KdniaoAddress {
+            name: order.consignee.clone(),
+            mobile: order.mobile.clone(),
+            province_name: region_names.first().cloned().unwrap_or_default(),
+            city_name: region_names.get(1).cloned().unwrap_or_default(),
+            exp_area_name: region_names.get(2).cloned().unwrap_or_default(),
+            address: order.address.clone(),
+            post_code: None,
+        };
+        let sender = crate::logistics::kdniao::KdniaoAddress {
+            name: get("sender"),
+            mobile: get("mobile"),
+            province_name: get("provinceName"),
+            city_name: get("cityName"),
+            exp_area_name: get("areaName"),
+            address: get("address"),
+            post_code: Some("000000".to_string()),
+        };
+        let now = chrono::Local::now();
+        let request = crate::logistics::kdniao::KdniaoWaybillRequest {
+            order_code: format!(
+                "{}{}{}",
+                order.order_sn,
+                order.order_id,
+                100 + (utils::now_millis() % 900)
+            ),
+            shipper_code: company.logistics_code.clone(),
+            pay_type: 3,
+            exp_type,
+            receiver,
+            sender,
+            quantity: 1,
+            weight: 1.0,
+            volume: 1.0,
+            remark: remark.map(ToString::to_string),
+            commodity: vec![serde_json::json!({ "GoodsName": "电商产品" })],
+            customer_name: company.customer_name.clone(),
+            customer_pwd: company.customer_pwd.clone(),
+            send_site: company.send_site.clone(),
+            send_staff: company.send_staff.clone(),
+            month_code: company.month_code.clone(),
+            is_notice: 0,
+            start_date: (now + chrono::Duration::hours(1))
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string(),
+            end_date: (now + chrono::Duration::hours(3))
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string(),
+            currency_code: "CNY".to_string(),
+            is_return_print_template: 1,
+        };
+        let result = client.create_waybill(&request).await?;
+        let order_code = result.order_code.unwrap_or(request.order_code);
+        let logistic_code = result
+            .logistic_code
+            .ok_or_else(|| Error::biz_msg("快递鸟电子面单未返回运单号"))?;
+        tracing::info!(
+            "快递鸟电子面单创建成功: order_id={}, logistics={}, tracking_no={}, items={}",
+            order.order_id,
+            company.logistics_name,
+            logistic_code,
+            items.len()
+        );
+        Ok((order_code, logistic_code, result.print_template))
+    }
+
     /// 批量操作（`POST /order/order/batch`）：仅支持 `type = "deliver"`。
     pub async fn batch_operation(
         &self,
@@ -2408,6 +2551,67 @@ impl OrderAdminService {
         {
             return Ok(None);
         }
+
+        // 当前激活服务商为快递鸟时，实时查询 1002 轨迹。
+        let provider = crate::logistics::logistics_company::LogisticsCompanyService::new(
+            self.repos.clone(),
+        )
+        .resolve_active_provider_type()
+        .await?;
+        if provider == tigshop_core::models::logistics::logistics_company::PROVIDER_KDNIAO {
+            if let Some((company_code, _)) = self
+                .repos
+                .trade
+                .order_admin
+                .find_company_code_name(order.logistics_id)
+                .await?
+            {
+                if let Ok(client) =
+                    crate::logistics::kdniao::KdniaoClient::from_repos(&self.repos).await
+                {
+                    let customer_name = Self::kdn_customer_name(&company_code, &order.mobile);
+                    match client
+                        .query_track(&company_code, &order.tracking_no, customer_name.as_deref())
+                        .await
+                    {
+                        Ok(r) if r.success => {
+                            return Ok(Some(ShippingInfoVO {
+                                e_business_id: None,
+                                shipper_code: r.shipper_code.or(Some(company_code)),
+                                logistic_code: r.logistic_code.or(Some(order.tracking_no.clone())),
+                                state: r.state,
+                                state_ex: r.state_ex,
+                                location: r.location,
+                                traces: r
+                                    .traces
+                                    .into_iter()
+                                    .map(|t| ShippingTraceVO {
+                                        action: None,
+                                        accept_time: t.accept_time,
+                                        accept_station: t.accept_station,
+                                        location: t.location,
+                                    })
+                                    .collect(),
+                                success: Some("true".to_string()),
+                            }));
+                        }
+                        Ok(r) => {
+                            tracing::warn!(
+                                order_id = id,
+                                reason = r.reason.as_deref().unwrap_or(""),
+                                "快递鸟轨迹查询失败，按 Java 语义返回 null"
+                            );
+                            return Ok(None);
+                        }
+                        Err(e) => {
+                            tracing::warn!(order_id = id, "快递鸟轨迹查询异常: {e}");
+                            return Ok(None);
+                        }
+                    }
+                }
+            }
+        }
+
         Ok(Some(ShippingInfoVO {
             e_business_id: None,
             shipper_code: Some(order.logistics_name.clone()),
@@ -2418,6 +2622,15 @@ impl OrderAdminService {
             traces: Vec::new(),
             success: Some("0".to_string()),
         }))
+    }
+
+    /// 快递鸟 SF/KYSY/ZTO 查询所需的手机号后四位。
+    fn kdn_customer_name(company_code: &str, mobile: &str) -> Option<String> {
+        let code = company_code.to_ascii_uppercase();
+        if !matches!(code.as_str(), "SF" | "KYSY" | "ZTO") || mobile.len() < 4 {
+            return None;
+        }
+        Some(mobile[mobile.len() - 4..].to_string())
     }
 
     /// 订单列表页配置（`GET /order/order/getOrderPageConfig`）。

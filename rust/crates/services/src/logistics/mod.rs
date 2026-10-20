@@ -1,5 +1,6 @@
 //! logistics 领域服务。
 
+pub mod kdniao;
 pub mod logistics_company;
 pub mod logistics_company_config;
 pub mod print;

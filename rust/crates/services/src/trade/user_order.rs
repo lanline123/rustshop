@@ -239,6 +239,69 @@ impl UserOrderService {
         if !repo.logistics_company_exists(order.logistics_id).await? {
             return Ok(None);
         }
+
+        // 快递鸟激活时实时查询 1002；与 Java 一致，失败/未配置返回 null。
+        let provider = crate::logistics::logistics_company::LogisticsCompanyService::new(
+            self.repos.clone(),
+        )
+        .resolve_active_provider_type()
+        .await?;
+        if provider == tigshop_core::models::logistics::logistics_company::PROVIDER_KDNIAO {
+            if let Some((company_code, _)) = self
+                .repos
+                .trade
+                .order_admin
+                .find_company_code_name(order.logistics_id)
+                .await?
+            {
+                if let Ok(client) =
+                    crate::logistics::kdniao::KdniaoClient::from_repos(&self.repos).await
+                {
+                    let full = self.repos.trade.order_admin.find_order(id).await?;
+                    let mobile = full.as_ref().map(|o| o.mobile.as_str()).unwrap_or("");
+                    let customer_name = kdn_customer_name(&company_code, mobile);
+                    match client
+                        .query_track(&company_code, &order.tracking_no, customer_name.as_deref())
+                        .await
+                    {
+                        Ok(r) if r.success => {
+                            return Ok(Some(ShippingResult {
+                                e_business_id: None,
+                                shipper_code: r.shipper_code.or(Some(company_code)),
+                                logistic_code: r.logistic_code.or(Some(order.tracking_no.clone())),
+                                state: r.state,
+                                state_ex: r.state_ex,
+                                location: r.location,
+                                traces: r
+                                    .traces
+                                    .into_iter()
+                                    .map(|t| ShippingTraceVO {
+                                        action: None,
+                                        accept_time: t.accept_time,
+                                        accept_station: t.accept_station,
+                                        location: t.location,
+                                    })
+                                    .collect(),
+                                success: Some("true".to_string()),
+                            }));
+                        }
+                        Ok(r) => {
+                            tracing::warn!(
+                                order_id = id,
+                                reason = r.reason.as_deref().unwrap_or(""),
+                                "快递鸟轨迹查询失败"
+                            );
+                            return Ok(None);
+                        }
+                        Err(e) => {
+                            tracing::warn!(order_id = id, "快递鸟轨迹查询异常: {e}");
+                            return Ok(None);
+                        }
+                    }
+                }
+            }
+        }
+
         let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
         Ok(Some(ShippingResult {
             e_business_id: None,
@@ -308,6 +371,15 @@ impl UserOrderService {
 
 fn now_i32() -> i32 {
     i32::try_from(now_seconds()).unwrap_or(i32::MAX)
+}
+
+/// 快递鸟 SF/KYSY/ZTO 查询所需的手机号后四位。
+fn kdn_customer_name(company_code: &str, mobile: &str) -> Option<String> {
+    let code = company_code.to_ascii_uppercase();
+    if !matches!(code.as_str(), "SF" | "KYSY" | "ZTO") || mobile.len() < 4 {
+        return None;
+    }
+    Some(mobile[mobile.len() - 4..].to_string())
 }
 
 #[cfg(test)]

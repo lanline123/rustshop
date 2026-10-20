@@ -297,6 +297,21 @@ impl OrderAdminRepository {
         Ok(row.map(|r| r.0))
     }
 
+    /// 物流公司编码 + 名称（快递鸟查询需要 `logistics_code`）。
+    pub async fn find_company_code_name(
+        &self,
+        logistics_id: i32,
+    ) -> Result<Option<(String, String)>> {
+        let row: Option<(String, String)> = sqlx::query_as(
+            "SELECT logistics_code, logistics_name FROM logistics_company WHERE logistics_id = ? LIMIT 1",
+        )
+        .bind(logistics_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row)
+    }
+
     /// 按物流公司名称精确匹配 ID（批量发货导入：Java `eq(logisticsName).last("LIMIT 1")`）。
     pub async fn find_logistics_company_id_by_name(&self, name: &str) -> Result<Option<i32>> {
         let row: Option<(i32,)> = sqlx::query_as(
@@ -790,6 +805,33 @@ impl OrderAdminRepository {
         .fetch_optional(&self.pool)
         .await
         .map_err(map_err)
+    }
+
+    /// 写入电子面单日志（Java `logisticsApiLogMapper.insert`）。
+    pub async fn insert_logistics_api_log(
+        &self,
+        order_id: i32,
+        provider_type: i32,
+        order_code: &str,
+        logistic_code: &str,
+        print_template: &str,
+        add_time: i32,
+    ) -> Result<u64> {
+        let res = sqlx::query(
+            "INSERT INTO logistics_api_log \
+             (order_id, provider_type, order_code, logistic_code, add_time, print_template) \
+             VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind(order_id)
+        .bind(provider_type)
+        .bind(order_code)
+        .bind(logistic_code)
+        .bind(add_time)
+        .bind(print_template)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(res.last_insert_id())
     }
 
     /// 批量取订单支付方式（`paylog.pay_code`，导出用）。
