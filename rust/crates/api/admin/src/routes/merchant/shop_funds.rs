@@ -28,7 +28,7 @@
 use axum::{
     extract::{Query, State},
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use serde::Deserialize;
 use tigshop_core::models::merchant::shop_funds::{
@@ -36,7 +36,7 @@ use tigshop_core::models::merchant::shop_funds::{
     UpdateFieldDTO,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AppError, TenantContext};
 
 use crate::AdminState;
 
@@ -91,6 +91,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
             "/merchant/shopAccount/applyShopAgreement",
             get(apply_shop_agreement),
         )
+        .layer(axum::middleware::from_fn(require_platform_mw))
 }
 
 /// 本域已实现路由（覆盖率统计）。
@@ -109,6 +110,18 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 #[serde(rename_all = "camelCase")]
 struct IdQuery {
     id: Option<i32>,
+}
+
+/// 平台级接口：店铺/供应商账号一律 403（顺序：认证中间件先注入 TenantContext）。
+async fn require_platform_mw(
+    Extension(tenant): Extension<TenantContext>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Result<axum::response::Response, AppError> {
+    if tenant.is_shop_account() || tenant.is_vendor_account() {
+        return Err(tigshop_core::Error::Forbidden("平台账号才可访问该接口".into()).into());
+    }
+    Ok(next.run(req).await)
 }
 
 async fn list(

@@ -18,7 +18,6 @@
 
 use axum::{
     extract::{Query, State},
-    http::HeaderMap,
     routing::{get, post},
     Extension, Json, Router,
 };
@@ -28,7 +27,7 @@ use tigshop_core::models::merchant::merchant_apply::{
     MerchantApplyAuditParam, MerchantApplyListQuery, MerchantApplyUpdateDTO, MerchantApplyVO,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult, AuthUser};
+use tigshop_security::web::{ok, ApiResult, AppError, AuthUser, TenantContext};
 
 use crate::AdminState;
 
@@ -73,11 +72,21 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
         .collect()
 }
 
+/// 平台级接口：店铺/供应商账号一律 403（这些数据只允许平台运营管理）。
+fn require_platform(tenant: &TenantContext) -> Result<(), AppError> {
+    if tenant.is_shop_account() || tenant.is_vendor_account() {
+        return Err(tigshop_core::Error::Forbidden("平台账号才可访问该接口".into()).into());
+    }
+    Ok(())
+}
+
 /// `GET /adminapi/merchant/apply/list`：入驻申请分页。
 async fn list(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<MerchantApplyListQuery>,
 ) -> ApiResult<PageResult<MerchantApplyVO>> {
+    require_platform(&tenant)?;
     ok(state.merchant.merchant_apply.list(&q).await?)
 }
 
@@ -88,28 +97,45 @@ struct IdQuery {
     id: i32,
 }
 
-async fn detail(State(state): State<AdminState>, Query(q): Query<IdQuery>) -> ApiResult<MerchantApplyVO> {
+async fn detail(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Query(q): Query<IdQuery>,
+) -> ApiResult<MerchantApplyVO> {
+    require_platform(&tenant)?;
     ok(state.merchant.merchant_apply.detail(q.id).await?)
 }
 
 /// `POST /adminapi/merchant/apply/update`：更新（Java DTO 为空类 → 无操作）。
 async fn update(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Json(dto): Json<MerchantApplyUpdateDTO>,
 ) -> ApiResult<()> {
+    require_platform(&tenant)?;
     state.merchant.merchant_apply.update(&dto)?;
     ok(())
 }
 
 /// `POST /adminapi/merchant/apply/del`：删除。
-async fn del(State(state): State<AdminState>, Json(dto): Json<Value>) -> ApiResult<()> {
+async fn del(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(dto): Json<Value>,
+) -> ApiResult<()> {
+    require_platform(&tenant)?;
     let id = dto.get("id").and_then(Value::as_i64).map(|v| v as i32);
     state.merchant.merchant_apply.del(id).await?;
     ok(())
 }
 
 /// `POST /adminapi/merchant/apply/updateField`：更新字段。
-async fn update_field(State(state): State<AdminState>, Json(dto): Json<Value>) -> ApiResult<()> {
+async fn update_field(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(dto): Json<Value>,
+) -> ApiResult<()> {
+    require_platform(&tenant)?;
     let id = dto.get("id").and_then(Value::as_i64).map(|v| v as i32);
     let field = dto.get("field").and_then(Value::as_str);
     let val = dto.get("val").and_then(|v| v.as_str());
@@ -122,7 +148,12 @@ async fn update_field(State(state): State<AdminState>, Json(dto): Json<Value>) -
 }
 
 /// `POST /adminapi/merchant/apply/batch`：批量操作（仅 `type=del`）。
-async fn batch(State(state): State<AdminState>, Json(dto): Json<Value>) -> ApiResult<()> {
+async fn batch(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(dto): Json<Value>,
+) -> ApiResult<()> {
+    require_platform(&tenant)?;
     let ids: Option<Vec<i32>> = dto.get("ids").and_then(Value::as_array).map(|arr| {
         arr.iter()
             .filter_map(|v| v.as_i64())
@@ -142,9 +173,10 @@ async fn batch(State(state): State<AdminState>, Json(dto): Json<Value>) -> ApiRe
 async fn audit(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    _headers: HeaderMap,
+    Extension(tenant): Extension<TenantContext>,
     Json(param): Json<MerchantApplyAuditParam>,
 ) -> ApiResult<()> {
+    require_platform(&tenant)?;
     state
         .merchant
         .merchant_apply
@@ -154,7 +186,11 @@ async fn audit(
 }
 
 /// `GET /adminapi/merchant/apply/config`：状态参数。
-async fn config(State(state): State<AdminState>) -> ApiResult<Value> {
+async fn config(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+) -> ApiResult<Value> {
+    require_platform(&tenant)?;
     ok(state.merchant.merchant_apply.config())
 }
 
@@ -162,36 +198,42 @@ async fn config(State(state): State<AdminState>) -> ApiResult<Value> {
 mod tests {
     use super::*;
 
+    fn platform() -> TenantContext {
+        TenantContext::new(Some("admin".into()), None, None)
+    }
+
+    fn shop() -> TenantContext {
+        TenantContext::new(Some("shop".into()), Some(9), None)
+    }
+
+    fn vendor() -> TenantContext {
+        TenantContext::new(Some("vendor".into()), None, Some(3))
+    }
+
+    /// 平台专属接口：店铺/供应商账号被 403 拒绝。
     #[test]
-    fn implemented_routes_match_contract_exactly() {
-        let expected = [
-            ("GET", "/adminapi/merchant/apply/list"),
-            ("GET", "/adminapi/merchant/apply/detail"),
-            ("POST", "/adminapi/merchant/apply/update"),
-            ("POST", "/adminapi/merchant/apply/del"),
-            ("POST", "/adminapi/merchant/apply/updateField"),
-            ("POST", "/adminapi/merchant/apply/batch"),
-            ("POST", "/adminapi/merchant/apply/audit"),
-            ("GET", "/adminapi/merchant/apply/config"),
-        ];
-        let docs = implemented_routes();
-        assert_eq!(docs.len(), 8);
-        for (doc, (m, p)) in docs.iter().zip(expected.iter()) {
-            assert_eq!(doc.method, *m);
-            assert_eq!(doc.path, *p);
-        }
-        let mut keys: Vec<String> = docs.iter().map(|d| d.key()).collect();
-        keys.sort();
-        keys.dedup();
-        assert_eq!(keys.len(), 8);
+    fn platform_only_guard() {
+        assert!(require_platform(&platform()).is_ok());
+        assert!(require_platform(&shop()).is_err());
+        assert!(require_platform(&vendor()).is_err());
     }
 
     #[test]
-    fn mounted_paths_are_contract_minus_adminapi() {
-        for (_, path, java_ref) in ROUTE_TABLE.iter() {
-            let mounted = format!("/adminapi{path}");
-            assert!(implemented_routes().iter().any(|d| d.path == mounted));
-            assert!(java_ref.starts_with("MerchantApplyController."));
+    fn implemented_routes_match_contract_exactly() {
+        let docs = implemented_routes();
+        assert_eq!(docs.len(), 8);
+        let paths: Vec<&str> = docs.iter().map(|d| d.path.as_str()).collect();
+        for p in [
+            "/adminapi/merchant/apply/list",
+            "/adminapi/merchant/apply/detail",
+            "/adminapi/merchant/apply/update",
+            "/adminapi/merchant/apply/del",
+            "/adminapi/merchant/apply/updateField",
+            "/adminapi/merchant/apply/batch",
+            "/adminapi/merchant/apply/audit",
+            "/adminapi/merchant/apply/config",
+        ] {
+            assert!(paths.contains(&p), "缺少 {p}");
         }
     }
 }

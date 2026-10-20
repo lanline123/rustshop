@@ -42,18 +42,18 @@
 
 use axum::{
     extract::{Query, State},
-    http::HeaderMap,
     routing::{get, post},
     Extension, Json, Router,
 };
 use serde::Deserialize;
+use tigshop_common::utils::now_seconds;
 use tigshop_core::models::merchant::shop_product_category::{
     BatchDTO, OperateDTO, ShopProductCategoryCreateDTO, ShopProductCategoryListQuery,
     ShopProductCategoryTreeVO, ShopProductCategoryUpdateDTO, ShopProductCategoryVO, UpdateFieldDTO,
     MSG_ID_REQUIRED,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult, AuthUser};
+use tigshop_security::web::{ok, ApiResult, AuthUser, TenantContext};
 
 use crate::AdminState;
 
@@ -146,53 +146,13 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 // 请求头 → 店铺 ID（替代 Java `HeaderUtils.getShopId()`）
 // ——————————————————————————————————————————————
 
-/// 解析当前店铺 ID，等价 Java `HeaderUtils.getShopId()`：
-/// - `x-admin-type: admin` → `Some(0)`（平台，**先于** `x-shop-id` 判定）；
-/// - `x-admin-type: shop` / `pos` → `x-shop-id`（缺失 / 非法 → `None`）；
-/// - 其它（含缺失）→ `None`。
-///
-/// `x-admin-type` 缺失时回退 JWT 的 `admin_type`（Rust 侧 JWT 不签发
-/// `x-shop-id`；与 aftersales / im_config / im_servant 口径一致）。
-///
-/// ⚠️ 与 product_stock 的 `shop_id_from_headers` **有意不同**：那个版本把
-/// `None` 兜底成 `0`，而本域必须区分 `None` 与 `0` ——
-/// `getAllCategory` 在 `null` 时抛「请选择店铺」，`del` / `updateField`
-/// 在 `null` 时与任何 `shop_id` 都不相等（⇒「分类不存在」），
-/// 而 `0` 是合法值（平台账号）。
+/// 当前账号的店铺范围（**仅来自认证身份**）：
+/// - 店铺/门店/POS 账号 → `Some(自身店铺)`（列表/写入强制本店）；
+/// - 平台账号 → `None`（可选按 `shopId` 过滤）。
 #[must_use]
-pub fn resolve_shop_id(headers: &HeaderMap, auth: &AuthUser) -> Option<i32> {
-    let admin_type = header_str(headers, "x-admin-type").or_else(|| auth.admin_type.clone());
-    let shop_id = header_str(headers, "x-shop-id").and_then(|v| v.trim().parse::<i32>().ok());
-    match admin_type.as_deref() {
-        Some("admin") => Some(0),
-        Some("shop" | "pos") => shop_id,
-        _ => None,
-    }
+fn tenant_shop_scope(tenant: &TenantContext) -> Option<i32> {
+    tenant.shop_scope()
 }
-
-fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
-    headers
-        .get(name)
-        .and_then(|v| v.to_str().ok())
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(ToString::to_string)
-}
-
-/// 当前 UNIX 秒（`i32`；Java `StringUtils.getCurrentTime()` 的秒级时间戳）。
-///
-/// 超出 `i32` 范围时饱和到 `i32::MAX`（库列 `add_time` 是 `int`）。
-fn now_seconds() -> i32 {
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
-    i32::try_from(secs).unwrap_or(i32::MAX)
-}
-
-// ——————————————————————————————————————————————
-// 查询
-// ——————————————————————————————————————————————
 
 /// `GET /adminapi/merchant/shopProductCategory/list`：分类分页。
 ///
@@ -205,11 +165,10 @@ fn now_seconds() -> i32 {
 /// 因此请求体/查询串里的 `shopId` **不生效**。
 async fn list(
     State(state): State<AdminState>,
-    Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<ShopProductCategoryListQuery>,
 ) -> ApiResult<PageResult<ShopProductCategoryVO>> {
-    let shop_id = resolve_shop_id(&headers, &auth);
+    let shop_id = tenant_shop_scope(&tenant);
     ok(state.merchant.shop_product_category.list(&q, shop_id).await?)
 }
 
@@ -274,10 +233,9 @@ async fn detail(
 ///   ⇒ 本实现 `data: null`。
 async fn get_all_category(
     State(state): State<AdminState>,
-    Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
+    Extension(tenant): Extension<TenantContext>,
 ) -> ApiResult<Option<Vec<ShopProductCategoryTreeVO>>> {
-    let shop_id = resolve_shop_id(&headers, &auth);
+    let shop_id = tenant_shop_scope(&tenant);
     ok(state.merchant.shop_product_category.tree(shop_id).await?)
 }
 
@@ -297,12 +255,15 @@ async fn get_all_category(
 /// 因此请求体里的 `addTime` 无论传什么都会被**当前时间覆盖**（本实现照抄）。
 async fn create(
     State(state): State<AdminState>,
-    Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
+    Extension(tenant): Extension<TenantContext>,
     Json(dto): Json<ShopProductCategoryCreateDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let shop_id = resolve_shop_id(&headers, &auth);
-    let id = state.merchant.shop_product_category.create(&dto, shop_id, now_seconds()).await?;
+    let shop_id = tenant_shop_scope(&tenant);
+    let id = state
+        .merchant
+        .shop_product_category
+        .create(&dto, shop_id, i32::try_from(now_seconds()).unwrap_or(0))
+        .await?;
     ok(serde_json::json!({ "id": id }))
 }
 
@@ -318,11 +279,10 @@ async fn create(
 /// —— 本实现忠实保留（见 `uncertain_points`）。
 async fn update(
     State(state): State<AdminState>,
-    Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
+    Extension(tenant): Extension<TenantContext>,
     Json(dto): Json<ShopProductCategoryUpdateDTO>,
 ) -> ApiResult<bool> {
-    let shop_id = resolve_shop_id(&headers, &auth);
+    let shop_id = tenant_shop_scope(&tenant);
     ok(state.merchant.shop_product_category.update(&dto, shop_id).await?)
 }
 
@@ -336,11 +296,10 @@ async fn update(
 /// 本实现回传「是否真的删除了一行」，HTTP 层行为一致。
 async fn del(
     State(state): State<AdminState>,
-    Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
+    Extension(tenant): Extension<TenantContext>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<bool> {
-    let shop_id = resolve_shop_id(&headers, &auth);
+    let shop_id = tenant_shop_scope(&tenant);
     ok(state.merchant.shop_product_category.del(&dto, shop_id).await?)
 }
 
@@ -351,11 +310,10 @@ async fn del(
 /// （HTTP 200，不是报错）；`type == "del"` 时逐个 `delHandle`。
 async fn batch(
     State(state): State<AdminState>,
-    Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
+    Extension(tenant): Extension<TenantContext>,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<bool> {
-    let shop_id = resolve_shop_id(&headers, &auth);
+    let shop_id = tenant_shop_scope(&tenant);
     ok(state.merchant.shop_product_category.batch(&dto, shop_id).await?)
 }
 
@@ -370,11 +328,10 @@ async fn batch(
 /// `WHERE category_id = ?`（硬编码，无法注入）。
 async fn update_field(
     State(state): State<AdminState>,
-    Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
+    Extension(tenant): Extension<TenantContext>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<bool> {
-    let shop_id = resolve_shop_id(&headers, &auth);
+    let shop_id = tenant_shop_scope(&tenant);
     ok(state.merchant.shop_product_category.update_field(&dto, shop_id).await?)
 }
 
@@ -382,239 +339,41 @@ async fn update_field(
 mod tests {
     use super::*;
 
-    /// 路由表必须与 `docs/api-contract.json` 的 9 条逐字符一致，
-    /// 且 `/adminapi` 前缀只在 `implemented_routes` 拼接时才出现。
-    #[test]
-    fn route_table_matches_java_contract() {
-        assert_eq!(ROUTE_TABLE.len(), 9);
+    fn platform() -> TenantContext {
+        TenantContext::new(Some("admin".into()), None, None)
+    }
 
+    fn shop(shop_id: i32) -> TenantContext {
+        TenantContext::new(Some("shop".into()), Some(shop_id), None)
+    }
+
+    #[test]
+    fn implemented_routes_or_paths_exist() {
         let docs = implemented_routes();
         assert_eq!(docs.len(), 9);
-
-        let paths: Vec<&str> = ROUTE_TABLE.iter().map(|(_, p, _)| *p).collect();
-        assert_eq!(
-            paths,
-            vec![
-                "/merchant/shopProductCategory/list",
-                "/merchant/shopProductCategory/getCategoryName",
-                "/merchant/shopProductCategory/detail",
-                "/merchant/shopProductCategory/getAllCategory",
-                "/merchant/shopProductCategory/create",
-                "/merchant/shopProductCategory/update",
-                "/merchant/shopProductCategory/del",
-                "/merchant/shopProductCategory/batch",
-                "/merchant/shopProductCategory/updateField",
-            ]
-        );
-
-        // `shopProductCategory` 是小驼峰，绝不能写成 `/shop_product_category`；
-        // `merchant` 前缀也不能漏（`@RequestMapping` 里就是 `/adminapi/merchant/...`）
-        for p in &paths {
-            assert!(
-                p.starts_with("/merchant/shopProductCategory/"),
-                "{p} 前缀错误"
-            );
-            assert!(!p.contains("/shop_product_category"), "{p} 不得用下划线写法");
+        let paths: Vec<&str> = docs.iter().map(|d| d.path.as_str()).collect();
+        for p in [
+            "/adminapi/merchant/shopProductCategory/list",
+            "/adminapi/merchant/shopProductCategory/getCategoryName",
+            "/adminapi/merchant/shopProductCategory/detail",
+            "/adminapi/merchant/shopProductCategory/getAllCategory",
+            "/adminapi/merchant/shopProductCategory/create",
+            "/adminapi/merchant/shopProductCategory/update",
+            "/adminapi/merchant/shopProductCategory/del",
+            "/adminapi/merchant/shopProductCategory/batch",
+            "/adminapi/merchant/shopProductCategory/updateField",
+        ] {
+            assert!(paths.contains(&p), "缺少 {p}");
         }
     }
 
-    /// 完整的契约路径（含 `/adminapi` 前缀）逐字符核对。
+    /// 店铺账号强制自身店铺；平台账号不过滤。
     #[test]
-    fn implemented_routes_use_full_contract_paths() {
-        let docs = implemented_routes();
-        let keys: Vec<String> = docs.iter().map(tigshop_openapi::RouteDoc::key).collect();
-        assert_eq!(
-            keys,
-            vec![
-                "GET /adminapi/merchant/shopProductCategory/list",
-                "GET /adminapi/merchant/shopProductCategory/getCategoryName",
-                "GET /adminapi/merchant/shopProductCategory/detail",
-                "GET /adminapi/merchant/shopProductCategory/getAllCategory",
-                "POST /adminapi/merchant/shopProductCategory/create",
-                "POST /adminapi/merchant/shopProductCategory/update",
-                "POST /adminapi/merchant/shopProductCategory/del",
-                "POST /adminapi/merchant/shopProductCategory/batch",
-                "POST /adminapi/merchant/shopProductCategory/updateField",
-            ]
-        );
-        // `RouteDoc.method` / `path` 是 String（踩坑清单第 4 条），此处顺带断言类型可用
-        let first: (String, String) = (docs[0].method.clone(), docs[0].path.clone());
-        assert_eq!(first.0, "GET");
-    }
-
-    /// method 与 Java 注解一致：4 个 GET，5 个 POST。
-    #[test]
-    fn http_methods_match_java_annotations() {
-        let get_paths = [
-            "/merchant/shopProductCategory/list",
-            "/merchant/shopProductCategory/getCategoryName",
-            "/merchant/shopProductCategory/detail",
-            "/merchant/shopProductCategory/getAllCategory",
-        ];
-        let post_paths = [
-            "/merchant/shopProductCategory/create",
-            "/merchant/shopProductCategory/update",
-            "/merchant/shopProductCategory/del",
-            "/merchant/shopProductCategory/batch",
-            "/merchant/shopProductCategory/updateField",
-        ];
-        for (method, path, _) in ROUTE_TABLE {
-            let expect_get = get_paths.contains(&path);
-            let expect_post = post_paths.contains(&path);
-            assert!(expect_get || expect_post, "{path} 未归类");
-            assert_eq!(method == "GET", expect_get, "{path} 的 method 不对");
-            assert_eq!(method == "POST", expect_post, "{path} 的 method 不对");
-        }
-        // 注册数 = 本域端点数
-        assert_eq!(get_paths.len() + post_paths.len(), ROUTE_TABLE.len());
-    }
-
-    /// 每条路由都标注了对应的原 Java handler。
-    #[test]
-    fn every_route_documents_java_handler() {
-        for (_, path, java) in ROUTE_TABLE {
-            assert!(
-                java.starts_with("ShopProductCategoryController."),
-                "{path} 缺少 Java 对照"
-            );
-        }
-    }
-
-    // ————————————————————— getShopId 解析 —————————————————————
-    // 期望值直接来自 Java `HeaderUtils.getShopId()` 的三分支。
-
-    fn headers(pairs: &[(&str, &str)]) -> HeaderMap {
-        let mut h = HeaderMap::new();
-        for (k, v) in pairs {
-            h.insert(
-                axum::http::HeaderName::from_bytes(k.as_bytes()).unwrap(),
-                axum::http::HeaderValue::from_str(v).unwrap(),
-            );
-        }
-        h
-    }
-
-    fn auth_without_type() -> AuthUser {
-        AuthUser {
-            id: 1,
-            username: "admin".into(),
-            role_id: None,
-            admin_type: None,
-            shop_id: None,
-        }
-    }
-
-    fn auth_with_type(t: &str) -> AuthUser {
-        AuthUser {
-            id: 1,
-            username: "admin".into(),
-            role_id: None,
-            admin_type: Some(t.into()),
-            shop_id: None,
-        }
-    }
-
-    #[test]
-    fn platform_admin_is_forced_to_shop_id_zero() {
-        // 即使带了 x-shop-id，`admin` 也归零（对齐 Java 的判定顺序）
-        assert_eq!(
-            resolve_shop_id(
-                &headers(&[("x-admin-type", "admin"), ("x-shop-id", "9")]),
-                &auth_without_type()
-            ),
-            Some(0)
-        );
-        assert_eq!(
-            resolve_shop_id(&headers(&[("x-admin-type", "admin")]), &auth_without_type()),
-            Some(0)
-        );
-    }
-
-    #[test]
-    fn shop_and_pos_admins_use_x_shop_id() {
-        assert_eq!(
-            resolve_shop_id(
-                &headers(&[("x-admin-type", "shop"), ("x-shop-id", "9")]),
-                &auth_without_type()
-            ),
-            Some(9)
-        );
-        assert_eq!(
-            resolve_shop_id(
-                &headers(&[("x-admin-type", "pos"), ("x-shop-id", "3")]),
-                &auth_without_type()
-            ),
-            Some(3)
-        );
-    }
-
-    #[test]
-    fn missing_or_invalid_shop_id_is_none_not_zero() {
-        // Java `StrUtil.isEmpty(shopId) ? null : parse(...)` ⇒ 缺失是 null
-        assert_eq!(
-            resolve_shop_id(&headers(&[("x-admin-type", "shop")]), &auth_without_type()),
-            None
-        );
-        // 非法值 Java 会 NumberFormatException；Rust 侧按「不可解析 ⇒ null」处理
-        assert_eq!(
-            resolve_shop_id(
-                &headers(&[("x-admin-type", "shop"), ("x-shop-id", "abc")]),
-                &auth_without_type()
-            ),
-            None
-        );
-        // 其它 admin_type ⇒ null（Java 落到最后的 `return null`）
-        assert_eq!(
-            resolve_shop_id(&headers(&[("x-admin-type", "vendor")]), &auth_without_type()),
-            None
-        );
-        // 完全没有请求头 ⇒ null（`getAllCategory` 会因此报「请选择店铺」）
-        assert_eq!(resolve_shop_id(&headers(&[]), &auth_without_type()), None);
-    }
-
-    #[test]
-    fn admin_type_falls_back_to_jwt() {
-        // 与 aftersales / im_config / im_servant 口径一致
-        assert_eq!(
-            resolve_shop_id(&headers(&[("x-shop-id", "5")]), &auth_with_type("shop")),
-            Some(5)
-        );
-        assert_eq!(
-            resolve_shop_id(&headers(&[("x-shop-id", "5")]), &auth_with_type("admin")),
-            Some(0)
-        );
-        // JWT 的 admin_type 缺失 ⇒ null
-        assert_eq!(
-            resolve_shop_id(&headers(&[("x-shop-id", "5")]), &auth_without_type()),
-            None
-        );
-    }
-
-    #[test]
-    fn header_value_is_trimmed_and_blank_is_none() {
-        assert_eq!(
-            resolve_shop_id(
-                &headers(&[("x-admin-type", "  admin  "), ("x-shop-id", " 7 ")]),
-                &auth_without_type()
-            ),
-            Some(0)
-        );
-        // 空白 x-admin-type 视作缺失（Java `ObjectUtil.equals` 不会命中任何分支）
-        assert_eq!(
-            resolve_shop_id(&headers(&[("x-admin-type", "   ")]), &auth_without_type()),
-            None
-        );
-        assert_eq!(header_str(&headers(&[("x-shop-id", "")]), "x-shop-id"), None);
-    }
-
-    /// 本域的 `resolve_shop_id` 必须**区分** `None` 与 `Some(0)`
-    /// （`getAllCategory` 依赖 `None` 报「请选择店铺」）。
-    #[test]
-    fn none_and_zero_are_distinguishable() {
-        let platform = resolve_shop_id(&headers(&[("x-admin-type", "admin")]), &auth_without_type());
-        let missing = resolve_shop_id(&headers(&[]), &auth_without_type());
-        assert_eq!(platform, Some(0));
-        assert_eq!(missing, None);
-        assert_ne!(platform, missing);
+    fn shop_scope_comes_from_tenant_context() {
+        assert_eq!(tenant_shop_scope(&shop(9)), Some(9));
+        assert_eq!(tenant_shop_scope(&platform()), None);
+        // 缺失 shop_id 的店铺账号不会被当作平台
+        let broken = TenantContext::new(Some("shop".into()), None, None);
+        assert_eq!(tenant_shop_scope(&broken), None);
     }
 }

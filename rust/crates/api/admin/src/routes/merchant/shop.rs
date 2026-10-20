@@ -26,7 +26,7 @@ use tigshop_core::models::merchant::shop::{
     ShopAccountLogListQuery, ShopAccountLogVO, ShopListQuery, ShopUpdateDTO, ShopVO,
     ShopWithdrawAuditDTO, ShopWithdrawListQuery, ShopWithdrawVO,
 };
-use tigshop_core::types::PageResult;
+use tigshop_core::types::{PageQuery, PageResult};
 use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 
 use crate::AdminState;
@@ -95,8 +95,15 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 /// `GET /adminapi/merchant/shop/list`：店铺分页。
 async fn shop_list(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<ShopListQuery>,
 ) -> ApiResult<PageResult<ShopVO>> {
+    // 多租户：店铺账号只能看到自己店铺（返回单条分页）；平台可见全部。
+    if let Some(shop_id) = auth.scoped_shop_id() {
+        let vo = state.merchant.shop.detail(shop_id).await?;
+        let page = PageQuery { page: 1, page_size: 1 };
+        return ok(PageResult::new(1, vec![vo], &page));
+    }
     ok(state.merchant.shop.list(&q).await?)
 }
 

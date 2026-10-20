@@ -87,7 +87,7 @@ use tigshop_core::models::merchant::shop_manage::{
     VendorSettingUpdateParam, VendorSettingVO,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult, AuthUser};
+use tigshop_security::web::{ok, ApiResult, AppError, AuthUser, TenantContext};
 
 use crate::AdminState;
 
@@ -227,8 +227,13 @@ struct ShopIdQuery {
 #[allow(dead_code)] // 保留为店铺列表的权威实现，待 shop.rs 去重后启用
 async fn shop_list(
     State(state): State<AdminState>,
-    Query(q): Query<ShopListQuery>,
+    Extension(tenant): Extension<TenantContext>,
+    Query(mut q): Query<ShopListQuery>,
 ) -> ApiResult<PageResult<ShopVO>> {
+    // 多租户：店铺账号强制过滤自身店铺；平台可见全部（可选 shopId 过滤）。
+    if let Some(scope) = tenant_shop(&tenant) {
+        q.shop_id = Some(scope);
+    }
     ok(state.merchant.shop_manage.list(&q, q.shop_id).await?)
 }
 
@@ -241,12 +246,44 @@ async fn shop_list(
 #[allow(dead_code)]
 async fn shop_detail(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<ShopIdQuery>,
 ) -> ApiResult<ShopVO> {
+    let _ = target_shop(&tenant, q.shop_id)?;
     let shop_id = q
         .shop_id
         .ok_or_else(|| tigshop_core::Error::Validation("店铺ID不能为空".into()))?;
     ok(state.merchant.shop_manage.detail_with_score(shop_id).await?)
+}
+
+/// 当前账号的店铺范围（仅来自认证身份）。
+#[must_use]
+fn tenant_shop(tenant: &TenantContext) -> Option<i32> {
+    tenant.shop_scope()
+}
+
+/// 平台级接口：店铺/供应商账号一律 403。
+fn require_platform(tenant: &TenantContext) -> Result<(), AppError> {
+    if tenant.is_shop_account() || tenant.is_vendor_account() {
+        return Err(tigshop_core::Error::Forbidden("平台账号才可访问该接口".into()).into());
+    }
+    Ok(())
+}
+
+/// 解析目标店铺：店铺账号强制自身店铺（越权 → 403）；平台账号必须显式指定。
+fn target_shop(tenant: &TenantContext, requested: Option<i32>) -> Result<i32, AppError> {
+    match tenant.shop_scope() {
+        Some(scope) => match requested.filter(|v| *v > 0) {
+            Some(req) if req != scope => Err(tigshop_core::Error::Forbidden(format!(
+                "无权访问店铺 {req} 的数据"
+            ))
+            .into()),
+            _ => Ok(scope),
+        },
+        None => requested
+            .filter(|v| *v > 0)
+            .ok_or_else(|| tigshop_core::Error::Forbidden("平台账号必须指定店铺".into()).into()),
+    }
 }
 
 /// `GET /adminapi/merchant/shop/currentDetail?shopId=`：当前登录用户的店铺信息。
@@ -256,11 +293,10 @@ async fn shop_detail(
 async fn shop_current_detail(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<ShopIdQuery>,
 ) -> ApiResult<ShopVO> {
-    let shop_id = q
-        .shop_id
-        .ok_or_else(|| tigshop_core::Error::Validation("店铺ID不能为空".into()))?;
+    let shop_id = target_shop(&tenant, q.shop_id)?;
     ok(state.merchant.shop_manage.current_detail(shop_id, auth.id).await?)
 }
 
@@ -272,10 +308,17 @@ async fn shop_current_detail(
 async fn shop_create(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<ShopIdQuery>,
     Json(p): Json<ShopWritePayload>,
 ) -> ApiResult<serde_json::Value> {
-    let shop_id = state.merchant.shop_manage.create(&p, auth.id, q.shop_id).await?;
+    // 店铺账号只能在自身店铺下新建（越权 shopId → 403）；平台必须显式指定。
+    let scope = target_shop(&tenant, q.shop_id)?;
+    let shop_id = state
+        .merchant
+        .shop_manage
+        .create(&p, auth.id, Some(scope))
+        .await?;
     ok(serde_json::json!({ "shopId": shop_id }))
 }
 
@@ -288,8 +331,10 @@ async fn shop_create(
 #[allow(dead_code)]
 async fn shop_update(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Json(p): Json<ShopWritePayload>,
 ) -> ApiResult<&'static str> {
+    require_platform(&tenant)?;
     state.merchant.shop_manage.update(&p).await?;
     ok("修改成功")
 }
@@ -299,8 +344,10 @@ async fn shop_update(
 /// 对应 Java `ShopController.del(@RequestBody OperateDTO)`。
 async fn shop_del(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<&'static str> {
+    require_platform(&tenant)?;
     let id = dto
         .id
         .ok_or_else(|| tigshop_core::Error::Validation("ID不能为空".into()))?;
@@ -314,8 +361,10 @@ async fn shop_del(
 /// 白名单为 `CheckFieldConstants.GENERAL_FIELDS`。
 async fn shop_update_field(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<&'static str> {
+    require_platform(&tenant)?;
     state.merchant.shop_manage.update_field(&dto).await?;
     ok("修改成功")
 }
@@ -326,8 +375,10 @@ async fn shop_update_field(
 /// Java 返回 `void`；这里回传是否命中（`type` 非 `del` 由服务层报错）。
 async fn shop_batch(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<bool> {
+    require_platform(&tenant)?;
     ok(state.merchant.shop_manage.batch(&dto).await?)
 }
 
@@ -338,9 +389,14 @@ async fn shop_batch(
 async fn shop_my_shop(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<ShopListQuery>,
 ) -> ApiResult<serde_json::Value> {
-    ok(state.merchant.shop_manage.my_shop(&q, auth.id, q.shop_id).await?)
+    ok(state
+        .merchant
+        .shop_manage
+        .my_shop(&q, auth.id, tenant_shop(&tenant))
+        .await?)
 }
 
 /// `POST /adminapi/merchant/shop/setPosLoginDefault`：设置登录后默认进收银台。
@@ -350,8 +406,12 @@ async fn shop_my_shop(
 async fn shop_set_pos_login_default(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    Json(p): Json<PosLoginSettingPayload>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(mut p): Json<PosLoginSettingPayload>,
 ) -> ApiResult<&'static str> {
+    if let Some(scope) = tenant_shop(&tenant) {
+        p.shop_id = Some(scope);
+    }
     state.merchant.shop_manage.set_pos_login_default(&p, auth.id).await?;
     ok("设置成功")
 }
@@ -363,8 +423,12 @@ async fn shop_set_pos_login_default(
 async fn shop_record_login_system(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    Json(p): Json<PosLoginSettingPayload>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(mut p): Json<PosLoginSettingPayload>,
 ) -> ApiResult<&'static str> {
+    if let Some(scope) = tenant_shop(&tenant) {
+        p.shop_id = Some(scope);
+    }
     state.merchant.shop_manage.record_login_system(&p, auth.id).await?;
     ok("记录成功")
 }
@@ -396,8 +460,12 @@ async fn shop_choose(
 /// → `ShopServiceImpl#getShopList`。
 async fn shop_list_picker(
     State(state): State<AdminState>,
-    Query(q): Query<ShopListQuery>,
+    Extension(tenant): Extension<TenantContext>,
+    Query(mut q): Query<ShopListQuery>,
 ) -> ApiResult<Vec<serde_json::Value>> {
+    if let Some(scope) = tenant_shop(&tenant) {
+        q.shop_id = Some(scope);
+    }
     let shops = state.merchant.shop_manage.shop_list(&q).await?;
     ok(shops
         .iter()
@@ -418,11 +486,10 @@ async fn shop_list_picker(
 /// `?shopId=` 替代请求头 `x-shop-id`。
 async fn shop_staff_show(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<ShopIdQuery>,
 ) -> ApiResult<StaffShowVO> {
-    let shop_id = q
-        .shop_id
-        .ok_or_else(|| tigshop_core::Error::Validation("店铺ID不能为空".into()))?;
+    let shop_id = target_shop(&tenant, q.shop_id)?;
     ok(state.merchant.shop_manage.staff_show(shop_id).await?)
 }
 
@@ -441,10 +508,12 @@ async fn shop_staff_show(
 /// （见 `shop_entity_json`）。实体本身不得修改（自动生成）。
 async fn shop_update_info(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<ShopIdQuery>,
     Json(p): Json<ShopWritePayload>,
 ) -> ApiResult<serde_json::Value> {
-    let shop = state.merchant.shop_manage.update_info(&p, q.shop_id).await?;
+    let shop_id = target_shop(&tenant, q.shop_id)?;
+    let shop = state.merchant.shop_manage.update_info(&p, Some(shop_id)).await?;
     ok(shop_entity_json(&shop))
 }
 
@@ -478,10 +547,12 @@ fn shop_entity_json(s: &tigshop_core::entities::Shop) -> serde_json::Value {
 /// `?shopId=` 替代请求头 `x-shop-id`。
 async fn shop_setting(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<ShopIdQuery>,
     Json(p): Json<ShopSettingPayload>,
 ) -> ApiResult<&'static str> {
-    state.merchant.shop_manage.setting(&p, q.shop_id).await?;
+    let shop_id = target_shop(&tenant, q.shop_id)?;
+    state.merchant.shop_manage.setting(&p, Some(shop_id)).await?;
     ok("设置成功")
 }
 
@@ -491,11 +562,10 @@ async fn shop_setting(
 /// `?shopId=` 替代请求头 `x-shop-id`。
 async fn shop_get_vendor_setting(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<ShopIdQuery>,
 ) -> ApiResult<VendorSettingVO> {
-    let shop_id = q
-        .shop_id
-        .ok_or_else(|| tigshop_core::Error::Validation("店铺ID不能为空".into()))?;
+    let shop_id = target_shop(&tenant, q.shop_id)?;
     ok(state.merchant.shop_manage.get_vendor_setting(shop_id).await?)
 }
 
@@ -506,12 +576,11 @@ async fn shop_get_vendor_setting(
 /// `?shopId=` 替代请求头 `x-shop-id`。
 async fn shop_update_vendor_setting(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<ShopIdQuery>,
     Json(p): Json<VendorSettingUpdateParam>,
 ) -> ApiResult<&'static str> {
-    let shop_id = q
-        .shop_id
-        .ok_or_else(|| tigshop_core::Error::Validation("店铺ID不能为空".into()))?;
+    let shop_id = target_shop(&tenant, q.shop_id)?;
     state.merchant.shop_manage.update_vendor_setting(shop_id, &p).await?;
     ok("保存成功")
 }
@@ -543,7 +612,46 @@ async fn shop_store_list_by_product_id(
 /// → `ShopServiceImpl#delShop`（返回 `boolean`）。
 async fn shop_del_shop(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<bool> {
+    require_platform(&tenant)?;
     ok(state.merchant.shop_manage.del_shop(&dto).await?)
+}
+
+#[cfg(test)]
+mod tenant_tests {
+    use super::*;
+
+    fn platform() -> TenantContext {
+        TenantContext::new(Some("admin".into()), None, None)
+    }
+
+    fn shop(shop_id: i32) -> TenantContext {
+        TenantContext::new(Some("shop".into()), Some(shop_id), None)
+    }
+
+    fn vendor() -> TenantContext {
+        TenantContext::new(Some("vendor".into()), None, Some(3))
+    }
+
+    /// 店铺账号读/写目标强制自身店铺；越权 shopId → 403。
+    #[test]
+    fn target_shop_is_forced_for_shop_account() {
+        assert_eq!(target_shop(&shop(9), None).unwrap(), 9);
+        assert_eq!(target_shop(&shop(9), Some(9)).unwrap(), 9);
+        let err = target_shop(&shop(9), Some(8)).unwrap_err();
+        assert!(err.0.to_string().contains("无权访问店铺 8"));
+        // 平台必须显式指定
+        assert!(target_shop(&platform(), None).is_err());
+        assert_eq!(target_shop(&platform(), Some(3)).unwrap(), 3);
+    }
+
+    /// 平台专属写操作（del/updateField/batch/delShop）拒绝店铺/供应商账号。
+    #[test]
+    fn platform_only_writes() {
+        assert!(require_platform(&platform()).is_ok());
+        assert!(require_platform(&shop(9)).is_err());
+        assert!(require_platform(&vendor()).is_err());
+    }
 }

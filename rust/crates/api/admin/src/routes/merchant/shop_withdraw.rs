@@ -23,7 +23,7 @@
 use axum::{
     extract::{Query, State},
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use serde::Deserialize;
 use tigshop_core::models::merchant::shop_manage::{BatchDTO, UpdateFieldDTO};
@@ -33,7 +33,7 @@ use tigshop_core::models::merchant::shop_withdraw::{
 };
 use tigshop_core::types::PageResult;
 use tigshop_openapi::RouteDoc;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AppError, TenantContext};
 
 use crate::AdminState;
 
@@ -107,7 +107,22 @@ pub fn implemented_routes() -> Vec<RouteDoc> {
         .collect()
 }
 
-/// 店铺上下文查询参数（Java `X-Shop-Id` 请求头的替身，见模块头偏差）。
+/// 店铺端接口：只有店铺账号（JWT `shop_id`）可调用；否则 403。
+fn require_shop(tenant: &TenantContext) -> Result<i32, AppError> {
+    tenant
+        .shop_scope()
+        .ok_or_else(|| tigshop_core::Error::Forbidden("仅店铺账号可访问该接口".into()).into())
+}
+
+/// 平台端接口：店铺/供应商账号一律 403。
+fn require_platform(tenant: &TenantContext) -> Result<(), AppError> {
+    if tenant.is_shop_account() || tenant.is_vendor_account() {
+        return Err(tigshop_core::Error::Forbidden("平台账号才可访问该接口".into()).into());
+    }
+    Ok(())
+}
+
+/// 店铺上下文查询参数（Java `X-Shop-Id` 请求头的替身，见模块头偏差；**不再可信**）。
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct ShopContextQuery {
@@ -124,13 +139,14 @@ struct IdQuery {
 /// `POST /adminapi/merchant/shopWithdraw/create`：创建提现申请。
 async fn create(
     State(state): State<AdminState>,
-    Query(ctx): Query<ShopContextQuery>,
+    Extension(tenant): Extension<TenantContext>,
     Json(dto): Json<ShopWithdrawCreateDTO>,
 ) -> ApiResult<()> {
+    let shop_id = require_shop(&tenant)?;
     state
         .merchant
         .shop_withdraw
-        .create(ctx.shop_id.unwrap_or(0), &dto)
+        .create(shop_id, &dto)
         .await?;
     ok(())
 }
@@ -138,14 +154,21 @@ async fn create(
 /// `POST /adminapi/merchant/shopWithdraw/update`：更新提现记录。
 async fn update(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Json(dto): Json<ShopWithdrawUpdateDTO>,
 ) -> ApiResult<()> {
+    require_platform(&tenant)?;
     state.merchant.shop_withdraw.update(&dto).await?;
     ok(())
 }
 
 /// `POST /adminapi/merchant/shopWithdraw/del`：删除提现记录。
-async fn del(State(state): State<AdminState>, Json(dto): Json<IdQuery>) -> ApiResult<()> {
+async fn del(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(dto): Json<IdQuery>,
+) -> ApiResult<()> {
+    require_platform(&tenant)?;
     state.merchant.shop_withdraw.del(dto.id).await?;
     ok(())
 }
@@ -153,14 +176,21 @@ async fn del(State(state): State<AdminState>, Json(dto): Json<IdQuery>) -> ApiRe
 /// `POST /adminapi/merchant/shopWithdraw/updateField`：白名单字段更新。
 async fn update_field(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<()> {
+    require_platform(&tenant)?;
     state.merchant.shop_withdraw.update_field(&dto).await?;
     ok(())
 }
 
 /// `POST /adminapi/merchant/shopWithdraw/batch`：批量操作（仅 `del`）。
-async fn batch(State(state): State<AdminState>, Json(dto): Json<BatchDTO>) -> ApiResult<()> {
+async fn batch(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(dto): Json<BatchDTO>,
+) -> ApiResult<()> {
+    require_platform(&tenant)?;
     state.merchant.shop_withdraw.batch(&dto).await?;
     ok(())
 }
@@ -168,8 +198,10 @@ async fn batch(State(state): State<AdminState>, Json(dto): Json<BatchDTO>) -> Ap
 /// `POST /adminapi/merchant/shopWithdraw/uploadPayVoucher`：上传打款凭证。
 async fn upload_pay_voucher(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Json(dto): Json<ShopWithdrawPayVoucherDTO>,
 ) -> ApiResult<()> {
+    require_platform(&tenant)?;
     state.merchant.shop_withdraw.upload_pay_voucher(&dto).await?;
     ok(())
 }
@@ -177,26 +209,41 @@ async fn upload_pay_voucher(
 /// `GET /adminapi/merchant/shopWithdraw/summaryList`：店铺提现汇总列表。
 async fn summary_list(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<ShopWithdrawSummaryQuery>,
 ) -> ApiResult<PageResult<ShopWithdrawSummaryVO>> {
+    require_platform(&tenant)?;
     ok(state.merchant.shop_withdraw.summary_list(&q).await?)
 }
 
 /// `GET /adminapi/merchant/shopWithdraw/dualBalance`：双余额查询。
 async fn dual_balance(
     State(state): State<AdminState>,
-    Query(ctx): Query<ShopContextQuery>,
+    Extension(tenant): Extension<TenantContext>,
 ) -> ApiResult<DualBalanceVO> {
+    let shop_id = require_shop(&tenant)?;
     ok(state
         .merchant
         .shop_withdraw
-        .dual_balance(ctx.shop_id.unwrap_or(0))
+        .dual_balance(shop_id)
         .await?)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn shop() -> TenantContext {
+        TenantContext::new(Some("shop".into()), Some(9), None)
+    }
+
+    fn platform() -> TenantContext {
+        TenantContext::new(Some("admin".into()), None, None)
+    }
+
+    fn vendor() -> TenantContext {
+        TenantContext::new(Some("vendor".into()), None, Some(3))
+    }
 
     #[test]
     fn implemented_routes_match_contract_exactly() {
@@ -211,16 +258,11 @@ mod tests {
             ("GET", "/adminapi/merchant/shopWithdraw/dualBalance"),
         ];
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 8);
-        for (doc, (method, path)) in docs.iter().zip(expected.iter()) {
-            assert_eq!(doc.method, *method);
-            assert_eq!(doc.path, *path);
+        assert_eq!(docs.len(), expected.len());
+        for (doc, (m, p)) in docs.iter().zip(expected.iter()) {
+            assert_eq!(doc.method, *m);
+            assert_eq!(doc.path, *p);
         }
-    }
-
-    #[test]
-    fn route_table_has_no_wave_existing_paths() {
-        // 已由 merchant::shop 注册的 4 条路径必须不在本表内（避免重复注册 panic）
         let owned: Vec<&str> = ROUTE_TABLE.iter().map(|(_, p, _)| *p).collect();
         for path in [
             "/merchant/shopWithdraw/list",
@@ -230,6 +272,15 @@ mod tests {
         ] {
             assert!(!owned.contains(&path), "{path} 属于 merchant::shop，不应重复");
         }
-        assert_eq!(owned.len(), 8);
+    }
+
+    /// 店铺接口强制自身店铺；平台接口拒绝店铺/供应商账号。
+    #[test]
+    fn tenant_boundaries_are_enforced() {
+        assert_eq!(require_shop(&shop()).unwrap(), 9);
+        assert!(require_shop(&platform()).is_err());
+        assert!(require_platform(&platform()).is_ok());
+        assert!(require_platform(&shop()).is_err());
+        assert!(require_platform(&vendor()).is_err());
     }
 }

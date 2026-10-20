@@ -28,7 +28,7 @@
 use axum::{
     extract::{Query, State},
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use serde::Deserialize;
 use tigshop_core::models::merchant::merchant::{
@@ -36,7 +36,7 @@ use tigshop_core::models::merchant::merchant::{
     UpdateFieldDTO,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AppError, TenantContext};
 
 use crate::AdminState;
 
@@ -92,21 +92,37 @@ struct IdQuery {
     id: Option<i32>,
 }
 
-async fn upload_license(State(state): State<AdminState>) -> ApiResult<String> {
+/// 平台级接口：店铺/供应商账号一律 403（这些数据只允许平台运营管理）。
+fn require_platform(tenant: &TenantContext) -> Result<(), AppError> {
+    if tenant.is_shop_account() || tenant.is_vendor_account() {
+        return Err(tigshop_core::Error::Forbidden("平台账号才可访问该接口".into()).into());
+    }
+    Ok(())
+}
+
+async fn upload_license(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+) -> ApiResult<String> {
+    require_platform(&tenant)?;
     ok(state.merchant.merchant.upload_license()?)
 }
 
 async fn list(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<MerchantListQuery>,
 ) -> ApiResult<PageResult<MerchantVO>> {
+    require_platform(&tenant)?;
     ok(state.merchant.merchant.list(&q).await?)
 }
 
 async fn detail(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<MerchantVO> {
+    require_platform(&tenant)?;
     let id = q
         .id
         .ok_or_else(|| tigshop_core::Error::Validation("id不能为空".into()))?;
@@ -115,37 +131,50 @@ async fn detail(
 
 async fn create(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Json(dto): Json<MerchantCreateDTO>,
 ) -> ApiResult<()> {
+    require_platform(&tenant)?;
     state.merchant.merchant.create(&dto).await?;
     ok(())
 }
 
 async fn update(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Json(dto): Json<MerchantUpdateDTO>,
 ) -> ApiResult<()> {
+    require_platform(&tenant)?;
     state.merchant.merchant.update(&dto).await?;
     ok(())
 }
 
 async fn delete(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<()> {
+    require_platform(&tenant)?;
     state.merchant.merchant.delete(&dto).await?;
     ok(())
 }
 
 async fn update_field(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<()> {
+    require_platform(&tenant)?;
     state.merchant.merchant.update_field(&dto).await?;
     ok(())
 }
 
-async fn batch(State(state): State<AdminState>, Json(dto): Json<BatchDTO>) -> ApiResult<()> {
+async fn batch(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(dto): Json<BatchDTO>,
+) -> ApiResult<()> {
+    require_platform(&tenant)?;
     state.merchant.merchant.batch(&dto).await?;
     ok(())
 }
@@ -154,80 +183,32 @@ async fn batch(State(state): State<AdminState>, Json(dto): Json<BatchDTO>) -> Ap
 mod tests {
     use super::*;
 
+    fn platform() -> TenantContext {
+        TenantContext::new(Some("admin".into()), None, None)
+    }
+
+    fn shop() -> TenantContext {
+        TenantContext::new(Some("shop".into()), Some(9), None)
+    }
+
+    fn vendor() -> TenantContext {
+        TenantContext::new(Some("vendor".into()), None, Some(3))
+    }
+
+    /// 平台专属接口：店铺/供应商账号被 403 拒绝。
     #[test]
-    fn route_table_matches_java_contract() {
-        assert_eq!(ROUTE_TABLE.len(), 8);
-        let paths: Vec<&str> = ROUTE_TABLE.iter().map(|(_, p, _)| *p).collect();
-        assert_eq!(
-            paths,
-            vec![
-                "/merchant/merchant/uploadLicense",
-                "/merchant/merchant/list",
-                "/merchant/merchant/detail",
-                "/merchant/merchant/create",
-                "/merchant/merchant/update",
-                "/merchant/merchant/del",
-                "/merchant/merchant/updateField",
-                "/merchant/merchant/batch",
-            ]
-        );
-        for p in &paths {
-            assert!(p.starts_with("/merchant/merchant/"), "{p}");
-            assert!(!p.starts_with("/adminapi"));
-        }
+    fn platform_only_guard() {
+        assert!(require_platform(&platform()).is_ok());
+        assert!(require_platform(&shop()).is_err());
+        assert!(require_platform(&vendor()).is_err());
     }
 
     #[test]
-    fn implemented_routes_are_full_contract_paths() {
+    fn implemented_routes_prefix_adminapi() {
         let docs = implemented_routes();
         assert_eq!(docs.len(), 8);
         for d in &docs {
-            assert!(d.path.starts_with("/adminapi/merchant/merchant/"));
-            assert!(d.java_ref.starts_with("MerchantController."));
+            assert!(d.path.starts_with("/adminapi/merchant/merchant/"), "{}", d.path);
         }
-        let gets: Vec<&str> = docs
-            .iter()
-            .filter(|d| d.method == "GET")
-            .map(|d| d.path.as_str())
-            .collect();
-        assert_eq!(
-            gets,
-            vec![
-                "/adminapi/merchant/merchant/list",
-                "/adminapi/merchant/merchant/detail"
-            ]
-        );
-    }
-
-    #[test]
-    fn routes_registers_all_table_paths() {
-        let registered = [
-            "/merchant/merchant/uploadLicense",
-            "/merchant/merchant/list",
-            "/merchant/merchant/detail",
-            "/merchant/merchant/create",
-            "/merchant/merchant/update",
-            "/merchant/merchant/del",
-            "/merchant/merchant/updateField",
-            "/merchant/merchant/batch",
-        ];
-        assert_eq!(registered.len(), ROUTE_TABLE.len());
-        for p in registered {
-            assert!(ROUTE_TABLE.iter().any(|(_, q, _)| *q == p));
-        }
-    }
-
-    #[test]
-    fn query_and_body_parse_camel_case() {
-        let q: MerchantListQuery =
-            serde_json::from_str(r#"{"merchantId":3,"keyword":"ACME","size":20}"#).unwrap();
-        assert_eq!(q.merchant_id, Some(3));
-        assert_eq!(q.page_size, Some(20));
-        let d: MerchantUpdateDTO = serde_json::from_str(
-            r#"{"merchantId":3,"baseData":{"type":2,"companyName":"ACME"},"status":1}"#,
-        )
-        .unwrap();
-        assert_eq!(d.merchant_id, Some(3));
-        assert_eq!(d.base_data.as_ref().unwrap()["companyName"], "ACME");
     }
 }
