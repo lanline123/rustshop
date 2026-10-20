@@ -46,6 +46,7 @@ use tigshop_core::models::marketing::buyer_show_group::{
     BuyerShowGroupUpdateParam, BuyerShowGroupVO, OperateDTO,
 };
 use tigshop_core::types::PageResult;
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_security::web::{ok, ApiResult, AuthUser};
 use tigshop_services::marketing::buyer_show_group::{require_group_id, require_operate_id};
 
@@ -103,11 +104,9 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 /// BuyerShowGroupSaveParam)`。原接口返回 `void`，这里回传新建主键。
 async fn group_create(
     State(state): State<AdminState>,
-    Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
     Json(param): Json<BuyerShowGroupSaveParam>,
 ) -> ApiResult<serde_json::Value> {
-    let scope = resolve_scope(&headers, &auth);
+    let scope = scope_from_tenant();
     let buyer_show_group_id = state.marketing.buyer_show_group.create(&param, scope).await?;
     ok(serde_json::json!({ "buyerShowGroupId": buyer_show_group_id }))
 }
@@ -117,11 +116,9 @@ async fn group_create(
 /// 对应 Java `BuyerShowGroupController.list(BuyerShowGroupPageQuery)`。
 async fn group_list(
     State(state): State<AdminState>,
-    Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
     Query(query): Query<BuyerShowGroupPageQuery>,
 ) -> ApiResult<PageResult<BuyerShowGroupPageVO>> {
-    let scope = resolve_scope(&headers, &auth);
+    let scope = scope_from_tenant();
     ok(state.marketing.buyer_show_group.list(&query, scope).await?)
 }
 
@@ -194,6 +191,16 @@ fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
 ///
 /// `x-admin-type` 缺失时回退 JWT 的 `admin_type`（Rust 侧 JWT 不签发
 /// `x-shop-id`，见模块头多租户说明；与 aftersales/010/011/020 口径一致）。
+/// 由请求租户作用域构造分组 scope（平台=Platform，店铺=Shop）。
+#[must_use]
+fn scope_from_tenant() -> BuyerShowGroupScope {
+    match TenantScope::current().shop_id() {
+        Some(shop_id) => BuyerShowGroupScope::Shop(shop_id),
+        None => BuyerShowGroupScope::Platform,
+    }
+}
+
+#[cfg(test)]
 fn resolve_scope(headers: &HeaderMap, auth: &AuthUser) -> BuyerShowGroupScope {
     let admin_type = header_str(headers, "x-admin-type").or_else(|| auth.admin_type.clone());
     let shop_id = header_str(headers, "x-shop-id").and_then(|v| v.parse::<i32>().ok());

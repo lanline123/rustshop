@@ -33,6 +33,7 @@ use tigshop_core::models::marketing::salesman_product::{
 };
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::marketing::salesman_product::SalesmanProductRepository;
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 /// 分销商品域服务。
@@ -57,8 +58,9 @@ impl SalesmanProductService {
     pub async fn list(
         &self,
         q: &SalesmanProductPageQuery,
-        shop_id: i32,
     ) -> Result<tigshop_core::types::PageResult<SalesmanProductListVO>> {
+        // 多租户：店铺账号强制本店；平台账号按平台级（0）
+        let shop_id = scope_shop_id();
         let (limit, offset) = q.limit_offset();
         let page = to_page_query(q.page, q.size);
         let (total, rows) = self.repo().paginate(q, shop_id, limit, offset).await?;
@@ -120,11 +122,15 @@ impl SalesmanProductService {
         let Some(sp) = self.repo().find_by_product(product_id).await? else {
             return Ok(None);
         };
+        // 多租户：店铺账号只能查看本店分销配置
+        TenantScope::current_ensure_access(sp.shop_id.unwrap_or(0))?;
         Ok(Some(self.to_vo_default_commission(&sp).await?))
     }
 
     /// 创建（Java `create`）。
-    pub async fn create(&self, param: &SalesmanProductSaveParam, shop_id: i32) -> Result<()> {
+    pub async fn create(&self, param: &SalesmanProductSaveParam) -> Result<()> {
+        // 多租户：店铺账号强制本店；平台账号落平台级（0）
+        let shop_id = TenantScope::current().write_shop_id(None)?;
         let product_id = param.validate().map_err(Error::Validation)?;
         let now = now_seconds_i32();
         let entity = SalesmanProduct {
@@ -149,6 +155,8 @@ impl SalesmanProductService {
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::biz(500, MSG_UNKNOWN_SALESMAN_PRODUCT))?;
+        // 多租户：更新前校验归属
+        TenantScope::current_ensure_access(old.shop_id.unwrap_or(0))?;
         let entity = SalesmanProduct {
             salesman_product_id: id,
             product_id: Some(param.product_id.unwrap_or_default()),
@@ -173,8 +181,9 @@ impl SalesmanProductService {
     pub async fn analysis(
         &self,
         q: &SalesmanProductAnalysisQuery,
-        shop_id: i32,
     ) -> Result<tigshop_core::types::PageResult<serde_json::Value>> {
+        // 多租户：店铺账号强制本店；平台账号按平台级（0）
+        let shop_id = scope_shop_id();
         let (limit, offset) = q.limit_offset();
         let page = to_page_query(q.page, q.size);
         let (total, rows) = self.repo().joined_products(shop_id, limit, offset).await?;
@@ -438,9 +447,35 @@ fn to_page_query(page: Option<i64>, size: Option<i64>) -> tigshop_core::types::P
     }
 }
 
+/// 当前请求的店铺 ID：店铺账号=本店，平台账号=0（Java HeaderUtils.getShopId() 同义）。
+fn scope_shop_id() -> i32 {
+    TenantScope::current().shop_id().unwrap_or(0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn tenant_scope_selects_shop_or_platform_scope_for_salesman_product() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::{
+            with_tenant_scope, TenantScope,
+        };
+        let shop = TenantScope::for_shop(8);
+        let (scope, write_shop, blocked) = with_tenant_scope(shop, async {
+            (
+                scope_shop_id(),
+                TenantScope::current().write_shop_id(None).unwrap_or(-1),
+                TenantScope::current_ensure_access(9).is_err(),
+            )
+        })
+        .await;
+        assert_eq!(scope, 8);
+        assert_eq!(write_shop, 8);
+        assert!(blocked);
+        let scope = with_tenant_scope(TenantScope::platform(), async { scope_shop_id() }).await;
+        assert_eq!(scope, 0);
+    }
 
     #[test]
     fn commission_amount_rounds_half_up() {

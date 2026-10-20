@@ -9,6 +9,7 @@ use axum::{
 use tigshop_core::models::marketing::overview::{
     OverviewCoreSummaryVO, OverviewCoreTrendVO, OverviewSummaryQuery, OverviewTrendQuery,
 };
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_security::web::{ok, ApiResult};
 
 use crate::AdminState;
@@ -36,6 +37,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 }
 
 /// `HeaderUtils.getShopId()` 三态（admin→0、shop/pos→头值、其它→None）。
+#[cfg(test)]
 fn current_shop_id(headers: &axum::http::HeaderMap) -> Option<i32> {
     let admin_type = headers
         .get("x-admin-type")
@@ -55,25 +57,23 @@ fn current_shop_id(headers: &axum::http::HeaderMap) -> Option<i32> {
 
 async fn core_trend(
     State(state): State<AdminState>,
-    headers: axum::http::HeaderMap,
     Query(q): Query<OverviewTrendQuery>,
 ) -> ApiResult<OverviewCoreTrendVO> {
     ok(state
         .marketing
         .overview
-        .core_trend(&q, current_shop_id(&headers))
+        .core_trend(&q, TenantScope::current_list_filter())
         .await?)
 }
 
 async fn core_summary(
     State(state): State<AdminState>,
-    headers: axum::http::HeaderMap,
     Query(q): Query<OverviewSummaryQuery>,
 ) -> ApiResult<OverviewCoreSummaryVO> {
     ok(state
         .marketing
         .overview
-        .core_summary(&q, current_shop_id(&headers))
+        .core_summary(&q, TenantScope::current_list_filter())
         .await?)
 }
 

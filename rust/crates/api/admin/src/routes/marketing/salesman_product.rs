@@ -62,11 +62,9 @@ struct IdQuery {
 
 async fn list(
     State(state): State<AdminState>,
-    headers: HeaderMap,
     Query(q): Query<SalesmanProductPageQuery>,
 ) -> ApiResult<PageResult<SalesmanProductListVO>> {
-    let shop_id = shop_id_from_headers(&headers);
-    ok(state.marketing.salesman_product.list(&q, shop_id).await?)
+    ok(state.marketing.salesman_product.list(&q).await?)
 }
 
 async fn detail(
@@ -82,14 +80,12 @@ async fn detail(
 
 async fn create(
     State(state): State<AdminState>,
-    headers: HeaderMap,
     Json(param): Json<SalesmanProductSaveParam>,
 ) -> ApiResult<()> {
-    let shop_id = shop_id_from_headers(&headers);
     state
         .marketing
         .salesman_product
-        .create(&param, shop_id)
+        .create(&param)
         .await?;
     ok(())
 }
@@ -114,20 +110,19 @@ async fn config() -> ApiResult<serde_json::Value> {
 
 async fn analysis(
     State(state): State<AdminState>,
-    headers: HeaderMap,
     Query(q): Query<SalesmanProductAnalysisQuery>,
 ) -> ApiResult<PageResult<serde_json::Value>> {
-    let shop_id = shop_id_from_headers(&headers);
     ok(state
         .marketing
         .salesman_product
-        .analysis(&q, shop_id)
+        .analysis(&q)
         .await?)
 }
 
 /// 解析 `HeaderUtils.getShopId()`（缺失 ⇒ 0 平台）。
 #[must_use]
-fn shop_id_from_headers(headers: &HeaderMap) -> i32 {
+#[cfg(test)]
+fn shop_id_from_headers(headers: &axum::http::HeaderMap) -> i32 {
     let admin_type = header_str(headers, "x-admin-type");
     match admin_type.as_deref() {
         Some("admin") => 0,
@@ -138,7 +133,8 @@ fn shop_id_from_headers(headers: &HeaderMap) -> i32 {
     }
 }
 
-fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
+#[cfg(test)]
+fn header_str(headers: &axum::http::HeaderMap, name: &str) -> Option<String> {
     headers
         .get(name)
         .and_then(|v| v.to_str().ok())

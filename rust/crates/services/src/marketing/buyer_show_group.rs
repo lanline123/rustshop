@@ -47,6 +47,7 @@ use tigshop_core::models::marketing::buyer_show_group::{
 use tigshop_core::types::PageResult;
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::marketing::buyer_show_group::BuyerShowGroupRepository;
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 /// Java `HttpStatus.SERVICE_DATA_ERROR`（`GlobalException` 默认码，也是参数校验异常码）。
@@ -215,6 +216,8 @@ impl BuyerShowGroupService {
             .find_by_id(buyer_show_group_id)
             .await?
             .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, ERR_NOT_EXIST))?;
+        // 多租户：店铺账号只能查看本店分组
+        TenantScope::current_ensure_access(row.shop_id)?;
 
         let group_ids = decode_group_ids(&row.product_group_id);
         let names = self.load_product_group_names(&group_ids).await?;
@@ -267,6 +270,8 @@ impl BuyerShowGroupService {
             .find_by_id(buyer_show_group_id)
             .await?
             .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, ERR_NOT_EXIST))?;
+        // 多租户：更新前校验归属
+        TenantScope::current_ensure_access(existing.shop_id)?;
 
         self.verify_group_name(&group_name, Some(buyer_show_group_id))
             .await?;
@@ -294,6 +299,10 @@ impl BuyerShowGroupService {
     /// # Errors
     /// 数据库失败 → `Error::Database`。
     pub async fn delete(&self, id: i32) -> Result<()> {
+        // 多租户：记录存在时校验归属（Java 对不存在 id 静默成功）
+        if let Some(row) = self.repo().find_by_id(id).await? {
+            TenantScope::current_ensure_access(row.shop_id)?;
+        }
         self.repo().delete_group(id).await?;
         Ok(())
     }
