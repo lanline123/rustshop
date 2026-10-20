@@ -58,7 +58,8 @@ use tigshop_core::models::catalog::product_stock::{
     ProductStockAllocateOperationRecordVO, ProductStockAllocateRecordDetailVO,
     ProductStockAllocateRecordPageVO, ProductStockDetailVO, ProductStockPageVO,
     ProductStockRecordVO, StockAdjustDTO, StockDetailQuery, StockInDTO, StockPageQuery,
-    AllocateProductImportRow, ProductImportSuccessVO, ProductStockImportRow,
+    AllocateBatchImportRow, AllocateProductImportRow, ProductImportSuccessVO,
+    ProductStockImportRow,
     StockRecordPageQuery, EXCEL_UNMIGRATED_MSG,
 };
 use tigshop_core::types::PageResult;
@@ -601,10 +602,16 @@ async fn stock_in_allocate(
 /// **未迁移**：返回明确业务错误。
 async fn export_allocate(
     State(state): State<AdminState>,
+    headers: axum::http::HeaderMap,
     Json(dto): Json<AllocateExcelExportDTO>,
-) -> ApiResult<serde_json::Value> {
-    state.catalog.product_stock.export_allocate(&dto).await?;
-    excel_unmigrated()
+) -> std::result::Result<axum::response::Response, AppError> {
+    let shop_id = shop_id_from_headers(&headers);
+    let (file_name, bytes) = state
+        .catalog
+        .product_stock
+        .export_allocate_xlsx(&dto, shop_id)
+        .await?;
+    Ok(crate::support::excel_response::xlsx_response(bytes, &file_name))
 }
 
 // ——————————————————————————————————————————————
@@ -758,19 +765,95 @@ async fn get_allocate_template() -> std::result::Result<axum::response::Response
     ))
 }
 
-/// `POST /adminapi/product/stock/batchImportAllocate`：批量导入调拨商品。
-///
-/// 对应 Java `ProductStockController.batchImportAllocate(MultipartFile)`。**未迁移**。
-async fn batch_import_allocate(_file: Multipart) -> ApiResult<serde_json::Value> {
-    excel_unmigrated()
+/// `POST /adminapi/product/stock/batchImportAllocate`：批量导入并创建调拨单。
+async fn batch_import_allocate(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    headers: axum::http::HeaderMap,
+    mut multipart: Multipart,
+) -> ApiResult<bool> {
+    let bytes = read_upload_file(&mut multipart).await?;
+    let rows = parse_allocate_batch_rows(&bytes)?;
+    if rows.is_empty() {
+        return Err(AppError(Error::biz_msg("表格数据为空")));
+    }
+    let op = operator_from(&headers, &auth);
+    ok(state
+        .catalog
+        .product_stock
+        .batch_import_allocate(&rows, &op)
+        .await?)
 }
 
-/// `POST /adminapi/product/stock/getBatchImportErrorData`：获取导入调拨商品失败 Excel。
-///
-/// 对应 Java `ProductStockController.getBatchImportErrorData(MultipartFile,
-/// HttpServletResponse)`。**未迁移**。
-async fn get_batch_import_error_data(_file: Multipart) -> ApiResult<serde_json::Value> {
-    excel_unmigrated()
+/// `POST /adminapi/product/stock/getBatchImportErrorData`：调拨单导入失败数据 xlsx。
+async fn get_batch_import_error_data(
+    State(state): State<AdminState>,
+    mut multipart: Multipart,
+) -> std::result::Result<axum::response::Response, AppError> {
+    let bytes = read_upload_file(&mut multipart).await?;
+    let rows = parse_allocate_batch_rows(&bytes)?;
+    let (_, _, errors) = state
+        .catalog
+        .product_stock
+        .allocate_import_validate(&rows)
+        .await?;
+    let headers_out = [
+        "出库门店",
+        "入库门店",
+        "备注",
+        "商品名称",
+        "商品编码",
+        "商品规格名称",
+        "数量",
+        "错误信息",
+    ];
+    let data: Vec<Vec<String>> = errors
+        .iter()
+        .map(|e| {
+            vec![
+                e.stock_out_org.clone().unwrap_or_default(),
+                e.stock_in_org.clone().unwrap_or_default(),
+                e.comment.clone().unwrap_or_default(),
+                e.product_name.clone().unwrap_or_default(),
+                e.product_sn.clone().unwrap_or_default(),
+                e.sku_name.clone().unwrap_or_default(),
+                e.quantity.clone().unwrap_or_default(),
+                e.error_msg.clone(),
+            ]
+        })
+        .collect();
+    let bytes = tigshop_services::system::excel::build_xlsx(&headers_out, &data, "调拨错误数据")?;
+    Ok(crate::support::excel_response::xlsx_response(
+        bytes,
+        "allocate_import_error.xlsx",
+    ))
+}
+
+/// 解析调拨单导入 xlsx（列序与 `AllocateBatchImportVO` 一致）。
+fn parse_allocate_batch_rows(bytes: &[u8]) -> Result<Vec<AllocateBatchImportRow>, AppError> {
+    let sheet = tigshop_services::system::excel::read_xlsx(bytes).map_err(AppError)?;
+    let mut rows = Vec::new();
+    for line in sheet.iter().skip(1) {
+        let get = |i: usize| {
+            line.get(i)
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+        };
+        let row = AllocateBatchImportRow {
+            stock_out_org: get(0),
+            stock_in_org: get(1),
+            comment: get(2),
+            product_name: get(3),
+            product_sn: get(4),
+            sku_name: get(5),
+            quantity: get(6),
+        };
+        if row.product_sn.is_some() || row.stock_out_org.is_some() {
+            rows.push(row);
+        }
+    }
+    Ok(rows)
 }
 
 /// `GET /adminapi/product/stock/downloadAllocateTemplate`：下载调拨商品导入模版。

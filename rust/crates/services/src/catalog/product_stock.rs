@@ -652,6 +652,160 @@ impl ProductStockService {
         self.repo().insert_inventory_log(&log).await
     }
 
+    /// 解析调拨组织名称（平台名称取 `config.shopName`，否则按门店标题精确匹配）。
+    async fn resolve_allocate_org(&self, name: &str) -> Result<Option<i32>> {
+        let platform_name = self
+            .repos
+            .catalog
+            .product_manage
+            .config_val("shopName")
+            .await?
+            .unwrap_or_else(|| "商城自营".to_string());
+        if name == platform_name {
+            return Ok(Some(0));
+        }
+        let shops = self
+            .repos
+            .merchant
+            .shop_manage
+            .find_shops_for_picker(
+                tigshop_core::models::merchant::shop_manage::shop_type::STORE,
+                Some(name),
+                None,
+            )
+            .await?;
+        Ok(shops
+            .into_iter()
+            .find(|s| s.shop_title.as_deref() == Some(name) && s.status == Some(1))
+            .map(|s| s.shop_id))
+    }
+
+    /// 调拨单导入校验（Java `checkImportData`）：返回 (出库, 入库, 备注, 明细, 错误)。
+    #[allow(clippy::type_complexity)]
+    pub async fn allocate_import_validate(
+        &self,
+        rows: &[tigshop_core::models::catalog::product_stock::AllocateBatchImportRow],
+    ) -> Result<(
+        Option<(i32, i32, String)>,
+        Vec<tigshop_core::models::catalog::product_stock::AllocateDetailItem>,
+        Vec<tigshop_core::models::catalog::product_stock::AllocateBatchImportErrorVO>,
+    )> {
+        use tigshop_core::models::catalog::product_stock::{
+            AllocateBatchImportErrorVO, AllocateDetailItem,
+        };
+        let mut errors = Vec::new();
+        let mut details = Vec::new();
+        let mut header: Option<(i32, i32, String)> = None;
+        for row in rows {
+            let out_name = row.stock_out_org.as_deref().map(str::trim).unwrap_or("");
+            let in_name = row.stock_in_org.as_deref().map(str::trim).unwrap_or("");
+            let mut push_err = |msg: &str| {
+                errors.push(AllocateBatchImportErrorVO {
+                    stock_out_org: row.stock_out_org.clone(),
+                    stock_in_org: row.stock_in_org.clone(),
+                    comment: row.comment.clone(),
+                    product_name: row.product_name.clone(),
+                    product_sn: row.product_sn.clone(),
+                    sku_name: row.sku_name.clone(),
+                    quantity: row.quantity.clone(),
+                    error_msg: msg.to_string(),
+                });
+            };
+            let Some(out_id) = self.resolve_allocate_org(out_name).await? else {
+                push_err(&format!("{out_name}门店不存在"));
+                continue;
+            };
+            let Some(in_id) = self.resolve_allocate_org(in_name).await? else {
+                push_err(&format!("{in_name}门店不存在"));
+                continue;
+            };
+            if out_id == in_id {
+                push_err("出库组织和入库组织不能相同");
+                continue;
+            }
+            match &header {
+                Some((o, i, _)) if *o != out_id || *i != in_id => {
+                    push_err("出库/入库组织前后不一致");
+                    continue;
+                }
+                Some(_) => {}
+                None => header = Some((out_id, in_id, row.comment.clone().unwrap_or_default())),
+            }
+            let sn = row.product_sn.as_deref().map(str::trim).unwrap_or("");
+            if sn.is_empty() {
+                push_err("商品编码没有填写");
+                continue;
+            }
+            let Some(product) = self.repo().find_product_by_sn(sn, None).await? else {
+                push_err("商品不存在");
+                continue;
+            };
+            if product.product_type != Some(1) {
+                push_err("该商品不是实物商品不能调拨出库");
+                continue;
+            }
+            let sku_name = row.sku_name.as_deref().map(str::trim).unwrap_or("");
+            let mut sku_id = None;
+            if sku_name.is_empty() {
+                if self.repo().count_skus(product.product_id).await? > 0 {
+                    push_err("该商品下有规格商品，请补齐商品规格");
+                    continue;
+                }
+            } else {
+                let Some(sku) = self.repo().find_sku_by_value(product.product_id, sku_name).await?
+                else {
+                    push_err("商品规格不存在");
+                    continue;
+                };
+                sku_id = Some(sku.sku_id);
+            }
+            let quantity = row
+                .quantity
+                .as_deref()
+                .map(str::trim)
+                .unwrap_or("")
+                .parse::<i32>()
+                .unwrap_or(0);
+            details.push(AllocateDetailItem {
+                allocate_detail_id: None,
+                allocate_id: None,
+                product_id: Some(product.product_id),
+                sku_id,
+                quantity: Some(quantity),
+                stock_in_quantity: None,
+                stock_out_quantity: None,
+            });
+        }
+        Ok((header, details, errors))
+    }
+
+    /// 调拨单批量导入：校验通过后创建调拨单（Java `batchImportAllocate`）。
+    pub async fn batch_import_allocate(
+        &self,
+        rows: &[tigshop_core::models::catalog::product_stock::AllocateBatchImportRow],
+        op: &StockOperator,
+    ) -> Result<bool> {
+        use tigshop_core::models::catalog::product_stock::CreateAllocateDTO;
+        let (header, details, errors) = self.allocate_import_validate(rows).await?;
+        if !errors.is_empty() {
+            return Err(Error::biz_msg(format!(
+                "导入失败:共导入{}个,失败{}个",
+                rows.len(),
+                errors.len()
+            )));
+        }
+        let Some((out_id, in_id, comment)) = header else {
+            return Err(Error::biz_msg("表格数据为空"));
+        };
+        let dto = CreateAllocateDTO {
+            outbound_organization_id: Some(out_id),
+            warehousing_organization_id: Some(in_id),
+            comment: Some(comment),
+            product_stock_allocate_record_detail_list: details,
+        };
+        self.create_allocate(&dto, op).await
+    }
+
     /// 调拨商品导入校验/预览（Java `checkAllocateImportData` + `batchImportAllocateProduct`）。
     pub async fn allocate_product_preview(
         &self,
@@ -1605,9 +1759,85 @@ impl ProductStockService {
     ///
     /// Java 走 `@ResponseExcel` 直接写二进制流；Rust 侧 Excel 未迁移，
     /// 返回明确业务错误（见 [`EXCEL_UNMIGRATED_MSG`]），不伪造实现。
-    pub async fn export_allocate(&self, _dto: &tigshop_core::models::catalog::product_stock::AllocateExcelExportDTO) -> Result<()> {
+    pub async fn export_allocate(&self, dto: &tigshop_core::models::catalog::product_stock::AllocateExcelExportDTO) -> Result<()> {
+        let _ = dto;
         Err(Error::biz_msg(EXCEL_UNMIGRATED_MSG))
     }
+
+    /// 调拨单导出为 xlsx（Java `exportAllocate`）。
+    pub async fn export_allocate_xlsx(
+        &self,
+        dto: &tigshop_core::models::catalog::product_stock::AllocateExcelExportDTO,
+        shop_id: i32,
+    ) -> Result<(String, Vec<u8>)> {
+        use tigshop_core::models::catalog::product_stock::allocate_status;
+        let rows = self
+            .repo()
+            .find_allocate_records_for_export(shop_id, dto.allocate_ids.as_deref())
+            .await?;
+        if rows.is_empty() {
+            return Ok(("调拨单.xlsx".to_string(), Vec::new()));
+        }
+        let mut org_ids = Vec::new();
+        for r in &rows {
+            for id in [r.outbound_organization_id, r.warehousing_organization_id]
+                .into_iter()
+                .flatten()
+                .filter(|v| *v > 0)
+            {
+                org_ids.push(id);
+            }
+        }
+        let mut titles = self.repo().find_shop_titles(&org_ids).await?;
+        let platform_name = self
+            .repos
+            .catalog
+            .product_manage
+            .config_val("shopName")
+            .await?
+            .unwrap_or_else(|| "商城自营".to_string());
+        titles.insert(0, Some(platform_name));
+        let headers = ["调拨单号", "出库组织", "入库组织", "状态", "经办人", "创建时间"];
+        let data: Vec<Vec<String>> = rows
+            .iter()
+            .map(|r| {
+                vec![
+                    r.allocate_code.clone().unwrap_or_default(),
+                    titles
+                        .get(&r.outbound_organization_id.unwrap_or(0))
+                        .cloned()
+                        .flatten()
+                        .unwrap_or_default(),
+                    titles
+                        .get(&r.warehousing_organization_id.unwrap_or(0))
+                        .cloned()
+                        .flatten()
+                        .unwrap_or_default(),
+                    allocate_status::name_of(r.status.unwrap_or(0))
+                        .unwrap_or("")
+                        .to_string(),
+                    r.add_by.clone().unwrap_or_default(),
+                    format_epoch(r.add_time.unwrap_or(0)),
+                ]
+            })
+            .collect();
+        let bytes = crate::system::excel::build_xlsx(&headers, &data, "调拨单")
+            .map_err(|e| Error::Internal(format!("调拨单 Excel 生成失败: {e}")))?;
+        Ok(("调拨单.xlsx".to_string(), bytes))
+    }
+}
+
+/// 秒级时间戳 → `yyyy-MM-dd HH:mm:ss`（供导出用）。
+fn format_epoch(ts: i64) -> String {
+    if ts <= 0 {
+        return String::new();
+    }
+    use chrono::TimeZone as _;
+    chrono::Local
+        .timestamp_opt(ts, 0)
+        .single()
+        .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+        .unwrap_or_default()
 }
 
 /// 库存调整的纯计算部分（Java `stockAdjust` 的算术核心）。
