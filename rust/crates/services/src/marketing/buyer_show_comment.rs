@@ -48,6 +48,16 @@
 //!   （`records/total/size/current/pages`），Rust 统一用项目既有 `PageResult`
 //!   （`list/total/totalPage/pageSize/page`），与 order_admin / stock_warning 同一约定。
 
+//! # 多租户（N/A 判定）
+//!
+//! 本域为**平台级数据**，不做店铺隔离（N/A），证据：
+//! - `java/database/pure.sql` 中 `buyer_show_comment` 表**没有 `shop_id` 列**；
+//! - 原 Java `BuyerShowCommentServiceImpl` 中**没有任何** `getShopId()` / `shop_id` 引用；
+//! - 因此管理端列表/详情/写操作均以平台身份执行，接入 `TenantScope`
+//!   不会改变行为（平台作用域默认放行，店铺账号访问时按平台数据可见性处理）。
+//!
+//! 若未来产品要求店铺级隔离，需先给 `buyer_show_comment` 增加 `shop_id` 列并回填归属。
+//!
 use std::collections::HashMap;
 use std::sync::Arc;
 

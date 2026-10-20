@@ -12,6 +12,7 @@ use std::sync::Arc;
 use tigshop_core::models::marketing::time_discount_batch::{is_delete, validate_batch, BatchDTO};
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::marketing::time_discount_batch::TimeDiscountBatchRepository;
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 /// 限时折扣批处理服务。
@@ -37,6 +38,12 @@ impl TimeDiscountBatchService {
     /// 空 ids / 缺 type 的注解校验失败；数据库失败。
     pub async fn batch(&self, dto: &BatchDTO) -> Result<bool> {
         let (ids, _op_type) = validate_batch(dto).map_err(Error::Validation)?;
+        // 多租户：批量删除前逐条校验活动归属（time_discount.shop_id）
+        for id in &ids {
+            if let Some(activity) = self.repos.marketing.time_discount.find_by_id(*id).await? {
+                TenantScope::current_ensure_access(activity.shop_id)?;
+            }
+        }
         if is_delete(dto) {
             let activities = self.repo().delete_activities(&ids).await?;
             let items = self.repo().delete_items(&ids).await?;
@@ -52,6 +59,20 @@ impl TimeDiscountBatchService {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn tenant_scope_blocks_cross_shop_batch_delete() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::{
+            with_tenant_scope, TenantScope,
+        };
+        let shop = TenantScope::for_shop(8);
+        assert!(with_tenant_scope(shop, async { TenantScope::current_ensure_access(9) })
+            .await
+            .is_err());
+        assert!(with_tenant_scope(shop, async { TenantScope::current_ensure_access(8) })
+            .await
+            .is_ok());
+    }
 
     #[test]
     fn batch_validation_uses_java_texts() {

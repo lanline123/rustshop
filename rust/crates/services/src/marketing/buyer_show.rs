@@ -81,6 +81,16 @@
 //! 本切片**不得修改**任何共享文件（`repo/mod.rs` / `services/lib.rs` 等），
 //! 注册由主会话统一合并。
 
+//! # 多租户（N/A 判定）
+//!
+//! 本域为**平台级数据**，不做店铺隔离（N/A），证据：
+//! - `java/database/pure.sql` 中 `buyer_show` 表**没有 `shop_id` 列**；
+//! - 原 Java `BuyerShowServiceImpl` 中**没有任何** `getShopId()` / `shop_id` 引用；
+//! - 因此管理端列表/详情/写操作均以平台身份执行，接入 `TenantScope`
+//!   不会改变行为（平台作用域默认放行，店铺账号访问时按平台数据可见性处理）。
+//!
+//! 若未来产品要求店铺级隔离，需先给 `buyer_show` 增加 `shop_id` 列并回填归属。
+//!
 use std::collections::HashMap;
 use std::sync::Arc;
 

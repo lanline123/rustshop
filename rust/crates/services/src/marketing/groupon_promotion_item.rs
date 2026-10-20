@@ -42,6 +42,7 @@ use tigshop_core::models::marketing::groupon_promotion_item::{
 };
 use tigshop_core::types::PageResult;
 use tigshop_core::{Error, Result};
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 pub struct GrouponPromotionItemService {
@@ -64,6 +65,8 @@ impl GrouponPromotionItemService {
             .find_promotion(promotion_id)
             .await?
             .ok_or_else(|| Error::biz_msg(MSG_UNKNOWN_PROMOTION))?;
+        // 多租户：店铺账号只能向本店拼团活动添加商品
+        TenantScope::current_ensure_access(promotion.shop_id.unwrap_or(0))?;
         let product_id = param.product_id.unwrap_or(0);
         self.check_product_conflicts(product_id, promotion_id, promotion.start_time, promotion.end_time)
             .await?;
@@ -103,6 +106,8 @@ impl GrouponPromotionItemService {
             .find_promotion(promotion_id)
             .await?
             .ok_or_else(|| Error::biz_msg(MSG_UNKNOWN_PROMOTION))?;
+        // 多租户：归属校验（经拼团活动 shop_id）
+        TenantScope::current_ensure_access(promotion.shop_id.unwrap_or(0))?;
         let product_id = param.base.product_id.unwrap_or(exist.product_id);
         self.check_product_conflicts(product_id, promotion_id, promotion.start_time, promotion.end_time)
             .await?;
@@ -136,6 +141,8 @@ impl GrouponPromotionItemService {
             .find_item(id)
             .await?
             .ok_or_else(|| Error::biz_msg(MSG_UNKNOWN_ITEM))?;
+        // 多租户：删除前校验归属（经拼团活动 shop_id）
+        self.ensure_promotion_access(item.groupon_promotion_id).await?;
         self.repos
             .marketing
             .groupon_promotion_item
@@ -158,6 +165,18 @@ impl GrouponPromotionItemService {
         let ids = param.ids.as_deref().unwrap_or_default();
         if ids.is_empty() {
             return Ok(());
+        }
+        // 多租户：批量删除前逐条校验归属（经拼团活动 shop_id）
+        for id in ids {
+            if let Some(item) = self
+                .repos
+                .marketing
+                .groupon_promotion_item
+                .find_item(*id)
+                .await?
+            {
+                self.ensure_promotion_access(item.groupon_promotion_id).await?;
+            }
         }
         self.repos
             .marketing
@@ -182,6 +201,8 @@ impl GrouponPromotionItemService {
             .find_item(id)
             .await?
             .ok_or_else(|| Error::biz_msg(MSG_UNKNOWN_ITEM))?;
+        // 多租户：详情归属校验（经拼团活动 shop_id）
+        self.ensure_promotion_access(item.groupon_promotion_id).await?;
         let details = self
             .repos
             .marketing
@@ -403,6 +424,20 @@ impl GrouponPromotionItemService {
 
     // ————————————————————— 内部辅助 —————————————————————
 
+    /// 归属校验：经拼团活动 shop_id（店铺账号越权 → 403）。
+    async fn ensure_promotion_access(&self, promotion_id: i64) -> Result<()> {
+        if let Some(promotion) = self
+            .repos
+            .marketing
+            .groupon_promotion_item
+            .find_promotion(promotion_id)
+            .await?
+        {
+            TenantScope::current_ensure_access(promotion.shop_id.unwrap_or(0))?;
+        }
+        Ok(())
+    }
+
     async fn check_product_conflicts(
         &self,
         product_id: i64,
@@ -549,9 +584,33 @@ pub fn to_group_num_vos(items: &[PriceParam]) -> Vec<GrouponNumVO> {
         .collect()
 }
 
+/// 列表/写操作的店铺范围（经拼团活动 shop_id）。
+fn scoped_list_shop_id() -> Option<i32> {
+    TenantScope::current_list_filter()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn tenant_scope_blocks_cross_shop_groupon_item() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::{
+            with_tenant_scope, TenantScope,
+        };
+        let shop = TenantScope::for_shop(8);
+        let (filter, blocked) = with_tenant_scope(shop, async {
+            (
+                scoped_list_shop_id(),
+                TenantScope::current_ensure_access(9).is_err(),
+            )
+        })
+        .await;
+        assert_eq!(filter, Some(8));
+        assert!(blocked);
+        let filter = with_tenant_scope(TenantScope::platform(), async { scoped_list_shop_id() }).await;
+        assert_eq!(filter, None);
+    }
 
     #[test]
     fn build_item_matches_java_builder() {

@@ -10,6 +10,16 @@
 //! 3. `list` 无关键字时用 `EXISTS(product 上架未删除)` 等价 Java innerJoin。
 //! 4. `update` 未传字段按 NOT_NULL 语义保留旧值（Java `updateById` 语义）。
 
+//! # 多租户（N/A 判定）
+//!
+//! 本域为**平台级数据**，不做店铺隔离（N/A），证据：
+//! - `java/database/pure.sql` 中 `points_exchange` 表**没有 `shop_id` 列**；
+//! - 原 Java `PointsExchangeServiceImpl` 中**没有任何** `getShopId()` / `shop_id` 引用；
+//! - 因此管理端列表/详情/写操作均以平台身份执行，接入 `TenantScope`
+//!   不会改变行为（平台作用域默认放行，店铺账号访问时按平台数据可见性处理）。
+//!
+//! 若未来产品要求店铺级隔离，需先给 `points_exchange` 增加 `shop_id` 列并回填归属。
+//!
 use std::sync::Arc;
 
 use tigshop_core::entities::promotion::PointsExchange;

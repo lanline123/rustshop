@@ -25,6 +25,7 @@ use tigshop_core::models::marketing::seckill_batch::{
 use tigshop_core::types::{PageQuery, PageResult};
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::marketing::seckill_batch::SeckillBatchRepository;
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 /// 秒杀批处理服务（挂载于 `AdminState.marketing.seckill_batch`）。
@@ -53,6 +54,12 @@ impl SeckillBatchService {
         if !is_delete(dto) {
             // Java 非 del 分支直接 return false
             return Ok(false);
+        }
+        // 多租户：批量删除前逐条校验活动归属（seckill.shop_id）
+        for id in &ids {
+            if let Some(activity) = self.repos.marketing.seckill.find_by_id(*id).await? {
+                TenantScope::current_ensure_access(activity.shop_id)?;
+            }
         }
         let activities = self.repo().delete_activities(&ids).await?;
         if activities == 0 {
@@ -164,6 +171,20 @@ mod tests {
             ..Default::default()
         };
         assert!(!is_delete(&dto));
+    }
+
+    #[tokio::test]
+    async fn tenant_scope_blocks_cross_shop_batch_delete() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::{
+            with_tenant_scope, TenantScope,
+        };
+        let shop = TenantScope::for_shop(8);
+        assert!(with_tenant_scope(shop, async { TenantScope::current_ensure_access(9) })
+            .await
+            .is_err());
+        assert!(with_tenant_scope(shop, async { TenantScope::current_ensure_access(8) })
+            .await
+            .is_ok());
     }
 
     #[test]
