@@ -44,6 +44,8 @@ use tigshop_core::models::payment::refund_log::{
 use tigshop_core::types::PageResult;
 use tigshop_security::web::{ok, ApiResult};
 
+use crate::support::tenant::platform_only;
+
 use crate::AdminState;
 
 /// 本域 7 条路由（去掉 `/adminapi` 前缀后的路径 + 原 Java handler）。
@@ -92,6 +94,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/finance/refundLog/del", post(del))
         .route("/finance/refundLog/updateField", post(update_field))
         .route("/finance/refundLog/batch", post(batch))
+        .layer(axum::middleware::from_fn(platform_only))
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计，完整契约路径）。

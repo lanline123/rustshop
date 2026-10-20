@@ -12,6 +12,8 @@ use axum::{
 use tigshop_openapi::RouteDoc;
 use tigshop_security::web::{ok, ApiResult};
 
+use crate::support::tenant::platform_only;
+
 use crate::AdminState;
 use tigshop_services::payment::account_panel::{AccountPanelQuery, AccountPanelVO};
 
@@ -25,6 +27,7 @@ const ROUTE_TABLE: [(&str, &str, &str); 1] = [(
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new().route("/finance/accountPanel/list", get(list))
+        .layer(axum::middleware::from_fn(platform_only))
 }
 
 /// 本域已实现路由（完整契约路径）。

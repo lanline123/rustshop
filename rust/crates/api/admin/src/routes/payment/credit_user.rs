@@ -30,6 +30,8 @@ use tigshop_core::models::payment::credit_user::{
 use tigshop_core::types::PageResult;
 use tigshop_security::web::{ok, ApiResult};
 
+use crate::support::tenant::platform_only;
+
 use crate::AdminState;
 
 /// 本域 6 条路由（去掉 `/adminapi` 前缀后的路径 + 原 Java handler）。
@@ -56,6 +58,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/credit/user/update", post(update))
         .route("/credit/user/delete", post(delete))
         .route("/credit/user/updateField", post(update_field))
+        .layer(axum::middleware::from_fn(platform_only))
 }
 
 /// 本模块已实现路由（覆盖率统计，完整契约路径）。

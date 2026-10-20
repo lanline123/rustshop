@@ -27,6 +27,8 @@ use tigshop_core::models::payment::user_recharge_order::{
 use tigshop_core::types::PageResult;
 use tigshop_security::web::{ok, ApiResult};
 
+use crate::support::tenant::platform_only;
+
 use crate::AdminState;
 
 /// 本域 7 条路由（去掉 `/adminapi` 前缀后的路径 + 原 Java handler）。
@@ -79,6 +81,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/finance/userRechargeOrder/del", post(del))
         .route("/finance/userRechargeOrder/updateField", post(update_field))
         .route("/finance/userRechargeOrder/batch", post(batch))
+        .layer(axum::middleware::from_fn(platform_only))
 }
 
 /// 本模块已实现路由（覆盖率统计，完整契约路径）。

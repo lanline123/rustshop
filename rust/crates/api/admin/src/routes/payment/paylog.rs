@@ -22,6 +22,8 @@ use tigshop_core::models::payment::paylog::{PaylogCreateDTO, PaylogListQuery, Pa
 use tigshop_core::types::PageResult;
 use tigshop_security::web::{ok, ApiResult};
 
+use crate::support::tenant::platform_only;
+
 use crate::AdminState;
 
 /// 支付日志域路由（挂载于 `/adminapi` 下）。
@@ -32,6 +34,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/finance/payLog/detail", get(detail))
         .route("/finance/payLog/create", post(create))
         .route("/finance/payLog/update", post(update))
+        .layer(axum::middleware::from_fn(platform_only))
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。

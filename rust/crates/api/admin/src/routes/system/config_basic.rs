@@ -46,6 +46,8 @@ use tigshop_core::models::system::config_basic::{
 };
 use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 
+use crate::support::tenant::{platform_only};
+
 use crate::AdminState;
 
 /// 全部 102 条契约路由（挂载路径 + 原 Java 方法名，顺序 = Java 方法声明顺序）。
@@ -160,21 +162,6 @@ const ROUTE_TABLE: [(&str, &str, &str); 102] = [
 struct CodeQuery {
     code: Option<String>,
     test_mail_address: Option<String>,
-}
-
-/// 需登录的 99 条路由（外层统一 `require_auth`）。
-/// 平台设置仅平台账号可读写；店铺账号访问一律 403。
-async fn platform_only(
-    Extension(auth): Extension<AuthUser>,
-    req: Request,
-    next: Next,
-) -> Result<Response, AppError> {
-    if !auth.is_platform() {
-        return Err(AppError(tigshop_core::Error::Forbidden(
-            "仅平台账号可访问系统设置".into(),
-        )));
-    }
-    Ok(next.run(req).await)
 }
 
 pub fn routes(state: &AdminState) -> Router<AdminState> {

@@ -14,6 +14,8 @@ use serde_json::Value;
 use tigshop_openapi::RouteDoc;
 use tigshop_security::web::{ok, ApiResult, AuthUser, AppError};
 
+use crate::support::tenant::{platform_only};
+
 use crate::AdminState;
 
 /// 本域 2 条路由（`/adminapi` 前缀之后的路径 + 原 Java 方法名）。
@@ -29,21 +31,6 @@ const ROUTE_TABLE: [(&str, &str, &str); 2] = [
         "ApplePayConfigController.saveApplePaySettings",
     ),
 ];
-
-/// Apple Pay 设置路由（挂载于 `/adminapi` 下）。
-/// 支付渠道配置为平台级数据：店铺账号一律 403。
-async fn platform_only(
-    Extension(auth): Extension<AuthUser>,
-    req: axum::extract::Request,
-    next: axum::middleware::Next,
-) -> Result<axum::response::Response, AppError> {
-    if !auth.is_platform() {
-        return Err(AppError(tigshop_core::Error::Forbidden(
-            "仅平台账号可管理支付渠道配置".into(),
-        )));
-    }
-    Ok(next.run(req).await)
-}
 
 #[cfg(test)]
 mod tenant_tests {

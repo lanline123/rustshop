@@ -44,6 +44,8 @@ use tigshop_core::models::payment::tax_rate::{OperateDTO, TaxRateDTO, TaxRateLis
 use tigshop_core::types::PageResult;
 use tigshop_security::web::{ok, ApiResult, AppError};
 
+use crate::support::tenant::platform_only;
+
 use crate::AdminState;
 
 /// 本域全部 5 条路由（去掉 `/adminapi` 前缀后的路径 + 原 Java handler）。
@@ -67,6 +69,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/setting/taxRate/create", post(create))
         .route("/setting/taxRate/update", post(update))
         .route("/setting/taxRate/del", post(del))
+        .layer(axum::middleware::from_fn(platform_only))
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。

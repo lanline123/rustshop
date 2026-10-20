@@ -42,6 +42,8 @@ use axum::{
 use tigshop_core::models::{BatchDTO, OperateDTO, UpdateFieldDTO};
 use tigshop_security::web::{ok, ApiResult};
 
+use crate::support::tenant::platform_only;
+
 use crate::AdminState;
 
 /// 本域 3 条路由（去 `/adminapi` 前缀的路径 + 原 Java handler）。
@@ -69,6 +71,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/finance/payLog/del", post(paylog_del))
         .route("/finance/payLog/updateField", post(paylog_update_field))
         .route("/finance/payLog/batch", post(paylog_batch))
+        .layer(axum::middleware::from_fn(platform_only))
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。

@@ -23,7 +23,7 @@ use tigshop_core::models::system::admin_msg::{
     MsgScope,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult, AuthUser};
+use tigshop_security::web::{ok, ApiResult, TenantContext};
 
 use crate::AdminState;
 
@@ -70,18 +70,21 @@ struct ReadedBody {
 }
 
 /// 解析可见范围（Java `getAdminType` + `getShopId`/`getVendorId`）。
-fn scope_of(auth: &AuthUser, q: &AdminMsgListQuery) -> MsgScope {
-    if auth.admin_type.as_deref() == Some("vendor") {
+///
+/// 供应商维度改取认证中间件写入的 [`TenantContext::vendor_scope`]（JWT
+/// `vendor_id` 声明），不再信任查询参数 `vendorId`；店铺/平台维度同理。
+fn scope_of(tenant: &TenantContext, q: &AdminMsgListQuery) -> MsgScope {
+    if tenant.is_vendor_account() {
         return MsgScope::Vendor {
-            vendor_id: q.vendor_id.unwrap_or(0),
+            vendor_id: tenant.vendor_scope().unwrap_or(0),
         };
     }
     // 店铺账号：强制本店；平台账号：允许显式 shopId 过滤（缺省 0）。
-    let platform = auth.is_platform();
+    let platform = tenant.is_platform();
     let shop_id = if platform {
         q.shop_id.unwrap_or(0)
     } else {
-        auth.scoped_shop_id().unwrap_or(0)
+        tenant.shop_scope().unwrap_or(0)
     };
     MsgScope::Shop { shop_id, platform }
 }
@@ -93,40 +96,40 @@ async fn msg_count(State(state): State<AdminState>) -> ApiResult<()> {
 
 async fn msg_type_arr(
     State(state): State<AdminState>,
-    Extension(auth): Extension<AuthUser>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<AdminMsgListQuery>,
 ) -> ApiResult<Vec<AdminMsgTypeListVO>> {
     ok(state
         .system
         .admin_msg
-        .msg_type_arr(scope_of(&auth, &q))
+        .msg_type_arr(scope_of(&tenant, &q))
         .await?)
 }
 
 async fn list(
     State(state): State<AdminState>,
-    Extension(auth): Extension<AuthUser>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<AdminMsgListQuery>,
 ) -> ApiResult<PageResult<AdminMsgVO>> {
-    let scope = scope_of(&auth, &q);
+    let scope = scope_of(&tenant, &q);
     ok(state.system.admin_msg.list(scope, &q).await?)
 }
 
 async fn broadcast_list(
     State(state): State<AdminState>,
-    Extension(auth): Extension<AuthUser>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<AdminMsgListQuery>,
 ) -> ApiResult<PageResult<AdminMsgBroadcastVO>> {
-    let scope = scope_of(&auth, &q);
+    let scope = scope_of(&tenant, &q);
     ok(state.system.admin_msg.broadcast_list(scope, &q).await?)
 }
 
 async fn home_summary(
     State(state): State<AdminState>,
-    Extension(auth): Extension<AuthUser>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<AdminMsgListQuery>,
 ) -> ApiResult<HomeMsgSummaryVO> {
-    let scope = scope_of(&auth, &q);
+    let scope = scope_of(&tenant, &q);
     ok(state.system.admin_msg.home_summary(scope).await?)
 }
 
@@ -139,10 +142,10 @@ async fn set_readed(
 
 async fn set_all_readed(
     State(state): State<AdminState>,
-    Extension(auth): Extension<AuthUser>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<AdminMsgListQuery>,
 ) -> ApiResult<u64> {
-    let scope = scope_of(&auth, &q);
+    let scope = scope_of(&tenant, &q);
     ok(state.system.admin_msg.set_all_readed(scope).await?)
 }
 
@@ -170,49 +173,19 @@ mod tests {
     }
 
     #[test]
-    fn scope_resolution_matches_identity_model() {
-        let vendor = AuthUser {
-            id: 1,
-            username: "v".into(),
-            role_id: None,
-            admin_type: Some("vendor".into()),
-            shop_id: None,
-        };
+    fn vendor_scope_comes_from_trusted_tenant_context() {
+        let vendor = TenantContext::new(Some("vendor".into()), None, Some(9));
         let q = AdminMsgListQuery {
-            vendor_id: Some(9),
+            vendor_id: Some(999),
             ..Default::default()
         };
+        // 查询参数 vendorId 被忽略，可信 vendor_scope 生效
         assert_eq!(scope_of(&vendor, &q), MsgScope::Vendor { vendor_id: 9 });
-
-        let admin = AuthUser {
-            id: 1,
-            username: "a".into(),
-            role_id: None,
-            admin_type: Some("admin".into()),
-            shop_id: None,
-        };
-        assert!(scope_of(&admin, &AdminMsgListQuery::default()).is_platform());
-
-        let shop = AuthUser {
-            id: 2,
-            username: "s".into(),
-            role_id: None,
-            admin_type: Some("shop".into()),
-            shop_id: Some(5),
-        };
-        let q = AdminMsgListQuery {
-            shop_id: Some(3),
-            ..Default::default()
-        };
-        assert_eq!(
-            scope_of(&shop, &q),
-            MsgScope::Shop { shop_id: 5, platform: false }
-        );
     }
 
     #[test]
-    fn scope_uses_trusted_identity() {
-        let admin = AuthUser::new(1, "a".into(), None, Some("admin".into()), Some(0));
+    fn shop_and_platform_scopes_use_trusted_tenant() {
+        let admin = TenantContext::new(Some("admin".into()), None, None);
         let q = AdminMsgListQuery {
             shop_id: Some(9),
             ..Default::default()
@@ -222,16 +195,19 @@ mod tests {
                 assert_eq!(shop_id, 9);
                 assert!(platform);
             }
-            other => panic!("unexpected {other:?}"),
+            _ => panic!("平台账号应为 Shop 作用域"),
         }
-        // 店铺账号传其它店铺 shopId ⇒ 强制本店
-        let shop = AuthUser::new(2, "s".into(), None, Some("shop".into()), Some(5));
+        let shop = TenantContext::new(Some("shop".into()), Some(5), None);
+        let q = AdminMsgListQuery {
+            shop_id: Some(3),
+            ..Default::default()
+        };
         match scope_of(&shop, &q) {
             MsgScope::Shop { shop_id, platform } => {
                 assert_eq!(shop_id, 5);
                 assert!(!platform);
             }
-            other => panic!("unexpected {other:?}"),
+            _ => panic!("店铺账号应为 Shop 作用域"),
         }
     }
 }

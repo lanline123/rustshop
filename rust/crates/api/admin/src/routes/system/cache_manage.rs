@@ -24,12 +24,15 @@ use axum::{
 use tigshop_core::models::system::cache_manage::{CacheCleanupQuery, CacheCleanupVO};
 use tigshop_security::web::{ok, ApiResult};
 
+use crate::support::tenant::platform_only;
+
 use crate::AdminState;
 
 /// 域路由（挂载于 `/adminapi` 下）。
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new().route("/common/cacheManage/cleanup", post(cleanup))
+        .layer(axum::middleware::from_fn(platform_only))
 }
 
 /// 已实现路由清单（覆盖率统计用）。

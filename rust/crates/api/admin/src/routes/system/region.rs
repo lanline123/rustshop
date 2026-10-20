@@ -54,6 +54,7 @@
 //! > （详见 `uncertain_points`）。
 
 use axum::{
+    extract::Extension,
     extract::{Query, State},
     routing::{get, post},
     Json, Router,
@@ -64,7 +65,9 @@ use tigshop_core::models::system::region::{
     RegionUpdateDTO, UpdateFieldDTO,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AuthUser};
+
+use crate::support::tenant::require_platform;
 
 use crate::AdminState;
 
@@ -189,8 +192,10 @@ async fn detail(
 /// 也不允许改 `parent_id` / `level`（不在白名单 ⇒ 「字段值不合法」）。
 async fn update_field(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<bool> {
+    require_platform(&auth)?;
     ok(state.system.region.update_field(&dto).await?)
 }
 
@@ -206,8 +211,10 @@ async fn update_field(
 /// `is_hot` / `sort_order` 默认值 —— 与 `update` 规则不对称，是 Java 原样。
 async fn create(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<RegionCreateDTO>,
 ) -> ApiResult<serde_json::Value> {
+    require_platform(&auth)?;
     let id = state.system.region.create(&dto).await?;
     ok(serde_json::json!({ "id": id }))
 }
@@ -229,8 +236,10 @@ async fn create(
 ///    `firstWord` 空白 ⇒ 由 `regionName` 推导
 async fn update(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<RegionUpdateDTO>,
 ) -> ApiResult<bool> {
+    require_platform(&auth)?;
     ok(state.system.region.update(&dto).await?)
 }
 
@@ -242,7 +251,12 @@ async fn update(
 /// ⚠️ `region` 表**没有软删标记列**，就是 `DELETE`。
 /// Java **不校验记录是否存在**（删不存在的 id 也返回成功），
 /// 也**不校验子节点**（删父级会留下孤儿行）—— 本实现保持该语义。
-async fn del(State(state): State<AdminState>, Json(dto): Json<OperateDTO>) -> ApiResult<bool> {
+async fn del(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(dto): Json<OperateDTO>,
+) -> ApiResult<bool> {
+    require_platform(&auth)?;
     ok(state.system.region.del(&dto).await?)
 }
 
@@ -251,7 +265,12 @@ async fn del(State(state): State<AdminState>, Json(dto): Json<OperateDTO>) -> Ap
 /// 对应 Java `RegionController.batch(@Valid @RequestBody BatchDTO batchDTO)`
 /// → `BaseServiceImpl#batch`：`type != "del"` 时**静默返回 `false`**
 /// （HTTP 200，不是报错）。
-async fn batch(State(state): State<AdminState>, Json(dto): Json<BatchDTO>) -> ApiResult<bool> {
+async fn batch(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(dto): Json<BatchDTO>,
+) -> ApiResult<bool> {
+    require_platform(&auth)?;
     ok(state.system.region.batch(&dto).await?)
 }
 

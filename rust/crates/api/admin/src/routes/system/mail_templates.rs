@@ -28,22 +28,9 @@ use axum::{
 use tigshop_core::models::system::mail_templates::{MailTemplatesDTO, MailTemplatesVO};
 use tigshop_security::web::{client_ip, ok, ApiResult, AppError, AuthUser};
 
-use crate::AdminState;
+use crate::support::tenant::{platform_only};
 
-/// 邮箱模板域路由（挂载于 `/adminapi` 下）。
-/// 邮箱模板为平台级配置：店铺账号只读/写入一律 403。
-async fn platform_only(
-    Extension(auth): Extension<AuthUser>,
-    req: Request,
-    next: Next,
-) -> Result<Response, AppError> {
-    if !auth.is_platform() {
-        return Err(AppError(tigshop_core::Error::Forbidden(
-            "仅平台账号可管理邮箱模板".into(),
-        )));
-    }
-    Ok(next.run(req).await)
-}
+use crate::AdminState;
 
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;

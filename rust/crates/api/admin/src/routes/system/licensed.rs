@@ -25,6 +25,8 @@ use tigshop_core::models::system::licensed::{
 };
 use tigshop_security::web::{ok, ApiResult};
 
+use crate::support::tenant::platform_only;
+
 use crate::AdminState;
 
 /// 本域 3 条路由（去 `/adminapi` 前缀的路径 + 原 Java handler）。
@@ -41,6 +43,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/setting/licensed/index", get(index))
         .route("/setting/licensed/update", post(update))
         .route("/setting/licensed/saveLicensed", post(save_licensed))
+        .layer(axum::middleware::from_fn(platform_only))
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。

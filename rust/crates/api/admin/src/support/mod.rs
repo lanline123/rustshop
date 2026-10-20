@@ -4,3 +4,4 @@ pub mod download_response;
 pub mod excel_response;
 pub mod generated_permissions;
 pub mod permissions;
+pub mod tenant;

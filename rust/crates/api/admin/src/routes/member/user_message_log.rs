@@ -32,6 +32,8 @@ use tigshop_core::models::member::user_message_log::{
 use tigshop_core::types::PageResult;
 use tigshop_security::web::{ok, ApiResult, AuthUser, AppError};
 
+use crate::support::tenant::{platform_only, require_platform};
+
 use crate::AdminState;
 
 /// 本域路由清单（去掉 `/adminapi` 前缀 + 原 Java 方法名）。
@@ -54,31 +56,6 @@ const ROUTE_TABLE: [(&str, &str, &str); 5] = [
         "UserMessageLogController.recall",
     ),
 ];
-
-/// 会员消息管理路由（挂载于 `/adminapi` 下）。
-/// 平台级只读域（源表无 `shop_id` 列，无法按店铺隔离）：仅平台账号可访问。
-async fn platform_only(
-    Extension(auth): Extension<AuthUser>,
-    req: axum::extract::Request,
-    next: axum::middleware::Next,
-) -> Result<axum::response::Response, AppError> {
-    if !auth.is_platform() {
-        return Err(AppError(tigshop_core::Error::Forbidden(
-            "仅平台账号可访问该数据".into(),
-        )));
-    }
-    Ok(next.run(req).await)
-}
-
-/// 平台账号判定（供中间件与单测复用）。
-fn require_platform(auth: &AuthUser) -> Result<(), AppError> {
-    if !auth.is_platform() {
-        return Err(AppError(tigshop_core::Error::Forbidden(
-            "仅平台账号可访问该数据".into(),
-        )));
-    }
-    Ok(())
-}
 
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;

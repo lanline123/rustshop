@@ -32,32 +32,9 @@ use tigshop_core::models::system::app_version_admin::{AppVersionDetailVO, AppVer
 use tigshop_core::{Error, Result};
 use tigshop_security::web::{ok, ApiResult, AuthUser, AppError};
 
+use crate::support::tenant::{platform_only, require_platform};
+
 use crate::AdminState;
-
-/// app 版本管理域路由（挂载于 `/adminapi` 下）。
-/// 系统级配置域（源表无 `shop_id` 列）：仅平台账号可访问/修改。
-async fn platform_only(
-    Extension(auth): Extension<AuthUser>,
-    req: axum::extract::Request,
-    next: axum::middleware::Next,
-) -> std::result::Result<axum::response::Response, AppError> {
-    if !auth.is_platform() {
-        return Err(AppError(tigshop_core::Error::Forbidden(
-            "仅平台账号可管理系统配置".into(),
-        )));
-    }
-    Ok(next.run(req).await)
-}
-
-/// 平台账号判定（供中间件与单测复用）。
-fn require_platform(auth: &AuthUser) -> std::result::Result<(), AppError> {
-    if !auth.is_platform() {
-        return Err(AppError(tigshop_core::Error::Forbidden(
-            "仅平台账号可管理系统配置".into(),
-        )));
-    }
-    Ok(())
-}
 
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
