@@ -266,6 +266,8 @@ impl DecorateService {
         let Some(mut d) = self.repos.content.decorate.find_by_id(id).await? else {
             return Err(Error::NotFound("装修页面不存在".into()));
         };
+        // 多租户：仅本店装修页可改
+        ensure_media_write(d.shop_id)?;
         d.decorate_title = dto.decorate_title.clone();
         d.sort_order = dto.sort_order;
         d.update_time = Some(now_seconds() as i32);
@@ -369,6 +371,8 @@ impl DecorateService {
             let Some(mut d) = self.repos.content.decorate.find_by_id(id).await? else {
                 return Err(Error::NotFound("装修页面不存在".into()));
             };
+            // 多租户：仅本店装修页可保存草稿
+            ensure_media_write(d.shop_id)?;
             d.draft_data = Some(data);
             return self.repos.content.decorate.update(&d).await.map(|_| true);
         }
@@ -386,6 +390,8 @@ impl DecorateService {
             let Some(mut d) = self.repos.content.decorate.find_by_id(id).await? else {
                 return Err(Error::NotFound("装修页面不存在".into()));
             };
+            // 多租户：仅本店装修页可发布
+            ensure_media_write(d.shop_id)?;
             d.data = Some(data);
             d.status = Some(1);
             d.update_time = Some(now_seconds() as i32);
@@ -419,6 +425,8 @@ impl DecorateService {
         let Some(mut d) = self.repos.content.decorate.find_by_id(id).await? else {
             return Err(Error::NotFound("装修页面不存在".into()));
         };
+        // 多租户：仅本店装修页可绑定
+        ensure_media_write(d.shop_id)?;
         d.binded_h5_id = Some(binded_h5_id);
         self.repos.content.decorate.update(&d).await.map(|_| true)
     }
@@ -432,6 +440,8 @@ impl DecorateService {
         let Some(mut d) = self.repos.content.decorate.find_by_id(id).await? else {
             return Err(Error::NotFound("装修页面不存在".into()));
         };
+        // 多租户：仅本店装修页可取消绑定
+        ensure_media_write(d.shop_id)?;
         d.binded_h5_id = Some(0);
         self.repos.content.decorate.update(&d).await.map(|_| true)
     }
@@ -1266,6 +1276,8 @@ impl DecorateService {
             .find_by_id(parent_id)
             .await?
             .ok_or_else(|| Error::NotFound("父级装修页面不存在".into()))?;
+        // 多租户：父页需属于本店（平台页对店铺账号只读）
+        ensure_media_write(parent.shop_id)?;
         let locale_id = locale_id.unwrap_or(0);
         let decorate_type = parent.decorate_type;
         if let Some(mut child) = self
