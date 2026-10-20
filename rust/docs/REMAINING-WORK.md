@@ -69,31 +69,32 @@
 
 ### 2.1 前端迁移（最大工作量）
 
-**现状**（以 `docs/FRONTEND-MIGRATION-TASKS.md` 的审计为准）：
+**现状**（2026-10-20 重构后，详见 `docs/FRONTEND-REFACTOR-STATUS.md`）：
 
 | 指标 | 原版 admin | 重构 admin | 原版 PC | 重构 PC |
 |---|---:|---:|---:|---:|
-| `.vue` 文件 | 1329 | **9** | 430 | **10** |
-| 可迁移页面 | 1166 | **9** | 200 | **10** |
-| 业务路由 | 394 | **15** | 105 | **6** |
-| 接口调用去重 | 1217 | **31** | 223 | **16** |
-| Pinia store | 18 | **0** | 15 | **0** |
+| `.vue` 文件 | 1329 | **13** | 430 | **16** |
+| 可迁移页面 | 1166 | **13** | 200 | **16** |
+| 业务路由 | 394 | **16** | 105 | **11** |
+| Pinia store | 18 | **0** | 15 | **2** |
 | i18n | 完整 | **无** | 完整 | **无** |
 
-**当前结果**：
+已完成：Schema 表单/表格新增编辑、商品/订单/会员/优惠券核心页、PC 购物车→结算→支付→订单主链路、地址/个人中心、真实 API 封装、构建与契约检查全绿。
 
-- `web/admin` 可以构建，但只是 9 个页面原型；
-- `web/pc` 生产构建失败：
-  `ProductDetailView.vue` 缺 `applySeo`、`resolveImageUrl`；
-- 管理端契约检查 31 条调用中 **3 条路径未命中**；
-- 前端源码未提交，dist 只是原型。
+**当前结果**（2026-10-20）：
+
+- `web/admin` 与 `web/pc` 生产构建均通过；
+- 管理端契约调用全部命中，PC 38/38 命中；
+- 已提交 `rust/web`；工作树仅剩证书文件未跟踪；
+- 仍需按域继续补页面：Admin 多规格商品/售后/代客下单/账期/导出/装修引擎，
+  PC 会员其余页/活动页/支付渠道页/结算增强/i18n/SSR。
 
 **完成标准**：
 
-- `pnpm --filter @tigshop/admin build` / `pnpm --filter @tigshop/pc build` 均通过；
+- 每次提交前 `pnpm --filter @tigshop/admin build`、`@tigshop/pc build` 通过；
 - `python tools/check_frontend.py contract --strict` 0 未命中；
-- 按域迁移页面，至少完成 B1 平台骨架 + B2 admin P0（authority/panel/product/setting）；
-- 真实登录、商品、订单、支付回调、会员、营销页面可联调。
+- 按 `docs/FRONTEND-REFACTOR-STATUS.md` 的 P0/P1 清单继续迁移；
+- 真实登录、商品、订单、支付、会员、营销页面可联调。
 
 ### 2.2 微信直播：商品 / 订单同步 / 回调建单
 
