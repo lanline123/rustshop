@@ -5,6 +5,8 @@
 //!
 //! > **身份/可见范围**：Java 用请求头 `x-admin-type` + `x-shop-id`/`x-vendor-id`；
 //! > Rust JWT 只有 `admin_type`，`shopId`/`vendorId` 用查询参数兜底：
+//! > 说明：JWT 尚无 vendor 声明，vendor 账号只能依赖查询参数 `vendorId`
+//! > 兜底（无法做可信 vendor 归属校验）；已列为剩余点，待 JWT 增加 vendor_id 后再修。
 //! > `admin_type == "vendor"` → 供应商视角（`vendorId`），否则店铺/平台视角
 //! > （`shopId`，`admin`/缺失 → 平台视角，额外过滤 `is_broadcast = 1`）。
 //!
