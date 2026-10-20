@@ -16,38 +16,29 @@
 4. 按 §5 的 Wave 顺序做；每个 Wave 的验收命令见 §7。
 5. 没有把握时以 **Java 源码** 为准：`D:/tigshop/java-b2b2b-pro-v5.8.57/java`；前端在 `java/view`。
 
-### 0.1 最新快照（2026-10-20 11:30，优先阅读，§1–§5 为 19:00 快照）
+### 0.1 最新快照（2026-10-20 21:xx，优先阅读）
 
-- **HEAD `b1b92cdc`，工作树干净**；`cargo test -p tigshop-services -p tigshop-core -p tigshop-infrastructure` 全绿，
-  四项门禁 PASS，契约覆盖率 100%（路由口径）。
-- **行为占位 27 处 / 6 文件，全部为外部依赖**：微信直播 13、微信登录 7、ES 4、小程序码/scene 3。
-- 无凭据 P0 已完成：
-  - 审计：请求级 actor/IP + Java 已实现调用点约 30 个写点；
-  - IM：已读回执 WS、视频上传、自动回复（欢迎/等待/下班）；
-  - 交易：订单导出/批量发货模板/失败数据 xlsx、代客 O2O 配送、订单改价店铺分摊、限时折扣接入结算与下单；
-  - 拼团：虚拟成团（到期自动补齐）；站内信标签/统一人群；
-  - 内容：图库 zip、gallery 视频树/排序/移动、公众号菜单落库、装修模板 OpenTemplate 代理；
-  - 商户：店铺资金 create、保证金到期扫描；
-  - 会员：平台会员/店铺会员 Excel 导入、失败数据、模板；
-  - Excel：库存预警导入、商品出入库导入、调拨商品/调拨单导入与导出、对账单导出；
-  - 定时：订单取消/收货、拼团过期、账期更新、商品自动上下架、售后自动收货、保证金到期；
-  - 工程化：`/metrics`、Docker MySQL init（signed pure.sql）、nginx 参考配置与部署 README。
-- **仍需外部凭据/服务（阻塞）**：
-  1. 微信直播（13）、微信登录/OAuth（7）、微信小程序码/scene（3）；
-  2. ES 分词/全量同步（4）；
-  3. 微信支付/支付宝/PayPal、短信/邮件真实通道、对象存储正式密钥、翻译服务。
-- 本轮续做完成：满赠(type3)结算/下单、活动会员等级白名单、拼团失败自动退款售后、
-  订单改价店铺分摊、限时折扣接入、虚拟成团、保证金/售后定时任务。
-- **仍受外部依赖/环境阻塞**：
-  1. 分账调度（`ProfitSharingScheduleTask` 全部依赖微信/支付宝分账 API 与进件、提现状态）；
-  2. 拼团退款**实际执行**（售后单已自动创建，扣款/退款需支付渠道）；
-  3. 定金尾款超时/取消：已核对 Java 后端**没有**自动取消/超时任务，支付窗口由前端与支付接口控制；
-  4. 多租户：**已完成**（见 `docs/MULTI-TENANT.md`）：JWT 租户声明 + 可信头覆写 +
-     `AuthUser/TenantContext/TenantScope` 统一作用域，覆盖 identity/catalog/logistics/trade/
-     merchant/marketing/content/im/member/payment/system/analytics；RBAC `all` 已实现。
-     剩余仅少量 N/A/边界项（product_manage_client、admin_msg.msgCount、public 端点）。
-- **工程化仍需环境**：前端 dist + Docker/DB E2E 实测（本机无 Docker，MySQL 未启动）。
-- **任务板**：pending/in_progress 已清零。
+- **HEAD `fbf1e579`**，工作树仍有约 285 个路径未提交（前端 `rust/web` 迁移 +
+  `config_basic` 在途改动）；后端本轮改动已单独提交。
+- `cargo check --workspace` 通过；四项门禁 PASS（覆盖率 100%、路由冲突 0、
+  SQL 未知表/列 0、结构 PASS）。
+- `tigshop-services` 1570 passed / 1 failed，失败是未提交 `config_basic` 的旧占位测试；
+  `tigshop-admin-api` 590 passed。
+- **已完成且不要重做**：
+  - 公众号安全模式回调、扫码 openid、OAuth code 登录、PC 二维码、小程序手机号；
+  - 阿里云短信（已真实发送）、SMTP 163（已真实发信）、阿里云 OSS 上传（已真实读写）；
+  - 快递鸟签名/1002 轨迹/1007 面单客户端 + 物流查询/发货路由（账号缺套餐）；
+  - 火山翻译/SEO 标识（已充值实测）、Jieba 分词、SEO 批量代码；
+  - O2O 门店商品/会员折扣/距离、优惠券 member_scope、礼品卡平台配置、H5 默认导航；
+  - 后台手机号短信换绑、取消订单返还积分/余额/优惠券/秒杀/礼品卡库存；
+  - 催发货供应商消息、售后退货地址三级兜底、商品客户端 6 端点租户校验。
+- **仍需外部条件/剩余工作**：详见 `docs/REMAINING-WORK.md`。主要阻塞：
+  1. 快递鸟账号未购买查询/面单套餐（`JT3175428264802` 已到网关）；
+  2. 微信小程序 AppID/Secret + 公众号 IP 白名单（真实扫码/access_token）；
+  3. 微信支付公钥、ES 实例、微信直播权限；
+  4. 前端迁移（PC 构建、页面/店铺/i18n）；
+  5. 部分发货拆单、定金预售、售后自动退款、代客下单 orderCheck submit、
+     多租户 public/平台列表语义、文档全量清理。
 
 ---
 
@@ -439,7 +430,9 @@ FROM groupon_promotion_record ORDER BY groupon_promotion_record_id DESC LIMIT 5;
 | `docs/PAYMENT-CHANNELS.md`、`PAYMENT-UPLOAD-VERIFY.md` | 支付协议/回调 | 当前 |
 | `docs/SCHEDULER.md`、`EXCEL.md`、`IM-WEBSOCKET.md`、`RBAC.md`、`SMS-EMAIL.md`、`WECHAT-CLIENT.md` | 各 feature 说明 | 当前，Wave 3/4/6 需更新 |
 | `docs/_task43-handoff.md` | 支付扩展（recharge/apple/profit/sub_merchant）详细交接 | 待执行 |
-| `docs/RUN-RUST-FRONTEND.md` | 本地运行/前端部署 | 当前 |
+| `docs/RUN-RUST-FRONTEND.md` | 本地运行 / 「前端不改」部署方案 | **路线待定**：该方案的可行性未验证（原版前端 1440 条接口调用从未跑通），见 `FRONTEND-MIGRATION-TASKS.md` §10 |
+| `docs/FRONTEND-MIGRATION-TASKS.md` | **前端重写**路线：admin-web / pc-web 按域迁移任务清单、缺口、验收与估时 | **当前（2026-10-20 审计）** |
+| `tools/check_frontend.py` | 前端接口契约校验 + 规模/装修覆盖统计 | 当前 |
 | `docs/TOOLING.md`、`tools/compat/README.md` | 工具/种子/冒烟 | 当前 |
 
 规则：每完成一个 Wave/feature，更新 `CAPABILITY-MATRIX` 对应行 + 该 feature 文档；不要让 HANDOVER 再次腐化。
