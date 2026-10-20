@@ -12,6 +12,12 @@
 //! | `POST /adminapi/finance/categoryFeeRule/del` | `del` | `categoryFeeRuleUpdate` |
 //! | `POST /adminapi/finance/categoryFeeRule/checkConflict` | `checkConflict` | `categoryFeeRuleManage` |
 //!
+//! > **多租户**：`category_service_fee_rule` 表**没有 `shop_id` 列**，其
+//! > `category_service_fee_rule_target` 里的 shop/vendor 只是「费率规则适用对象」
+//! > 数据，不是租户归属；Java 控制器/Service 均未读取 `HeaderUtils.getShopId()`
+//! > 或按店铺过滤，属平台财务配置。Rust 侧整域 `platform_only`：店铺/供应商
+//! > 账号一律 403（Java 依据：`CategoryFeeRuleController` 无 HeaderUtils、
+//! > `CategoryFeeRuleServiceImpl` 无 shopId 条件）。
 //! > **权限**：Java `@PreAuthorize` 未迁移（Rust 只校验登录态）。
 //! > **返回结构**：`list` 返回项目 `PageResult`（Java 为 MyBatis `Page`）；
 //! > `save/update/updateStatus` 返回 `List<String>`（Java 恒为空列表）；
@@ -30,6 +36,8 @@ use tigshop_core::models::payment::category_fee_rule::{
 };
 use tigshop_core::types::PageResult;
 use tigshop_security::web::{ok, ApiResult};
+
+use crate::support::tenant::platform_only;
 
 use crate::AdminState;
 
@@ -83,6 +91,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/finance/categoryFeeRule/updateStatus", post(update_status))
         .route("/finance/categoryFeeRule/del", post(del))
         .route("/finance/categoryFeeRule/checkConflict", post(check_conflict))
+        .layer(axum::middleware::from_fn(platform_only))
 }
 
 /// 本模块已实现路由（覆盖率统计，完整契约路径）。

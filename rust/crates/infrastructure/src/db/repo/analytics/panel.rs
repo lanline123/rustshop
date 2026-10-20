@@ -28,14 +28,19 @@ impl PanelRepository {
         from: i64,
         to: i64,
         shop_scope: Option<i32>,
+        vendor_scope: Option<i32>,
     ) -> Result<(i64, String)> {
         let shop_sql = if shop_scope.is_some() { " AND shop_id = ?" } else { "" };
+        let vendor_sql = if vendor_scope.is_some() { " AND vendor_id = ?" } else { "" };
         let sql = format!(
-            "SELECT COUNT(*), COALESCE(SUM(paid_amount), 0) FROM `order` WHERE add_time >= ? AND add_time < ?{shop_sql}"
+            "SELECT COUNT(*), COALESCE(SUM(paid_amount), 0) FROM `order` WHERE add_time >= ? AND add_time < ?{shop_sql}{vendor_sql}"
         );
         let mut query = sqlx::query_as(&sql).bind(from).bind(to);
         if let Some(shop) = shop_scope {
             query = query.bind(shop);
+        }
+        if let Some(vendor) = vendor_scope {
+            query = query.bind(vendor);
         }
         let row: Option<(i64, Option<rust_decimal::Decimal>)> = query
         .fetch_optional(&self.pool)
@@ -86,12 +91,17 @@ impl PanelRepository {
         &self,
         status: i32,
         shop_scope: Option<i32>,
+        vendor_scope: Option<i32>,
     ) -> Result<i64> {
         let shop_sql = if shop_scope.is_some() { " AND shop_id = ?" } else { "" };
-        let sql = format!("SELECT COUNT(*) FROM `order` WHERE order_status = ?{shop_sql}");
+        let vendor_sql = if vendor_scope.is_some() { " AND vendor_id = ?" } else { "" };
+        let sql = format!("SELECT COUNT(*) FROM `order` WHERE order_status = ?{shop_sql}{vendor_sql}");
         let mut query = sqlx::query_as(&sql).bind(status);
         if let Some(shop) = shop_scope {
             query = query.bind(shop);
+        }
+        if let Some(vendor) = vendor_scope {
+            query = query.bind(vendor);
         }
         let (n,): (i64,) = query.fetch_one(&self.pool).await.map_err(map_err)?;
         Ok(n)
@@ -101,17 +111,27 @@ impl PanelRepository {
     ///
     /// # Errors
     /// 数据库失败 → `Error::Database`。
-    pub async fn product_counts(&self, shop_scope: Option<i32>) -> Result<(i64, i64)> {
+    pub async fn product_counts(
+        &self,
+        shop_scope: Option<i32>,
+        vendor_scope: Option<i32>,
+    ) -> Result<(i64, i64)> {
         let shop_sql = if shop_scope.is_some() { " AND shop_id = ?" } else { "" };
-        let total_sql = format!("SELECT COUNT(*) FROM product WHERE is_delete = 0{shop_sql}");
+        let vendor_sql = if vendor_scope.is_some() { " AND vendor_id = ?" } else { "" };
+        let total_sql =
+            format!("SELECT COUNT(*) FROM product WHERE is_delete = 0{shop_sql}{vendor_sql}");
         let on_sale_sql = format!(
-            "SELECT COUNT(*) FROM product WHERE is_delete = 0 AND product_status = 1{shop_sql}"
+            "SELECT COUNT(*) FROM product WHERE is_delete = 0 AND product_status = 1{shop_sql}{vendor_sql}"
         );
         let mut total_query = sqlx::query_as(&total_sql);
         let mut on_sale_query = sqlx::query_as(&on_sale_sql);
         if let Some(shop) = shop_scope {
             total_query = total_query.bind(shop);
             on_sale_query = on_sale_query.bind(shop);
+        }
+        if let Some(vendor) = vendor_scope {
+            total_query = total_query.bind(vendor);
+            on_sale_query = on_sale_query.bind(vendor);
         }
         let total: (i64,) = total_query.fetch_one(&self.pool).await.map_err(map_err)?;
         let on_sale: (i64,) = on_sale_query.fetch_one(&self.pool).await.map_err(map_err)?;
@@ -127,14 +147,19 @@ impl PanelRepository {
         from: i64,
         to: i64,
         shop_scope: Option<i32>,
+        vendor_scope: Option<i32>,
     ) -> Result<Vec<(i64, i64, String)>> {
         let shop_sql = if shop_scope.is_some() { " AND shop_id = ?" } else { "" };
+        let vendor_sql = if vendor_scope.is_some() { " AND vendor_id = ?" } else { "" };
         let sql = format!(
-            "SELECT (add_time DIV 86400) AS day, COUNT(*), COALESCE(SUM(paid_amount), 0) FROM `order` WHERE add_time >= ? AND add_time < ?{shop_sql} GROUP BY day ORDER BY day ASC"
+            "SELECT (add_time DIV 86400) AS day, COUNT(*), COALESCE(SUM(paid_amount), 0) FROM `order` WHERE add_time >= ? AND add_time < ?{shop_sql}{vendor_sql} GROUP BY day ORDER BY day ASC"
         );
         let mut query = sqlx::query_as(&sql).bind(from).bind(to);
         if let Some(shop) = shop_scope {
             query = query.bind(shop);
+        }
+        if let Some(vendor) = vendor_scope {
+            query = query.bind(vendor);
         }
         let rows: Vec<(i64, i64, Option<rust_decimal::Decimal>)> = query
         .fetch_all(&self.pool)

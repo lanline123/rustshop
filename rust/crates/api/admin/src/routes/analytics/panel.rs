@@ -12,7 +12,7 @@ use axum::{
 };
 use serde_json::Value;
 use tigshop_core::models::analytics::panel::{DaysQuery, SearchMenuQuery, ShortcutMenuSaveDTO};
-use tigshop_security::web::{ok, ApiResult, AuthUser};
+use tigshop_security::web::{ok, ApiResult, AuthUser, TenantContext};
 
 use crate::AdminState;
 
@@ -68,8 +68,15 @@ async fn index(
     ok(state.analytics.panel.index(auth.scoped_shop_id()).await?)
 }
 
-async fn vendor_index(State(state): State<AdminState>) -> ApiResult<Value> {
-    ok(state.analytics.panel.vendor_index().await?)
+async fn vendor_index(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+) -> ApiResult<Value> {
+    ok(state
+        .analytics
+        .panel
+        .vendor_index(tenant.vendor_scope())
+        .await?)
 }
 
 async fn statistical_data(
@@ -86,12 +93,13 @@ async fn statistical_data(
 
 async fn vendor_statistical_data(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<DaysQuery>,
 ) -> ApiResult<Value> {
     ok(state
         .analytics
         .panel
-        .vendor_statistical_data(q.resolved_days())
+        .vendor_statistical_data(q.resolved_days(), tenant.vendor_scope())
         .await?)
 }
 
@@ -131,6 +139,16 @@ async fn save_shortcut_menu(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn vendor_scope_comes_from_tenant_context() {
+        let vendor = TenantContext::new(Some("vendor".into()), None, Some(3));
+        assert_eq!(vendor.vendor_scope(), Some(3));
+        assert!(!vendor.is_platform());
+        let platform = TenantContext::new(Some("admin".into()), None, None);
+        assert_eq!(platform.vendor_scope(), None);
+        assert!(platform.is_platform());
+    }
+
     #[test]
     fn shop_account_cannot_use_other_shop_scope() {
         use tigshop_core::Error;
