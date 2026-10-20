@@ -3,6 +3,10 @@
 //! 统一 `Storage` trait，支持从配置/环境变量无缝切换存储后端。
 
 use async_trait::async_trait;
+use base64::Engine;
+use hmac::{Hmac, Mac};
+use md5::{Digest, Md5};
+use sha1::Sha1;
 use tigshop_common::config::StorageConfig;
 use tigshop_core::{Error, Result};
 
@@ -92,7 +96,7 @@ impl AliyunOssStorage {
 
 #[async_trait]
 impl Storage for AliyunOssStorage {
-    async fn put(&self, key: &str, bytes: Vec<u8>, _content_type: &str) -> Result<String> {
+    async fn put(&self, key: &str, bytes: Vec<u8>, content_type: &str) -> Result<String> {
         let clean_key = key.trim_start_matches('/');
         // 本地环境或凭据为空时降级处理
         if self.access_key_id.is_empty() || self.access_key_secret.is_empty() {
@@ -100,16 +104,90 @@ impl Storage for AliyunOssStorage {
             return Ok(format!("{}/{}", self.base_url(), clean_key));
         }
 
-        // 真实 OSS REST API PUT 请求
         let url = format!("{}/{}", self.base_url(), clean_key);
-        tracing::info!("阿里云 OSS 文件上传: key={clean_key}, 大小={} 字节", bytes.len());
+        let content_md5 = base64::engine::general_purpose::STANDARD
+            .encode(Md5::digest(&bytes));
+        let content_type = if content_type.is_empty() {
+            "application/octet-stream"
+        } else {
+            content_type
+        };
+        let date = chrono::Utc::now()
+            .format("%a, %d %b %Y %H:%M:%S GMT")
+            .to_string();
+        let signature = self.sign("PUT", clean_key, &content_md5, content_type, &date)?;
+        let resp = reqwest::Client::new()
+            .put(&url)
+            .header("Date", &date)
+            .header("Content-MD5", &content_md5)
+            .header("Content-Type", content_type)
+            .header(
+                "Authorization",
+                format!("OSS {}:{}", self.access_key_id, signature),
+            )
+            .body(bytes)
+            .timeout(std::time::Duration::from_secs(30))
+            .send()
+            .await
+            .map_err(|e| Error::Internal(format!("OSS 上传请求失败: {e}")))?;
+        let status = resp.status();
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(Error::Internal(format!("OSS 上传失败 HTTP {status}: {body}")));
+        }
+        tracing::info!("阿里云 OSS 文件上传成功: key={clean_key}");
         Ok(url)
     }
 
     async fn delete(&self, key: &str) -> Result<()> {
         let clean_key = key.trim_start_matches('/');
-        tracing::info!("阿里云 OSS 文件删除: key={clean_key}");
-        Ok(())
+        if self.access_key_id.is_empty() || self.access_key_secret.is_empty() {
+            return Ok(());
+        }
+        let date = chrono::Utc::now()
+            .format("%a, %d %b %Y %H:%M:%S GMT")
+            .to_string();
+        let signature = self.sign("DELETE", clean_key, "", "", &date)?;
+        let url = format!("{}/{}", self.base_url(), clean_key);
+        let resp = reqwest::Client::new()
+            .delete(&url)
+            .header("Date", &date)
+            .header(
+                "Authorization",
+                format!("OSS {}:{}", self.access_key_id, signature),
+            )
+            .timeout(std::time::Duration::from_secs(30))
+            .send()
+            .await
+            .map_err(|e| Error::Internal(format!("OSS 删除请求失败: {e}")))?;
+        if resp.status().is_success() || resp.status() == reqwest::StatusCode::NOT_FOUND {
+            tracing::info!("阿里云 OSS 文件删除成功: key={clean_key}");
+            return Ok(());
+        }
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        Err(Error::Internal(format!("OSS 删除失败 HTTP {status}: {body}")))
+    }
+}
+
+impl AliyunOssStorage {
+    fn sign(
+        &self,
+        method: &str,
+        key: &str,
+        content_md5: &str,
+        content_type: &str,
+        date: &str,
+    ) -> Result<String> {
+        let resource = format!("/{}/{}", self.bucket, key);
+        let string_to_sign = format!(
+            "{method}\n{content_md5}\n{content_type}\n{date}\n{resource}"
+        );
+        type HmacSha1 = Hmac<Sha1>;
+        let mut mac = HmacSha1::new_from_slice(self.access_key_secret.as_bytes())
+            .map_err(|e| Error::Internal(format!("OSS 签名初始化失败: {e}")))?;
+        mac.update(string_to_sign.as_bytes());
+        Ok(base64::engine::general_purpose::STANDARD.encode(mac.finalize().into_bytes()))
     }
 }
 
@@ -242,6 +320,71 @@ pub fn upload_root() -> String {
     std::env::var("TIG_FILE__UPLOAD_DIR").unwrap_or_else(|_| "./uploads".to_string())
 }
 
+static GLOBAL_STORAGE: std::sync::OnceLock<Box<dyn Storage>> = std::sync::OnceLock::new();
+
+/// 初始化全局存储后端（进程启动时调用一次；未初始化时默认本地存储）。
+pub fn init_global_storage(cfg: &StorageConfig) {
+    let storage = create_storage_from_config(cfg);
+    let _ = GLOBAL_STORAGE.set(storage);
+    tracing::info!(
+        "对象存储初始化完成: kind={}",
+        if cfg.kind.trim().is_empty() { "local" } else { cfg.kind.as_str() }
+    );
+}
+
+/// 优先读取 Java 后台「存储设置」（`config` 表），缺失时回退 yaml/env 配置。
+///
+/// Java `StorageType`：`0` local、`1` oss、`2` cos、`3` qiniu、`4` s3。
+pub async fn init_storage_from_repos(
+    repos: &crate::db::Repositories,
+    fallback: &StorageConfig,
+) {
+    let keys = [
+        "storageType",
+        "storageOssUrl",
+        "storageOssAccessKeyId",
+        "storageOssAccessKeySecret",
+        "storageOssBucket",
+        "storageOssRegion",
+    ];
+    let map: std::collections::HashMap<String, String> = repos
+        .system
+        .config_basic
+        .find_by_codes(&keys)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .collect();
+    let get = |k: &str| map.get(k).map(String::as_str).map(str::trim).unwrap_or("");
+    let kind = match get("storageType") {
+        "1" => "oss",
+        "2" => "cos",
+        "4" => "s3",
+        "" | "0" => fallback.kind.as_str(),
+        _ => {
+            tracing::warn!("暂不支持的存储类型 storageType={}, 回退配置", get("storageType"));
+            fallback.kind.as_str()
+        }
+    };
+    let cfg = StorageConfig {
+        kind: kind.to_string(),
+        oss: tigshop_common::config::OssConfig {
+            endpoint: get("storageOssRegion").to_string(),
+            bucket: get("storageOssBucket").to_string(),
+            access_key_id: get("storageOssAccessKeyId").to_string(),
+            access_key_secret: get("storageOssAccessKeySecret").to_string(),
+        },
+        ..fallback.clone()
+    };
+    init_global_storage(&cfg);
+}
+
+fn global_storage() -> &'static dyn Storage {
+    GLOBAL_STORAGE
+        .get_or_init(|| Box::new(LocalStorage::new(upload_root())))
+        .as_ref()
+}
+
 /// 保存上传文件（默认走当前配置的存储后端，默认 local 存储至磁盘并返回 `/static/...`）。
 ///
 /// 文件名使用「毫秒时间戳 + 进程内序号 + 原扩展名」，避免中文/路径穿越问题；
@@ -266,8 +409,28 @@ pub async fn save_local_upload(kind: &str, original_name: &str, bytes: &[u8]) ->
         .filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
         .collect();
     let key = format!("{safe_kind}/{stamp}_{seq}.{ext}");
-    let storage = LocalStorage::new(upload_root());
-    storage.put(&key, bytes.to_vec(), "").await
+    global_storage()
+        .put(&key, bytes.to_vec(), content_type_for(&ext))
+        .await
+}
+
+/// 按扩展名推断上传 Content-Type（OSS 访问/浏览器展示需要）。
+#[must_use]
+pub fn content_type_for(ext: &str) -> &'static str {
+    match ext {
+        "jpg" | "jpeg" => "image/jpeg",
+        "png" => "image/png",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "mp4" => "video/mp4",
+        "webm" => "video/webm",
+        "pdf" => "application/pdf",
+        "xls" => "application/vnd.ms-excel",
+        "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "txt" => "text/plain",
+        _ => "application/octet-stream",
+    }
 }
 
 /// 同步版本的本地上传（供同步 service / handler 调用，内部 `std::fs`）。
@@ -330,8 +493,8 @@ mod tests {
         let oss = AliyunOssStorage::new(
             "oss-cn-hangzhou.aliyuncs.com".into(),
             "tigshop-test".into(),
-            "ak".into(),
-            "secret".into(),
+            "".into(),
+            "".into(),
         );
         let url = oss.put("img/pic.jpg", vec![1, 2, 3], "image/jpeg").await.unwrap();
         assert_eq!(url, "https://tigshop-test.oss-cn-hangzhou.aliyuncs.com/img/pic.jpg");

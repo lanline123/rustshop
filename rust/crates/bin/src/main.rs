@@ -294,6 +294,8 @@ async fn main() -> anyhow::Result<()> {
 
     // 5. 装配服务
     let repos = Arc::new(Repositories::new(pool));
+    // 对象存储：优先 Java 后台存储设置（config 表），缺失时回退 config.yaml/env。
+    tigshop_infrastructure::storage::init_storage_from_repos(&repos, &cfg.storage).await;
     let jwt = Arc::new(JwtService::new(cfg.jwt.clone()));
     let auth = Arc::new(AuthService::new(repos.clone(), jwt.clone(), cfg.jwt.clone()));
     let product = Arc::new(ProductService::new(repos.clone(), cache.clone()));
@@ -860,8 +862,12 @@ async fn main() -> anyhow::Result<()> {
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http());
 
+    // 商城端只提供 /api JSON 接口；PC 前端为独立 Vue SPA（仓库根 `pc-web/`），
+    // 由 nginx 静态托管并反代 /api 到本端口。
+    // 历史说明：曾用 `tigshop_pc_web::render_app` 作为 SSR fallback，该 Leptos 实现已于
+    // 2026-10-20 下线（备份见 `rust/backups/pc-web-backup-leptos`），不要再加回来——
+    // 否则 8181 的 `/` 会返回 Leptos 页面，与 `pc-web/` 的 SPA 冲突。
     let public_app = public_router(public_state)
-        .fallback(tigshop_pc_web::render_app)
         .layer(cors)
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http());
