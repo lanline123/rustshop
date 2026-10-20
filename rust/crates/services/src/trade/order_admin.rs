@@ -2061,6 +2061,36 @@ impl OrderAdminService {
             .order_admin
             .insert_order_log(id, &order.order_sn, desc, admin_id, order.shop_id)
             .await?;
+
+        // 订单完成后台消息（Java AdminMsgTypeEnum.ORDER_COMPLETED = 13）。
+        let title = format!(
+            "订单已完成通知：{},金额：{}",
+            order.order_sn, order.total_amount
+        );
+        let content = format!("您有订单【{}】已完成，请注意查看。", order.order_sn);
+        let related = serde_json::json!({ "orderId": order.order_id }).to_string();
+        let _ = self
+            .repos
+            .system
+            .admin_msg
+            .create_message(13, order.shop_id, order.order_id, &title, &content, &related)
+            .await;
+        if let Some(vendor_id) = order.vendor_id.filter(|v| *v > 0) {
+            let _ = self
+                .repos
+                .system
+                .admin_msg
+                .create_vendor_message(
+                    13,
+                    vendor_id,
+                    order.shop_id,
+                    order.order_id,
+                    &title,
+                    &content,
+                    &related,
+                )
+                .await;
+        }
         Ok(())
     }
 
