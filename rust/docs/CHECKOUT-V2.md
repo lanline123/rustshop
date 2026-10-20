@@ -68,3 +68,8 @@ G order: id=11 total=39.00                     # 运费 4.00 随单落库
 结算 `check` 与下单 `order` 在秒杀/拼团价基础上叠加 `time_discount`：
 取当前进行中活动的最低价（折扣率/立减/固定价），累计到
 `discountTimeDiscountAmount` 并计入应付与税费基数；下单落 `order_item.price`。
+
+## 满赠（type=3）接入（2026-10-20）
+
+结算按店铺命中满赠规则、阶梯取最高门槛，返回 gift 列表（giftId/productId/skuId/num）；
+下单生成 isGift=1、价格 0 的订单明细，并在同一事务扣减 product_gift.gift_stock。

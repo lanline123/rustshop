@@ -21,6 +21,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
+use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
 
 use tigshop_core::entities::{
@@ -310,7 +311,7 @@ impl CheckService {
         }
 
         // —— 满减/满折（按店铺；可能与秒杀/拼团叠加，按活动顺序逐步折价）——
-        let (full_reduce_total, store_full_reduce) = apply_full_reductions(
+        let (full_reduce_total, store_full_reduce, applied_gifts) = apply_full_reductions(
             &self.repos,
             &carts,
             &products,
@@ -553,7 +554,25 @@ impl CheckService {
                 },
                 used_promotions: Vec::new(),
                 enable_use_promotion: Vec::new(),
-                gift: Vec::new(),
+                gift: applied_gifts
+                    .iter()
+                    .filter(|g| g.shop_id == *shop_id)
+                    .map(|g| {
+                        serde_json::json!({
+                            "giftId": g.gift_id,
+                            "productId": g.product_id,
+                            "skuId": g.sku_id,
+                            "productName": g.product_name,
+                            "productSn": g.product_sn,
+                            "picThumb": g.pic_thumb,
+                            "productType": g.product_type,
+                            "shopId": g.shop_id,
+                            "type": 4,
+                            "num": g.num,
+                            "promotionId": g.promotion_id,
+                        })
+                    })
+                    .collect(),
             });
         }
 
@@ -985,18 +1004,34 @@ pub(crate) async fn load_groupon_prices(
     Ok(result)
 }
 
-/// 满减/满折：按店铺命中活动，对命中商品行按比例折价（Java `ProductPromotionServiceImpl#parsePrice`）。
+/// 满赠命中赠品（type=3）。
+#[derive(Debug, Clone, Default)]
+pub struct AppliedGift {
+    pub gift_id: i32,
+    pub product_id: i32,
+    pub sku_id: i32,
+    pub shop_id: i32,
+    pub num: i32,
+    pub product_name: String,
+    pub product_sn: String,
+    pub pic_thumb: String,
+    pub product_type: i32,
+    pub promotion_id: i32,
+}
+
+/// 满减/满折/满赠：按店铺命中活动，对命中商品行按比例折价（Java `ProductPromotionServiceImpl#parsePrice`）。
 ///
-/// 返回 `(总优惠, 各店铺优惠)`；`line_prices` 会被就地更新为折后单价。
+/// 返回 `(总优惠, 各店铺优惠, 命中赠品)`；`line_prices` 会被就地更新为折后单价。
 pub(crate) async fn apply_full_reductions(
     repos: &Repositories,
     carts: &[Cart],
     products: &HashMap<i32, Product>,
     line_prices: &mut HashMap<i32, Decimal>,
     now: i32,
-) -> Result<(Decimal, BTreeMap<i32, Decimal>)> {
+) -> Result<(Decimal, BTreeMap<i32, Decimal>, Vec<AppliedGift>)> {
     let mut total = Decimal::ZERO;
     let mut per_store: BTreeMap<i32, Decimal> = BTreeMap::new();
+    let mut gifts: Vec<AppliedGift> = Vec::new();
     let mut by_shop: BTreeMap<i32, Vec<&Cart>> = BTreeMap::new();
     for cart in carts {
         by_shop.entry(cart.shop_id).or_default().push(cart);
@@ -1008,7 +1043,10 @@ pub(crate) async fn apply_full_reductions(
             .find_active_by_shop(shop_id, now)
             .await?;
         for promotion in promotions {
-            if promotion.promotion_type != 1 && promotion.promotion_type != 2 {
+            if promotion.promotion_type != 1
+                && promotion.promotion_type != 2
+                && promotion.promotion_type != 3
+            {
                 continue;
             }
             let include_ids: Vec<i32> = if promotion.range == 3 || promotion.range == 4 {
@@ -1050,6 +1088,60 @@ pub(crate) async fn apply_full_reductions(
             let Some(tier) = pick_promotion_tier(&tiers, compare_data) else {
                 continue;
             };
+            // 满赠：不参与价格计算，命中后记录赠品数量
+            if promotion.promotion_type == 3 {
+                let Some(gift_id) = tier.gift_id else {
+                    continue;
+                };
+                let Some(gift) = repos.marketing.product_gift.find_by_id(gift_id).await? else {
+                    continue;
+                };
+                if gift.gift_stock <= 0 {
+                    continue;
+                }
+                if gift.sku_id > 0 {
+                    match repos.marketing.product_gift.find_sku(gift.sku_id).await? {
+                        Some(sku) if sku.is_enabled != 0 => {}
+                        _ => continue,
+                    }
+                }
+                let Some(product) = repos
+                    .marketing
+                    .product_gift
+                    .find_product(gift.product_id)
+                    .await?
+                else {
+                    continue;
+                };
+                let times = if promotion.rules_type == 1 {
+                    Decimal::ONE
+                } else {
+                    (compare_data / tier.min_amount.max(Decimal::ONE))
+                        .trunc()
+                        .max(Decimal::ONE)
+                };
+                let num = (Decimal::from(tier.num.max(0)) * times)
+                    .trunc()
+                    .to_i32()
+                    .unwrap_or(0)
+                    .min(gift.gift_stock);
+                if num <= 0 {
+                    continue;
+                }
+                gifts.push(AppliedGift {
+                    gift_id,
+                    product_id: gift.product_id,
+                    sku_id: gift.sku_id,
+                    shop_id: promotion.shop_id,
+                    num,
+                    product_name: product.product_name,
+                    product_sn: product.product_sn,
+                    pic_thumb: product.pic_thumb,
+                    product_type: 0,
+                    promotion_id: promotion.promotion_id,
+                });
+                continue;
+            }
             let Some((discount, proportion)) = promotion_discount(
                 promotion.promotion_type,
                 promotion.rules_type,
@@ -1083,7 +1175,7 @@ pub(crate) async fn apply_full_reductions(
     }
     // 以店铺行级优惠合计为准，避免比例取整误差与活动金额不一致
     let stored_total: Decimal = per_store.values().copied().sum();
-    Ok((stored_total.max(Decimal::ZERO), per_store))
+    Ok((stored_total.max(Decimal::ZERO), per_store, gifts))
 }
 
 /// 批量加载商品（结算页/下单共用）。

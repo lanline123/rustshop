@@ -92,6 +92,26 @@ impl ProductGiftRepository {
     }
 
     /// 按主键查询（更新合并用）。
+    /// 下单事务内扣减赠品库存（Java `ProductGiftService#decStock`）。
+    pub async fn dec_gift_stock_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, MySql>,
+        gift_id: i32,
+        quantity: i32,
+    ) -> Result<bool> {
+        let affected = sqlx::query(
+            "UPDATE product_gift SET gift_stock = gift_stock - ? WHERE gift_id = ? AND gift_stock >= ?",
+        )
+        .bind(quantity)
+        .bind(gift_id)
+        .bind(quantity)
+        .execute(&mut **tx)
+        .await
+        .map_err(map_err)?
+        .rows_affected();
+        Ok(affected > 0)
+    }
+
     pub async fn find_by_id(&self, id: i32) -> Result<Option<ProductGift>> {
         sqlx::query_as::<_, ProductGift>(&format!("{SELECT} WHERE gift_id = ? LIMIT 1"))
             .bind(id)

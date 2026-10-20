@@ -127,7 +127,7 @@ impl OrderService {
             }
             line_prices.insert(line.cart_id, price);
         }
-        crate::trade::check::apply_full_reductions(
+        let (_, _, applied_gifts) = crate::trade::check::apply_full_reductions(
             &self.repos,
             &lines,
             &products,
@@ -208,6 +208,31 @@ impl OrderService {
                 shop_id: line.shop_id,
                 is_pin: i32::from(is_pin),
                 promotion_data,
+                ..Default::default()
+            });
+        }
+
+        // 满赠赠品行（价格 0，isGift=1；库存扣减在事务内单独处理）
+        for gift in &applied_gifts {
+            items.push(OrderItem {
+                order_sn: order_sn.clone(),
+                user_id,
+                price: Decimal::ZERO,
+                quantity: gift.num,
+                product_id: gift.product_id,
+                sku_id: gift.sku_id,
+                sku_data: String::new(),
+                origin_price: Some(Decimal::ZERO),
+                shop_id: gift.shop_id,
+                is_gift: 1,
+                promotion_data: Some(
+                    serde_json::json!({
+                        "giftId": gift.gift_id,
+                        "promotionId": gift.promotion_id,
+                        "type": 4,
+                    })
+                    .to_string(),
+                ),
                 ..Default::default()
             });
         }
@@ -518,6 +543,36 @@ impl OrderService {
             for (idx, item) in items.iter().enumerate() {
                 let pid = item.product_id;
                 let qty = item.quantity;
+                if item.is_gift == 1 {
+                    let gift_id = item
+                        .promotion_data
+                        .as_deref()
+                        .and_then(|raw| serde_json::from_str::<serde_json::Value>(raw).ok())
+                        .and_then(|v| v.get("giftId").and_then(|g| g.as_i64()))
+                        .and_then(|g| i32::try_from(g).ok())
+                        .unwrap_or(0);
+                    match self
+                        .repos
+                        .marketing
+                        .product_gift
+                        .dec_gift_stock_in_tx(&mut tx, gift_id, qty)
+                        .await
+                    {
+                        Ok(true) => {}
+                        Ok(false) => {
+                            result = Err(Error::InsufficientStock {
+                                product_id: pid.to_string(),
+                                stock: 0,
+                            });
+                            break;
+                        }
+                        Err(e) => {
+                            result = Err(e);
+                            break;
+                        }
+                    }
+                    continue;
+                }
                 // 无 SKU 商品（sku_id 缺省）必须按 product_stock 扣减：
                 // 传 Some(0) 会 UPDATE product_sku WHERE sku_id=0 → 0 行 → 误报库存不足。
                 let sku = lines.get(idx).and_then(|l| l.sku_id);

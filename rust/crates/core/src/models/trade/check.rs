@@ -601,6 +601,10 @@ pub struct PromotionTier {
     pub min_amount: Decimal,
     /// 满减金额（type=1）或折扣（type=2，几折）。
     pub reduce: Decimal,
+    /// 满赠赠品 ID（type=3）。
+    pub gift_id: Option<i32>,
+    /// 满赠数量（type=3）。
+    pub num: i32,
 }
 
 /// 解析 `promotion_type_data`（`[{"minAmount":100,"reduce":10}]`，兼容字符串/数字）。
@@ -626,9 +630,21 @@ pub fn parse_promotion_tiers(raw: &str) -> Vec<PromotionTier> {
                 .get("reduce")
                 .and_then(|v| as_decimal(v))
                 .unwrap_or(Decimal::ZERO);
+            let gift_id = item
+                .get("giftId")
+                .and_then(|v| v.as_i64())
+                .map(|v| i32::try_from(v).unwrap_or(0))
+                .filter(|v| *v > 0);
+            let num = item
+                .get("num")
+                .and_then(|v| v.as_i64())
+                .map(|v| i32::try_from(v).unwrap_or(0))
+                .unwrap_or(0);
             Some(PromotionTier {
                 min_amount: min,
                 reduce,
+                gift_id,
+                num,
             })
         })
         .collect()
