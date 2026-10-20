@@ -217,7 +217,7 @@
 
 - 订单/售后剩余边界：催发货已写 vendor 管理员消息（`b2da5837`）、售后退货地址
   已做 vendor/shop/平台三级兜底；后台取消已返还积分/余额/优惠券并写后台消息；
-  仍剩部分发货拆单、定金预售、拼团限购恢复、售后自动退款等；
+  部分发货拆单已实现；仍剩定金预售、拼团限购恢复、售后自动退款等；
 - 微信公众号/小程序真实扫码登录全链路（等 IP 白名单 + 小程序凭据）；
 - 多租户：`catalog/product_manage_client` 6 端点已加店铺范围校验（`d1f48658`）；
   `admin_msg.msgCount` 已是 SSE + TenantContext；`groupon_promotion` public

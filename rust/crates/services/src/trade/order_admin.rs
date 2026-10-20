@@ -23,15 +23,17 @@
 //!   `shippingInfo` / `getOrderPageConfig` / `changeOrderStatus` / `remindDeliver` /
 //!   批量发货导入 2 条 / `downloadDeliverTemplate`。
 //!
-//! **未迁移（本切片明确不做，偏差已在各方法注释列明）**：
-//! - 多店铺/多供应商拆单（`createSplitOrder` + 尾差/税费补齐 + 分销拆单 + 拆单日志）
+//! **仍未迁移（偏差已在各方法注释列明）**：
+//! - 多店铺/多供应商支付后拆单（`createSplitOrder` 的尾差/税费补齐 + 分销拆单）
 //! - 定金预售支付状态机（`presaleType = 2`）
-//! - 部分发货拆单 / 电子面单（`shippingMethod = 4` 的快递服务商下单）
-//! - 第三方物流实时轨迹查询（快递鸟/快递100 HTTP + 密钥）
-//! - 积分/余额/优惠券/秒杀/拼团限购等跨域返还与结算（会员、营销、结算域）
-//! - 后台站内消息/微信小程序发货信息录入/RabbitMQ 延时任务
-//! - xlsx 读写（`orderExport` / 批量发货模板与导入降级为结构化 JSON/CSV）
-//! - 商品改价后的 `order_amount_detail` 店铺级分摊
+//! - 拼团限购恢复、拼团退款解散整团
+//! - 售后自动退款/退款申请创建（财务域）
+//! - 微信小程序发货信息录入/RabbitMQ 延时任务
+//! - xlsx 读写（部分导出/批量导入降级为结构化 JSON/CSV）
+//!
+//! 已实现：部分发货拆单、电子面单（KDNiao 1007）、快递鸟 1002 轨迹、
+//! 取消订单积分/余额/优惠券/秒杀/礼品卡返还、催发货/确认收货后台消息、
+//! 商品改价 `order_amount_detail` 店铺级分摊。
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -721,8 +723,8 @@ impl OrderAdminService {
 
     /// 发货（对应 Java `OrderController.deliver` / `OrderServiceImpl#deliverOrder`）。
     ///
-    /// 仅支持**整单发货**：部分发货在 Java 中会拆分订单（`createSplitOrder`），
-    /// 该流程未迁移，故显式拒绝而不是落一半数据。
+    /// 支持整单与部分发货：部分发货时把未发商品拆成待发货子订单
+    /// （`createSplitOrder` 简化版），并写拆单日志。
     pub async fn deliver(&self, param: &DeliverOrderParam) -> Result<()> {
         let order_id = param
             .id
