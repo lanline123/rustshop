@@ -160,6 +160,20 @@ impl MemberAudienceRepository {
             .collect())
     }
 
+    /// 某会员持有的全部标签 ID（Java `userMemberTagService.listTagIdsByUser`）。
+    pub async fn tag_ids_for_user(&self, user_id: i32) -> Result<Vec<i64>> {
+        Ok(sqlx::query_as::<_, (i64,)>(
+            "SELECT tag_id FROM user_member_tag WHERE user_id = ? ORDER BY tag_id",
+        )
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?
+        .into_iter()
+        .map(|(id,)| id)
+        .collect())
+    }
+
     /// 等级名称（Java `userRankService.listByIds`）。
     pub async fn rank_names(&self, rank_ids: &[i32]) -> Result<Vec<String>> {
         if rank_ids.is_empty() {

@@ -102,6 +102,7 @@
 
 use std::sync::Arc;
 
+use serde_json::Value;
 use tigshop_common::utils::now_seconds;
 use tigshop_core::entities::business::{NEW_USER_MEMBER, NEW_USER_ONLY};
 use tigshop_core::{Error, Result};
@@ -143,6 +144,106 @@ pub fn resolve_claim_user_id(param_user_id: Option<i32>, current_user_id: i32) -
 #[must_use]
 pub fn audience_configured(member_scope: Option<&str>) -> bool {
     member_scope.map(|s| !s.trim().is_empty()).unwrap_or(false)
+}
+
+/// `promotion.member_scope` 人群匹配（Java `MemberAudienceService#matchesScope`）。
+///
+/// 支持两种历史并存格式：
+/// - 新结构：`{ "scope": 0|1, "userIds": [], "rankIds": [], "tagIds": [],
+///   "tagMatchMode": 0|1 }`；
+/// - 旧结构：`{ "audienceType": 0|1|2, "rankIds": [], "tagIds": [],
+///   "tagMatchMode": 0|1 }`（`MemberAudienceDTO`）。
+///
+/// 语义与 Java 一致：
+/// - 空/空白 → 无限制，命中；
+/// - 解析失败 → Java `parseScope` 返回 null，`matchesScope` 放行；
+/// - 非会员 → 不命中；
+/// - `scope=0` / `audienceType=0` → 命中；
+/// - 其余按 userIds / rankIds / tagIds **并集**；`scope=1` 三组全空 → 不命中。
+#[must_use]
+pub fn member_scope_matches(
+    raw: Option<&str>,
+    user_id: i32,
+    rank_id: i32,
+    user_type: i32,
+    user_tag_ids: &[i64],
+) -> bool {
+    let Some(raw) = raw.map(str::trim).filter(|s| !s.is_empty()) else {
+        return true;
+    };
+    // Java `matches`：只有 `user_type == 0`（会员）才可能命中
+    if user_type != 0 {
+        return false;
+    }
+    let Ok(value) = serde_json::from_str::<Value>(raw) else {
+        // Java `parseScope` 解析失败返回 null → `matchesScope` 返回 true
+        return true;
+    };
+    let has_new_scope = value.get("scope").is_some_and(|v| !v.is_null());
+    if has_new_scope {
+        let scope = value.get("scope").and_then(Value::as_i64).unwrap_or(0);
+        if scope == 0 {
+            return true;
+        }
+        return target_groups_match(&value, user_id, rank_id, user_tag_ids);
+    }
+    // 旧 MemberAudienceDTO 结构
+    match value
+        .get("audienceType")
+        .and_then(Value::as_i64)
+        .unwrap_or(0)
+    {
+        0 => true,
+        // 1=按等级、2=按标签；其余值 Java 的 upgrade 也落入「按标签」分支
+        1 => value
+            .get("rankIds")
+            .and_then(Value::as_array)
+            .is_some_and(|ids| ids.iter().any(|v| v.as_i64() == Some(i64::from(rank_id)))),
+        _ => tags_match(&value, user_tag_ids),
+    }
+}
+
+fn target_groups_match(
+    value: &Value,
+    user_id: i32,
+    rank_id: i32,
+    user_tag_ids: &[i64],
+) -> bool {
+    if value
+        .get("userIds")
+        .and_then(Value::as_array)
+        .is_some_and(|ids| ids.iter().any(|v| v.as_i64() == Some(i64::from(user_id))))
+    {
+        return true;
+    }
+    if value
+        .get("rankIds")
+        .and_then(Value::as_array)
+        .is_some_and(|ids| ids.iter().any(|v| v.as_i64() == Some(i64::from(rank_id))))
+    {
+        return true;
+    }
+    tags_match(value, user_tag_ids)
+}
+
+fn tags_match(value: &Value, user_tag_ids: &[i64]) -> bool {
+    let Some(target) = value.get("tagIds").and_then(Value::as_array) else {
+        return false;
+    };
+    let target: Vec<i64> = target.iter().filter_map(Value::as_i64).collect();
+    if target.is_empty() || user_tag_ids.is_empty() {
+        return false;
+    }
+    if value
+        .get("tagMatchMode")
+        .and_then(Value::as_i64)
+        .unwrap_or(0)
+        == 1
+    {
+        target.iter().all(|id| user_tag_ids.contains(id))
+    } else {
+        target.iter().any(|id| user_tag_ids.contains(id))
+    }
 }
 
 /// 解析 `promotion.member_marks`（Java `JSON.parseArray(memberMarks, Integer.class)`）。
@@ -331,16 +432,34 @@ impl ProxyShoppingUserCouponService {
 
         if let Some(rule) = promotion {
             if audience_configured(rule.member_scope.as_deref()) {
-                // ⚠️ 人群圈选服务未迁移：明确拒绝，不静默放行（模块头第 4 条）。
-                tracing::warn!(
-                    coupon_id,
+                let flags = user_flags
+                    .as_ref()
+                    .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, MSG_COUPON_NOT_EXIST))?;
+                let tag_ids = if rule
+                    .member_scope
+                    .as_deref()
+                    .is_some_and(|s| s.contains("tagIds"))
+                {
+                    self.repos
+                        .member
+                        .member_audience
+                        .tag_ids_for_user(user_id)
+                        .await?
+                } else {
+                    Vec::new()
+                };
+                if !member_scope_matches(
+                    rule.member_scope.as_deref(),
                     user_id,
-                    "promotion.member_scope 人群匹配未迁移，拒绝领取"
-                );
-                return Err(Error::biz(
-                    SERVICE_DATA_ERROR,
-                    MSG_CLAIM_AUDIENCE_NOT_ALLOWED,
-                ));
+                    flags.rank_id,
+                    flags.user_type,
+                    &tag_ids,
+                ) {
+                    return Err(Error::biz(
+                        SERVICE_DATA_ERROR,
+                        MSG_CLAIM_AUDIENCE_NOT_ALLOWED,
+                    ));
+                }
             } else if rule.member_range == MEMBER_RANGE_SPECIFIED_MARKS {
                 let allowed_marks = parse_member_marks(rule.member_marks.as_deref());
                 if !allowed_marks.is_empty() {
@@ -474,6 +593,95 @@ mod tests {
         assert!(!audience_configured(Some("\t\n")));
         assert!(audience_configured(Some("{}")));
         assert!(audience_configured(Some("{\"scope\":0}")));
+    }
+
+    #[test]
+    fn member_scope_new_structure_union_semantics() {
+        assert!(member_scope_matches(
+            Some(r#"{"scope":0}"#),
+            7,
+            1,
+            0,
+            &[]
+        ));
+        assert!(member_scope_matches(
+            Some(r#"{"scope":1,"userIds":[7]}"#),
+            7,
+            1,
+            0,
+            &[]
+        ));
+        assert!(member_scope_matches(
+            Some(r#"{"scope":1,"rankIds":[1]}"#),
+            7,
+            1,
+            0,
+            &[]
+        ));
+        assert!(member_scope_matches(
+            Some(r#"{"scope":1,"tagIds":[9]}"#),
+            7,
+            1,
+            0,
+            &[9]
+        ));
+        assert!(!member_scope_matches(
+            Some(r#"{"scope":1,"userIds":[8]}"#),
+            7,
+            1,
+            0,
+            &[]
+        ));
+        // scope=1 三组全空 → 不命中任何人
+        assert!(!member_scope_matches(Some(r#"{"scope":1}"#), 7, 1, 0, &[]));
+    }
+
+    #[test]
+    fn member_scope_tags_any_all_and_legacy() {
+        assert!(member_scope_matches(
+            Some(r#"{"scope":1,"tagIds":[9,10],"tagMatchMode":0}"#),
+            7,
+            1,
+            0,
+            &[10]
+        ));
+        assert!(!member_scope_matches(
+            Some(r#"{"scope":1,"tagIds":[9,10],"tagMatchMode":1}"#),
+            7,
+            1,
+            0,
+            &[10]
+        ));
+        assert!(member_scope_matches(
+            Some(r#"{"scope":1,"tagIds":[9,10],"tagMatchMode":1}"#),
+            7,
+            1,
+            0,
+            &[9, 10]
+        ));
+        // 旧结构
+        assert!(member_scope_matches(
+            Some(r#"{"audienceType":1,"rankIds":[3]}"#),
+            7,
+            3,
+            0,
+            &[]
+        ));
+        assert!(!member_scope_matches(
+            Some(r#"{"audienceType":1,"rankIds":[3]}"#),
+            7,
+            2,
+            0,
+            &[]
+        ));
+    }
+
+    #[test]
+    fn member_scope_rejects_non_member_and_allows_broken_json_like_java() {
+        assert!(!member_scope_matches(Some(r#"{"scope":0}"#), 7, 1, 1, &[]));
+        // Java parseScope 解析失败返回 null → matchesScope 放行
+        assert!(member_scope_matches(Some("not-json"), 7, 1, 0, &[]));
+        assert!(member_scope_matches(None, 7, 1, 0, &[]));
     }
 
     // ————————————————————— 有效期 —————————————————————

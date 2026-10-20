@@ -104,6 +104,8 @@ pub struct UserCouponFlags {
     pub rank_id: i32,
     /// 标记 12345
     pub mark: i32,
+    /// 用户类型（0=会员；`matchesScope` 只对会员生效）
+    pub user_type: i32,
 }
 
 /// 代客下单优惠券域仓储（本切片独占）。
@@ -169,7 +171,7 @@ impl ProxyShoppingUserCouponRepository {
     /// `None` 表示用户不存在 —— ⚠️ Java 此时会在
     /// `user.getRankId()` / `user.getMark()` 上抛 NPE（详见服务层模块头）。
     pub async fn find_user_flags(&self, user_id: i32) -> Result<Option<UserCouponFlags>> {
-        let sql = "SELECT rank_id, mark FROM user WHERE user_id = ? LIMIT 1";
+        let sql = "SELECT rank_id, mark, user_type FROM user WHERE user_id = ? LIMIT 1";
         let q = sqlx::query_as::<_, UserCouponFlags>(sql).bind(user_id);
         q.fetch_optional(&self.pool).await.map_err(map_err)
     }
