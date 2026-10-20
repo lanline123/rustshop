@@ -73,6 +73,10 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 /// `UserPointsLogServiceImpl#getPoints`（`:59-66`）：
 /// `SELECT points FROM user WHERE user_id = <当前管理员ID>`，取单行取 `points`。
 ///
+/// 该接口返回的是**当前登录管理员自身绑定的会员积分**（`AuthUser.id`），
+/// 不接收任何 user/shop 参数，因此不存在跨店读取面；店铺账号调用时同样只读取
+/// 自己绑定的会员，无需再叠加店铺过滤（本域无 `shop_id` 列，按平台只读处理）。
+///
 /// 查不到行时返回业务错误（Java 在该处 NPE，见
 /// `crates/services/src/user_points_log.rs` 模块头差异 2）。
 async fn get_points(

@@ -43,6 +43,7 @@
 //! > 顶部说明与返回 JSON 的 `uncertain_points`。
 
 use axum::{
+    extract::Extension,
     extract::{Multipart, Query, State},
     routing::{get, post},
     Json, Router,
@@ -55,9 +56,19 @@ use tigshop_core::models::member::user_manage::{
 };
 use tigshop_core::Error;
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult, AppError};
+use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 
 use crate::AdminState;
+
+/// 仅平台账号可执行的会员写操作（会员表无 shop 列，写操作统一平台管理）。
+fn require_platform(auth: &AuthUser) -> Result<(), AppError> {
+    if !auth.is_platform() {
+        return Err(AppError(tigshop_core::Error::Forbidden(
+            "仅平台账号可执行会员写操作".into(),
+        )));
+    }
+    Ok(())
+}
 
 /// 会员管理域路由（挂载于 `/adminapi` 下）。
 pub fn routes(state: &AdminState) -> Router<AdminState> {
@@ -144,9 +155,14 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 /// Java 返回 `Page<UserDTO>`，Rust 侧统一为 `PageResult<UserVO>`。
 async fn user_list(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<UserListQuery>,
 ) -> ApiResult<PageResult<UserVO>> {
-    ok(state.member.user_manage.list(&q).await?)
+    ok(state
+        .member
+        .user_manage
+        .list_scoped(&q, auth.scoped_shop_id())
+        .await?)
 }
 
 /// `GET /adminapi/user/user/detail?id=`：会员详情。
@@ -162,11 +178,17 @@ struct IdQuery {
 
 async fn user_detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<UserItemVO> {
     let id = q
         .id
         .ok_or_else(|| tigshop_core::Error::Validation("会员ID不能为空".into()))?;
+    state
+        .member
+        .user_manage
+        .ensure_shop_member(id, auth.scoped_shop_id())
+        .await?;
     ok(state.member.user_manage.detail(id).await?)
 }
 
@@ -178,8 +200,10 @@ async fn user_detail(
 /// 返回 `UserCreateVO(userId, username, mobile)`。
 async fn user_create(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<CreateUserParam>,
 ) -> ApiResult<UserCreateVO> {
+    require_platform(&auth)?;
     ok(state.member.user_manage.create_user(&param).await?)
 }
 
@@ -188,8 +212,10 @@ async fn user_create(
 /// 对应 Java `UserController.update(@RequestBody @Valid UserParam)`（Java 返回 `void`）。
 async fn user_update(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<UpdateUserParam>,
 ) -> ApiResult<&'static str> {
+    require_platform(&auth)?;
     state.member.user_manage.update_user(&param).await?;
     ok("更新成功")
 }
@@ -200,8 +226,10 @@ async fn user_update(
 /// `userService.del(operate.getId())`（Java 返回 `void`）。
 async fn user_del(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<OperateDTO>,
 ) -> ApiResult<&'static str> {
+    require_platform(&auth)?;
     state.member.user_manage.delete_user(param.id).await?;
     ok("删除成功")
 }
@@ -213,8 +241,10 @@ async fn user_del(
 /// 白名单为 `CheckFieldConstants.USER_FIELDS = {"username", "nickname", "status"}`。
 async fn user_update_field(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<UpdateFieldDTO>,
 ) -> ApiResult<&'static str> {
+    require_platform(&auth)?;
     state.member.user_manage
         .update_field(param.id, param.field.as_deref(), param.val.as_deref())
         .await?;
@@ -230,8 +260,10 @@ async fn user_update_field(
 /// 未识别的类型返回 `false`（与 Java 一致）。
 async fn user_batch(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<UserBatchParam>,
 ) -> ApiResult<bool> {
+    require_platform(&auth)?;
     ok(state.member.user_manage.batch(&param).await?)
 }
 
@@ -243,8 +275,10 @@ async fn user_batch(
 /// **未迁移**（Excel 解析）：始终返回明确业务错误，不读取上传内容。
 async fn user_batch_import(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     mut multipart: Multipart,
 ) -> ApiResult<Vec<UserImportSuccessVO>> {
+    require_platform(&auth)?;
     let bytes = read_upload_file(&mut multipart).await?;
     let rows = parse_user_import_rows(&bytes)?;
     if rows.is_empty() {
@@ -259,8 +293,10 @@ async fn user_batch_import(
 /// **未迁移**（Excel 解析 + 导出）。
 async fn user_import_error_data(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     mut multipart: Multipart,
 ) -> std::result::Result<axum::response::Response, AppError> {
+    require_platform(&auth)?;
     let bytes = read_upload_file(&mut multipart).await?;
     let rows = parse_user_import_rows(&bytes)?;
     let errors = state
@@ -301,7 +337,9 @@ async fn user_import_error_data(
 /// **未迁移**（Excel 导出）。
 async fn user_download_import_template(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
 ) -> std::result::Result<axum::response::Response, AppError> {
+    require_platform(&auth)?;
     let _ = &state;
     let headers = tigshop_services::member::user_manage::UserManageService::import_template_headers();
     let bytes = tigshop_services::system::excel::build_xlsx(&headers, &[], "会员导入模板")?;
@@ -375,11 +413,25 @@ struct SearchQuery {
 
 async fn user_search(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<SearchQuery>,
 ) -> ApiResult<Option<UserSearchVO>> {
-    ok(state.member.user_manage
+    let found = state
+        .member
+        .user_manage
         .search_user(q.search.as_deref().unwrap_or_default())
-        .await?)
+        .await?;
+    if let (Some(vo), Some(shop_id)) = (found.as_ref(), auth.scoped_shop_id()) {
+        let svc = &state.member.user_manage;
+        if svc
+            .ensure_shop_member(vo.user_id, Some(shop_id))
+            .await
+            .is_err()
+        {
+            return ok(None);
+        }
+    }
+    ok(found)
 }
 
 /// `POST /adminapi/user/user/fundManagement`：会员资金管理。
@@ -388,8 +440,10 @@ async fn user_search(
 /// （Java 返回 `void`）。
 async fn user_fund_management(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<FundManagementParam>,
 ) -> ApiResult<&'static str> {
+    require_platform(&auth)?;
     state.member.user_manage.fund_management(&param).await?;
     ok("操作成功")
 }
@@ -401,8 +455,21 @@ async fn user_fund_management(
 /// 故元素类型为 [`FundDetailItem`] 联合体。
 async fn user_fund_detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<UserFundDetailQuery>,
 ) -> ApiResult<PageResult<FundDetailItem>> {
+    if let Some(shop_id) = auth.scoped_shop_id() {
+        let user_id = q.user_id.ok_or_else(|| {
+            AppError(tigshop_core::Error::Forbidden(
+                "店铺账号查询资金明细必须指定本店会员".into(),
+            ))
+        })?;
+        state
+            .member
+            .user_manage
+            .ensure_shop_member(user_id, Some(shop_id))
+            .await?;
+    }
     ok(state.member.user_manage.user_fund_detail(&q).await?)
 }
 
@@ -412,7 +479,11 @@ async fn user_fund_detail(
 /// （删除 Redis 中的登录令牌）。**未迁移**：Rust 侧无可用的缓存句柄，
 /// 服务层返回明确业务错误，不会假装成功。
 #[allow(clippy::unused_async)]
-async fn user_logout(State(state): State<AdminState>) -> ApiResult<&'static str> {
+async fn user_logout(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+) -> ApiResult<&'static str> {
+    require_platform(&auth)?;
     state.member.user_manage.admin_logout().await?;
     ok("退出成功")
 }
@@ -423,8 +494,10 @@ async fn user_logout(State(state): State<AdminState>) -> ApiResult<&'static str>
 /// （Java 返回 `void`）。
 async fn user_set_admin_note(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<SetAdminNoteParam>,
 ) -> ApiResult<&'static str> {
+    require_platform(&auth)?;
     state.member.user_manage.set_admin_note(&param).await?;
     ok("设置成功")
 }
@@ -449,4 +522,29 @@ struct UpdateFieldDTO {
     field: Option<String>,
     /// 值
     val: Option<String>,
+}
+#[cfg(test)]
+mod tenant_tests {
+    use super::*;
+
+    fn shop_auth() -> AuthUser {
+        AuthUser::new(1, "s".into(), None, Some("shop".into()), Some(7))
+    }
+
+    fn admin_auth() -> AuthUser {
+        AuthUser::new(2, "a".into(), None, Some("admin".into()), Some(0))
+    }
+
+    #[test]
+    fn platform_only_guard_rejects_shop_account() {
+        assert!(require_platform(&shop_auth()).is_err());
+        assert!(require_platform(&admin_auth()).is_ok());
+    }
+
+    #[test]
+    fn shop_scope_forces_own_shop() {
+        assert_eq!(shop_auth().scoped_shop_id(), Some(7));
+        assert_eq!(admin_auth().scoped_shop_id(), None);
+        assert!(shop_auth().resolve_shop_scope(Some(9)).is_err());
+    }
 }

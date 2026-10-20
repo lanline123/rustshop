@@ -109,6 +109,17 @@ impl UserManageService {
     /// 标签筛选无命中时返回空页（不报错，与 Java `tagFilterUserIds.isEmpty()`
     /// 分支一致）；数据库错误向上抛出。
     pub async fn list(&self, q: &UserListQuery) -> Result<PageResult<UserVO>> {
+        self.list_scoped(q, None).await
+    }
+
+    /// 会员分页（带店铺作用域）。
+    ///
+    /// `shop_scope`：平台 `None`（全平台），店铺 `Some(shop_id)`（仅本店会员）。
+    pub async fn list_scoped(
+        &self,
+        q: &UserListQuery,
+        shop_scope: Option<i32>,
+    ) -> Result<PageResult<UserVO>> {
         let tag_ids = q.tag_ids();
         let tag_user_ids = if tag_ids.is_empty() {
             None
@@ -128,7 +139,8 @@ impl UserManageService {
             });
         }
 
-        let filter = UserPageFilter::from_query(q, tag_user_ids);
+        let mut filter = UserPageFilter::from_query(q, tag_user_ids);
+        filter.shop_scope = shop_scope;
         let (total, users) = self.repo.paginate_users(&filter).await?;
         if users.is_empty() {
             let (page, size) = q.page_params();
@@ -808,6 +820,16 @@ impl UserManageService {
     /// # Errors
     /// 恒返回业务错误 [`LOGOUT_UNMIGRATED_MSG`]。
     #[allow(clippy::unused_self)]
+    /// 校验会员归属：店铺账号只能访问本店会员（平台账号调用方应传 `None` 跳过）。
+    pub async fn ensure_shop_member(&self, user_id: i32, shop_scope: Option<i32>) -> Result<()> {
+        if let Some(shop_id) = shop_scope {
+            if !self.repo.user_in_shop(user_id, shop_id).await? {
+                return Err(Error::Forbidden(format!("无权访问店铺 {shop_id} 的会员 {user_id}")));
+            }
+        }
+        Ok(())
+    }
+
     pub async fn admin_logout(&self) -> Result<()> {
         let _ = self;
         Err(Error::biz_msg(LOGOUT_UNMIGRATED_MSG))

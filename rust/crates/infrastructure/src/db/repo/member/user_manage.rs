@@ -96,6 +96,8 @@ pub struct UserPageFilter {
     pub balance_gt: Option<Decimal>,
     /// 标记等值
     pub mark: Option<i32>,
+    /// 店铺隔离作用域：`Some(shop_id)` 时仅该店铺会员（`shop_member` 关联）
+    pub shop_scope: Option<i32>,
     /// 分页大小
     pub size: u64,
     /// 偏移量
@@ -127,6 +129,7 @@ impl UserPageFilter {
             points_lt: q.points_lt.filter(|v| *v > Decimal::ZERO),
             balance_gt: q.balance,
             mark: q.mark,
+            shop_scope: None,
             size,
             offset,
         }
@@ -201,6 +204,19 @@ impl UserManageRepository {
     }
 
     // ————————————————————— 会员列表 —————————————————————
+
+    /// 会员是否属于指定店铺（`shop_member` 有效关联）。
+    pub async fn user_in_shop(&self, user_id: i32, shop_id: i32) -> Result<bool> {
+        let row: Option<(i32,)> = sqlx::query_as(
+            "SELECT 1 FROM shop_member WHERE user_id = ? AND shop_id = ? AND is_del = 0 LIMIT 1",
+        )
+        .bind(user_id)
+        .bind(shop_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.is_some())
+    }
 
     /// 会员分页（对应 Java `UserServiceImpl#list`）。
     ///
@@ -1143,6 +1159,13 @@ fn build_filter(f: &UserPageFilter) -> (String, Vec<Bind>) {
     if let Some(v) = f.balance_gt {
         conds.push("balance > ?".into());
         binds.push(Bind::Dec(v));
+    }
+    if let Some(shop) = f.shop_scope {
+        conds.push(
+            "EXISTS (SELECT 1 FROM shop_member m WHERE m.user_id = `user`.user_id AND m.shop_id = ? AND m.is_del = 0)"
+                .into(),
+        );
+        binds.push(Bind::I32(shop));
     }
     if let Some(v) = f.mark {
         conds.push("mark = ?".into());

@@ -20,6 +20,7 @@
 //! `implemented_routes()`（外层已套 `require_auth`）。
 
 use axum::{
+    extract::Extension,
     extract::{Query, State},
     routing::{get, post},
     Json, Router,
@@ -29,7 +30,7 @@ use tigshop_core::models::member::user_message_log::{
     UserMessageLogRecallParam,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AuthUser, AppError};
 
 use crate::AdminState;
 
@@ -55,6 +56,30 @@ const ROUTE_TABLE: [(&str, &str, &str); 5] = [
 ];
 
 /// 会员消息管理路由（挂载于 `/adminapi` 下）。
+/// 平台级只读域（源表无 `shop_id` 列，无法按店铺隔离）：仅平台账号可访问。
+async fn platform_only(
+    Extension(auth): Extension<AuthUser>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Result<axum::response::Response, AppError> {
+    if !auth.is_platform() {
+        return Err(AppError(tigshop_core::Error::Forbidden(
+            "仅平台账号可访问该数据".into(),
+        )));
+    }
+    Ok(next.run(req).await)
+}
+
+/// 平台账号判定（供中间件与单测复用）。
+fn require_platform(auth: &AuthUser) -> Result<(), AppError> {
+    if !auth.is_platform() {
+        return Err(AppError(tigshop_core::Error::Forbidden(
+            "仅平台账号可访问该数据".into(),
+        )));
+    }
+    Ok(())
+}
+
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new()
@@ -63,6 +88,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/user/userMessageLog/del", post(del))
         .route("/user/userMessageLog/batch", post(batch))
         .route("/user/userMessageLog/recall", post(recall))
+        .layer(axum::middleware::from_fn(platform_only))
 }
 
 /// 本域已实现路由（覆盖率统计用）。
@@ -153,5 +179,25 @@ mod tests {
                 assert_ne!(p, p2, "重复路由声明会导致 merge panic");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tenant_tests {
+    use super::*;
+
+    #[test]
+    fn shop_scope_is_empty_for_platform_only_domain() {
+        let admin = AuthUser::new(1, "a".into(), None, Some("admin".into()), Some(0));
+        assert_eq!(admin.scoped_shop_id(), None);
+        let shop = AuthUser::new(2, "s".into(), None, Some("shop".into()), Some(7));
+        assert!(!shop.is_platform());
+        assert_eq!(shop.scoped_shop_id(), Some(7));
+    }
+
+    #[test]
+    fn platform_only_helper_rejects_shop_identity() {
+        assert!(require_platform(&AuthUser::new(1, "a".into(), None, Some("admin".into()), Some(0))).is_ok());
+        assert!(require_platform(&AuthUser::new(2, "s".into(), None, Some("shop".into()), Some(7))).is_err());
     }
 }
