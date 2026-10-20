@@ -119,24 +119,174 @@ impl AuthUser {
         }
     }
 
-    /// 是否为平台总管理账号（shop_id 为 0 或 None，且不是 shop 账号类型）
+    /// 是否为平台总管理账号（shop_id 为 0 或 None，且不是店铺/供应商账号类型）
     #[must_use]
     pub fn is_platform(&self) -> bool {
         match self.admin_type.as_deref() {
-            Some("shop" | "pos") => false,
+            Some("shop" | "store" | "pos" | "merchant" | "vendor" | "suppliers" | "supplier") => {
+                false
+            }
             _ => self.shop_id.unwrap_or(0) == 0,
         }
+    }
+
+    /// 是否为供应商/供货商账号。
+    #[must_use]
+    pub fn is_vendor(&self) -> bool {
+        matches!(
+            self.admin_type.as_deref(),
+            Some("vendor" | "suppliers" | "supplier")
+        )
     }
 
     /// 获取需要进行租户隔离的店铺 ID
     /// - 平台账号返回 None（查询不限制店铺）
     /// - 商户账号返回 Some(shop_id)（必须限制 WHERE shop_id = ?）
+    /// - 供应商账号没有店铺维度，返回 `Some(0)` 作为**安全兜底**，避免其
+    ///   误用店铺接口时拿到全量数据；供应商接口应改用 `TenantContext::vendor_scope`。
     #[must_use]
     pub fn scoped_shop_id(&self) -> Option<i32> {
         if self.is_platform() {
             None
+        } else if self.is_vendor() {
+            Some(0)
         } else {
             self.shop_id.filter(|&id| id > 0)
+        }
+    }
+
+    /// 解析查询/写入请求中的 `shopId`：
+    /// - 店铺账号只能使用自己的 shop_id，传入其他值直接 403；
+    /// - 平台账号可使用请求值（列表筛选/代运营），未传则不限制。
+    pub fn resolve_shop_scope(&self, requested: Option<i32>) -> Result<Option<i32>, Error> {
+        if let Some(scope) = self.scoped_shop_id() {
+            if let Some(requested) = requested.filter(|id| *id > 0 && *id != scope) {
+                return Err(Error::Forbidden(format!(
+                    "无权访问店铺 {requested} 的数据"
+                )));
+            }
+            return Ok(Some(scope));
+        }
+        Ok(requested.filter(|id| *id > 0))
+    }
+
+    /// 写入必须落到一个具体店铺：店铺账号固定为自己，平台账号必须显式传 shopId。
+    pub fn require_shop_scope(&self, requested: Option<i32>) -> Result<i32, Error> {
+        if let Some(scope) = self.scoped_shop_id() {
+            if let Some(requested) = requested.filter(|id| *id > 0 && *id != scope) {
+                return Err(Error::Forbidden(format!(
+                    "无权写入店铺 {requested} 的数据"
+                )));
+            }
+            return Ok(scope);
+        }
+        requested
+            .filter(|id| *id > 0)
+            .ok_or_else(|| Error::Forbidden("平台账号执行该写操作时必须指定 shopId".into()))
+    }
+
+    /// 校验对指定店铺的访问权限（平台放行）。
+    pub fn ensure_shop_access(&self, shop_id: i32) -> Result<(), Error> {
+        match self.scoped_shop_id() {
+            Some(scope) if scope != shop_id => Err(Error::Forbidden(format!(
+                "无权访问店铺 {shop_id} 的数据"
+            ))),
+            _ => Ok(()),
+        }
+    }
+}
+
+/// 统一租户上下文（来自 JWT，不信任客户端请求头）。
+///
+/// - 平台管理员：`shop_scope()/vendor_scope()` 均为 None；
+/// - 店铺/门店/POS：`shop_scope()` 为店铺 ID；
+/// - 供应商/供货商：`vendor_scope()` 为供应商 ID。
+#[derive(Debug, Clone, Default)]
+pub struct TenantContext {
+    pub admin_type: Option<String>,
+    pub shop_id: Option<i32>,
+    pub vendor_id: Option<i32>,
+}
+
+impl TenantContext {
+    #[must_use]
+    pub fn new(
+        admin_type: Option<String>,
+        shop_id: Option<i32>,
+        vendor_id: Option<i32>,
+    ) -> Self {
+        Self {
+            admin_type,
+            shop_id: shop_id.filter(|id| *id > 0),
+            vendor_id: vendor_id.filter(|id| *id > 0),
+        }
+    }
+
+    #[must_use]
+    pub fn is_shop_account(&self) -> bool {
+        matches!(
+            self.admin_type.as_deref(),
+            Some("shop" | "store" | "pos" | "merchant")
+        )
+    }
+
+    #[must_use]
+    pub fn is_vendor_account(&self) -> bool {
+        matches!(
+            self.admin_type.as_deref(),
+            Some("vendor" | "suppliers" | "supplier")
+        )
+    }
+
+    #[must_use]
+    pub fn is_platform(&self) -> bool {
+        !self.is_shop_account() && !self.is_vendor_account()
+    }
+
+    /// 店铺隔离 ID：仅店铺/门店/POS 账号返回 Some。
+    #[must_use]
+    pub fn shop_scope(&self) -> Option<i32> {
+        if self.is_shop_account() {
+            self.shop_id
+        } else {
+            None
+        }
+    }
+
+    /// 供应商隔离 ID：仅供应商/供货商账号返回 Some。
+    #[must_use]
+    pub fn vendor_scope(&self) -> Option<i32> {
+        if self.is_vendor_account() {
+            self.vendor_id
+        } else {
+            None
+        }
+    }
+
+    /// 店铺账号必须带店铺 ID，否则拒绝（防止配置错误的账号拿到全量数据）。
+    pub fn require_shop(&self) -> Result<i32, Error> {
+        if self.is_platform() {
+            return Err(Error::Forbidden("平台账号不能执行店铺写操作".into()));
+        }
+        self.shop_scope()
+            .ok_or_else(|| Error::Forbidden("缺少店铺租户上下文".into()))
+    }
+
+    /// 判断当前租户能否访问指定店铺（平台放行）。
+    #[must_use]
+    pub fn can_access_shop(&self, shop_id: i32) -> bool {
+        match self.shop_scope() {
+            Some(scope) => scope == shop_id,
+            None => self.is_platform(),
+        }
+    }
+
+    /// 判断当前租户能否访问指定供应商（平台放行）。
+    #[must_use]
+    pub fn can_access_vendor(&self, vendor_id: i32) -> bool {
+        match self.vendor_scope() {
+            Some(scope) => scope == vendor_id,
+            None => self.is_platform(),
         }
     }
 }
@@ -161,7 +311,8 @@ pub async fn require_auth(
         .parse::<i32>()
         .map_err(|_| Error::Unauthorized("令牌主体无效".into()))?;
 
-    // 优先从 Claims 中读取 shop_id；若未包含则兼容从 X-Shop-Id 请求头解析（对齐 Java HeaderUtils）
+    // JWT 声明是唯一可信来源：x-admin-type / x-shop-id / x-vendor-id 只作为
+    // 旧令牌（无 typ/shop 声明）的兼容回退，绝不允许覆盖已签发声明。
     let header_shop_id = req
         .headers()
         .get("x-shop-id")
@@ -176,9 +327,56 @@ pub async fn require_auth(
         .and_then(|v| v.to_str().ok())
         .map(str::to_string);
 
-    let effective_shop_id = claims.shop_id.or(header_shop_id);
-    let effective_admin_type = claims.typ.or(header_admin_type);
+    let legacy_token = claims.typ.is_none() && claims.shop_id.is_none();
+    let effective_admin_type = claims.typ.clone().or_else(|| {
+        if legacy_token {
+            header_admin_type
+        } else {
+            None
+        }
+    });
+    let effective_shop_id = claims.shop_id.or_else(|| {
+        if legacy_token {
+            header_shop_id
+        } else {
+            None
+        }
+    });
+    let effective_vendor_id = claims.vendor_id;
 
+    // 用可信值覆盖请求头，供尚未迁移到 Extension 的 Handler 读取，
+    // 防止客户端伪造 x-shop-id / x-vendor-id 越权。
+    {
+        let headers = req.headers_mut();
+        headers.remove("x-shop-id");
+        headers.remove("X-Shop-Id");
+        headers.remove("x-admin-type");
+        headers.remove("X-Admin-Type");
+        headers.remove("x-vendor-id");
+        headers.remove("X-Vendor-Id");
+        if let Some(shop_id) = effective_shop_id.filter(|id| *id > 0) {
+            if let Ok(value) = axum::http::HeaderValue::from_str(&shop_id.to_string()) {
+                headers.insert("x-shop-id", value);
+            }
+        }
+        if let Some(admin_type) = effective_admin_type.as_deref() {
+            if let Ok(value) = axum::http::HeaderValue::from_str(admin_type) {
+                headers.insert("x-admin-type", value);
+            }
+        }
+        if let Some(vendor_id) = effective_vendor_id.filter(|id| *id > 0) {
+            if let Ok(value) = axum::http::HeaderValue::from_str(&vendor_id.to_string()) {
+                headers.insert("x-vendor-id", value);
+            }
+        }
+    }
+
+    let tenant = TenantContext::new(
+        effective_admin_type.clone(),
+        effective_shop_id,
+        effective_vendor_id,
+    );
+    req.extensions_mut().insert(tenant);
     req.extensions_mut().insert(AuthUser {
         id,
         username: claims.usr,
@@ -243,6 +441,68 @@ mod tests {
         };
         assert!(superadmin.is_platform());
         assert_eq!(superadmin.scoped_shop_id(), None);
+    }
+
+    #[test]
+    fn shop_scope_rejects_forged_requested_shop() {
+        let shop = AuthUser {
+            id: 2,
+            username: "shop9".into(),
+            role_id: None,
+            admin_type: Some("shop".into()),
+            shop_id: Some(9),
+        };
+        assert_eq!(shop.resolve_shop_scope(None).unwrap(), Some(9));
+        assert_eq!(shop.resolve_shop_scope(Some(9)).unwrap(), Some(9));
+        assert!(shop.resolve_shop_scope(Some(10)).is_err());
+        assert_eq!(shop.require_shop_scope(None).unwrap(), 9);
+        assert!(shop.require_shop_scope(Some(10)).is_err());
+        assert!(shop.ensure_shop_access(10).is_err());
+
+        let platform = AuthUser {
+            id: 1,
+            username: "admin".into(),
+            role_id: None,
+            admin_type: Some("admin".into()),
+            shop_id: None,
+        };
+        assert_eq!(platform.resolve_shop_scope(Some(10)).unwrap(), Some(10));
+        assert!(platform.require_shop_scope(None).is_err());
+        assert_eq!(platform.require_shop_scope(Some(10)).unwrap(), 10);
+
+        let vendor = AuthUser {
+            id: 3,
+            username: "vendor".into(),
+            role_id: None,
+            admin_type: Some("vendor".into()),
+            shop_id: None,
+        };
+        assert!(!vendor.is_platform());
+        assert!(vendor.is_vendor());
+        // 供应商误用店铺接口时不能放行全量数据
+        assert_eq!(vendor.scoped_shop_id(), Some(0));
+    }
+
+    #[test]
+    fn tenant_context_scopes_shop_and_vendor() {
+        let platform = TenantContext::new(Some("admin".into()), None, None);
+        assert!(platform.is_platform());
+        assert_eq!(platform.shop_scope(), None);
+        assert_eq!(platform.vendor_scope(), None);
+        assert!(platform.can_access_shop(9));
+
+        let shop = TenantContext::new(Some("shop".into()), Some(9), None);
+        assert_eq!(shop.shop_scope(), Some(9));
+        assert_eq!(shop.require_shop().unwrap(), 9);
+        assert!(!shop.can_access_shop(10));
+        assert!(shop.can_access_shop(9));
+        assert!(!shop.can_access_vendor(3));
+
+        let vendor = TenantContext::new(Some("vendor".into()), None, Some(3));
+        assert_eq!(vendor.vendor_scope(), Some(3));
+        assert!(vendor.can_access_vendor(3));
+        assert!(!vendor.can_access_vendor(4));
+        assert!(vendor.require_shop().is_err());
     }
 
     #[test]

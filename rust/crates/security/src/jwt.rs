@@ -30,6 +30,9 @@ pub struct Claims {
     /// 店铺ID（多租户数据隔离：0 为平台，>0 为指定商户店铺）
     #[serde(default)]
     pub shop_id: Option<i32>,
+    /// 供应商/供货商 ID（`admin_type=vendor/suppliers` 时有值）
+    #[serde(default)]
+    pub vendor_id: Option<i32>,
     /// 令牌类型
     pub ttype: TokenType,
     /// 签发时间（秒）
@@ -49,7 +52,7 @@ impl Claims {
         typ: Option<String>,
         cfg: &JwtConfig,
     ) -> Self {
-        Self::new(sub, usr, role, typ, None, TokenType::Access, cfg.access_expire_secs, cfg)
+        Self::new(sub, usr, role, typ, None, None, TokenType::Access, cfg.access_expire_secs, cfg)
     }
 
     /// 访问令牌声明（含店铺 ID）。
@@ -61,7 +64,20 @@ impl Claims {
         shop_id: Option<i32>,
         cfg: &JwtConfig,
     ) -> Self {
-        Self::new(sub, usr, role, typ, shop_id, TokenType::Access, cfg.access_expire_secs, cfg)
+        Self::new(sub, usr, role, typ, shop_id, None, TokenType::Access, cfg.access_expire_secs, cfg)
+    }
+
+    /// 访问令牌声明（含店铺/供应商租户 ID）。
+    pub fn access_with_tenant(
+        sub: String,
+        usr: String,
+        role: Option<i32>,
+        typ: Option<String>,
+        shop_id: Option<i32>,
+        vendor_id: Option<i32>,
+        cfg: &JwtConfig,
+    ) -> Self {
+        Self::new(sub, usr, role, typ, shop_id, vendor_id, TokenType::Access, cfg.access_expire_secs, cfg)
     }
 
     /// 刷新令牌声明。
@@ -72,7 +88,7 @@ impl Claims {
         typ: Option<String>,
         cfg: &JwtConfig,
     ) -> Self {
-        Self::new(sub, usr, role, typ, None, TokenType::Refresh, cfg.refresh_expire_secs, cfg)
+        Self::new(sub, usr, role, typ, None, None, TokenType::Refresh, cfg.refresh_expire_secs, cfg)
     }
 
     /// 刷新令牌声明（含店铺 ID）。
@@ -84,7 +100,20 @@ impl Claims {
         shop_id: Option<i32>,
         cfg: &JwtConfig,
     ) -> Self {
-        Self::new(sub, usr, role, typ, shop_id, TokenType::Refresh, cfg.refresh_expire_secs, cfg)
+        Self::new(sub, usr, role, typ, shop_id, None, TokenType::Refresh, cfg.refresh_expire_secs, cfg)
+    }
+
+    /// 刷新令牌声明（含店铺/供应商租户 ID）。
+    pub fn refresh_with_tenant(
+        sub: String,
+        usr: String,
+        role: Option<i32>,
+        typ: Option<String>,
+        shop_id: Option<i32>,
+        vendor_id: Option<i32>,
+        cfg: &JwtConfig,
+    ) -> Self {
+        Self::new(sub, usr, role, typ, shop_id, vendor_id, TokenType::Refresh, cfg.refresh_expire_secs, cfg)
     }
 
     fn new(
@@ -93,6 +122,7 @@ impl Claims {
         role: Option<i32>,
         typ: Option<String>,
         shop_id: Option<i32>,
+        vendor_id: Option<i32>,
         ttype: TokenType,
         expire_secs: i64,
         cfg: &JwtConfig,
@@ -104,6 +134,7 @@ impl Claims {
             role,
             typ,
             shop_id,
+            vendor_id,
             ttype,
             iat: now.timestamp(),
             exp: (now + Duration::seconds(expire_secs)).timestamp(),
@@ -187,20 +218,35 @@ impl JwtService {
         typ: Option<String>,
         shop_id: Option<i32>,
     ) -> Result<(String, String, i64)> {
-        let access = self.encode(&Claims::access_with_shop(
+        self.issue_pair_with_tenant(sub, usr, role, typ, shop_id, None)
+    }
+
+    /// 生成访问+刷新令牌对（含店铺/供应商租户 ID）。
+    pub fn issue_pair_with_tenant(
+        &self,
+        sub: String,
+        usr: String,
+        role: Option<i32>,
+        typ: Option<String>,
+        shop_id: Option<i32>,
+        vendor_id: Option<i32>,
+    ) -> Result<(String, String, i64)> {
+        let access = self.encode(&Claims::access_with_tenant(
             sub.clone(),
             usr.clone(),
             role,
             typ.clone(),
             shop_id,
+            vendor_id,
             &self.cfg,
         ))?;
-        let refresh = self.encode(&Claims::refresh_with_shop(
+        let refresh = self.encode(&Claims::refresh_with_tenant(
             sub,
             usr,
             role,
             typ,
             shop_id,
+            vendor_id,
             &self.cfg,
         ))?;
         Ok((access, refresh, self.cfg.access_expire_secs))

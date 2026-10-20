@@ -61,13 +61,19 @@ impl AuthService {
         } else {
             None
         };
+        // 供应商/供货商账号的租户 ID 存在 admin_user.suppliers_id；店铺账号存 shop_id。
+        let scoped_vendor_id = match user.admin_type.as_str() {
+            "vendor" | "suppliers" if user.suppliers_id > 0 => Some(user.suppliers_id),
+            _ => None,
+        };
 
-        let (access, refresh, expires_in) = self.jwt.issue_pair_with_shop(
+        let (access, refresh, expires_in) = self.jwt.issue_pair_with_tenant(
             user.admin_id.to_string(),
             user.username.clone(),
             Some(user.role_id),
             Some(user.admin_type.clone()),
             scoped_shop_id,
+            scoped_vendor_id,
         )?;
 
         let log_info = format!("管理员登录:{}", user.username);
@@ -106,12 +112,13 @@ impl AuthService {
         if claims.ttype != tigshop_security::jwt::TokenType::Refresh {
             return Err(Error::Unauthorized("需要刷新令牌".into()));
         }
-        let (access, refresh, expires_in) = self.jwt.issue_pair_with_shop(
+        let (access, refresh, expires_in) = self.jwt.issue_pair_with_tenant(
             claims.sub.clone(),
             claims.usr.clone(),
             claims.role,
             claims.typ.clone(),
             claims.shop_id,
+            claims.vendor_id,
         )?;
         Ok(LoginVO {
             token: access.clone(),
