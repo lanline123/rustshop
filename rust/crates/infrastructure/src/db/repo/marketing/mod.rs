@@ -1,6 +1,7 @@
 //! marketing 领域仓储。
 
 pub mod buyer_show;
+pub mod tenant;
 pub mod buyer_show_client;
 pub mod buyer_show_comment;
 pub mod buyer_show_group;

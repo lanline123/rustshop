@@ -26,6 +26,7 @@ use tigshop_core::models::marketing::salesman_group::{
 use tigshop_core::types::{PageQuery, PageResult};
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::marketing::salesman_group::SalesmanGroupRepository;
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 /// 分组服务（挂载于 `AdminState.marketing.salesman_group`）。
@@ -58,6 +59,7 @@ impl SalesmanGroupService {
             .repo()
             .paginate(
                 q.group_name.as_deref(),
+                TenantScope::current_list_filter(),
                 q.sort_field.as_deref(),
                 q.sort_order.as_deref(),
                 limit,
@@ -73,7 +75,12 @@ impl SalesmanGroupService {
     /// # Errors
     /// 数据库错误 → `Error::Database`。
     pub async fn detail(&self, id: i32) -> Result<Option<SalesmanGroupVO>> {
-        Ok(self.repo().find_by_id(id).await?.as_ref().map(to_vo))
+        let Some(group) = self.repo().find_by_id(id).await? else {
+            return Ok(None);
+        };
+        // 多租户：店铺账号只能查看本店分组
+        TenantScope::current_ensure_access(group.shop_id.unwrap_or(0))?;
+        Ok(Some(to_vo(&group)))
     }
 
     /// 新增分组（Java `create`）。
@@ -87,7 +94,8 @@ impl SalesmanGroupService {
             group_name: dto.group_name.as_deref().map(str::trim).map(str::to_string),
             describe: dto.describe.clone(),
             add_time: Some(now_secs_i32()),
-            shop_id: Some(0),
+            // 多租户：店铺账号强制落本店；平台账号落平台级（0）
+            shop_id: Some(TenantScope::current().write_shop_id(None)?),
         };
         self.repo().insert(&entity).await
     }
@@ -103,6 +111,8 @@ impl SalesmanGroupService {
         let Some(mut entity) = self.repo().find_by_id(id).await? else {
             return Err(Error::biz(500, MSG_GROUP_NOT_FOUND));
         };
+        // 多租户：写操作必须校验分组归属
+        TenantScope::current_ensure_access(entity.shop_id.unwrap_or(0))?;
         if let Some(name) = dto.group_name.as_deref() {
             validate_name(Some(name)).map_err(Error::Validation)?;
             entity.group_name = Some(name.trim().to_string());
@@ -122,6 +132,10 @@ impl SalesmanGroupService {
         let id = dto
             .id
             .ok_or_else(|| Error::Validation(MSG_ID_REQUIRED.into()))?;
+        // 多租户：删除前校验分组归属
+        if let Some(group) = self.repo().find_by_id(id).await? {
+            TenantScope::current_ensure_access(group.shop_id.unwrap_or(0))?;
+        }
         if self.repo().count_salesmen_in_group(id).await? > 0 {
             return Err(Error::biz(500, MSG_GROUP_IN_USE));
         }

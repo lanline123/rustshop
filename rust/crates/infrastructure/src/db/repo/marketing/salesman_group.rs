@@ -35,9 +35,13 @@ impl SalesmanGroupRepository {
 
     /// 分页（Java `list`：`groupName` LIKE + `add_time ASC`；`buildSortOrder`
     /// 若显式传 `sortField` 则以白名单列覆盖排序）。
+    ///
+    /// `shop_id` 为租户过滤值：`None`（平台账号）不过滤，`Some(id)` 强制
+    /// `WHERE shop_id = ?`（多租户隔离，见 `marketing::tenant`）。
     pub async fn paginate(
         &self,
         group_name: Option<&str>,
+        shop_id: Option<i32>,
         sort_field: Option<&str>,
         sort_order: Option<&str>,
         limit: u64,
@@ -47,10 +51,17 @@ impl SalesmanGroupRepository {
             .map(str::trim)
             .filter(|s| !s.is_empty())
             .map(|k| format!("%{k}%"));
-        let where_sql = if like.is_some() {
-            "WHERE group_name LIKE ?"
+        let mut where_parts: Vec<&str> = Vec::new();
+        if like.is_some() {
+            where_parts.push("group_name LIKE ?");
+        }
+        if shop_id.is_some() {
+            where_parts.push("shop_id = ?");
+        }
+        let where_sql = if where_parts.is_empty() {
+            String::new()
         } else {
-            ""
+            format!("WHERE {}", where_parts.join(" AND "))
         };
         let column = resolve_sort_column(sort_field);
         let dir = if sort_order.is_some_and(|o| o.eq_ignore_ascii_case("desc")) {
@@ -63,6 +74,9 @@ impl SalesmanGroupRepository {
         if let Some(k) = like.as_deref() {
             cq = cq.bind(k);
         }
+        if let Some(id) = shop_id {
+            cq = cq.bind(id);
+        }
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
         let list_sql = format!(
@@ -71,6 +85,9 @@ impl SalesmanGroupRepository {
         let mut lq = sqlx::query_as::<_, SalesmanGroup>(&list_sql);
         if let Some(k) = like.as_deref() {
             lq = lq.bind(k);
+        }
+        if let Some(id) = shop_id {
+            lq = lq.bind(id);
         }
         let rows = lq
             .bind(limit.max(1))

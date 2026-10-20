@@ -25,6 +25,7 @@ pub mod wechat_video_account;
 use axum::Router;
 
 use super::super::AdminState;
+use crate::routes::marketing::tenant_layer::tenant_scope_layer;
 
 /// 需登录的域路由（外层统一套 require_auth）。
 pub fn routes(state: &AdminState) -> Router<AdminState> {
@@ -51,6 +52,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(wechat_live_order_sync::routes(state))
         .merge(wechat_menu::routes(state))
         .merge(wechat_video_account::routes(state))
+        .layer(axum::middleware::from_fn(tenant_scope_layer))
 }
 
 /// 免登录的域路由（对应 Java `URL_WHITELIST`，外层不套 require_auth）。

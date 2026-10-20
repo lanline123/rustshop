@@ -9,6 +9,7 @@ pub mod im_conversation;
 use axum::Router;
 
 use super::super::AdminState;
+use crate::routes::marketing::tenant_layer::tenant_scope_layer;
 
 /// 需登录的根级路由。
 pub fn merge_protected(state: &AdminState) -> Router<AdminState> {
@@ -18,7 +19,7 @@ pub fn merge_protected(state: &AdminState) -> Router<AdminState> {
         .merge(im_conversation::routes(state))
         .merge(im_message::routes(state))
         .merge(im_servant::routes(state))
-
+        .layer(axum::middleware::from_fn(tenant_scope_layer))
 }
 
 /// 免登录的根级路由。
