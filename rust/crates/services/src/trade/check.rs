@@ -311,12 +311,20 @@ impl CheckService {
         }
 
         // —— 满减/满折（按店铺；可能与秒杀/拼团叠加，按活动顺序逐步折价）——
+        let user_rank_id = self
+            .repos
+            .member
+            .user
+            .find_by_id(user_id)
+            .await?
+            .map(|u| u.rank_id);
         let (full_reduce_total, store_full_reduce, applied_gifts) = apply_full_reductions(
             &self.repos,
             &carts,
             &products,
             &mut line_prices,
             now,
+            user_rank_id,
         )
         .await?;
         // 活动折价后重算商品金额与店铺金额
@@ -1022,12 +1030,32 @@ pub struct AppliedGift {
 /// 满减/满折/满赠：按店铺命中活动，对命中商品行按比例折价（Java `ProductPromotionServiceImpl#parsePrice`）。
 ///
 /// 返回 `(总优惠, 各店铺优惠, 命中赠品)`；`line_prices` 会被就地更新为折后单价。
+/// 活动会员等级白名单：空数组/空串表示不限等级。
+fn promotion_rank_allowed(raw: &str, rank_id: Option<i32>) -> bool {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(raw) else {
+        return true;
+    };
+    let Some(list) = value.as_array() else {
+        return true;
+    };
+    if list.is_empty() {
+        return true;
+    }
+    let Some(rank) = rank_id else {
+        return false;
+    };
+    list.iter()
+        .filter_map(|v| v.as_i64())
+        .any(|v| i32::try_from(v).ok() == Some(rank))
+}
+
 pub(crate) async fn apply_full_reductions(
     repos: &Repositories,
     carts: &[Cart],
     products: &HashMap<i32, Product>,
     line_prices: &mut HashMap<i32, Decimal>,
     now: i32,
+    user_rank_id: Option<i32>,
 ) -> Result<(Decimal, BTreeMap<i32, Decimal>, Vec<AppliedGift>)> {
     let mut total = Decimal::ZERO;
     let mut per_store: BTreeMap<i32, Decimal> = BTreeMap::new();
@@ -1043,6 +1071,9 @@ pub(crate) async fn apply_full_reductions(
             .find_active_by_shop(shop_id, now)
             .await?;
         for promotion in promotions {
+            if !promotion_rank_allowed(&promotion.limit_user_rank, user_rank_id) {
+                continue;
+            }
             if promotion.promotion_type != 1
                 && promotion.promotion_type != 2
                 && promotion.promotion_type != 3

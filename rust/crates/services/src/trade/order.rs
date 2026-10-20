@@ -127,12 +127,20 @@ impl OrderService {
             }
             line_prices.insert(line.cart_id, price);
         }
+        let user_rank_id = self
+            .repos
+            .member
+            .user
+            .find_by_id(user_id)
+            .await?
+            .map(|u| u.rank_id);
         let (_, _, applied_gifts) = crate::trade::check::apply_full_reductions(
             &self.repos,
             &lines,
             &products,
             &mut line_prices,
             now_activity,
+            user_rank_id,
         )
         .await?;
 
