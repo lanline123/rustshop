@@ -18,12 +18,11 @@
 
 ### 0.1 最新快照（2026-10-20 21:xx，优先阅读）
 
-- **HEAD `fbf1e579`**，工作树仍有约 285 个路径未提交（前端 `rust/web` 迁移 +
-  `config_basic` 在途改动）；后端本轮改动已单独提交。
+- **HEAD `eb6e604a`，工作树干净**（仅仓库根证书文件未跟踪，不应提交）。
 - `cargo check --workspace` 通过；四项门禁 PASS（覆盖率 100%、路由冲突 0、
   SQL 未知表/列 0、结构 PASS）。
-- `tigshop-services` 1570 passed / 1 failed，失败是未提交 `config_basic` 的旧占位测试；
-  `tigshop-admin-api` 590 passed。
+- `tigshop-services` **1571 passed / 0 failed**；`tigshop-admin-api` **590 passed**。
+  前端 admin/PC 生产构建通过，`check_frontend.py contract --strict` 通过。
 - **已完成且不要重做**：
   - 公众号安全模式回调、扫码 openid、OAuth code 登录、PC 二维码、小程序手机号；
   - 阿里云短信（已真实发送）、SMTP 163（已真实发信）、阿里云 OSS 上传（已真实读写）；
@@ -36,7 +35,7 @@
   1. 快递鸟账号未购买查询/面单套餐（`JT3175428264802` 已到网关）；
   2. 微信小程序 AppID/Secret + 公众号 IP 白名单（真实扫码/access_token）；
   3. 微信支付公钥、ES 实例、微信直播权限；
-  4. 前端迁移（PC 构建、页面/店铺/i18n）；
+  4. 前端页面/店铺/i18n 迁移（PC 构建已修复，页面仍为原型）；
   5. 定金预售、售后渠道退款、多租户 public/平台列表语义、文档全量清理。
 
 ---
@@ -45,19 +44,19 @@
 
 | 项 | 值 / 状态 |
 |---|---|
-| git HEAD | `d6c2a948`（2026-10-20 21:xx；见 §0.1） |
+| git HEAD | `eb6e604a`（2026-10-20；见 §0.1） |
 | git 根目录 | `D:/tigshop/java-b2b2b-pro-v5.8.57`（Rust 在 `rust/` 子目录，提交路径带 `rust/` 前缀） |
-| 未提交改动 | **约 285 个路径**（前端 `rust/web` 迁移 + `config_basic` 在途改动，见 §0.1） |
+| 未提交改动 | **0**（仅仓库根证书文件未跟踪，不应提交） |
 | 编译 | `cargo check --workspace` 通过（2026-10-20 实测） |
-| 测试 | `tigshop-services` 1570 passed / 1 failed（未提交 `config_basic` 旧占位测试）；`tigshop-admin-api` 590 passed |
+| 测试 | `tigshop-services` 1571 passed / 0 failed；`tigshop-admin-api` 590 passed |
 | 门禁 | `check_api_coverage` 100%、路由冲突 0、SQL 未知表/列 0、结构 PASS |
 | 服务 | 未运行；二进制 `rust/crates/target/debug/tigshop.exe` 存在 |
 | MySQL | 本地 `tigshop-java` 可连接（root/root，127.0.0.1:3306） |
-| 前端 | **重写中的 `rust/web` 未提交**；PC 构建仍有 TS 错误 |
+| 前端 | `rust/web` 已提交；admin/PC 构建通过，契约检查通过 |
 
 > **口径提醒**：`check_api_coverage` 的 100% 是「路由/方法存在」口径，不代表行为等价。
 > 行为缺口以 `docs/CAPABILITY-MATRIX.md` + 代码中的 `NOT_MIGRATED` 分支为准。
-> 当前 `services/src` 里仍有 **23 处 `NOT_MIGRATED` 引用**（含常量定义/注释），
+> 当前 `services/src` 里仍有 **19 处 `NOT_MIGRATED` 引用**（含常量定义/注释），
 > 主要剩余：微信直播、ES 全量同步、部分支付/售后/结算与代客下单结算页。
 
 ---
