@@ -74,15 +74,23 @@ struct ReadedBody {
 /// 供应商维度改取认证中间件写入的 [`TenantContext::vendor_scope`]（JWT
 /// `vendor_id` 声明），不再信任查询参数 `vendorId`；店铺/平台维度同理。
 fn scope_of(tenant: &TenantContext, q: &AdminMsgListQuery) -> MsgScope {
+    scope_from_tenant(tenant, q.shop_id)
+}
+
+/// 从可信租户上下文构造消息作用域。
+///
+/// - 供应商：`TenantContext.vendor_scope()`；
+/// - 店铺账号：强制本店；
+/// - 平台账号：可显式传 `requested_shop` 过滤，缺省 0（仅广播）。
+fn scope_from_tenant(tenant: &TenantContext, requested_shop: Option<i32>) -> MsgScope {
     if tenant.is_vendor_account() {
         return MsgScope::Vendor {
             vendor_id: tenant.vendor_scope().unwrap_or(0),
         };
     }
-    // 店铺账号：强制本店；平台账号：允许显式 shopId 过滤（缺省 0）。
     let platform = tenant.is_platform();
     let shop_id = if platform {
-        q.shop_id.unwrap_or(0)
+        requested_shop.unwrap_or(0)
     } else {
         tenant.shop_scope().unwrap_or(0)
     };
@@ -135,9 +143,15 @@ async fn home_summary(
 
 async fn set_readed(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Json(body): Json<ReadedBody>,
 ) -> ApiResult<bool> {
-    ok(state.system.admin_msg.set_readed(body.msg_id).await?)
+    let scope = scope_from_tenant(&tenant, None);
+    ok(state
+        .system
+        .admin_msg
+        .set_readed(body.msg_id, scope)
+        .await?)
 }
 
 async fn set_all_readed(
@@ -170,6 +184,25 @@ mod tests {
             assert_eq!(doc.method, *m);
             assert_eq!(doc.path, *p);
         }
+    }
+
+    #[test]
+    fn set_readed_scope_from_tenant_has_no_query_fallback() {
+        let shop = TenantContext::new(Some("shop".into()), Some(5), None);
+        assert_eq!(
+            scope_from_tenant(&shop, Some(9)),
+            MsgScope::Shop { shop_id: 5, platform: false }
+        );
+        let vendor = TenantContext::new(Some("vendor".into()), None, Some(3));
+        assert_eq!(
+            scope_from_tenant(&vendor, None),
+            MsgScope::Vendor { vendor_id: 3 }
+        );
+        let platform = TenantContext::new(Some("admin".into()), None, None);
+        assert_eq!(
+            scope_from_tenant(&platform, Some(7)),
+            MsgScope::Shop { shop_id: 7, platform: true }
+        );
     }
 
     #[test]

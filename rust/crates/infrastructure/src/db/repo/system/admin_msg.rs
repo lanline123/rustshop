@@ -113,6 +113,16 @@ impl AdminMsgRepository {
     ///
     /// # Errors
     /// 数据库失败 → `Error::Database`。
+    /// 按 ID 查询消息（归属校验用）。
+    pub async fn find_by_id(&self, msg_id: i32) -> Result<Option<AdminMsgRow>> {
+        let sql = format!("SELECT {COLUMNS} FROM admin_msg WHERE msg_id = ? LIMIT 1");
+        sqlx::query_as::<_, AdminMsgRow>(&sql)
+            .bind(msg_id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(map_err)
+    }
+
     pub async fn set_readed(&self, msg_id: i32) -> Result<bool> {
         let r = sqlx::query("UPDATE admin_msg SET is_readed = 1 WHERE msg_id = ?")
             .bind(msg_id)

@@ -131,8 +131,16 @@ impl AdminMsgService {
     }
 
     /// `POST /adminapi/msg/adminMsg/setReaded`：单条已读。
-    pub async fn set_readed(&self, msg_id: Option<i32>) -> Result<bool> {
+    pub async fn set_readed(&self, msg_id: Option<i32>, scope: MsgScope) -> Result<bool> {
         let msg_id = msg_id.ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "msgId不能为空"))?;
+        let row = self
+            .repo()
+            .find_by_id(msg_id)
+            .await?
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "消息不存在"))?;
+        if !message_visible_in(&row, scope) {
+            return Err(Error::Forbidden("无权操作该消息".into()));
+        }
         self.repo().set_readed(msg_id).await
     }
 
@@ -169,6 +177,84 @@ fn to_vo(row: &AdminMsgRow) -> AdminMsgVO {
         content: row.content.clone(),
         msg_link: row.msg_link.clone(),
         related_data,
+    }
+}
+
+/// 消息归属校验（严格租户）：
+/// - 
+    #[test]
+    fn message_visibility_is_tenant_strict() {
+        use tigshop_infrastructure::db::repo::system::admin_msg::AdminMsgRow;
+        let shop_row = AdminMsgRow {
+            msg_id: 1,
+            msg_type: 1,
+            send_time: 0,
+            is_readed: 0,
+            shop_id: 5,
+            admin_id: 0,
+            order_id: 0,
+            product_id: 0,
+            title: String::new(),
+            content: String::new(),
+            msg_link: None,
+            related_data: None,
+            is_broadcast: 0,
+            vendor_id: None,
+        };
+        assert!(message_visible_in(
+            &shop_row,
+            MsgScope::Shop { shop_id: 5, platform: false }
+        ));
+        assert!(!message_visible_in(
+            &shop_row,
+            MsgScope::Shop { shop_id: 6, platform: false }
+        ));
+        assert!(!message_visible_in(
+            &shop_row,
+            MsgScope::Shop { shop_id: 0, platform: true }
+        ));
+        assert!(!message_visible_in(
+            &shop_row,
+            MsgScope::Vendor { vendor_id: 9 }
+        ));
+
+        let mut vendor_row = shop_row.clone();
+        vendor_row.vendor_id = Some(9);
+        assert!(message_visible_in(
+            &vendor_row,
+            MsgScope::Vendor { vendor_id: 9 }
+        ));
+        assert!(!message_visible_in(
+            &vendor_row,
+            MsgScope::Vendor { vendor_id: 8 }
+        ));
+
+        let mut broadcast = shop_row.clone();
+        broadcast.is_broadcast = 1;
+        assert!(message_visible_in(
+            &broadcast,
+            MsgScope::Shop { shop_id: 0, platform: true }
+        ));
+    }
+/// 消息归属校验（严格租户）。
+///
+/// - 供应商：`vendor_id` 必须等于可信 vendor scope；
+/// - 平台：仅广播消息（`is_broadcast = 1`）；
+/// - 店铺/门店：`shop_id` 必须等于本店且非供应商消息。
+#[must_use]
+pub fn message_visible_in(
+    row: &tigshop_infrastructure::db::repo::system::admin_msg::AdminMsgRow,
+    scope: MsgScope,
+) -> bool {
+    match scope {
+        MsgScope::Vendor { vendor_id } => row.vendor_id == Some(vendor_id),
+        MsgScope::Shop { shop_id, platform } => {
+            if platform {
+                row.is_broadcast == 1
+            } else {
+                row.shop_id == shop_id && row.vendor_id.unwrap_or(0) == 0
+            }
+        }
     }
 }
 
