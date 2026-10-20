@@ -813,6 +813,62 @@ impl AftersalesService {
 
     // ————————————————————— 审核（update） —————————————————————
 
+    /// 退货地址三级兜底（Java `resolveReturnAddress`）：
+    /// 供应商 `receive_info` → 店铺 `receive_info` → 平台 `shippingSettings`。
+    async fn resolve_return_address(&self, order_id: i32) -> Result<Option<String>> {
+        let Some(order) = self.repos.trade.order_admin.find_order(order_id).await? else {
+            return Ok(None);
+        };
+        if let Some(vendor_id) = order.vendor_id.filter(|v| *v > 0) {
+            if let Some(vendor) = self
+                .repos
+                .merchant
+                .deposit_recharge
+                .find_vendor(vendor_id)
+                .await?
+            {
+                if let Some(addr) = delivery_address_from_json(vendor.receive_info.as_deref()) {
+                    return Ok(Some(addr));
+                }
+            }
+        }
+        if order.shop_id > 0 {
+            if let Some(shop) = self
+                .repos
+                .identity
+                .admin_user
+                .find_shop(order.shop_id)
+                .await?
+            {
+                if let Some(addr) = delivery_address_from_json(shop.receive_info.as_deref()) {
+                    return Ok(Some(addr));
+                }
+            }
+        }
+        let pairs = self
+            .repos
+            .system
+            .config_basic
+            .find_by_codes(&[
+                "receiveSender",
+                "receiveMobile",
+                "receiveProvinceName",
+                "receiveCityName",
+                "receiveAreaName",
+                "receiveAddress",
+            ])
+            .await?;
+        let map: std::collections::HashMap<String, String> = pairs.into_iter().collect();
+        Ok(build_delivery_address(
+            map.get("receiveSender").map(String::as_str),
+            map.get("receiveMobile").map(String::as_str),
+            map.get("receiveProvinceName").map(String::as_str),
+            map.get("receiveCityName").map(String::as_str),
+            map.get("receiveAreaName").map(String::as_str),
+            map.get("receiveAddress").map(String::as_str),
+        ))
+    }
+
     /// 售后审核（对应 Java `AftersalesController.update` /
     /// `AftersalesServiceImpl#update`）。
     ///
@@ -911,12 +967,17 @@ impl AftersalesService {
             let mut return_goods_tip = param.return_goods_tip.clone();
             if vendor_audit_skipped && return_address.as_deref().is_none_or(|s| s.trim().is_empty())
             {
-                // 无法解析地址：保持为空，由运维在同意时手工填写
-                return_address = None;
-                return_goods_tip = Some(
-                    "您的售后申请已通过，请按商家提供的地址回寄商品，并在回寄后填写物流信息"
+                return_address = match aftersales.order_id {
+                    Some(order_id) => self.resolve_return_address(order_id).await?,
+                    None => None,
+                };
+                return_goods_tip = Some(match return_address.as_deref() {
+                    Some(addr) => format!(
+                        "您的售后申请已通过，请按以下地址回寄商品，并在回寄后填写物流信息：{addr}"
+                    ),
+                    None => "您的售后申请已通过，请按商家提供的地址回寄商品，并在回寄后填写物流信息"
                         .to_string(),
-                );
+                });
             }
 
             // 退款金额：管理员未填写（null）时按退款商品金额兜底；
@@ -2003,6 +2064,50 @@ fn is_completing_last_items_current(
     covers(&with_current) && !covers(&earlier_only)
 }
 
+fn delivery_address_from_json(raw: Option<&str>) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_str(raw?.trim()).ok()?;
+    build_delivery_address(
+        value.get("sender").and_then(|v| v.as_str()),
+        value.get("mobile").and_then(|v| v.as_str()),
+        value.get("provinceName").and_then(|v| v.as_str()),
+        value.get("cityName").and_then(|v| v.as_str()),
+        value.get("areaName").and_then(|v| v.as_str()),
+        value.get("address").and_then(|v| v.as_str()),
+    )
+}
+
+fn build_delivery_address(
+    sender: Option<&str>,
+    mobile: Option<&str>,
+    province: Option<&str>,
+    city: Option<&str>,
+    area: Option<&str>,
+    address: Option<&str>,
+) -> Option<String> {
+    let mut parts = Vec::new();
+    if let Some(v) = sender.map(str::trim).filter(|s| !s.is_empty()) {
+        parts.push(v.to_string());
+    }
+    if let Some(v) = mobile.map(str::trim).filter(|s| !s.is_empty()) {
+        parts.push(v.to_string());
+    }
+    let detail = format!(
+        "{}{}{}{}",
+        province.unwrap_or("").trim(),
+        city.unwrap_or("").trim(),
+        area.unwrap_or("").trim(),
+        address.unwrap_or("").trim()
+    );
+    if !detail.trim().is_empty() {
+        parts.push(detail);
+    }
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join(" "))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2685,5 +2790,30 @@ mod tests {
         // 仅退款也不计
         let pr = aftersales(aftersales_type::PAY_RETURN, aftersales_status::IN_REVIEW, "0.00");
         assert!(!is_vendor_return_aftersales(&pr));
+    }
+
+    #[test]
+    fn return_address_fallback_builds_java_style_string() {
+        assert_eq!(
+            delivery_address_from_json(Some(
+                r#"{"sender":"张三","mobile":"13800000000","provinceName":"山东省","cityName":"青岛市","areaName":"市南区","address":"香港中路1号"}"#
+            ))
+            .as_deref(),
+            Some("张三 13800000000 山东省青岛市市南区香港中路1号")
+        );
+        assert!(delivery_address_from_json(Some("{}")).is_none());
+        assert!(delivery_address_from_json(Some("not-json")).is_none());
+        assert_eq!(
+            build_delivery_address(
+                Some("平台"),
+                Some("400-000"),
+                Some("山东省"),
+                Some("青岛市"),
+                Some("市南区"),
+                Some("某路")
+            )
+            .as_deref(),
+            Some("平台 400-000 山东省青岛市市南区某路")
+        );
     }
 }

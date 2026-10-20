@@ -2761,8 +2761,8 @@ impl OrderAdminService {
     /// 催发货（`POST /order/order/remindDeliver`）。
     ///
     /// 对应 Java `remindDeliver`：仅供应商订单（`vendor_id > 0`）且状态为
-    /// 「已确认，待发货」可催；Java 发后台站内消息（消息域未迁移），
-    /// 本实现落一条订单日志作为可观测替代，校验文案保持逐字一致。
+    /// 「已确认，待发货」可催；写入 `admin_msg`（类型 54 发货提醒，vendor 维度），
+    /// 同时落订单日志便于审计。
     pub async fn remind_deliver(&self, id: i32, admin_id: i32) -> Result<()> {
         let order = self
             .repos
@@ -2777,6 +2777,30 @@ impl OrderAdminService {
         if order.order_status != OrderStatus::Confirmed as i32 {
             return Err(Error::biz_msg("订单状态错误"));
         }
+        let vendor_id = order.vendor_id.unwrap_or(0);
+        let title = format!(
+            "发货提醒：{},金额：{}",
+            order.order_sn, order.total_amount
+        );
+        let content = format!(
+            "收到订单号：{}，金额：{}，的催发货提醒，请尽快进行发货",
+            order.order_sn, order.total_amount
+        );
+        let related_data = serde_json::json!({ "orderId": order.order_id }).to_string();
+        let _ = self
+            .repos
+            .system
+            .admin_msg
+            .create_vendor_message(
+                54, // AdminMsgTypeEnum.QUICK_DELIVERY
+                vendor_id,
+                order.shop_id,
+                order.order_id,
+                &title,
+                &content,
+                &related_data,
+            )
+            .await;
         self.repos
             .trade
             .order_admin

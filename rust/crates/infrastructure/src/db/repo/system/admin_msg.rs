@@ -357,6 +357,37 @@ impl AdminMsgRepository {
         .map_err(map_err)?;
         Ok(r.last_insert_id() as i32)
     }
+
+    /// 插入供应商维度的管理员通知消息（Java `AdminMsgCreateDTO.vendorId`）。
+    pub async fn create_vendor_message(
+        &self,
+        msg_type: i32,
+        vendor_id: i32,
+        shop_id: i32,
+        order_id: i32,
+        title: &str,
+        content: &str,
+        related_data: &str,
+    ) -> Result<i32> {
+        let now = tigshop_common::utils::now_seconds() as i32;
+        let r = sqlx::query(
+            "INSERT INTO admin_msg \
+             (msg_type, send_time, is_readed, shop_id, admin_id, order_id, product_id, title, content, msg_link, related_data, is_broadcast, vendor_id) \
+             VALUES (?, ?, 0, ?, 0, ?, 0, ?, ?, '', ?, 0, ?)",
+        )
+        .bind(msg_type)
+        .bind(now)
+        .bind(shop_id)
+        .bind(order_id)
+        .bind(title)
+        .bind(content)
+        .bind(related_data)
+        .bind(vendor_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(r.last_insert_id() as i32)
+    }
 }
 
 /// 可见性 + 可选过滤 WHERE（含前导空格）。
