@@ -47,7 +47,7 @@ use tigshop_core::models::identity::authority::{
     OperateDTO, UpdateFieldDTO,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult, AuthUser};
+use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 
 use crate::AdminState;
 
@@ -210,6 +210,17 @@ async fn get_authority_parent_name(
     ok(state.identity.authority.get_authority_parent_name(q.id).await?)
 }
 
+/// 权限目录是平台级元数据：只有平台账号可增删改，店铺账号只能读取自身菜单。
+fn ensure_platform(auth: &AuthUser) -> Result<(), AppError> {
+    if auth.is_platform() {
+        Ok(())
+    } else {
+        Err(AppError(tigshop_core::Error::Forbidden(
+            "店铺账号无权修改平台权限目录".into(),
+        )))
+    }
+}
+
 /// `POST /adminapi/authority/authority/batch`：批量操作。
 ///
 /// 对应 Java `batch(@RequestBody BatchDTO batch)`：
@@ -217,8 +228,10 @@ async fn get_authority_parent_name(
 /// 对非 `del` 类型直接返回 `false`（无副作用）。
 async fn batch(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<&'static str> {
+    ensure_platform(&auth)?;
     state.identity.authority.batch(&dto).await?;
     ok("操作成功")
 }
@@ -229,8 +242,10 @@ async fn batch(
 /// 这里回传新建主键便于前端/运维使用（`data` 由 `null` 变为数字）。
 async fn create(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<AuthorityDTO>,
 ) -> ApiResult<i32> {
+    ensure_platform(&auth)?;
     ok(state.identity.authority.create(&dto).await?)
 }
 
@@ -240,8 +255,10 @@ async fn create(
 /// 先校验「不能有子级」（`error.authority.has.children`），再删除。
 async fn del(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<&'static str> {
+    ensure_platform(&auth)?;
     state.identity.authority.del(dto.id).await?;
     ok("删除成功")
 }
@@ -254,8 +271,10 @@ async fn detail(State(state): State<AdminState>, Query(q): Query<IdQuery>) -> Ap
 /// `POST /adminapi/authority/authority/update`：更新权限。
 async fn update(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<AuthorityDTO>,
 ) -> ApiResult<&'static str> {
+    ensure_platform(&auth)?;
     state.identity.authority.update(&dto).await?;
     ok("更新成功")
 }
@@ -267,8 +286,10 @@ async fn update(
 /// （`authority_name` / `authority_sn` / `route_link` / `is_show` / `sort_order`）。
 async fn update_field(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<&'static str> {
+    ensure_platform(&auth)?;
     state.identity.authority.update_field(&dto).await?;
     ok("更新成功")
 }
@@ -278,11 +299,18 @@ async fn update_field(
 /// Java 的 `x-shop-id` / `x-vendor-id` 请求头在 Rust 侧尚未签发，
 /// 故用查询参数替代（见模块头「多租户说明」）。
 fn context_from(auth: &AuthUser, shop_id: Option<i32>, vendor_id: Option<i32>) -> AuthorityContext {
+    let (shop_id, vendor_id) = match auth.scoped_shop_id() {
+        Some(scope) => (Some(scope), None),
+        None => (
+            shop_id.filter(|v| *v != 0),
+            vendor_id.filter(|v| *v != 0),
+        ),
+    };
     AuthorityContext {
         admin_id: auth.id,
         admin_type: auth.admin_type.clone(),
-        shop_id: shop_id.filter(|v| *v != 0),
-        vendor_id: vendor_id.filter(|v| *v != 0),
+        shop_id,
+        vendor_id,
         // Rust JWT 未携带权限编号集合；服务层会回退读取
         // `admin_user.auth_list`（Java 登录时装载的同一份数据）。
         granted: Vec::new(),

@@ -53,7 +53,7 @@ use tigshop_core::models::identity::admin_user::{
     AdminUserModifyManageAccountsDTO, BatchDTO, GetCodeQuery, OperateDTO,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult, AuthUser};
+use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 
 use crate::AdminState;
 
@@ -187,6 +187,7 @@ fn resolve_admin_type(headers: &HeaderMap, auth: &AuthUser, fallback: Option<&st
 /// 过滤字段为 `suppliersId` / `adminUserType` / `keyword`。
 async fn list(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<AdminUserListQuery>,
 ) -> ApiResult<PageResult<AdminUserDTO>> {
     ok(state.identity.admin_user
@@ -196,6 +197,7 @@ async fn list(
             q.suppliers_id.as_deref(),
             q.page,
             q.size,
+            auth.scoped_shop_id(),
         )
         .await?)
 }
@@ -215,15 +217,23 @@ async fn mine_detail(
     ok(state.identity.admin_user.mine_detail(auth.id).await?)
 }
 
+/// 管理端租户校验：店铺账号只能操作本店管理员（`shop_id=0` 的平台管理员不可见）。
+fn check_admin_scope(auth: &AuthUser, admin: &AdminUserDTO) -> Result<(), AppError> {
+    auth.ensure_shop_access(admin.shop_id.unwrap_or(0)).map_err(AppError)
+}
+
 /// `GET /adminapi/authority/adminUser/detail?id=`：管理员详情。
 ///
 /// 对应 Java `AdminUserController.detail(@RequestParam Integer id)`；
 /// Java 显式 `detail.setPassword(null)`，本实现出参结构不含密码字段。
 async fn detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<AdminUserIdQuery>,
 ) -> ApiResult<AdminUserDTO> {
-    ok(state.identity.admin_user.detail(q.id).await?)
+    let dto = state.identity.admin_user.detail(q.id).await?;
+    check_admin_scope(&auth, &dto)?;
+    ok(dto)
 }
 
 // ——————————————————————————————————————————————
@@ -236,8 +246,12 @@ async fn detail(
 /// 这里回传新建/复用的 `adminId`（`data` 由 `null` 变为数字），便于前端刷新。
 async fn create(
     State(state): State<AdminState>,
-    Json(dto): Json<AdminUserDTO>,
+    Extension(auth): Extension<AuthUser>,
+    Json(mut dto): Json<AdminUserDTO>,
 ) -> ApiResult<i32> {
+    if let Some(shop_id) = auth.scoped_shop_id() {
+        dto.shop_id = Some(shop_id);
+    }
     ok(state.identity.admin_user.create(&dto).await?)
 }
 
@@ -246,8 +260,16 @@ async fn create(
 /// 对应 Java `update(@RequestBody @Valid AdminUserDTO)`（原返回 `void`）。
 async fn update(
     State(state): State<AdminState>,
-    Json(dto): Json<AdminUserDTO>,
+    Extension(auth): Extension<AuthUser>,
+    Json(mut dto): Json<AdminUserDTO>,
 ) -> ApiResult<&'static str> {
+    if let Some(admin_id) = dto.admin_id {
+        let current = state.identity.admin_user.detail(admin_id).await?;
+        check_admin_scope(&auth, &current)?;
+    }
+    if let Some(shop_id) = auth.scoped_shop_id() {
+        dto.shop_id = Some(shop_id);
+    }
     state.identity.admin_user.update(&dto).await?;
     ok("更新成功")
 }
@@ -260,6 +282,8 @@ async fn del(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<&'static str> {
+    let current = state.identity.admin_user.detail(dto.id).await?;
+    check_admin_scope(&auth, &current)?;
     state.identity.admin_user.del(dto.id, auth.id).await?;
     ok("删除成功")
 }
@@ -273,6 +297,10 @@ async fn batch(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<&'static str> {
+    for id in &dto.ids {
+        let current = state.identity.admin_user.detail(*id).await?;
+        check_admin_scope(&auth, &current)?;
+    }
     state.identity.admin_user.batch(&dto, auth.id).await?;
     ok("操作成功")
 }

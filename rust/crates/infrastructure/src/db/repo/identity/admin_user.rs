@@ -38,6 +38,8 @@ pub struct AdminUserPageFilter {
     pub admin_types: Vec<String>,
     /// `suppliers_id = ?`（Java 是 `String`，与 `int unsigned` 列比较）
     pub suppliers_id: Option<String>,
+    /// 租户店铺过滤：店铺账号只能看到自己店铺的管理员；平台为 None
+    pub shop_id: Option<i32>,
     /// 每页条数（已按 `BasePage` 口径截断为 1..=100）
     pub page_size: u64,
     /// 偏移量
@@ -697,6 +699,11 @@ fn build_user_filter(f: &AdminUserPageFilter) -> (String, Vec<Bind>) {
         binds.push(Bind::Str(sid.to_string()));
     }
 
+    if let Some(shop_id) = f.shop_id {
+        conds.push("shop_id = ?".to_string());
+        binds.push(Bind::I32(shop_id));
+    }
+
     (format!(" WHERE {}", conds.join(" AND ")), binds)
 }
 
@@ -728,6 +735,7 @@ mod tests {
             keyword: Some("root".into()),
             admin_types: vec!["admin".into(), "suppliers".into()],
             suppliers_id: Some("7".into()),
+            shop_id: None,
             page_size: 15,
             offset: 0,
         };
@@ -755,12 +763,26 @@ mod tests {
             keyword: Some("   ".into()),
             admin_types: vec![],
             suppliers_id: Some("".into()),
+            shop_id: None,
             page_size: 15,
             offset: 0,
         };
         let (sql, binds) = build_user_filter(&f);
         assert_eq!(sql, " WHERE is_deleted = 0");
         assert!(binds.is_empty());
+    }
+
+    #[test]
+    fn shop_scope_adds_shop_filter_bind() {
+        let f = AdminUserPageFilter {
+            shop_id: Some(9),
+            page_size: 15,
+            ..Default::default()
+        };
+        let (sql, binds) = build_user_filter(&f);
+        assert!(sql.contains("shop_id = ?"));
+        assert_eq!(binds.len(), 1);
+        assert!(matches!(binds[0], Bind::I32(9)));
     }
 
     #[test]

@@ -372,6 +372,7 @@ impl AdminUserService {
         suppliers_id: Option<&str>,
         page: Option<u64>,
         size: Option<u64>,
+        shop_id: Option<i32>,
     ) -> Result<PageResult<AdminUserDTO>> {
         let pq = page_query(page, size);
         let types = if should_filter_admin_type(admin_user_type) {
@@ -383,6 +384,7 @@ impl AdminUserService {
             keyword: keyword.map(ToString::to_string),
             admin_types: types,
             suppliers_id: suppliers_id.map(ToString::to_string),
+            shop_id,
             page_size: pq.page_size,
             offset: (pq.page - 1) * pq.page_size,
         };
