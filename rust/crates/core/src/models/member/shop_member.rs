@@ -26,6 +26,29 @@
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
+/// 店铺会员导入行（Java `ShopMemberImportExcelDTO`）。
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ShopMemberImportRow {
+    pub username: Option<String>,
+    pub mobile: Option<String>,
+    pub email: Option<String>,
+    pub nickname: Option<String>,
+    pub birthday: Option<String>,
+}
+
+/// 店铺会员导入失败行（Java `ShopMemberImportErrorExcelVO`）。
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ShopMemberImportErrorVO {
+    pub username: Option<String>,
+    pub mobile: Option<String>,
+    pub email: Option<String>,
+    pub nickname: Option<String>,
+    pub birthday: Option<String>,
+    pub error_msg: String,
+}
+
 // ——————————————————————————————————————————————
 // 常量
 // ——————————————————————————————————————————————

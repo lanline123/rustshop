@@ -50,7 +50,6 @@ let result = state.catalog.xxx.import_rows(&rows).await?;
 
 ## 4. 尚未接 Excel 的端点（后续按同一模式补）
 
-- 店铺会员/客户导入导出（`shopMember` 等，部分端点仍待补）
 - 客户/会员导出、微信直播商品导入等
 
 > 已完成（2026-10-19）：商品批量导入 `productBatchModify`、批量发货导入 `batchDeliverImport`

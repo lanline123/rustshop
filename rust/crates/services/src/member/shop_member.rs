@@ -11,12 +11,8 @@
 //!
 //! # 未迁移（Excel 能力缺失，明确报错）
 //!
-//! - `downloadImportTemplate`：Java 用 EasyExcel 写 `HttpServletResponse` 二进制
-//!   模板流 → [`MSG_TEMPLATE_UNMIGRATED`]。
-//! - `import`：Java 解析 xlsx 后批量绑定 → 完成总开关/子开关/店铺端校验后返回
-//!   [`MSG_IMPORT_UNMIGRATED`]。
-//! - `importErrorData`：Java 解析 xlsx 并导出失败行 → 完成文件非空校验后返回
-//!   [`MSG_IMPORT_ERROR_UNMIGRATED`]（该端点契约标注 anonymous）。
+//! - `downloadImportTemplate` / `import` / `importErrorData` 均已用 xlsx 实现
+//!   （校验手机号、匹配已有会员、绑定 `shop_member`，失败行导出）。
 //!
 //! # 偏差
 //!
@@ -34,7 +30,8 @@ use tigshop_core::models::member::shop_member::{
     ShopMemberDetailQuery, ShopMemberListVO, ShopMemberQueryPage, ShopMemberSettingParam,
     ShopMemberSettingVO, ShopMemberShopListVO, ShopMemberShopQueryPage, MSG_ADD_DISABLED,
     MSG_ALREADY_MEMBER, MSG_FILE_REQUIRED, MSG_IMPORT_DISABLED,
-    MSG_IMPORT_ERROR_UNMIGRATED, MSG_IMPORT_UNMIGRATED, MSG_MEMBER_NOT_EXISTS,
+    ShopMemberImportErrorVO, ShopMemberImportRow, MSG_IMPORT_ERROR_UNMIGRATED, MSG_IMPORT_UNMIGRATED,
+    MSG_MEMBER_NOT_EXISTS,
     MSG_MOBILE_NOT_FOUND_PREFIX, MSG_MOBILE_REQUIRED, MSG_SETTING_FROZEN, MSG_SHOP_ONLY_ADD,
     MSG_SHOP_ONLY_IMPORT, MSG_TEMPLATE_UNMIGRATED, CONFIG_ALLOW_ADD, CONFIG_ALLOW_IMPORT,
     CONFIG_DESENSITIZE, CONFIG_ENABLED,
@@ -250,17 +247,50 @@ impl ShopMemberService {
 
     // ————————————————————— Excel（未迁移） —————————————————————
 
-    /// 下载导入模板（Java `downloadImportTemplate`）：xlsx 流未迁移。
-    pub fn download_import_template(&self) -> Result<()> {
-        Err(Error::biz_msg(MSG_TEMPLATE_UNMIGRATED))
+    /// 下载导入模板表头（Java `downloadImportTemplate`）。
+    #[must_use]
+    pub fn import_template_headers() -> [&'static str; 5] {
+        ["用户名", "手机号*", "邮箱", "昵称", "生日(格式:2025-01-01)"]
     }
 
-    /// 店铺导入客户（Java `importMembers`）：完成前置校验后明确报「未迁移」。
+    /// 校验店铺会员导入行（Java `validateImportRow`）。
+    pub async fn check_import_rows(
+        &self,
+        rows: &[ShopMemberImportRow],
+    ) -> Result<Vec<ShopMemberImportErrorVO>> {
+        let mut errors = Vec::new();
+        for row in rows {
+            let mobile = row.mobile.as_deref().map(str::trim).unwrap_or("");
+            let error = if mobile.is_empty() {
+                Some("手机号不能为空".to_string())
+            } else if !mobile.bytes().all(|b| b.is_ascii_digit()) || mobile.starts_with('0') {
+                Some("手机号格式不正确".to_string())
+            } else if self.repo().find_user_by_mobile(mobile).await?.is_none() {
+                Some(format!("找不到手机号为：{mobile} 的会员"))
+            } else {
+                None
+            };
+            if let Some(error_msg) = error {
+                errors.push(ShopMemberImportErrorVO {
+                    username: row.username.clone(),
+                    mobile: row.mobile.clone(),
+                    email: row.email.clone(),
+                    nickname: row.nickname.clone(),
+                    birthday: row.birthday.clone(),
+                    error_msg,
+                });
+            }
+        }
+        Ok(errors)
+    }
+
+    /// 店铺导入客户（Java `importMembers`）：校验后绑定 `shop_member`。
     pub async fn import_members(
         &self,
-        file_present: bool,
+        rows: &[ShopMemberImportRow],
         context_shop_id: i32,
-    ) -> Result<()> {
+    ) -> Result<Vec<tigshop_core::models::member::user_manage::UserImportSuccessListVO>> {
+        use tigshop_core::models::member::user_manage::UserImportSuccessListVO;
         let enabled = self.read_int(CONFIG_ENABLED).await? == 1;
         assert_enabled_for_shop(context_shop_id, enabled)?;
         let allow_import = self.read_int(CONFIG_ALLOW_IMPORT).await? == 1;
@@ -268,18 +298,56 @@ impl ShopMemberService {
         if context_shop_id <= 0 {
             return Err(Error::biz(500, MSG_SHOP_ONLY_IMPORT));
         }
-        if !file_present {
-            return Err(Error::biz(500, MSG_FILE_REQUIRED));
+        if rows.len() > 1000 {
+            return Err(Error::biz_msg(format!(
+                "单次导入不能超过 1000 行，请拆分后重试"
+            )));
         }
-        Err(Error::biz_msg(MSG_IMPORT_UNMIGRATED))
+        let errors = self.check_import_rows(rows).await?;
+        let mut success = Vec::new();
+        for row in rows {
+            let mobile = row.mobile.as_deref().map(str::trim).unwrap_or("");
+            if mobile.is_empty()
+                || !mobile.bytes().all(|b| b.is_ascii_digit())
+                || mobile.starts_with('0')
+            {
+                continue;
+            }
+            let Some(user) = self.repo().find_user_by_mobile(mobile).await? else {
+                continue;
+            };
+            if self.repo().find_member(context_shop_id, user.user_id).await?.is_none() {
+                let _ = self
+                    .repo()
+                    .insert_member(context_shop_id, user.user_id, now_seconds() as i64)
+                    .await;
+            }
+            success.push(UserImportSuccessListVO {
+                user_id: user.user_id,
+                username: user.username,
+                mobile: user.mobile,
+                email: user.email,
+                nickname: user.nickname,
+                rank_name: None,
+                avatar: user.avatar,
+            });
+        }
+        if !errors.is_empty() {
+            return Err(Error::biz_msg(format!(
+                "导入失败:共导入{}个,失败{}个",
+                rows.len(),
+                errors.len()
+            )));
+        }
+        Ok(success)
     }
 
-    /// 导出导入失败行（Java `getImportErrorData`）：xlsx 流未迁移。
-    pub fn import_error_data(&self, file_present: bool) -> Result<()> {
-        if !file_present {
-            return Err(Error::biz(500, MSG_FILE_REQUIRED));
-        }
-        Err(Error::biz_msg(MSG_IMPORT_ERROR_UNMIGRATED))
+    /// 导出店铺会员导入失败行（Java `getImportErrorData`）。
+    pub async fn import_error_data(
+        &self,
+        rows: &[ShopMemberImportRow],
+    ) -> Result<Vec<ShopMemberImportErrorVO>> {
+        self.check_import_rows(rows).await
     }
 }
 

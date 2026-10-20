@@ -29,11 +29,13 @@ use axum::{
 };
 use tigshop_core::models::member::shop_member::{
     ShopMemberAddParam, ShopMemberDetailQuery, ShopMemberListVO, ShopMemberQueryPage,
-    ShopMemberSettingParam, ShopMemberSettingVO, ShopMemberShopListVO, ShopMemberShopQueryPage,
+    ShopMemberImportRow, ShopMemberSettingParam, ShopMemberSettingVO, ShopMemberShopListVO,
+    ShopMemberShopQueryPage,
 };
+use tigshop_core::models::member::user_manage::UserImportSuccessListVO;
 use tigshop_core::types::PageResult;
 use tigshop_core::Error;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AppError};
 
 use crate::AdminState;
 
@@ -179,32 +181,110 @@ async fn add(
     ok(state.member.shop_member.add_member(&param, ctx).await?)
 }
 
-/// `downloadImportTemplate`：Java 写 xlsx 响应流（未迁移）。
-async fn download_import_template(State(state): State<AdminState>) -> ApiResult<()> {
-    state.member.shop_member.download_import_template()?;
-    ok(())
+/// `downloadImportTemplate`：店铺会员导入模板 xlsx。
+async fn download_import_template(
+    State(state): State<AdminState>,
+) -> std::result::Result<axum::response::Response, AppError> {
+    let _ = &state;
+    let headers = tigshop_services::member::shop_member::ShopMemberService::import_template_headers();
+    let bytes = tigshop_services::system::excel::build_xlsx(&headers, &[], "店铺会员导入模板")?;
+    Ok(crate::support::excel_response::xlsx_response(
+        bytes,
+        "shop_member_import_template.xlsx",
+    ))
 }
 
-/// `import`：multipart `file`（Excel 解析未迁移，完成前置校验后报错）。
+/// `import`：multipart `file`，解析 xlsx 后绑定店铺会员。
 async fn import_members(
     State(state): State<AdminState>,
     headers: HeaderMap,
     mut multipart: Multipart,
-) -> ApiResult<()> {
-    let file_present = has_upload_file(&mut multipart).await?;
+) -> ApiResult<Vec<UserImportSuccessListVO>> {
+    let bytes = read_upload_file(&mut multipart).await?;
+    let rows = parse_shop_member_rows(&bytes)?;
+    if rows.is_empty() {
+        return Err(AppError(Error::biz_msg("表格数据为空")));
+    }
     let ctx = context_shop_id(&headers);
-    state.member.shop_member.import_members(file_present, ctx).await?;
-    ok(())
+    ok(state
+        .member
+        .shop_member
+        .import_members(&rows, ctx)
+        .await?)
 }
 
-/// `importErrorData`（anonymous）：multipart `file`（xlsx 导出未迁移）。
+/// `importErrorData`（anonymous）：店铺会员导入失败数据 xlsx。
 async fn import_error_data(
     State(state): State<AdminState>,
     mut multipart: Multipart,
-) -> ApiResult<()> {
-    let file_present = has_upload_file(&mut multipart).await?;
-    state.member.shop_member.import_error_data(file_present)?;
-    ok(())
+) -> std::result::Result<axum::response::Response, AppError> {
+    let bytes = read_upload_file(&mut multipart).await?;
+    let rows = parse_shop_member_rows(&bytes)?;
+    let errors = state
+        .member
+        .shop_member
+        .import_error_data(&rows)
+        .await?;
+    let headers_out = ["用户名", "手机号*", "邮箱", "昵称", "生日", "错误信息"];
+    let data: Vec<Vec<String>> = errors
+        .iter()
+        .map(|e| {
+            vec![
+                e.username.clone().unwrap_or_default(),
+                e.mobile.clone().unwrap_or_default(),
+                e.email.clone().unwrap_or_default(),
+                e.nickname.clone().unwrap_or_default(),
+                e.birthday.clone().unwrap_or_default(),
+                e.error_msg.clone(),
+            ]
+        })
+        .collect();
+    let bytes = tigshop_services::system::excel::build_xlsx(&headers_out, &data, "店铺会员导入错误")?;
+    Ok(crate::support::excel_response::xlsx_response(
+        bytes,
+        "shop_member_import_error.xlsx",
+    ))
+}
+
+/// 读取 multipart 的 `file` 字段。
+async fn read_upload_file(multipart: &mut Multipart) -> Result<Vec<u8>, AppError> {
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        AppError(Error::Validation(format!("读取上传文件失败: {e}")))
+    })? {
+        if field.name() == Some("file") {
+            return field
+                .bytes()
+                .await
+                .map(|b| b.to_vec())
+                .map_err(|e| AppError(Error::Validation(format!("读取上传文件失败: {e}"))));
+        }
+    }
+    Err(AppError(Error::Validation("请上传文件".into())))
+}
+
+/// 解析店铺会员导入 xlsx（列序与 `ShopMemberImportExcelDTO` 一致）。
+fn parse_shop_member_rows(bytes: &[u8]) -> Result<Vec<ShopMemberImportRow>, AppError> {
+    let sheet = tigshop_services::system::excel::read_xlsx(bytes).map_err(AppError)?;
+    let mut rows = Vec::new();
+    for line in sheet.iter().skip(1) {
+        let get = |i: usize| {
+            line.get(i)
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+        };
+        let row = ShopMemberImportRow {
+            username: get(0),
+            mobile: get(1),
+            email: get(2),
+            nickname: get(3),
+            birthday: get(4),
+        };
+        if row.mobile.is_some() || row.username.is_some() {
+            rows.push(row);
+        }
+    }
+    Ok(rows)
 }
 
 /// 探测 multipart 中是否存在 `file` 字段（不读取内容）。
