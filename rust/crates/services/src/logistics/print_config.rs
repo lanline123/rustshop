@@ -66,6 +66,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use hmac::{Hmac, Mac};
+use md5::{Digest, Md5};
+use sha2::Sha256;
+
 use tigshop_core::entities::Print;
 use tigshop_core::models::logistics::print_config::{
     build_vo_template, format_time, normalize_device_code, paper_size_code, paper_size_desc,
@@ -220,12 +224,12 @@ impl PrintConfigService {
             ));
         }
 
-        // 5. 每个「订单 × 打印机」预写一条待推送日志
+        // 5. 每个「订单 × 打印机」预写一条待推送日志并执行投递
         let now = now_secs_i32();
         let mut written = 0usize;
         for order_id in &ids {
             for p in &printers {
-                self.repos.logistics.print_config
+                let log_id = self.repos.logistics.print_config
                     .insert_pending_print_log(
                         shop_id,
                         p.print_id,
@@ -237,14 +241,174 @@ impl PrintConfigService {
                     )
                     .await?;
                 written += 1;
+
+                if let Err(e) = self.dispatch_print_task(log_id, p, *order_id).await {
+                    tracing::warn!("投递打印任务失败: log_id={log_id}, error={e}");
+                }
             }
         }
         tracing::info!(
-            "打印订单任务已落库: shopId={shop_id}, 订单 {} 个, 打印机 {} 台, 任务 {written} 条",
+            "打印订单任务已处理: shopId={shop_id}, 订单 {} 个, 打印机 {} 台, 任务 {written} 条",
             ids.len(),
             printers.len()
         );
         Ok(true)
+    }
+
+    /// 投递打印任务给打印平台（商米云 / 飞鹅云），并回写状态到 print_log
+    async fn dispatch_print_task(
+        &self,
+        log_id: i64,
+        printer: &Print,
+        order_id: i32,
+    ) -> Result<()> {
+        let now = now_secs_i32();
+        if printer.platform == Some(2) {
+            // 商米云
+            let appid = printer.third_account.as_deref().unwrap_or_default().trim();
+            let appkey = printer.third_key.as_deref().unwrap_or_default().trim();
+            let sn = printer.print_sn.as_deref().unwrap_or_default().trim();
+            if appid.is_empty() || appkey.is_empty() || sn.is_empty() {
+                self.repos.logistics.print_config.update_print_log_status(
+                    log_id, 2, None, Some("PARAM_ERR"), Some("商米云账号或SN未配置"), None, None
+                ).await?;
+                return Ok(());
+            }
+
+            let trade_no = order_id.to_string();
+            let payload = serde_json::json!({
+                "sn": sn,
+                "trade_no": &trade_no,
+                "order_type": 1,
+                "content": format!("订单小票 #{order_id}"),
+                "count": 1,
+            });
+            let body = payload.to_string();
+            let timestamp = tigshop_common::utils::now_seconds().to_string();
+            let nonce = format!("{:06}", rand::random::<u32>() % 900_000 + 100_000);
+
+            let sign_str = format!("{body}{appid}{timestamp}{nonce}");
+            let mut mac = Hmac::<Sha256>::new_from_slice(appkey.as_bytes())
+                .map_err(|e| Error::biz_msg(format!("初始化 HMAC 失败: {e}")))?;
+            mac.update(sign_str.as_bytes());
+            let sign = hex::encode(mac.finalize().into_bytes());
+
+            let client = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(10))
+                .build()
+                .map_err(|e| Error::biz_msg(format!("创建 HTTP 客户端失败: {e}")))?;
+
+            let res = client
+                .post("https://openapi.sunmi.com/v2/printer/open/open/device/pushContent")
+                .header("Source", "openapi")
+                .header("Sunmi-Appid", appid)
+                .header("Sunmi-Timestamp", &timestamp)
+                .header("Sunmi-Nonce", &nonce)
+                .header("Sunmi-Sign", &sign)
+                .header("Content-Type", "application/json")
+                .body(body)
+                .send()
+                .await;
+
+            match res {
+                Ok(resp) => {
+                    let text = resp.text().await.unwrap_or_default();
+                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
+                        let code = v.get("code").and_then(|c| c.as_i64()).unwrap_or(-1);
+                        if code == 1 || code == 10000 {
+                            self.repos.logistics.print_config.update_print_log_status(
+                                log_id, 1, Some(&trade_no), None, None, Some(&text), Some(now)
+                            ).await?;
+                        } else {
+                            let msg = v.get("msg").and_then(|m| m.as_str()).unwrap_or("推送失败");
+                            let code_str = code.to_string();
+                            self.repos.logistics.print_config.update_print_log_status(
+                                log_id, 2, Some(&trade_no), Some(&code_str), Some(msg), Some(&text), None
+                            ).await?;
+                        }
+                    } else {
+                        self.repos.logistics.print_config.update_print_log_status(
+                            log_id, 2, Some(&trade_no), Some("PARSE_ERR"), Some("响应解析失败"), Some(&text), None
+                        ).await?;
+                    }
+                }
+                Err(e) => {
+                    let err_str = e.to_string();
+                    self.repos.logistics.print_config.update_print_log_status(
+                        log_id, 2, Some(&trade_no), Some("NET_ERR"), Some(&err_str), None, None
+                    ).await?;
+                }
+            }
+        } else if printer.platform == Some(1) {
+            // 飞鹅云
+            let user = printer.third_account.as_deref().unwrap_or_default().trim();
+            let ukey = printer.third_key.as_deref().unwrap_or_default().trim();
+            let sn = printer.print_sn.as_deref().unwrap_or_default().trim();
+            if user.is_empty() || ukey.is_empty() || sn.is_empty() {
+                self.repos.logistics.print_config.update_print_log_status(
+                    log_id, 2, None, Some("PARAM_ERR"), Some("飞鹅云账号或UKEY未配置"), None, None
+                ).await?;
+                return Ok(());
+            }
+
+            let stime = tigshop_common::utils::now_seconds().to_string();
+            let sig_str = format!("{user}{ukey}{stime}");
+            let sig = format!("{:x}", <Md5 as Digest>::digest(sig_str.as_bytes()));
+            let content = format!("<CB>订单小票</CB><BR>订单号：{}<BR>", order_id);
+
+            let client = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(10))
+                .build()
+                .map_err(|e| Error::biz_msg(format!("创建 HTTP 客户端失败: {e}")))?;
+
+            let params = [
+                ("user", user),
+                ("stime", &stime),
+                ("sig", &sig),
+                ("apiname", "Open_printMsg"),
+                ("sn", sn),
+                ("content", &content),
+                ("times", "1"),
+            ];
+
+            let res = client
+                .post("http://api.feieyun.cn/Api/Open/")
+                .form(&params)
+                .send()
+                .await;
+
+            match res {
+                Ok(resp) => {
+                    let text = resp.text().await.unwrap_or_default();
+                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
+                        let ret = v.get("ret").and_then(|r| r.as_i64()).unwrap_or(-1);
+                        if ret == 0 {
+                            let order_index = v.get("data").and_then(|d| d.as_str()).unwrap_or("");
+                            self.repos.logistics.print_config.update_print_log_status(
+                                log_id, 1, Some(order_index), None, None, Some(&text), Some(now)
+                            ).await?;
+                        } else {
+                            let msg = v.get("msg").and_then(|m| m.as_str()).unwrap_or("推送失败");
+                            let ret_str = ret.to_string();
+                            self.repos.logistics.print_config.update_print_log_status(
+                                log_id, 2, None, Some(&ret_str), Some(msg), Some(&text), None
+                            ).await?;
+                        }
+                    } else {
+                        self.repos.logistics.print_config.update_print_log_status(
+                            log_id, 2, None, Some("PARSE_ERR"), Some("响应解析失败"), Some(&text), None
+                        ).await?;
+                    }
+                }
+                Err(e) => {
+                    let err_str = e.to_string();
+                    self.repos.logistics.print_config.update_print_log_status(
+                        log_id, 2, None, Some("NET_ERR"), Some(&err_str), None, None
+                    ).await?;
+                }
+            }
+        }
+        Ok(())
     }
 
     /// 设备码 → 打印机 ID 绑定映射

@@ -78,6 +78,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use hmac::{Hmac, Mac};
+use sha2::Sha256;
+
 use tigshop_core::entities::Print;
 use tigshop_core::models::logistics::print::{
     is_default_flag, mask_middle_half, normalize_field, normalize_paper_size,
@@ -457,10 +460,9 @@ impl PrintService {
             .await?
             .ok_or_else(|| Error::biz(500, MSG_PRINTER_NOT_FOUND))?;
 
+        // 商米云：先同步解绑云端（DC-02=A 强一致），失败不删本地
         if p.platform == Some(PLATFORM_SUNMI) {
-            tracing::warn!(
-                "商米云解绑未实现（打印平台适配器未迁移），仅本地删除: print_id={print_id}"
-            );
+            unbind_sunmi(&p).await?;
         }
 
         let deleted = self.repo().delete(print_id).await?;
@@ -521,6 +523,69 @@ impl PrintService {
             .await?;
         Ok(())
     }
+}
+
+/// 商米云打印机解绑（对应 Java `SunmiPrintAdapter#unbind`）
+async fn unbind_sunmi(print: &Print) -> Result<()> {
+    let appid = print.third_account.as_deref().unwrap_or_default().trim();
+    let appkey = print.third_key.as_deref().unwrap_or_default().trim();
+    let sn = print.print_sn.as_deref().unwrap_or_default().trim();
+    if appid.is_empty() || appkey.is_empty() || sn.is_empty() {
+        return Ok(());
+    }
+
+    let shop_id = match print.shop_id {
+        Some(s) if s > 0 => s,
+        _ => 1, // Java SHOP_ID_FALLBACK = 1
+    };
+    let payload = serde_json::json!({
+        "sn": sn,
+        "shop_id": shop_id,
+    });
+    let body = payload.to_string();
+    let timestamp = tigshop_common::utils::now_seconds().to_string();
+    let nonce = format!("{:06}", rand::random::<u32>() % 900_000 + 100_000);
+
+    let sign_str = format!("{body}{appid}{timestamp}{nonce}");
+    let mut mac = Hmac::<Sha256>::new_from_slice(appkey.as_bytes())
+        .map_err(|e| Error::biz_msg(format!("初始化 HMAC 失败: {e}")))?;
+    mac.update(sign_str.as_bytes());
+    let sign = hex::encode(mac.finalize().into_bytes());
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| Error::biz_msg(format!("创建 HTTP 客户端失败: {e}")))?;
+
+    let resp = client
+        .post("https://openapi.sunmi.com/v2/printer/open/open/device/unbindShop")
+        .header("Source", "openapi")
+        .header("Sunmi-Appid", appid)
+        .header("Sunmi-Timestamp", &timestamp)
+        .header("Sunmi-Nonce", &nonce)
+        .header("Sunmi-Sign", &sign)
+        .header("Content-Type", "application/json")
+        .body(body)
+        .send()
+        .await
+        .map_err(|e| Error::biz_msg(format!("请求商米云失败: {e}")))?;
+
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| Error::biz_msg(format!("读取商米云响应失败: {e}")))?;
+
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
+        let code = v.get("code").and_then(|c| c.as_i64()).unwrap_or(-1);
+        // 成功码为 1 或 10000，以及幂等错误码 10071701 / 10071704 / 10071707
+        if code == 1 || code == 10000 || code == 10071701 || code == 10071704 || code == 10071707 {
+            return Ok(());
+        }
+        let msg = v.get("msg").and_then(|m| m.as_str()).unwrap_or("未知错误");
+        return Err(Error::biz_msg(format!("商米云解绑失败 ({code}): {msg}")));
+    }
+
+    Ok(())
 }
 
 /// 列表行映射（Java `new PrintPageVO(print)` + 回填 paperSize / deviceCode）。

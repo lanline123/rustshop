@@ -19,6 +19,40 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// 管理员消息统计（SSE 推送帧 `AdminMsgCountVO`，对应 Java `AdminMsgCountVO`）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminMsgCountVO {
+    /// 客服未读消息数量（用于 UI 角标，可随已读回落）
+    pub im_msg_count: i64,
+    /// 客服消息累计数量（自 startTime 起单调递增，专供语音播报增量判断）
+    pub customer_msg_count: i64,
+    /// 获取新订单数量（自 startTime 起）
+    pub order_count: i64,
+    /// 获取未读消息数量
+    pub unread_msg_count: i64,
+    /// 已付款待发货订单数量（自 startTime 起）
+    pub paid_order_count: i64,
+    /// 新增待处理售后申请数量（自 startTime 起）
+    pub aftersale_count: i64,
+    /// 已取消订单数量（自 startTime 起）
+    pub cancel_order_count: i64,
+    /// 新订单后台消息数 (admin_msg msgType=11，自 startTime 起)
+    pub new_order_msg_count: i64,
+    /// 已付款后台消息数 (admin_msg msgType=12，自 startTime 起)
+    pub paid_order_msg_count: i64,
+    /// 售后申请后台消息数 (admin_msg msgType=32，自 startTime 起)
+    pub aftersale_msg_count: i64,
+    /// 订单取消后台消息数 (admin_msg msgType=31，自 startTime 起)
+    pub cancel_order_msg_count: i64,
+    /// 帧生成时间戳（秒）
+    pub ts: i64,
+    /// 协议版本号，前端按 >=2 走新逻辑（对齐 Java 为 4）
+    pub version: i32,
+    /// 当前管理员 ID
+    pub admin_id: i32,
+}
+
 /// Java `HttpStatus.SERVICE_DATA_ERROR`。
 pub const SERVICE_DATA_ERROR: i32 = 1001;
 

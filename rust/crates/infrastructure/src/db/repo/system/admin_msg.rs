@@ -6,7 +6,7 @@
 //! 直接内插（无注入面），`keyword` 统一 `?` 绑定。
 
 use sqlx::MySqlPool;
-use tigshop_core::models::system::admin_msg::{AdminMsgListQuery, MsgScope};
+use tigshop_core::models::system::admin_msg::{AdminMsgCountVO, AdminMsgListQuery, MsgScope};
 use tigshop_core::{Error, Result};
 
 /// 消息行（映射 `admin_msg` 14 列）。
@@ -41,6 +41,187 @@ impl AdminMsgRepository {
     #[must_use]
     pub fn new(pool: MySqlPool) -> Self {
         Self { pool }
+    }
+
+    #[must_use]
+    pub fn pool(&self) -> &MySqlPool {
+        &self.pool
+    }
+
+    /// 查询管理员消息与业务指标统计（对齐 Java SseServiceImpl#msgCount）
+    pub async fn get_msg_count_vo(
+        &self,
+        admin_id: i32,
+        scope: MsgScope,
+        start_time: i64,
+    ) -> Result<AdminMsgCountVO> {
+        let now = tigshop_common::utils::now_seconds() as i64;
+
+        // 1. IM 统计
+        let shop_id = match scope {
+            MsgScope::Shop { shop_id, .. } => shop_id,
+            MsgScope::Vendor { .. } => 0,
+        };
+        let im_msg_count: i64 = sqlx::query_as::<_, (i64,)>(
+            "SELECT COUNT(*) FROM im_message WHERE shop_id = ? AND servant_id = ? AND is_read = 0 AND `type` = 1 AND user_id > 0",
+        )
+        .bind(shop_id)
+        .bind(admin_id)
+        .fetch_one(&self.pool)
+        .await
+        .map(|r| r.0)
+        .unwrap_or(0);
+
+        let customer_msg_count: i64 = sqlx::query_as::<_, (i64,)>(
+            "SELECT COUNT(*) FROM im_message WHERE shop_id = ? AND servant_id = ? AND `type` = 1 AND user_id > 0 AND send_time >= ?",
+        )
+        .bind(shop_id)
+        .bind(admin_id)
+        .bind(start_time)
+        .fetch_one(&self.pool)
+        .await
+        .map(|r| r.0)
+        .unwrap_or(0);
+
+        // 2. 订单与售后统计
+        let (order_count, paid_order_count, cancel_order_count, aftersale_count) = match scope {
+            MsgScope::Vendor { vendor_id } => {
+                let oc: i64 = sqlx::query_as::<_, (i64,)>(
+                    "SELECT COUNT(*) FROM `order` WHERE vendor_id = ? AND add_time >= ?",
+                )
+                .bind(vendor_id)
+                .bind(start_time)
+                .fetch_one(&self.pool)
+                .await
+                .map(|r| r.0)
+                .unwrap_or(0);
+
+                let poc: i64 = sqlx::query_as::<_, (i64,)>(
+                    "SELECT COUNT(*) FROM `order` WHERE vendor_id = ? AND pay_status = 2 AND pay_time >= ?",
+                )
+                .bind(vendor_id)
+                .bind(start_time)
+                .fetch_one(&self.pool)
+                .await
+                .map(|r| r.0)
+                .unwrap_or(0);
+
+                let coc: i64 = sqlx::query_as::<_, (i64,)>(
+                    "SELECT COUNT(*) FROM `order` WHERE vendor_id = ? AND order_status = 2 AND add_time >= ?",
+                )
+                .bind(vendor_id)
+                .bind(start_time)
+                .fetch_one(&self.pool)
+                .await
+                .map(|r| r.0)
+                .unwrap_or(0);
+
+                let asc: i64 = sqlx::query_as::<_, (i64,)>(
+                    "SELECT COUNT(*) FROM aftersales WHERE vendor_id = ? AND add_time >= ?",
+                )
+                .bind(vendor_id)
+                .bind(start_time)
+                .fetch_one(&self.pool)
+                .await
+                .map(|r| r.0)
+                .unwrap_or(0);
+
+                (oc, poc, coc, asc)
+            }
+            MsgScope::Shop { shop_id, .. } => {
+                let oc: i64 = sqlx::query_as::<_, (i64,)>(
+                    "SELECT COUNT(*) FROM `order` WHERE shop_id = ? AND add_time >= ?",
+                )
+                .bind(shop_id)
+                .bind(start_time)
+                .fetch_one(&self.pool)
+                .await
+                .map(|r| r.0)
+                .unwrap_or(0);
+
+                let poc: i64 = sqlx::query_as::<_, (i64,)>(
+                    "SELECT COUNT(*) FROM `order` WHERE shop_id = ? AND pay_status = 2 AND pay_time >= ?",
+                )
+                .bind(shop_id)
+                .bind(start_time)
+                .fetch_one(&self.pool)
+                .await
+                .map(|r| r.0)
+                .unwrap_or(0);
+
+                let coc: i64 = sqlx::query_as::<_, (i64,)>(
+                    "SELECT COUNT(*) FROM `order` WHERE shop_id = ? AND order_status = 2 AND add_time >= ?",
+                )
+                .bind(shop_id)
+                .bind(start_time)
+                .fetch_one(&self.pool)
+                .await
+                .map(|r| r.0)
+                .unwrap_or(0);
+
+                let asc: i64 = sqlx::query_as::<_, (i64,)>(
+                    "SELECT COUNT(*) FROM aftersales WHERE shop_id = ? AND add_time >= ?",
+                )
+                .bind(shop_id)
+                .bind(start_time)
+                .fetch_one(&self.pool)
+                .await
+                .map(|r| r.0)
+                .unwrap_or(0);
+
+                (oc, poc, coc, asc)
+            }
+        };
+
+        // 3. 管理员未读消息总数
+        let where_sql = build_where(scope, &AdminMsgListQuery::default());
+        let unread_sql = format!("SELECT COUNT(*) FROM admin_msg{where_sql} AND is_readed = 0");
+        let unread_msg_count: i64 = sqlx::query_as::<_, (i64,)>(&unread_sql)
+            .fetch_one(&self.pool)
+            .await
+            .map(|r| r.0)
+            .unwrap_or(0);
+
+        // 4. 语音播报4类增量消息计数 (11 新订单 / 12 已付款 / 31 取消 / 32 售后)
+        let broadcast_sql = format!(
+            "SELECT msg_type, COUNT(*) FROM admin_msg{where_sql} AND is_broadcast = 1 AND send_time >= ? AND msg_type IN (11, 12, 31, 32) GROUP BY msg_type"
+        );
+        let broadcast_rows: Vec<(i32, i64)> = sqlx::query_as::<_, (i32, i64)>(&broadcast_sql)
+            .bind(start_time)
+            .fetch_all(&self.pool)
+            .await
+            .unwrap_or_default();
+
+        let mut new_order_msg_count = 0;
+        let mut paid_order_msg_count = 0;
+        let mut cancel_order_msg_count = 0;
+        let mut aftersale_msg_count = 0;
+        for (m_type, count) in broadcast_rows {
+            match m_type {
+                11 => new_order_msg_count = count,
+                12 => paid_order_msg_count = count,
+                31 => cancel_order_msg_count = count,
+                32 => aftersale_msg_count = count,
+                _ => {}
+            }
+        }
+
+        Ok(AdminMsgCountVO {
+            im_msg_count,
+            customer_msg_count,
+            order_count,
+            unread_msg_count,
+            paid_order_count,
+            aftersale_count,
+            cancel_order_count,
+            new_order_msg_count,
+            paid_order_msg_count,
+            aftersale_msg_count,
+            cancel_order_msg_count,
+            ts: now,
+            version: 4,
+            admin_id,
+        })
     }
 
     /// 消息分页（Java `list`）。

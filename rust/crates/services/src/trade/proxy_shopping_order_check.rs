@@ -887,15 +887,28 @@ impl ProxyShoppingOrderCheckService {
         let order_service = crate::trade::order::OrderService::new(self.repos.clone(), product_svc, cart_svc);
         let vo = order_service.create(user_id, &create_dto).await?;
 
+        let mut patch = tigshop_infrastructure::db::repo::trade::order_admin::OrderPatch::new()
+            .str_val("order_source", ORDER_SOURCE_PROXY_SHOPPING)
+            .i32_val("pos_user_id", admin_id);
+
+        if let Some(change_val) = param.change_price_value {
+            if change_val > Decimal::ZERO {
+                patch = patch.decimal("discount_amount", change_val);
+            }
+        }
+
         let _ = self
             .repos
             .trade
             .order_admin
-            .update_order(
-                vo.order_id,
-                &tigshop_infrastructure::db::repo::trade::order_admin::OrderPatch::new()
-                    .str_val("order_source", ORDER_SOURCE_PROXY_SHOPPING)
-                    .i32_val("pos_user_id", admin_id),
+            .update_order(vo.order_id, &patch)
+            .await;
+
+        let log_svc = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        let _ = log_svc
+            .create_by_log_info(
+                admin_id,
+                format!("代客下单创建订单: 订单号={}, 会员ID={}", vo.order_sn, user_id),
             )
             .await;
 

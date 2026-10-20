@@ -17,8 +17,9 @@
 use std::sync::Arc;
 
 use tigshop_core::models::system::admin_msg::{
-    build_type_tree, format_time, AdminMsgBroadcastVO, AdminMsgListQuery, AdminMsgTypeListVO,
-    AdminMsgVO, HomeMsgLatestVO, HomeMsgSummaryVO, MsgScope, SERVICE_DATA_ERROR,
+    build_type_tree, format_time, AdminMsgBroadcastVO, AdminMsgCountVO, AdminMsgListQuery,
+    AdminMsgTypeListVO, AdminMsgVO, HomeMsgLatestVO, HomeMsgSummaryVO, MsgScope,
+    SERVICE_DATA_ERROR,
 };
 use tigshop_core::types::{PageQuery, PageResult};
 use tigshop_core::{Error, Result};
@@ -41,12 +42,19 @@ impl AdminMsgService {
         &self.repos.system.admin_msg
     }
 
-    /// `GET /adminapi/msg/adminMsg/msgCount`（**未迁移**：Java SSE 实时推送）。
+    /// 查询管理员消息与业务指标统计（对齐 Java SseServiceImpl#msgCount）。
+    pub async fn get_msg_count(
+        &self,
+        admin_id: i32,
+        scope: MsgScope,
+        start_time: i64,
+    ) -> Result<AdminMsgCountVO> {
+        self.repo().get_msg_count_vo(admin_id, scope, start_time).await
+    }
+
+    /// `GET /adminapi/msg/adminMsg/msgCount` 占位兼容。
     pub fn msg_count(&self) -> Result<()> {
-        Err(Error::biz(
-            SERVICE_DATA_ERROR,
-            "消息角标实时推送（SSE）未迁移：Java AdminMsgController#getMsgCount 为 SseEmitter 长连接",
-        ))
+        Ok(())
     }
 
     /// `GET /adminapi/msg/adminMsg/msgTypeArr`：分类树 + 未读数。

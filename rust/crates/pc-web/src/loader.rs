@@ -447,21 +447,20 @@ mod tests {
         let repos = get_repos().await;
         println!("REPOS: {:?}", repos.is_some());
         if let Some(r) = repos {
-            match r.catalog.category.find_categories(true).await {
-                Ok(cats) => println!("Categories count: {}", cats.len()),
-                Err(e) => println!("Categories err: {:?}", e),
-            }
-            let query = ProductListQuery {
-                product_status: Some(1),
-                page: Some(1),
-                page_size: Some(12),
-                sort_by: Some("sales".into()),
-                sort_order: Some("desc".into()),
-                ..Default::default()
-            };
-            match r.catalog.product.paginate(&query).await {
-                Ok((total, prods)) => println!("Products total: {}, len: {}", total, prods.len()),
-                Err(e) => println!("Products paginate err: {:?}", e),
+            let decorate_svc = tigshop_services::content::decorate::DecorateService::new(r.clone());
+            match decorate_svc.pc_index(&tigshop_core::models::content::decorate::HomeDecorateQuery::default()).await {
+                Ok(vo) => {
+                    println!("PC Index Decorate ID: {:?}", vo.decorate_id);
+                    if let Some(list) = vo.module_list {
+                        println!("Module count: {}", list.len());
+                        for (idx, m) in list.iter().enumerate() {
+                            let t = m.get("type").and_then(|v| v.as_str()).unwrap_or("unknown");
+                            let show = m.get("isShow").and_then(|v| v.as_bool()).unwrap_or(true);
+                            println!("  #{}: type={}, isShow={}", idx, t, show);
+                        }
+                    }
+                }
+                Err(e) => println!("Decorate error: {:?}", e),
             }
         }
     }

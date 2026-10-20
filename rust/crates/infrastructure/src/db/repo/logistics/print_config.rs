@@ -264,6 +264,35 @@ impl PrintConfigRepository {
         .map_err(map_err)?;
         Ok(i64::try_from(res.last_insert_id()).unwrap_or(i64::MAX))
     }
+
+    /// 更新打印日志推送结果（状态、task_no、错误信息、响应等）
+    pub async fn update_print_log_status(
+        &self,
+        log_id: i64,
+        status: i32,
+        task_no: Option<&str>,
+        error_code: Option<&str>,
+        error_msg: Option<&str>,
+        push_response: Option<&str>,
+        pushed_time: Option<i32>,
+    ) -> Result<bool> {
+        let now = tigshop_common::utils::now_seconds() as i32;
+        let res = sqlx::query(
+            "UPDATE print_log SET status = ?, task_no = ?, error_code = ?, error_msg = ?, push_response = ?, pushed_time = ?, update_time = ? WHERE log_id = ?"
+        )
+        .bind(status)
+        .bind(task_no)
+        .bind(error_code)
+        .bind(error_msg)
+        .bind(push_response)
+        .bind(pushed_time)
+        .bind(now)
+        .bind(log_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(res.rows_affected() > 0)
+    }
 }
 
 /// 数据库错误映射（与 member_tag / area_code / admin_user 同一约定）。

@@ -107,6 +107,26 @@ impl AdminLogService {
         Ok(PageResult::new(total, list, &page))
     }
 
+    /// 写入操作审计日志（对应 Java AdminLogService#createByLogInfo）。
+    pub async fn create_by_log_info(
+        &self,
+        admin_id: i32,
+        log_info: impl AsRef<str>,
+    ) -> Result<i32> {
+        let now = tigshop_common::utils::now_seconds() as i32;
+        self.repo()
+            .insert_log(
+                now,
+                admin_id,
+                "platform",
+                0,
+                log_info.as_ref(),
+                "",
+                None,
+            )
+            .await
+    }
+
     /// `admin_id → username`（Java `selectBatchIds` + `toMap`）。
     async fn load_usernames(&self, rows: &[AdminLogRow]) -> Result<std::collections::HashMap<i32, String>> {
         let mut ids: Vec<i32> = Vec::with_capacity(rows.len());
@@ -171,7 +191,7 @@ impl AdminLogService {
     }
 
     /// 根据日志文本记录操作日志（对应 Java `adminLogService.createByLogInfo(logInfo)`）。
-    pub async fn create_by_log_info(
+    pub async fn create_scoped_log_info(
         &self,
         user_id: i32,
         scope_type: &str,

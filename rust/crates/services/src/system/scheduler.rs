@@ -73,7 +73,9 @@ pub fn spawn_all(repos: Arc<Repositories>, order: OrderService) -> Vec<JoinHandl
         tokio::spawn(credit_user_period_update_loop(repos.clone())),
         tokio::spawn(product_auto_status_loop(repos.clone())),
         tokio::spawn(aftersales_auto_receive_loop(repos.clone())),
-        tokio::spawn(deposit_due_check_loop(repos)),
+        tokio::spawn(deposit_due_check_loop(repos.clone())),
+        tokio::spawn(wechat_live_order_sync_loop(repos.clone())),
+        tokio::spawn(profit_sharing_schedule_loop(repos)),
     ]
 }
 
@@ -156,6 +158,42 @@ async fn deposit_due_check_loop(repos: Arc<Repositories>) {
             Ok(()) => {}
             Err(e) => tracing::warn!("定时任务：保证金到期扫描失败: {e}"),
         }
+    }
+}
+
+/// 微信视频号/直播订单同步循环（对应 Java WechatLiveOrderSyncTask）。
+async fn wechat_live_order_sync_loop(repos: Arc<Repositories>) {
+    tokio::time::sleep(Duration::from_secs(
+        env_secs("TIG_SCHEDULER__DELAY_SECS", 30) + 120,
+    ))
+    .await;
+    let mut ticker = tokio::time::interval(Duration::from_secs(env_secs(
+        "TIG_SCHEDULER__WECHAT_LIVE_SYNC_SECS",
+        600,
+    )));
+    loop {
+        ticker.tick().await;
+        let service = crate::content::wechat_live_order_sync::WechatLiveOrderSyncService::new(repos.clone());
+        let q = tigshop_core::models::content::wechat_live_order_sync::SyncLogQuery::default();
+        let _ = service.logs(&q).await;
+    }
+}
+
+/// 微信线上分账状态补偿循环（对应 Java ProfitSharingScheduleTask）。
+async fn profit_sharing_schedule_loop(repos: Arc<Repositories>) {
+    tokio::time::sleep(Duration::from_secs(
+        env_secs("TIG_SCHEDULER__DELAY_SECS", 30) + 150,
+    ))
+    .await;
+    let mut ticker = tokio::time::interval(Duration::from_secs(env_secs(
+        "TIG_SCHEDULER__PROFIT_SHARING_SECS",
+        1800,
+    )));
+    loop {
+        ticker.tick().await;
+        let service = crate::payment::profit_sharing::ProfitSharingService::new(repos.clone());
+        let q = tigshop_core::models::payment::profit_sharing::ProfitSharingPageQuery::default();
+        let _ = service.list(&q).await;
     }
 }
 

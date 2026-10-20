@@ -50,6 +50,33 @@ const PLATFORM_SHOP_ID: i32 = 0;
 /// 已发布状态（Java `Decorate.status = 1`）。
 const DECORATE_PUBLISHED: i32 = 1;
 
+/// 底部导航（pageType=7）默认数据（对齐 Java InitDecorateDataConstants.NAV_H5_DECORATE_DATA）
+pub const DEFAULT_NAV_H5_DECORATE_DATA: &str = r#"{
+    "navList": [
+        {
+            "picTitle": "首页",
+            "picThumb": "https://oss.vortmall.com/demo/upload/c4ca4238/2026/02/10/38ef58526a88462db5c6cbc3bf31d274.png?x-oss-process=image/resize,m_pad,h_200,h_200",
+            "picUrl": "https://oss.vortmall.com/demo/upload/c4ca4238/2026/02/10/38ef58526a88462db5c6cbc3bf31d274.png",
+            "picActiveThumb": "https://oss.vortmall.com/demo/upload/c4ca4238/2026/02/10/822846437e34451ab1b57e2c991bc666.png?x-oss-process=image/resize,m_pad,h_200,h_200",
+            "picActiveUrl": "https://oss.vortmall.com/demo/upload/c4ca4238/2026/02/10/822846437e34451ab1b57e2c991bc666.png",
+            "picLink": {"path": "base", "label": "商城首页", "name": "商城首页", "link": "/"},
+            "picId": "2021034691685007360",
+            "picName": "1680247587QG2y44h7a7f0M1dx9T!!pic200x200.png"
+        },
+        {
+            "picTitle": "我的",
+            "picThumb": "https://oss.vortmall.com/demo/upload/c4ca4238/2026/02/10/ecc4581c9a8f4a0c865af4261fae8053.png?x-oss-process=image/resize,m_pad,h_200,h_200",
+            "picUrl": "https://oss.vortmall.com/demo/upload/c4ca4238/2026/02/10/ecc4581c9a8f4a0c865af4261fae8053.png",
+            "picActiveThumb": "https://oss.vortmall.com/demo/upload/c4ca4238/2026/02/10/609f0ce77fb84f8fbd483e7bf3668239.png?x-oss-process=image/resize,m_pad,h_200,h_200",
+            "picActiveUrl": "https://oss.vortmall.com/demo/upload/c4ca4238/2026/02/10/609f0ce77fb84f8fbd483e7bf3668239.png",
+            "picLink": {"path": "base", "label": "会员中心", "name": "会员中心", "link": "member"},
+            "picId": "2021034691664035840",
+            "picName": "1680247679vqWSO1Ci9sAGJCzzZa!!pic200x200.png"
+        }
+    ],
+    "enableAnimation": false
+}"#;
+
 pub struct HomeService {
     repos: Arc<Repositories>,
 }
@@ -94,8 +121,8 @@ impl HomeService {
                 .as_ref()
                 .and_then(|d| parse_json_opt(&d.data))
                 .unwrap_or_else(|| {
-                    tracing::warn!("H5 导航装修数据缺失，返回空模块列表（默认模板未迁移）");
-                    json!({ "moduleList": [] })
+                    serde_json::from_str(DEFAULT_NAV_H5_DECORATE_DATA)
+                        .unwrap_or_else(|_| json!({ "moduleList": [] }))
                 });
             return Ok(data);
         }
@@ -527,5 +554,15 @@ mod tests {
             Value::String("pcHeader".into())
         );
         assert!(pc_header_from(&json!({})).is_none());
+    }
+
+    #[test]
+    fn default_nav_h5_decorate_data_is_valid() {
+        let val: Value = serde_json::from_str(DEFAULT_NAV_H5_DECORATE_DATA).unwrap();
+        let nav_list = val.get("navList").and_then(|v| v.as_array()).unwrap();
+        assert_eq!(nav_list.len(), 2);
+        assert_eq!(nav_list[0]["picTitle"], "首页");
+        assert_eq!(nav_list[1]["picTitle"], "我的");
+        assert_eq!(val["enableAnimation"], false);
     }
 }

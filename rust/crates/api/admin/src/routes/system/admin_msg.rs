@@ -12,18 +12,23 @@
 //!
 //! > **msgCount**：Java 为 SSE 长连接；Rust 未接入 SSE，返回明确 1001 业务错误。
 
+use std::time::Duration;
+
+use async_stream::stream;
 use axum::{
     extract::{Query, State},
+    response::sse::{Event, KeepAlive, Sse},
     routing::{get, post},
     Extension, Json, Router,
 };
+use futures::Stream;
 use serde::Deserialize;
 use tigshop_core::models::system::admin_msg::{
     AdminMsgBroadcastVO, AdminMsgListQuery, AdminMsgTypeListVO, AdminMsgVO, HomeMsgSummaryVO,
     MsgScope,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult, TenantContext};
+use tigshop_security::web::{ok, ApiResult, AuthUser, TenantContext};
 
 use crate::AdminState;
 
@@ -97,9 +102,50 @@ fn scope_from_tenant(tenant: &TenantContext, requested_shop: Option<i32>) -> Msg
     MsgScope::Shop { shop_id, platform }
 }
 
-async fn msg_count(State(state): State<AdminState>) -> ApiResult<()> {
-    state.system.admin_msg.msg_count()?;
-    ok(())
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct MsgCountQuery {
+    start_time: Option<i64>,
+}
+
+async fn msg_count(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Extension(tenant): Extension<TenantContext>,
+    Query(q): Query<MsgCountQuery>,
+) -> Sse<impl Stream<Item = std::result::Result<Event, std::convert::Infallible>>> {
+    let admin_id = auth.id;
+    let scope = scope_from_tenant(&tenant, None);
+    let raw_start = q.start_time.unwrap_or(0);
+    let start_time = if raw_start > 10_000_000_000 {
+        raw_start / 1000
+    } else {
+        raw_start
+    };
+
+    let stream = stream! {
+        let mut interval = tokio::time::interval(Duration::from_secs(5));
+        loop {
+            interval.tick().await;
+            match state.system.admin_msg.get_msg_count(admin_id, scope, start_time).await {
+                Ok(vo) => {
+                    let api_resp = tigshop_core::error::ApiResponse::success(vo);
+                    if let Ok(json_str) = serde_json::to_string(&api_resp) {
+                        yield Ok(Event::default().event("msg").data(json_str));
+                    }
+                }
+                Err(err) => {
+                    tracing::warn!("Failed to fetch admin msg count for SSE: {err}");
+                }
+            }
+        }
+    };
+
+    Sse::new(stream).keep_alive(
+        KeepAlive::new()
+            .interval(Duration::from_secs(15))
+            .text("keep-alive"),
+    )
 }
 
 async fn msg_type_arr(

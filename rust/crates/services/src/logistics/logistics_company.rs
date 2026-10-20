@@ -71,7 +71,7 @@ use tigshop_core::models::logistics::logistics_company::{
     SyncQuery, UpdateFieldDTO, BatchDTO, CONFIG_KEY_LOGISTICS_PROVIDER, MSG_ID_REQUIRED,
     MSG_LOGISTICS_COMPANY_NOT_FOUND, MSG_LOGISTICS_ID_REQUIRED, MSG_YUQUE_HTTP_FAILED,
     MSG_YUQUE_MISSING_CONTENT, MSG_YUQUE_MISSING_DATA, NO, SYNC_DEFAULT_IS_SHOW,
-    SYNC_DEFAULT_SORT_ORDER, YES,
+    SYNC_DEFAULT_SORT_ORDER, YES, YUQUE_KDN_LOGISTICS_DOC_URL_CN, YUQUE_KDN_LOGISTICS_DOC_URL_INTL,
 };
 use tigshop_core::types::PageResult;
 use tigshop_core::{Error, Result};
@@ -399,59 +399,78 @@ impl LogisticsCompanyService {
         Ok(affected > 0)
     }
 
-    // ————————————————————— 同步（未迁移的外部依赖） —————————————————————
+    // ————————————————————— 同步 —————————————————————
 
     /// 同步快递鸟物流公司（对应 Java
     /// `LogisticsCompanyServiceImpl#syncKdnLogisticsCompanies`）。
-    ///
-    /// **未迁移**：Java 通过 `java.net.http.HttpClient` 从语雀公开接口
-    /// （[`tigshop_core::models::logistics::logistics_company::YUQUE_KDN_LOGISTICS_DOC_URL_CN`] /
-    /// `..._INTL`）拉取 lake HTML 表格。本 crate **未声明** `reqwest`
-    /// （`Cargo.toml` 属主会话独占），且末尾的
-    /// `adminLogService.createByLogInfo(...)` 依赖未迁移的日志域。
-    ///
-    /// 因此本方法在完成**入参归一**后返回明确的未迁移业务错误，
-    /// 绝不返回「新增 0 条」的假成功。
-    ///
-    /// 全部与网络无关的纯逻辑（编码归一、语雀表格解析、
-    /// 合并去重与三条匹配分支）已迁移并单测覆盖，见
-    /// [`parse_kdn_company_table`] 与 [`LogisticsCompanyService::plan_kdn_sync`]。
-    ///
-    /// # Errors
-    /// - 恒定返回业务码 500 的未迁移提示（[`SYNC_KDN_UNMIGRATED_MSG`]）
     pub async fn sync_kdn(&self, q: &SyncQuery) -> Result<SyncLogisticsCompanyResultVO> {
-        // 入参归一（与 Java 第一行 `defaultIsEnabled = defaultIsEnabled == 1 ? 1 : 0;` 一致）
         let overwrite_name = q.overwrite_name();
         let default_is_enabled = q.default_is_enabled();
-        tracing::warn!(
-            "syncKdn 被调用（overwriteName={overwrite_name}, defaultIsEnabled={default_is_enabled}），\
-             但语雀拉取依赖 HTTP 客户端未迁移，返回明确业务错误"
+        let shop_id = 0;
+
+        let remote_cn = fetch_yuque_kdn_companies(YUQUE_KDN_LOGISTICS_DOC_URL_CN).await?;
+        let remote_intl = fetch_yuque_kdn_companies(YUQUE_KDN_LOGISTICS_DOC_URL_INTL).await?;
+
+        if remote_cn.is_empty() && remote_intl.is_empty() {
+            return Ok(Self::empty_sync_result());
+        }
+
+        let existing = self
+            .repos
+            .logistics
+            .logistics_company
+            .find_by_shop_id(Some(shop_id))
+            .await?;
+        let plan = Self::plan_kdn_sync(
+            &remote_cn,
+            &remote_intl,
+            &existing,
+            shop_id,
+            overwrite_name,
+            default_is_enabled,
         );
-        Err(Error::biz_msg(SYNC_KDN_UNMIGRATED_MSG))
+        let result = self.apply_kdn_plan(&plan).await?;
+
+        let log_info = format!("同步快递鸟物流公司:新增{}条,更新{}条", result.inserted, result.updated);
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log("admin", 0, &log_info).await {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
+        Ok(result)
     }
 
     /// 同步快递100物流公司（对应 Java
     /// `LogisticsCompanyServiceImpl#syncKuaidi100LogisticsCompanies`）。
-    ///
-    /// **未迁移**：种子来自内置常量（不需要网络），但 Java 末尾的
-    /// `adminLogService.createByLogInfo(...)` 依赖未迁移的日志域，
-    /// 且整段是 `@Transactional` 的批量写。
-    ///
-    /// 决策规划函数 [`LogisticsCompanyService::plan_kuaidi100_sync`] 已完整迁移
-    /// （覆盖「直接命中 / 反向命中 / 冲突 / 新增」四条分支，含单测），
-    /// 待日志域就绪后可一行接通：把 `plan` 的结果交给
-    /// `insert` + `batch_update_kuaidi100_and_name` 即可。
-    ///
-    /// # Errors
-    /// - 恒定返回业务码 500 的未迁移提示（[`SYNC_KUAIDI100_UNMIGRATED_MSG`]）
     pub async fn sync_kuaidi100(&self, q: &SyncQuery) -> Result<SyncLogisticsCompanyResultVO> {
         let overwrite_name = q.overwrite_name();
         let default_is_enabled = q.default_is_enabled();
-        tracing::warn!(
-            "syncKuaidi100 被调用（overwriteName={overwrite_name}, \
-             defaultIsEnabled={default_is_enabled}），但管理日志域未迁移，返回明确业务错误"
+        let shop_id = 0;
+
+        let seed = common_carriers();
+        let existing = self
+            .repos
+            .logistics
+            .logistics_company
+            .find_by_shop_id(Some(shop_id))
+            .await?;
+        let plan = Self::plan_kuaidi100_sync(
+            seed,
+            &existing,
+            shop_id,
+            overwrite_name,
+            default_is_enabled,
         );
-        Err(Error::biz_msg(SYNC_KUAIDI100_UNMIGRATED_MSG))
+        let result = self.apply_kuaidi100_plan(&plan).await?;
+
+        let log_info = format!(
+            "同步快递100物流公司:新增{}条,更新{}条,冲突{}条",
+            result.inserted, result.updated, result.conflicted
+        );
+        let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
+        if let Err(e) = admin_log.record_current_log("admin", 0, &log_info).await {
+            tracing::warn!("写管理操作日志失败: {e}");
+        }
+        Ok(result)
     }
 
     // ————————————————————— 同步：纯决策逻辑（已迁移，可单测） —————————————————————
@@ -797,6 +816,46 @@ pub struct Kuaidi100SyncPlan {
 // ——————————————————————————————————————————————
 // 语雀 HTML 表格解析（纯函数，已迁移）
 // ——————————————————————————————————————————————
+
+/// 从语雀接口拉取并解析快递公司编码表（对应 Java `LogisticsCompanyServiceImpl#fetchYuqueKdnCompanies`）
+async fn fetch_yuque_kdn_companies(url: &str) -> Result<Vec<(String, String)>> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|e| Error::biz_msg(format!("{MSG_YUQUE_HTTP_FAILED}: {e}")))?;
+
+    let resp = client
+        .get(url)
+        .header("Accept", "application/json")
+        .header("User-Agent", "Tigshop-Api")
+        .send()
+        .await
+        .map_err(|e| Error::biz_msg(format!("{MSG_YUQUE_HTTP_FAILED}: {e}")))?;
+
+    if !resp.status().is_success() {
+        return Err(Error::biz_msg(format!(
+            "{MSG_YUQUE_HTTP_FAILED}，HTTP {}",
+            resp.status()
+        )));
+    }
+
+    let val: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| Error::biz_msg(format!("{MSG_YUQUE_HTTP_FAILED}: {e}")))?;
+
+    let data = val
+        .get("data")
+        .ok_or_else(|| Error::biz_msg(MSG_YUQUE_MISSING_DATA))?;
+
+    let content = data
+        .get("content")
+        .and_then(|c| c.as_str())
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| Error::biz_msg(MSG_YUQUE_MISSING_CONTENT))?;
+
+    Ok(parse_kdn_company_table(content))
+}
 
 /// 从语雀 doc 的 `data.content`（lake HTML）里解析快递公司编码表
 /// （对应 Java `LogisticsCompanyServiceImpl#parseKdnCompanyTableFromYuqueContent`）。
