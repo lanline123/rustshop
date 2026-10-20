@@ -1109,7 +1109,7 @@ impl UserCenterService {
     // ————————————————————— 上传（未迁移） —————————————————————
 
     /// 上传图片（Java `uploadImg` → `GalleryPicService.uploadImg`）。
-    pub fn upload_img(
+    pub async fn upload_img(
         &self,
         file_name: Option<&str>,
         bytes: &[u8],
@@ -1117,7 +1117,7 @@ impl UserCenterService {
     ) -> Result<GalleryPicUploadVO> {
         require_upload_file(file_name, bytes)?;
         let name = file_name.unwrap_or("file");
-        let url = tigshop_infrastructure::storage::save_local_upload_blocking("gallery", name, bytes)?;
+        let url = tigshop_infrastructure::storage::save_local_upload("gallery", name, bytes).await?;
         Ok(GalleryPicUploadVO {
             pic_thumb: url.clone(),
             pic_url: url,
@@ -1132,14 +1132,14 @@ impl UserCenterService {
     }
 
     /// 上传视频（Java `uploadVideo` → `GalleryVideoInfoService.uploadVideo`）。
-    pub fn upload_video(
+    pub async fn upload_video(
         &self,
         file_name: Option<&str>,
         bytes: &[u8],
     ) -> Result<UploadVideoInfoVO> {
         require_upload_file(file_name, bytes)?;
         let name = file_name.unwrap_or("video.mp4");
-        let url = tigshop_infrastructure::storage::save_local_upload_blocking("gallery_video", name, bytes)?;
+        let url = tigshop_infrastructure::storage::save_local_upload("gallery_video", name, bytes).await?;
         Ok(UploadVideoInfoVO {
             video_url: url,
             video_name: name.to_string(),
@@ -1149,10 +1149,10 @@ impl UserCenterService {
     }
 
     /// 修改头像（Java `modifyAvatar`）。
-    pub fn modify_avatar(&self, file_name: Option<&str>, bytes: &[u8]) -> Result<()> {
+    pub async fn modify_avatar(&self, file_name: Option<&str>, bytes: &[u8]) -> Result<()> {
         require_upload_file(file_name, bytes)?;
         let name = file_name.unwrap_or("avatar.jpg");
-        let _ = tigshop_infrastructure::storage::save_local_upload_blocking("avatar", name, bytes)?;
+        let _ = tigshop_infrastructure::storage::save_local_upload("avatar", name, bytes).await?;
         Ok(())
     }
 

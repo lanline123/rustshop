@@ -425,7 +425,7 @@ async fn upload_img(
         .get("hidden")
         .is_some_and(|v| v.eq_ignore_ascii_case("true") || v == "1");
     ok(state.member.user_center
-        .upload_img(form.file_name.as_deref(), &form.bytes, is_hidden)?)
+        .upload_img(form.file_name.as_deref(), &form.bytes, is_hidden).await?)
 }
 
 /// `POST /api/user/user/uploadVideo`：上传视频（`multipart/form-data`）。
@@ -438,7 +438,7 @@ async fn upload_video(
 ) -> ApiResult<UploadVideoInfoVO> {
     let form = read_multipart(&mut multipart).await?;
     ok(state.member.user_center
-        .upload_video(form.file_name.as_deref(), &form.bytes)?)
+        .upload_video(form.file_name.as_deref(), &form.bytes).await?)
 }
 
 /// `POST /api/user/user/modifyAvatar`：修改头像（`multipart/form-data`）。
@@ -451,7 +451,7 @@ async fn modify_avatar(
 ) -> ApiResult<&'static str> {
     let form = read_multipart(&mut multipart).await?;
     state.member.user_center
-        .modify_avatar(form.file_name.as_deref(), &form.bytes)?;
+        .modify_avatar(form.file_name.as_deref(), &form.bytes).await?;
     ok("头像修改成功")
 }
 

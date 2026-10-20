@@ -124,7 +124,7 @@ async fn upload_video(
     mut multipart: Multipart,
 ) -> ApiResult<UploadVideoInfoVO> {
     let (file_name, bytes) = read_upload_file(&mut multipart).await?;
-    ok(state.im.im_message.upload_video(file_name.as_deref(), &bytes)?)
+    ok(state.im.im_message.upload_video(file_name.as_deref(), &bytes).await?)
 }
 
 /// `POST /im/conversation/message/setRead`：设置已读（后台分支）。

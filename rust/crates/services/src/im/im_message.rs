@@ -722,7 +722,7 @@ impl ImMessageService {
     /// # Errors
     /// - 文件为空 / 文件名为空 → `Error::Validation`；
     /// - 存储写入失败 → `Error::Database`。
-    pub fn upload_video(
+    pub async fn upload_video(
         &self,
         file_name: Option<&str>,
         bytes: &[u8],
@@ -732,9 +732,10 @@ impl ImMessageService {
             .map(str::trim)
             .filter(|s| !s.is_empty())
             .unwrap_or("video.mp4");
-        let url = tigshop_infrastructure::storage::save_local_upload_blocking(
+        let url = tigshop_infrastructure::storage::save_local_upload(
             "im", original, bytes,
-        )?;
+        )
+        .await?;
         let path = std::path::Path::new(original);
         let stem = path
             .file_stem()
