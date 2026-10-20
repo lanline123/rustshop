@@ -144,6 +144,47 @@ impl UserListQuery {
     }
 }
 
+/// 会员导入行（Java `UserImportExcelDTO`）。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct UserImportRow {
+    pub username: Option<String>,
+    pub mobile: Option<String>,
+    pub email: Option<String>,
+    pub nickname: Option<String>,
+    pub password: Option<String>,
+    pub birthday: Option<String>,
+    pub rank_id: Option<String>,
+    pub balance: Option<String>,
+    pub points: Option<String>,
+    pub growth_points: Option<String>,
+    pub remark: Option<String>,
+}
+
+/// 会员导入失败行（Java `UserImportErrorExcelVO`）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct UserImportErrorVO {
+    pub username: Option<String>,
+    pub mobile: Option<String>,
+    pub email: Option<String>,
+    pub nickname: Option<String>,
+    pub error_msg: String,
+}
+
+/// 会员导入成功行（Java `UserImportSuccessListVO`）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct UserImportSuccessVO {
+    pub user_id: i32,
+    pub username: String,
+    pub mobile: String,
+    pub email: String,
+    pub nickname: Option<String>,
+    pub avatar: Option<String>,
+    pub rank_name: Option<String>,
+}
+
 /// 会员新增入参（Java `UserDTO`）。
 ///
 /// 仅保留 `create` 链路真正会写入 `user` 表的字段；关联对象

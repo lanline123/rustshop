@@ -50,11 +50,12 @@ use axum::{
 use serde::Deserialize;
 use tigshop_core::models::member::user_manage::{
     CreateUserParam, FundDetailItem, FundManagementParam, SetAdminNoteParam, UpdateUserParam,
-    UserBatchParam, UserCreateVO, UserFundDetailQuery, UserItemVO, UserListQuery, UserSearchVO,
-    UserVO,
+    UserBatchParam, UserCreateVO, UserFundDetailQuery, UserImportRow, UserImportSuccessVO,
+    UserItemVO, UserListQuery, UserSearchVO, UserVO,
 };
+use tigshop_core::Error;
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AppError};
 
 use crate::AdminState;
 
@@ -240,26 +241,57 @@ async fn user_batch(
 ///
 /// 对应 Java `UserController.batchImport(@RequestParam("file") MultipartFile)`。
 /// **未迁移**（Excel 解析）：始终返回明确业务错误，不读取上传内容。
-#[allow(clippy::unused_async)]
 async fn user_batch_import(
     State(state): State<AdminState>,
-    _multipart: Multipart,
-) -> ApiResult<serde_json::Value> {
-    state.member.user_manage.batch_import_users().await?;
-    ok(serde_json::Value::Null)
+    mut multipart: Multipart,
+) -> ApiResult<Vec<UserImportSuccessVO>> {
+    let bytes = read_upload_file(&mut multipart).await?;
+    let rows = parse_user_import_rows(&bytes)?;
+    if rows.is_empty() {
+        return Err(AppError(Error::biz_msg("表格数据为空")));
+    }
+    ok(state.member.user_manage.batch_import_users(&rows).await?)
 }
 
 /// `POST /adminapi/user/user/getImportErrorData`：获取导入失败的数据。
 ///
 /// 对应 Java `UserController.getImportErrorData(MultipartFile, HttpServletResponse)`。
 /// **未迁移**（Excel 解析 + 导出）。
-#[allow(clippy::unused_async)]
 async fn user_import_error_data(
     State(state): State<AdminState>,
-    _multipart: Multipart,
-) -> ApiResult<serde_json::Value> {
-    state.member.user_manage.get_user_import_error_data().await?;
-    ok(serde_json::Value::Null)
+    mut multipart: Multipart,
+) -> std::result::Result<axum::response::Response, AppError> {
+    let bytes = read_upload_file(&mut multipart).await?;
+    let rows = parse_user_import_rows(&bytes)?;
+    let errors = state
+        .member
+        .user_manage
+        .get_user_import_error_data(&rows)
+        .await?;
+    let headers = [
+        "用户名*",
+        "手机号*",
+        "邮箱",
+        "昵称",
+        "错误信息",
+    ];
+    let data: Vec<Vec<String>> = errors
+        .iter()
+        .map(|e| {
+            vec![
+                e.username.clone().unwrap_or_default(),
+                e.mobile.clone().unwrap_or_default(),
+                e.email.clone().unwrap_or_default(),
+                e.nickname.clone().unwrap_or_default(),
+                e.error_msg.clone(),
+            ]
+        })
+        .collect();
+    let bytes = tigshop_services::system::excel::build_xlsx(&headers, &data, "会员导入错误")?;
+    Ok(crate::support::excel_response::xlsx_response(
+        bytes,
+        "user_import_error.xlsx",
+    ))
 }
 
 /// `GET /adminapi/user/user/downloadUserImportTemplate`：下载会员导入模板。
@@ -267,12 +299,63 @@ async fn user_import_error_data(
 /// 对应 Java 控制器中与上一条同名的 `getImportErrorData(HttpServletResponse)`
 /// 重载（方法名重复是原 Java 代码的既有情况）。
 /// **未迁移**（Excel 导出）。
-#[allow(clippy::unused_async)]
 async fn user_download_import_template(
     State(state): State<AdminState>,
-) -> ApiResult<serde_json::Value> {
-    state.member.user_manage.download_user_import_template().await?;
-    ok(serde_json::Value::Null)
+) -> std::result::Result<axum::response::Response, AppError> {
+    let _ = &state;
+    let headers = tigshop_services::member::user_manage::UserManageService::import_template_headers();
+    let bytes = tigshop_services::system::excel::build_xlsx(&headers, &[], "会员导入模板")?;
+    Ok(crate::support::excel_response::xlsx_response(
+        bytes,
+        "user_import_template.xlsx",
+    ))
+}
+
+/// 读取 multipart 中的 `file` 字段。
+async fn read_upload_file(multipart: &mut Multipart) -> Result<Vec<u8>, AppError> {
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        AppError(Error::Validation(format!("读取上传文件失败: {e}")))
+    })? {
+        if field.name() == Some("file") {
+            return field
+                .bytes()
+                .await
+                .map(|b| b.to_vec())
+                .map_err(|e| AppError(Error::Validation(format!("读取上传文件失败: {e}"))));
+        }
+    }
+    Err(AppError(Error::Validation("请上传文件".into())))
+}
+
+/// 解析会员导入 xlsx（列序与 `UserImportExcelDTO` 一致）。
+fn parse_user_import_rows(bytes: &[u8]) -> Result<Vec<UserImportRow>, AppError> {
+    let sheet = tigshop_services::system::excel::read_xlsx(bytes).map_err(AppError)?;
+    let mut rows = Vec::new();
+    for line in sheet.iter().skip(1) {
+        let get = |i: usize| {
+            line.get(i)
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+        };
+        let row = UserImportRow {
+            username: get(0),
+            mobile: get(1),
+            email: get(2),
+            nickname: get(3),
+            password: get(4),
+            birthday: get(5),
+            rank_id: get(6),
+            balance: get(7),
+            points: get(8),
+            growth_points: get(9),
+            remark: get(10),
+        };
+        if row.username.is_some() || row.mobile.is_some() {
+            rows.push(row);
+        }
+    }
+    Ok(rows)
 }
 
 // ————————————————————————— 搜索 / 资金 / 退出 / 备注 —————————————————————————

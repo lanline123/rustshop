@@ -58,8 +58,9 @@ use rust_decimal::Decimal;
 use tigshop_core::entities::{User, UserAddress, UserBalanceLog};
 use tigshop_core::models::member::user_manage::{
     CreateUserParam, FundDetailItem, FundManagementParam, SetAdminNoteParam, UpdateUserParam,
-    UserBatchParam, UserCreateVO, UserFundDetailQuery, UserImportSuccessListVO,
-    UserItemVO, UserListQuery, UserSearchVO, UserVO, BATCH_DEL, BATCH_INCR_BALANCE,
+    UserBatchParam, UserCreateVO, UserFundDetailQuery, UserImportErrorVO, UserImportRow,
+    UserImportSuccessVO, UserImportSuccessListVO, UserItemVO, UserListQuery, UserSearchVO,
+    UserVO, BATCH_DEL, BATCH_INCR_BALANCE,
     BATCH_INCR_POINTS, BATCH_SET_RANK, CHANGE_TYPE_DEC, CHANGE_TYPE_INC, FROM_TAG_ADMIN_ADD,
     USER_COLUMN_FIELDS,
 };
@@ -814,46 +815,221 @@ impl UserManageService {
 
     // ————————————————————————— Excel（未迁移） —————————————————————————
 
-    /// 批量导入会员（对应 Java `UserController.batchImport`）。
-    ///
-    /// **未迁移**：Java 用 `ExcelUtils<UserImportExcelDTO>` 解析上传文件，
-    /// 再逐条校验（用户名 / 手机号 / 邮箱 / 等级 / 余额 / 积分 / 生日格式）
-    /// 并创建会员。Rust 侧未接入该域的 Excel 解析，返回明确业务错误。
-    ///
-    /// # Errors
-    /// 恒返回业务错误 [`EXCEL_UNMIGRATED_MSG`]。
-    #[allow(clippy::unused_self)]
-    pub async fn batch_import_users(&self) -> Result<Vec<UserImportSuccessListVO>> {
-        let _ = self;
-        Err(Error::biz_msg(EXCEL_UNMIGRATED_MSG))
+    /// 会员导入模板表头（Java `UserImportExcelDTO` 的 `@ExcelProperty`）。
+    #[must_use]
+    pub fn import_template_headers() -> [&'static str; 11] {
+        [
+            "用户名*",
+            "手机号*",
+            "邮箱",
+            "昵称",
+            "密码",
+            "生日(格式:2025-01-01)",
+            "会员等级ID",
+            "余额(增量)",
+            "积分(增量)",
+            "成长积分(增量)",
+            "备注",
+        ]
     }
 
-    /// 获取导入失败的数据（对应 Java `UserController.getImportErrorData`）。
-    ///
-    /// **未迁移**（Excel 解析 + 导出）。
-    ///
-    /// # Errors
-    /// 恒返回业务错误 [`EXCEL_UNMIGRATED_MSG`]。
-    #[allow(clippy::unused_self)]
-    pub async fn get_user_import_error_data(&self) -> Result<()> {
-        let _ = self;
-        Err(Error::biz_msg(EXCEL_UNMIGRATED_MSG))
+    /// 校验会员导入行（对应 Java `checkUserImportData`）。
+    pub async fn check_user_import_rows(&self, rows: &[UserImportRow]) -> Result<Vec<UserImportErrorVO>> {
+        let mut errors = Vec::new();
+        for row in rows {
+            let username = row.username.as_deref().map(str::trim).unwrap_or("");
+            let mobile = row.mobile.as_deref().map(str::trim).unwrap_or("");
+            let mut error = None;
+            if username.is_empty() {
+                error = Some("用户名不能为空");
+            } else if self.repo.count_by_username(username).await? > 0 {
+                error = Some("用户名已存在");
+            } else if mobile.is_empty() {
+                error = Some("手机号不能为空");
+            } else if !is_valid_mobile(mobile) {
+                error = Some("手机号格式不正确");
+            } else if self.repo.count_by_mobile(mobile).await? > 0 {
+                error = Some("手机号已被注册");
+            } else if let Some(email) = row.email.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+                if !is_valid_email(email) {
+                    error = Some("邮箱格式不正确");
+                } else if self.repo.count_by_email(email, None).await? > 0 {
+                    error = Some("邮箱已被注册");
+                }
+            }
+            if error.is_none() {
+                if let Some(rank) = row.rank_id.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+                    match rank.parse::<i32>() {
+                        Ok(id) if self.repo.find_ranks(&[id]).await?.is_empty() => {
+                            error = Some("会员等级ID不存在");
+                        }
+                        Ok(_) => {}
+                        Err(_) => error = Some("会员等级ID格式不正确"),
+                    }
+                }
+            }
+            if error.is_none() {
+                if let Some(balance) = row.balance.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+                    if balance.parse::<Decimal>().is_err() {
+                        error = Some("余额格式不正确");
+                    }
+                }
+            }
+            for (value, msg) in [
+                (row.points.as_deref(), "积分格式不正确"),
+                (row.growth_points.as_deref(), "成长积分格式不正确"),
+            ] {
+                if error.is_none() {
+                    if let Some(v) = value.map(str::trim).filter(|s| !s.is_empty()) {
+                        if v.parse::<i32>().is_err() {
+                            error = Some(msg);
+                        }
+                    }
+                }
+            }
+            if error.is_none() {
+                if let Some(birthday) = row.birthday.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+                    if chrono::NaiveDate::parse_from_str(birthday, "%Y-%m-%d").is_err() {
+                        error = Some("生日格式不正确，应为:2025-01-01");
+                    }
+                }
+            }
+            if let Some(msg) = error {
+                errors.push(UserImportErrorVO {
+                    username: row.username.clone(),
+                    mobile: row.mobile.clone(),
+                    email: row.email.clone(),
+                    nickname: row.nickname.clone(),
+                    error_msg: msg.to_string(),
+                });
+            }
+        }
+        Ok(errors)
     }
 
-    /// 下载会员导入模板（对应 Java `UserController.downloadUserImportTemplate`）。
-    ///
-    /// **未迁移**（Excel 导出）。
-    ///
-    /// # Errors
-    /// 恒返回业务错误 [`EXCEL_UNMIGRATED_MSG`]。
-    #[allow(clippy::unused_self)]
-    pub async fn download_user_import_template(&self) -> Result<()> {
-        let _ = self;
-        Err(Error::biz_msg(EXCEL_UNMIGRATED_MSG))
+    /// 批量导入会员（Java `batchImportUser`）：校验后逐条创建。
+    pub async fn batch_import_users(
+        &self,
+        rows: &[UserImportRow],
+    ) -> Result<Vec<UserImportSuccessVO>> {
+        let errors = self.check_user_import_rows(rows).await?;
+        if !errors.is_empty() {
+            return Err(Error::biz_msg(format!(
+                "导入失败:共导入{}个,失败{}个",
+                rows.len(),
+                errors.len()
+            )));
+        }
+        let mut success = Vec::new();
+        for row in rows {
+            let username = row.username.as_deref().unwrap_or("").trim().to_string();
+            let mobile = row.mobile.as_deref().unwrap_or("").trim().to_string();
+            let email = row.email.as_deref().unwrap_or("").trim().to_string();
+            let rank_id = row
+                .rank_id
+                .as_deref()
+                .and_then(|s| s.trim().parse::<i32>().ok())
+                .unwrap_or(0);
+            let balance = row
+                .balance
+                .as_deref()
+                .and_then(|s| s.trim().parse::<Decimal>().ok())
+                .unwrap_or(Decimal::ZERO);
+            let points = row
+                .points
+                .as_deref()
+                .and_then(|s| s.trim().parse::<i32>().ok())
+                .unwrap_or(0);
+            let growth = row
+                .growth_points
+                .as_deref()
+                .and_then(|s| s.trim().parse::<i32>().ok())
+                .unwrap_or(0);
+            let raw_password = row.password.as_deref().unwrap_or("");
+            let hashed = if raw_password.trim().is_empty() {
+                String::new()
+            } else {
+                hash_password(raw_password)?
+            };
+            let param = CreateUserParam {
+                username: Some(username.clone()),
+                mobile: Some(mobile.clone()),
+                email: Some(email.clone()),
+                nickname: row.nickname.clone(),
+                password: row.password.clone(),
+                birthday: row.birthday.clone(),
+                balance: Some(balance),
+                points: Some(points),
+                growth_points: Some(growth),
+                rank_id: Some(rank_id),
+                from_tag: Some(FROM_TAG_ADMIN_ADD),
+                ..Default::default()
+            };
+            let user_id = self
+                .repo
+                .insert_user(&param, &hashed, now_seconds())
+                .await?;
+            let rank_name = if rank_id > 0 {
+                self.repo
+                    .find_ranks(&[rank_id])
+                    .await?
+                    .into_iter()
+                    .next()
+                    .map(|r| r.rank_name)
+            } else {
+                None
+            };
+            success.push(UserImportSuccessVO {
+                user_id,
+                username,
+                mobile,
+                email,
+                nickname: row.nickname.clone(),
+                avatar: None,
+                rank_name,
+            });
+        }
+        tracing::info!("会员批量导入完成: {} 条", success.len());
+        Ok(success)
+    }
+
+    /// 获取会员导入失败数据（Java `getUserImportErrorData`）。
+    pub async fn get_user_import_error_data(
+        &self,
+        rows: &[UserImportRow],
+    ) -> Result<Vec<UserImportErrorVO>> {
+        self.check_user_import_rows(rows).await
     }
 }
 
 // ————————————————————————— 辅助函数 —————————————————————————
+
+/// 手机号格式（Java `^1[3-9]\\d{9}$`）。
+fn is_valid_mobile(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    bytes.len() == 11
+        && bytes[0] == b'1'
+        && (b'3'..=b'9').contains(&bytes[1])
+        && bytes.iter().all(u8::is_ascii_digit)
+}
+
+/// 邮箱格式（Java `^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\\.[a-zA-Z0-9_-]+)+$` 的等价简化）。
+fn is_valid_email(value: &str) -> bool {
+    let Some((local, domain)) = value.split_once('@') else {
+        return false;
+    };
+    if local.is_empty()
+        || domain.is_empty()
+        || !local.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        return false;
+    }
+    let parts: Vec<&str> = domain.split('.').collect();
+    parts.len() >= 2
+        && parts.iter().all(|p| {
+            !p.is_empty() && p.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+        })
+}
 
 /// 当前秒级时间戳（Java `StringUtils.getCurrentTime()`）。
 fn now_seconds() -> i32 {
