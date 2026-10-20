@@ -77,6 +77,8 @@
         <div class="nav-links flex-align-center">
           <router-link to="/" :class="{ active: route.path === '/' }">首页</router-link>
           <router-link to="/search" :class="{ active: route.path === '/search' }">商品大厅</router-link>
+          <router-link to="/activity/seckill" :class="{ active: route.path === '/activity/seckill' }">限时秒杀</router-link>
+          <router-link to="/activity/groupon" :class="{ active: route.path === '/activity/groupon' }">拼团活动</router-link>
           <router-link to="/member" :class="{ active: route.path.startsWith('/member') }">会员中心</router-link>
         </div>
       </div>

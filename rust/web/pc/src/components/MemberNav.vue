@@ -34,6 +34,10 @@ import {
   Location,
   Bell,
   Calendar,
+  User,
+  Lock,
+  Postcard,
+  Tickets,
 } from '@element-plus/icons-vue';
 
 withDefaults(
@@ -56,6 +60,10 @@ const items = [
   { label: '收货地址', path: '/member/address', icon: Location },
   { label: '站内信', path: '/member/messages', icon: Bell },
   { label: '签到', path: '/member/sign', icon: Calendar },
+  { label: '个人资料', path: '/member/profile', icon: User },
+  { label: '账户安全', path: '/member/security', icon: Lock },
+  { label: '实名认证', path: '/member/certification', icon: Postcard },
+  { label: '增票资质', path: '/member/invoice', icon: Tickets },
 ];
 
 function isActive(path: string): boolean {

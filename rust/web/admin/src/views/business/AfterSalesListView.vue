@@ -76,6 +76,8 @@
             <template #default="{ row }">
               <div class="row-actions">
                 <el-button type="primary" link size="small" @click="openDetail(row)">售后详情</el-button>
+                <el-button v-if="row.orderId" type="info" link size="small" @click="openSign(row)">标记</el-button>
+                <el-button type="info" link size="small" @click="openRecord(row)">协商记录</el-button>
                 <template v-if="Number(row.aftersaleType) === 1 && Number(row.status) === 1">
                   <el-button type="danger" link size="small" @click="openHandle(row, 2)">同意并发送退货地址</el-button>
                   <el-button link size="small" @click="openHandle(row, 3)">拒绝退货退款</el-button>
@@ -173,6 +175,7 @@
             <el-button v-if="detail.status === 5" @click="openRejectReceive(detail)">拒收</el-button>
             <el-button v-if="[2, 4, 5, 22].includes(detail.status)" type="success" @click="completeAftersales(detail)">完成售后</el-button>
             <el-button v-if="detail.status === 1 || detail.status === 21" type="primary" @click="openHandle(detail, 2)">处理申请</el-button>
+            <el-button @click="openRecord(detail)">添加协商记录</el-button>
           </div>
         </template>
         <el-empty v-else description="未获取到售后详情" />
@@ -217,6 +220,60 @@
         <el-button type="danger" :loading="submitting" @click="submitRejectReceive">确认拒收</el-button>
       </template>
     </el-dialog>
+
+    <!-- 售后标记 / 订单备注（原版 order/order/src/EditSign.vue 联动订单 setAdminNote） -->
+    <el-dialog v-model="signVisible" title="订单标记" width="480px" destroy-on-close>
+      <el-form label-width="80px">
+        <el-form-item label="标记">
+          <el-radio-group v-model="signForm.mark">
+            <el-radio :value="0">无</el-radio>
+            <el-radio :value="1">红</el-radio>
+            <el-radio :value="2">黄</el-radio>
+            <el-radio :value="3">绿</el-radio>
+            <el-radio :value="4">蓝</el-radio>
+            <el-radio :value="5">紫</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="signForm.adminNote" type="textarea" :rows="4" maxlength="200" show-word-limit placeholder="请输入备注" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="signVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitSign">提交</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 售后协商记录 / 凭证（原版 Info 协商记录 + record 接口） -->
+    <el-dialog v-model="recordVisible" title="添加协商记录" width="620px" destroy-on-close>
+      <el-form label-width="100px">
+        <el-form-item label="售后编号：">
+          <span>{{ recordRow?.aftersalesSn }}</span>
+        </el-form-item>
+        <el-form-item label="记录内容：" required>
+          <el-input v-model="recordForm.logInfo" type="textarea" :rows="4" placeholder="请输入协商记录内容" maxlength="500" show-word-limit />
+        </el-form-item>
+        <el-form-item label="物流公司：">
+          <el-input v-model="recordForm.logisticsName" placeholder="买家回寄物流公司（选填）" style="width: 320px" />
+        </el-form-item>
+        <el-form-item label="物流单号：">
+          <el-input v-model="recordForm.trackingNo" placeholder="买家回寄物流单号（选填）" style="width: 320px" />
+        </el-form-item>
+        <el-form-item label="凭证图片：">
+          <div class="voucher-list">
+            <div v-for="(_, idx) in recordForm.pics" :key="idx" class="voucher-item">
+              <ImageUpload v-model="recordForm.pics[idx]" />
+              <el-button type="danger" link size="small" @click="recordForm.pics.splice(idx, 1)">删除</el-button>
+            </div>
+            <el-button type="primary" link @click="recordForm.pics.push('')">+ 添加凭证图片</el-button>
+          </div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="recordVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitRecord">提交</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -236,6 +293,7 @@ import { onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Search, Refresh } from '@element-plus/icons-vue';
 import request from '@/utils/request';
+import ImageUpload from '@/components/widgets/ImageUpload.vue';
 
 interface AftersalesItem {
   aftersalesItemId: number;
@@ -485,6 +543,88 @@ async function completeAftersales(row: AftersalesRow) {
   loadList();
 }
 
+// ————————————————— 标记 / 协商记录 —————————————————
+const signVisible = ref(false);
+const signForm = reactive({ orderId: 0, adminNote: '', mark: 0 });
+
+function openSign(row: AftersalesRow) {
+  signForm.orderId = row.orderId;
+  signForm.adminNote = '';
+  signForm.mark = 0;
+  signVisible.value = true;
+}
+
+async function submitSign() {
+  if (!signForm.orderId) {
+    ElMessage.warning('未关联订单，无法标记');
+    return;
+  }
+  submitting.value = true;
+  try {
+    await request({
+      url: '/order/order/setAdminNote',
+      method: 'post',
+      data: { id: signForm.orderId, adminNote: signForm.adminNote, mark: signForm.mark }
+    });
+    ElMessage.success('标记已更新');
+    signVisible.value = false;
+  } finally {
+    submitting.value = false;
+  }
+}
+
+const recordVisible = ref(false);
+const recordRow = ref<AftersalesRow | null>(null);
+const recordForm = reactive({
+  logInfo: '',
+  logisticsName: '',
+  trackingNo: '',
+  pics: [] as string[]
+});
+
+function openRecord(row: AftersalesRow) {
+  recordRow.value = row;
+  recordForm.logInfo = '';
+  recordForm.logisticsName = row.logisticsName || '';
+  recordForm.trackingNo = row.trackingNo || '';
+  recordForm.pics = [];
+  recordVisible.value = true;
+}
+
+async function submitRecord() {
+  if (!recordRow.value) return;
+  if (!recordForm.logInfo.trim()) {
+    ElMessage.warning('请输入协商记录内容');
+    return;
+  }
+  submitting.value = true;
+  try {
+    await request({
+      url: '/order/aftersales/record',
+      method: 'post',
+      data: {
+        aftersaleId: recordRow.value.aftersaleId,
+        logInfo: recordForm.logInfo.trim(),
+        logisticsName: recordForm.logisticsName || undefined,
+        trackingNo: recordForm.trackingNo || undefined,
+        returnPic: recordForm.pics.filter((p) => p).map((p) => ({ picUrl: p }))
+      }
+    });
+    ElMessage.success('协商记录已添加');
+    recordVisible.value = false;
+    if (detailVisible.value && detail.value) {
+      detail.value = await request<any>({
+        url: '/order/aftersales/detail',
+        method: 'get',
+        params: { id: detail.value.aftersaleId }
+      });
+    }
+    loadList();
+  } finally {
+    submitting.value = false;
+  }
+}
+
 onMounted(async () => {
   await loadConfig();
   await loadList();
@@ -582,5 +722,18 @@ onMounted(async () => {
 .dialog-actions {
   display: flex;
   gap: 10px;
+}
+
+.voucher-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.voucher-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 </style>

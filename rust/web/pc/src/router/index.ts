@@ -134,6 +134,48 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/SignView.vue'),
         meta: { title: '每日签到', requiresAuth: true },
       },
+      {
+        path: 'member/profile',
+        name: 'MemberProfileEdit',
+        component: () => import('@/views/ProfileEditView.vue'),
+        meta: { title: '个人资料', requiresAuth: true },
+      },
+      {
+        path: 'member/security',
+        name: 'MemberSecurity',
+        component: () => import('@/views/SecurityView.vue'),
+        meta: { title: '账户安全', requiresAuth: true },
+      },
+      {
+        path: 'member/certification',
+        name: 'MemberCertification',
+        component: () => import('@/views/CertificationView.vue'),
+        meta: { title: '会员实名认证', requiresAuth: true },
+      },
+      {
+        path: 'member/invoice',
+        name: 'MemberInvoiceQualification',
+        component: () => import('@/views/InvoiceQualificationView.vue'),
+        meta: { title: '增票资质', requiresAuth: true },
+      },
+      {
+        path: 'member/invoice/confirm',
+        name: 'MemberInvoiceConfirm',
+        component: () => import('@/views/ConfirmInvoiceView.vue'),
+        meta: { title: '增票资质确认书', requiresAuth: true },
+      },
+      {
+        path: 'activity/seckill',
+        name: 'SeckillActivity',
+        component: () => import('@/views/SeckillView.vue'),
+        meta: { title: '限时秒杀' },
+      },
+      {
+        path: 'activity/groupon',
+        name: 'GrouponActivity',
+        component: () => import('@/views/GrouponView.vue'),
+        meta: { title: '拼团活动' },
+      },
     ],
   },
   {

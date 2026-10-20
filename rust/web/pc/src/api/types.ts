@@ -709,3 +709,141 @@ export interface UploadedPicture {
   galleryId?: number;
   fileType?: string;
 }
+
+// ————————————————————— 第四轮：资料 / 安全 / 实名 / 发票资质 / 活动 —————————————————————
+
+/** 个人资料更新入参（`UpdateInformationDTO`）。 */
+export interface UpdateInformationParam {
+  birthday?: string;
+  nickname?: string;
+  email?: string;
+  mobile?: string;
+  wechatImg?: string;
+}
+
+/** 增票资质（`UserInvoiceVO`）。 */
+export interface UserInvoiceQualification {
+  invoiceId: number;
+  userId: number;
+  status: number;
+  statusText: string;
+  applyReply: string;
+  titleType: number;
+  companyName: string;
+  companyCode: string;
+  companyAddress: string;
+  companyPhone: string;
+  companyBank: string;
+  companyAccount: string;
+  mobile: string;
+  email: string;
+  invoiceContent: string;
+  addTime: number;
+}
+
+/** 增票资质提交入参（`UserInvoiceDTO`）。 */
+export interface UserInvoicePayload {
+  invoiceId?: number;
+  titleType?: number;
+  companyName?: string;
+  companyCode?: string;
+  companyAddress?: string;
+  companyPhone?: string;
+  companyBank?: string;
+  companyAccount?: string;
+  mobile?: string;
+  email?: string;
+  invoiceContent?: string;
+}
+
+/** 实名认证记录（`UserCompanyVO`）。 */
+export interface UserCompany {
+  id: number;
+  userId: number;
+  type: number;
+  contactName: string;
+  contactMobile: string;
+  companyName: string;
+  companyData?: Record<string, any> | null;
+  status: number;
+  statusText: string;
+  auditRemark: string;
+  auditTime: string;
+  addTime: string;
+}
+
+/** 实名认证提交入参（`UserCompanyDTO`）。 */
+export interface UserCompanyPayload {
+  type?: number;
+  contactName?: string;
+  contactMobile?: string;
+  companyName?: string;
+  companyData?: Record<string, any>;
+}
+
+/** 秒杀商品（`SeckillPromotionVO`）。 */
+export interface SeckillItem {
+  recId: number;
+  seckillId: number;
+  productId: number;
+  skuId: number;
+  seckillPrice: number | string;
+  seckillStock: number;
+  seckillSales: number;
+  seckillStartTime: number;
+  seckillEndTime: number;
+  remainSeconds: number;
+  started: boolean;
+  soldPercent: number;
+  /** 前端按 productId 补充的商品信息 */
+  productName?: string;
+  picThumb?: string;
+  picUrl?: string;
+  [key: string]: any;
+}
+
+/** 拼团活动商品（`GrouponItemVO`）。 */
+export interface GrouponItem {
+  grouponPromotionItemId: number;
+  productId: number;
+  minGrouponPrice?: number | string | null;
+  minGroupNum?: number | null;
+  productName?: string | null;
+  productSn?: string | null;
+  productBrief?: string | null;
+  productPrice?: number | string | null;
+  picThumb?: string | null;
+  picUrl?: string | null;
+  joinNumCount: number;
+  groupNum?: string | null;
+  startTime: string;
+  endTime: string;
+  canJoin?: boolean | null;
+  restrictTip?: string | null;
+  [key: string]: any;
+}
+
+/** 拼团活动详情（`GrouponPromotionDetailVO`）。 */
+export interface GrouponDetail {
+  grouponPromotionId: number;
+  name: string;
+  groupType?: number | null;
+  startTime: string;
+  endTime: string;
+  grouponImage?: string | null;
+  pcGrouponImage?: string | null;
+  grouponExplain?: string | null;
+  canJoin?: boolean | null;
+  restrictTip?: string | null;
+  shops?: any[];
+  [key: string]: any;
+}
+
+/** 拼团活动轮播图（`GrouponPromotionImageVO` 子集）。 */
+export interface GrouponImage {
+  id?: number;
+  grouponPromotionId?: number;
+  pcGrouponImage?: string | null;
+  grouponImage?: string | null;
+  [key: string]: any;
+}

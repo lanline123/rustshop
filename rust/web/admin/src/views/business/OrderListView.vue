@@ -149,6 +149,60 @@
         <el-empty v-else description="未获取到物流信息" />
       </div>
     </el-dialog>
+
+    <!-- 改收货人弹窗（复刻原版 order/order/src/EditConsignee.vue） -->
+    <el-dialog v-model="consigneeVisible" title="修改收货人信息" width="560px" destroy-on-close>
+      <el-form :model="consigneeForm" label-width="100px">
+        <el-form-item label="收货人" required>
+          <el-input v-model="consigneeForm.consignee" placeholder="收货人不能为空" />
+        </el-form-item>
+        <el-form-item label="所在地区">
+          <el-input v-model="consigneeForm.regionIdsText" placeholder="地区 ID，多个用英文逗号分隔，如 1,2,3" />
+        </el-form-item>
+        <el-form-item label="手机" required>
+          <el-input v-model="consigneeForm.mobile" placeholder="手机不能为空" />
+        </el-form-item>
+        <el-form-item label="地址" required>
+          <el-input v-model="consigneeForm.address" placeholder="地址不能为空" />
+        </el-form-item>
+        <el-form-item label="邮编">
+          <el-input v-model="consigneeForm.postcode" />
+        </el-form-item>
+        <el-form-item label="电子邮件">
+          <el-input v-model="consigneeForm.email" />
+        </el-form-item>
+        <el-form-item label="电话">
+          <el-input v-model="consigneeForm.telephone" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="consigneeVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitConsignee">提交</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 标记/备注弹窗（复刻原版 order/order/src/EditSign.vue） -->
+    <el-dialog v-model="signVisible" title="订单标记" width="480px" destroy-on-close>
+      <el-form label-width="80px">
+        <el-form-item label="标记">
+          <el-radio-group v-model="signForm.mark">
+            <el-radio :value="0">无</el-radio>
+            <el-radio :value="1">红</el-radio>
+            <el-radio :value="2">黄</el-radio>
+            <el-radio :value="3">绿</el-radio>
+            <el-radio :value="4">蓝</el-radio>
+            <el-radio :value="5">紫</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="signForm.adminNote" type="textarea" :rows="4" maxlength="200" show-word-limit placeholder="请输入备注" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="signVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitSign">提交</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -164,7 +218,7 @@
  * - 物流：`GET /adminapi/order/order/shippingInfo?id=`（ShippingInfoVO）
  */
 import { computed, reactive, ref } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import SchemaTable from '@/components/schema/SchemaTable.vue';
 import request from '@/utils/request';
 import type { TableSchema } from '@/components/schema/types';
@@ -367,6 +421,130 @@ async function openLogistics(row: any) {
   }
 }
 
+// ————————————————— 改收货人 —————————————————
+const consigneeVisible = ref(false);
+const consigneeForm = reactive({
+  id: 0,
+  consignee: '',
+  mobile: '',
+  telephone: '',
+  email: '',
+  postcode: '',
+  regionIdsText: '',
+  address: ''
+});
+
+function openConsignee(row: any) {
+  consigneeForm.id = row.orderId;
+  consigneeForm.consignee = row.consignee ?? '';
+  consigneeForm.mobile = row.mobile ?? '';
+  consigneeForm.telephone = '';
+  consigneeForm.email = row.email ?? '';
+  consigneeForm.postcode = '';
+  consigneeForm.regionIdsText = Array.isArray(row.regionIds) ? row.regionIds.join(',') : '';
+  consigneeForm.address = row.address ?? '';
+  consigneeVisible.value = true;
+}
+
+async function submitConsignee() {
+  if (!consigneeForm.consignee.trim()) {
+    ElMessage.warning('收货人不能为空');
+    return;
+  }
+  if (!consigneeForm.mobile.trim()) {
+    ElMessage.warning('手机不能为空');
+    return;
+  }
+  if (!consigneeForm.address.trim()) {
+    ElMessage.warning('地址不能为空');
+    return;
+  }
+  submitting.value = true;
+  try {
+    await request({
+      url: '/order/order/modifyConsignee',
+      method: 'post',
+      data: {
+        id: consigneeForm.id,
+        consignee: consigneeForm.consignee,
+        mobile: consigneeForm.mobile,
+        telephone: consigneeForm.telephone || undefined,
+        email: consigneeForm.email || undefined,
+        postcode: consigneeForm.postcode || undefined,
+        regionIds: consigneeForm.regionIdsText
+          .split(',')
+          .map((s) => Number(s.trim()))
+          .filter((n) => n > 0),
+        address: consigneeForm.address
+      }
+    });
+    ElMessage.success('收货人信息已修改');
+    consigneeVisible.value = false;
+  } finally {
+    submitting.value = false;
+  }
+}
+
+// ————————————————— 标记 / 备注 —————————————————
+const signVisible = ref(false);
+const signForm = reactive({ id: 0, adminNote: '', mark: 0 });
+
+function openSign(row: any) {
+  signForm.id = row.orderId;
+  signForm.adminNote = row.adminNote ?? '';
+  signForm.mark = Number(row.mark ?? 0);
+  signVisible.value = true;
+}
+
+async function submitSign() {
+  submitting.value = true;
+  try {
+    await request({
+      url: '/order/order/setAdminNote',
+      method: 'post',
+      data: { id: signForm.id, adminNote: signForm.adminNote, mark: signForm.mark }
+    });
+    ElMessage.success('标记已更新');
+    signVisible.value = false;
+  } finally {
+    submitting.value = false;
+  }
+}
+
+// ————————————————— 拆单 / 确认收货 / 导出 —————————————————
+async function splitOrder(row: any) {
+  await ElMessageBox.confirm(`确定对订单 ${row.orderSn} 执行拆单吗？`, '拆单', { type: 'warning' });
+  const res = await request<any>({ url: '/order/order/splitStoreOrder', method: 'post', data: { id: row.orderId } });
+  ElMessage.success(res?.split ? '拆单成功' : '拆单请求已提交');
+}
+
+async function confirmReceipt(row: any) {
+  await ElMessageBox.confirm(`确认订单 ${row.orderSn} 已收货吗？`, '确认收货', { type: 'warning' });
+  await request({ url: '/order/order/confirmReceipt', method: 'post', data: { id: row.orderId } });
+  ElMessage.success('确认收货成功');
+}
+
+async function exportOrders() {
+  const res: any = await request({
+    url: '/order/order/orderExport',
+    method: 'get',
+    responseType: 'blob'
+  });
+  const blob: Blob = res?.data instanceof Blob ? res.data : new Blob([res?.data]);
+  const disposition = res?.headers?.['content-disposition'] || '';
+  const match = /filename\*?=(?:UTF-8'')?["']?([^"';]+)/i.exec(disposition);
+  const fileName = match ? decodeURIComponent(match[1]) : `订单导出_${Date.now()}.xlsx`;
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  ElMessage.success('导出文件已开始下载');
+}
+
 const schema = computed<TableSchema>(() => ({
   title: '订单列表',
   apiList: '/order/order/list',
@@ -428,11 +606,16 @@ const schema = computed<TableSchema>(() => ({
     },
     { prop: 'addTime', label: '下单时间', minWidth: 160 }
   ],
+  extraButtons: [{ label: '导出订单', type: 'default', onClick: exportOrders }],
   actions: [
     { label: '详情', type: 'primary', onClick: openDetail },
     { label: '发货', type: 'success', show: (row) => row.orderStatus === 1, onClick: openDeliver },
     { label: '改价', type: 'warning', show: (row) => row.payStatus !== 1, onClick: openMoney },
-    { label: '物流', type: 'info', show: (row) => !!row.trackingNo, onClick: openLogistics }
+    { label: '物流', type: 'info', show: (row) => !!row.trackingNo, onClick: openLogistics },
+    { label: '改收货人', type: 'primary', show: (row) => row.orderStatus <= 1, onClick: openConsignee },
+    { label: '标记', type: 'info', onClick: openSign },
+    { label: '拆单', type: 'warning', show: (row) => row.payStatus === 1 && row.isStoreSplited !== 1, onClick: splitOrder },
+    { label: '确认收货', type: 'success', show: (row) => row.orderStatus === 2, onClick: confirmReceipt }
   ]
 }));
 </script>

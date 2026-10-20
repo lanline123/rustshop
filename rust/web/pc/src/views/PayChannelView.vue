@@ -18,8 +18,12 @@
               <!-- 渠道返回二维码链接时展示扫码入口；无二维码能力时如实说明 -->
               <template v-if="payInfo?.codeUrl || payInfo?.qrCode || payInfo?.qrCodeUrl">
                 <div class="ewm">
-                  <img v-if="isImageUrl" :src="qrImageUrl" alt="支付二维码" class="qr-img" />
-                  <el-button v-else type="primary" @click="openPayUrl(qrImageUrl)">打开扫码支付页</el-button>
+                  <img v-if="qrDataUrl" :src="qrDataUrl" alt="支付二维码" class="qr-img" />
+                  <img v-else-if="isImageUrl" :src="qrImageUrl" alt="支付二维码" class="qr-img" />
+                  <div v-else class="qr-fallback">
+                    <el-icon class="qr-fallback-icon"><Picture /></el-icon>
+                    <span>二维码生成失败，请点击下方链接完成支付</span>
+                  </div>
                 </div>
                 <div class="qr-tip">
                   <div>请使用{{ channelName }}扫一扫</div>
@@ -27,6 +31,7 @@
                 </div>
                 <div class="qr-link">
                   二维码内容：<el-link type="primary" :href="qrImageUrl" target="_blank">{{ shortUrl }}</el-link>
+                  <el-button link type="primary" @click="copyPayUrl">复制链接</el-button>
                 </div>
               </template>
 
@@ -90,6 +95,8 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { Picture } from '@element-plus/icons-vue';
+import { toDataURL } from 'qrcode';
 import { payApi } from '@/api';
 import { applySeo } from '@/composables/useSeo';
 import { formatPrice } from '@/utils/format';
@@ -124,6 +131,7 @@ const payInfo = ref<Record<string, any> | null>(null);
 const createError = ref('');
 const count = ref(0);
 const remainSeconds = ref(100);
+const qrDataUrl = ref('');
 
 let pollTimer: number | null = null;
 let countTimer: number | null = null;
@@ -146,6 +154,34 @@ const remainText = computed(() => {
   const seconds = remainSeconds.value % 60;
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 });
+
+/** 用 qrcode 包把渠道返回的 codeUrl 渲染为本地 dataURL（原版 wechat.vue 同口径）。 */
+async function generateQrCode() {
+  qrDataUrl.value = '';
+  const content = qrImageUrl.value;
+  if (!content || isImageUrl.value) return;
+  try {
+    const dataUrl = await toDataURL(content, {
+      margin: 1,
+      width: 300,
+      errorCorrectionLevel: 'M',
+    });
+    qrDataUrl.value = String(dataUrl ?? '');
+  } catch (err) {
+    qrDataUrl.value = '';
+  }
+}
+
+async function copyPayUrl() {
+  const url = qrImageUrl.value || payRedirectUrl.value;
+  if (!url) return;
+  try {
+    await navigator.clipboard.writeText(url);
+    ElMessage.success('支付链接已复制');
+  } catch {
+    ElMessage.warning('复制失败，请手动选择链接复制');
+  }
+}
 
 function openPayUrl(url: string) {
   if (!url) return;
@@ -198,10 +234,12 @@ async function createPayment() {
     if (!payInfo.value && !result?.orderId) {
       createError.value = '支付渠道未返回支付参数';
     }
+    await generateQrCode();
   } catch (err: any) {
     // 真实错误：渠道未迁移/未配置时后端返回明确业务错误
     createError.value = err?.message || '创建支付单失败';
     payInfo.value = null;
+    qrDataUrl.value = '';
   } finally {
     creating.value = false;
   }
@@ -327,6 +365,17 @@ onBeforeUnmount(stopTimers);
     }
 
     .qr-img { width: 100%; height: 100%; object-fit: contain; }
+    .qr-fallback {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      color: #999;
+      font-size: 12px;
+      padding: 0 20px;
+      text-align: center;
+      .qr-fallback-icon { font-size: 36px; color: #ccc; }
+    }
     .qr-tip { color: #666; font-size: 14px; line-height: 1.8; }
     .qr-link { color: #999; font-size: 12px; word-break: break-all; }
     .redirect-box { display: flex; flex-direction: column; gap: 12px; color: #666; font-size: 14px; }

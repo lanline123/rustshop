@@ -391,6 +391,19 @@
             <el-radio :value="2">增值税专用发票</el-radio>
           </el-radio-group>
         </el-form-item>
+        <el-alert
+          v-if="invoiceForm.invoiceType === 2 && !invoiceQualificationApproved"
+          type="warning"
+          :closable="false"
+          show-icon
+          class="invoice-qualification-alert"
+        >
+          <template #title>
+            增值税专用发票需先完成
+            <router-link to="/member/invoice" class="font-color">增票资质认证</router-link>
+            （当前状态：{{ invoiceQualificationStatus === null ? '未查询' : invoiceQualificationStatus === 1 ? '审核通过' : invoiceQualificationStatus === 2 ? '待审核' : invoiceQualificationStatus === 3 ? '审核未通过' : '未申请' }}）
+          </template>
+        </el-alert>
         <template v-if="invoiceForm.invoiceType">
           <el-form-item label="抬头类型">
             <el-radio-group v-model="invoiceForm.titleType">
@@ -435,7 +448,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { InfoFilled } from '@element-plus/icons-vue';
-import { addressApi, orderApi } from '@/api';
+import { addressApi, invoiceQualificationApi, orderApi } from '@/api';
 import { pageItems } from '@/api/types';
 import type {
   AddressVO,
@@ -515,6 +528,9 @@ const invoiceForm = reactive({
   email: '',
   mobile: '',
 });
+/** 增票资质（与 `/member/invoice` 页联动）：0 未申请 / 1 通过 / 2 待审 / 3 未通过。 */
+const invoiceQualificationStatus = ref<number | null>(null);
+const invoiceQualificationApproved = computed(() => Number(invoiceQualificationStatus.value) === 1);
 
 const selectedAddress = computed(() =>
   addressList.value.find((addr) => addr.addressId === formState.addressId),
@@ -794,12 +810,43 @@ async function fetchInvoice() {
 }
 
 function saveInvoice() {
+  if (invoiceForm.invoiceType === 2 && !invoiceQualificationApproved.value) {
+    ElMessage.warning('增值税专用发票需先完成增票资质认证，正在前往认证页面');
+    invoiceDialogVisible.value = false;
+    router.push('/member/invoice');
+    return;
+  }
   invoiceDialogVisible.value = false;
   updateOrderCheck();
 }
 
+/** 加载增票资质状态与资质信息（专票校验 + 自动带入企业抬头）。 */
+async function loadInvoiceQualification() {
+  try {
+    const [status, detail] = await Promise.all([
+      invoiceQualificationApi.status().catch(() => null),
+      invoiceQualificationApi.detail().catch(() => null),
+    ]);
+    invoiceQualificationStatus.value = status === null ? (detail?.status ?? null) : Number(status);
+    if (detail && invoiceForm.invoiceType === 2) {
+      invoiceForm.companyName = detail.companyName || invoiceForm.companyName;
+      invoiceForm.taxNo = detail.companyCode || invoiceForm.taxNo;
+      invoiceForm.titleType = 2;
+      invoiceForm.email = detail.email || invoiceForm.email;
+      invoiceForm.mobile = detail.mobile || invoiceForm.mobile;
+    }
+  } catch {
+    invoiceQualificationStatus.value = null;
+  }
+}
+
 async function onSubmit() {
   if (submitDisabled.value) return;
+  if (invoiceForm.invoiceType === 2 && !invoiceQualificationApproved.value) {
+    ElMessage.warning('增值税专用发票需先完成增票资质认证，正在前往认证页面');
+    router.push('/member/invoice');
+    return;
+  }
   submitLoading.value = true;
   try {
     const result = await orderApi.submit({
@@ -835,6 +882,7 @@ onMounted(async () => {
     await Promise.all([loadPaymentTypes(), loadShippingTypes()]);
     await getOrderCheck();
     await fetchInvoice();
+    await loadInvoiceQualification();
   } finally {
     loading.value = false;
   }

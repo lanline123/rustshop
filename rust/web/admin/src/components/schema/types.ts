@@ -114,6 +114,12 @@ export interface TableSchema {
   onCreate?: () => void;
   createLabel?: string;
   batchActions?: TableBatchAction[];
+  /** 工具栏自定义按钮（如订单导出）。 */
+  extraButtons?: Array<{
+    label: string;
+    type?: 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'default';
+    onClick: () => void;
+  }>;
   formSchema?: FormSchema;// 新增/编辑弹窗用的 Schema
   exportable?: boolean;   // 是否支持导出
 }

@@ -22,6 +22,9 @@ import type {
   CommentItem,
   CommentSubNum,
   DecorateIndex,
+  GrouponDetail,
+  GrouponImage,
+  GrouponItem,
   HistoryProduct,
   LoginVO,
   MemberCenter,
@@ -42,11 +45,17 @@ import type {
   ProductListParams,
   ProductVO,
   Region,
+  SeckillItem,
   ShippingTypeMap,
   SiteConfig,
   UnreadMessageCount,
+  UpdateInformationParam,
   UploadedPicture,
+  UserCompany,
+  UserCompanyPayload,
   UserCoupon,
+  UserInvoicePayload,
+  UserInvoiceQualification,
   UserMessage,
   UserSignInfo,
 } from './types';
@@ -565,6 +574,163 @@ export const aftersaleApi = {
   getRecord(params: { page?: number; size?: number; status?: number } = {}) {
     return request<PageResult<any>>({
       url: '/user/aftersales/getRecord',
+      method: 'get',
+      params,
+    });
+  },
+};
+
+// ————————————————————— 资料 / 账户安全 —————————————————————
+
+/** 个人资料、头像、账户安全（改密/换绑手机/换绑邮箱）接口。 */
+export const accountApi = {
+  /** `POST /api/user/user/updateInformation`：更新个人资料。 */
+  updateInformation(payload: UpdateInformationParam) {
+    return request<string>({
+      url: '/user/user/updateInformation',
+      method: 'post',
+      data: payload,
+    });
+  },
+  /** `POST /api/user/user/modifyAvatar`：修改头像（multipart `file`）。 */
+  modifyAvatar(file: File) {
+    const form = new FormData();
+    form.append('file', file);
+    return request<string>({
+      url: '/user/user/modifyAvatar',
+      method: 'post',
+      data: form,
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  /** `POST /api/user/user/sendMobileCodeByModifyPassword`：改密前发送手机验证码。 */
+  sendModifyPasswordCode() {
+    return request<string>({ url: '/user/user/sendMobileCodeByModifyPassword', method: 'post', data: {} });
+  },
+  /** `POST /api/user/user/checkModifyPasswordMobileCode`：校验验证码并修改密码。 */
+  checkModifyPassword(payload: { mobile?: string; code?: string; password?: string }) {
+    return request<string>({
+      url: '/user/user/checkModifyPasswordMobileCode',
+      method: 'post',
+      data: payload,
+    });
+  },
+  /** `POST /api/user/user/sendMobileCodeByMobileValidate`：验证当前手机号。 */
+  sendMobileValidateCode() {
+    return request<string>({ url: '/user/user/sendMobileCodeByMobileValidate', method: 'post', data: {} });
+  },
+  /** `POST /api/user/user/mobileValidate`：校验当前手机号验证码。 */
+  mobileValidate(payload: { mobile?: string; code?: string }) {
+    return request<string>({ url: '/user/user/mobileValidate', method: 'post', data: payload });
+  },
+  /** `POST /api/user/user/sendEmailCodeByEmailValidate`：验证当前邮箱。 */
+  sendEmailValidateCode() {
+    return request<string>({ url: '/user/user/sendEmailCodeByEmailValidate', method: 'post', data: {} });
+  },
+  /** `POST /api/user/user/emailValidateNew`：校验当前邮箱验证码。 */
+  emailValidateNew(payload: { email?: string; code?: string }) {
+    return request<string>({ url: '/user/user/emailValidateNew', method: 'post', data: payload });
+  },
+  /** `POST /api/user/user/sendMobileCodeByModifyMobile`：新手机号发送验证码。 */
+  sendModifyMobileCode(mobile: string) {
+    return request<string>({
+      url: '/user/user/sendMobileCodeByModifyMobile',
+      method: 'post',
+      data: { mobile },
+    });
+  },
+  /** `POST /api/user/user/sendEmailCodeByModifyEmail`：新邮箱发送验证码。 */
+  sendModifyEmailCode(email: string) {
+    return request<string>({
+      url: '/user/user/sendEmailCodeByModifyEmail',
+      method: 'post',
+      data: { email },
+    });
+  },
+  /** `POST /api/user/user/modifyMobile`：换绑手机号。 */
+  modifyMobile(payload: { code?: string; mobile?: string }) {
+    return request<string>({ url: '/user/user/modifyMobile', method: 'post', data: payload });
+  },
+  /** `POST /api/user/user/modifyEmail`：换绑邮箱。 */
+  modifyEmail(payload: { code?: string; email?: string }) {
+    return request<string>({ url: '/user/user/modifyEmail', method: 'post', data: payload });
+  },
+};
+
+// ————————————————————— 实名认证 / 增票资质 —————————————————————
+
+export const companyApi = {
+  /** `POST /api/user/company/apply`：提交实名认证申请。 */
+  apply(payload: UserCompanyPayload) {
+    return request<number>({ url: '/user/company/apply', method: 'post', data: payload });
+  },
+  /** `GET /api/user/company/detail`：当前实名认证详情。 */
+  detail() {
+    return request<UserCompany | null>({ url: '/user/company/detail', method: 'get' });
+  },
+  /** `GET /api/user/company/myApply`：我的实名认证申请记录。 */
+  myApply() {
+    return request<UserCompany[]>({ url: '/user/company/myApply', method: 'get' });
+  },
+};
+
+export const invoiceQualificationApi = {
+  /** `GET /api/user/invoice/getStatus`：增票资质审核状态（0 未申请/1 通过/2 待审/3 未通过）。 */
+  status() {
+    return request<number | null>({ url: '/user/invoice/getStatus', method: 'get' });
+  },
+  /** `GET /api/user/invoice/detail`：增票资质详情。 */
+  detail() {
+    return request<UserInvoiceQualification | null>({ url: '/user/invoice/detail', method: 'get' });
+  },
+  /** `POST /api/user/invoice/create`：创建增票资质。 */
+  create(payload: UserInvoicePayload) {
+    return request<number>({ url: '/user/invoice/create', method: 'post', data: payload });
+  },
+  /** `POST /api/user/invoice/update`：修改增票资质。 */
+  update(payload: UserInvoicePayload) {
+    return request<void>({ url: '/user/invoice/update', method: 'post', data: payload });
+  },
+};
+
+// ————————————————————— 活动：秒杀 / 拼团 —————————————————————
+
+export const activityApi = {
+  /** `GET /api/home/home/getSeckill`：进行中的秒杀商品。 */
+  seckill(params: { page?: number; size?: number; unStarted?: number } = {}) {
+    return request<PageResult<SeckillItem>>({
+      url: '/home/home/getSeckill',
+      method: 'get',
+      params,
+    });
+  },
+  /** `GET /api/promotion/groupon/detail?grouponPromotionId=`：拼团活动详情。 */
+  grouponDetail(grouponPromotionId: number) {
+    return request<GrouponDetail | null>({
+      url: '/promotion/groupon/detail',
+      method: 'get',
+      params: { grouponPromotionId },
+    });
+  },
+  /** `GET /api/promotion/groupon/imageList`：拼团活动轮播图。 */
+  grouponImages(params: { page?: number; size?: number } = {}) {
+    return request<PageResult<GrouponImage>>({
+      url: '/promotion/groupon/imageList',
+      method: 'get',
+      params,
+    });
+  },
+  /** `GET /api/promotion/groupon/itemList`：拼团活动商品。 */
+  grouponItems(params: {
+    grouponPromotionId?: number;
+    keyword?: string;
+    sortField?: string;
+    sortOrder?: string;
+    page?: number;
+    size?: number;
+  } = {}) {
+    return request<PageResult<GrouponItem>>({
+      url: '/promotion/groupon/itemList',
       method: 'get',
       params,
     });

@@ -53,6 +53,15 @@
           </el-button>
 
           <el-button
+            v-for="(btn, idx) in schema.extraButtons || []"
+            :key="`extra-${idx}`"
+            :type="btn.type || 'default'"
+            @click="btn.onClick()"
+          >
+            {{ btn.label }}
+          </el-button>
+
+          <el-button
             v-if="schema.exportable !== false"
             :icon="Download"
             @click="handleExportCsv"
