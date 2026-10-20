@@ -71,6 +71,7 @@
 //!     本实现的仓储方法 `ProxyShoppingProductRepository::find_attribute_prices`
 //!     直接**跳过**该行（按 0 计），不制造 panic。
 
+use std::str::FromStr;
 use std::sync::Arc;
 
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
@@ -467,7 +468,21 @@ impl ProxyShoppingProductService {
             return Ok(None);
         };
         let Some(shop_id) = q.shop_id.filter(|v| *v > 0) else {
-            return Ok(Some(Decimal::ZERO));
+            // Java 无门店时用自营门店配置经纬度；读不到配置则按 0 处理。
+            let pairs = self
+                .repos
+                .system
+                .config_basic
+                .find_by_codes(&["storeSelfOperatedLongitude", "storeSelfOperatedLatitude"])
+                .await?;
+            let map: std::collections::HashMap<String, String> = pairs.into_iter().collect();
+            let lng = map
+                .get("storeSelfOperatedLongitude")
+                .and_then(|s| Decimal::from_str(s.trim()).ok());
+            let lat = map
+                .get("storeSelfOperatedLatitude")
+                .and_then(|s| Decimal::from_str(s.trim()).ok());
+            return Ok(Some(haversine_meters(address.longitude, address.latitude, lng, lat)));
         };
         let Some(shop) = self.repos.identity.admin_user.find_shop(shop_id).await? else {
             return Ok(Some(Decimal::ZERO));

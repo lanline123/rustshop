@@ -1012,6 +1012,10 @@ impl ProductManageService {
                 }
             }
         }
+        // 门店商品下架时按商品不存在处理（避免把门店下架商品露出）
+        if product.product_status != 1 {
+            return Err(Error::biz(400, ERR_NOT_EXIST));
+        }
         let skus = skus;
         let gallery = self.repos.catalog.product_manage.find_gallery(product_id).await?;
         let videos = self.repos.catalog.product_manage.find_videos(product_id).await?;
