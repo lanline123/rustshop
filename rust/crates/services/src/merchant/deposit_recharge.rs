@@ -366,10 +366,8 @@ impl DepositRechargeService {
             };
             repo.insert_log_in_tx(&mut tx, &log).await?;
             updated.status = RECHARGE_CREDITED;
-            // Java 在此调用 `depositLifecycleService.restore(...)`（缴足即时对账：
-            // 清补缴缓冲/解除处罚/恢复下架商品）。该生命周期服务未迁移 → 跳过。
             tracing::info!(
-                "保证金充值单 {} 已入账，paid {}→{}；生命周期 restore 未迁移已跳过",
+                "保证金充值单 {} 已入账，paid {}→{}",
                 recharge.shop_deposit_recharge_id,
                 account.paid,
                 after_paid
@@ -385,6 +383,18 @@ impl DepositRechargeService {
         tx.commit()
             .await
             .map_err(|e| Error::Database(e.to_string()))?;
+
+        if updated.status == RECHARGE_CREDITED {
+            // 对齐 Java：充值审核通过入账后触发生命周期 restore，若已缴足则解除惩罚并恢复下架商品
+            let account_svc = crate::merchant::deposit_account::DepositAccountService::new(self.repos.clone());
+            if let Err(e) = account_svc.restore(recharge.owner_type, recharge.owner_id).await {
+                tracing::warn!(
+                    "保证金充值入账后触发 restore 异常(已忽略): owner_type={}, owner_id={}, {e}",
+                    recharge.owner_type,
+                    recharge.owner_id
+                );
+            }
+        }
         Ok(())
     }
 

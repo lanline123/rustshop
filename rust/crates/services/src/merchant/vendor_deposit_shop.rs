@@ -326,7 +326,7 @@ impl VendorDepositShopService {
     /// 2. `required_manual != null` → 该值（手动覆盖优先，不受激活门限约束）；
     /// 3. 无账户 或 `collect_activated != 1` → 0（首单收取语义）；
     /// 4. 否则规则匹配取最高。
-    async fn compute_required(&self, vendor_id: i32) -> Result<Decimal> {
+    pub async fn compute_required(&self, vendor_id: i32) -> Result<Decimal> {
         if !self.is_deposit_enabled().await? {
             return Ok(Decimal::ZERO);
         }

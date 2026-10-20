@@ -25,6 +25,7 @@
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
+use rust_decimal::Decimal;
 use tigshop_core::entities::ShopDepositRule;
 use tigshop_core::models::merchant::deposit_rule::{
     intersects, join_codes, parse_codes, time_overlap, DepositRuleDTO, DepositRuleListQuery,
@@ -136,7 +137,7 @@ impl DepositRuleService {
         };
         let id = self.repos.merchant.deposit_rule.insert(&rule).await?;
         self.save_categories(id, &category_ids).await?;
-        Self::log_lifecycle_not_migrated("create", id);
+        self.on_deposit_rule_change().await;
         Ok(())
     }
 
@@ -187,7 +188,7 @@ impl DepositRuleService {
         // 类目关联先删后插
         self.repos.merchant.deposit_rule.delete_categories(id).await?;
         self.save_categories(id, &category_ids).await?;
-        Self::log_lifecycle_not_migrated("update", id);
+        self.on_deposit_rule_change().await;
         Ok(())
     }
 
@@ -212,7 +213,7 @@ impl DepositRuleService {
             .deposit_rule
             .soft_delete(id, now)
             .await?;
-        Self::log_lifecycle_not_migrated("del", id);
+        self.on_deposit_rule_change().await;
         Ok(())
     }
 
@@ -238,7 +239,7 @@ impl DepositRuleService {
             .deposit_rule
             .update_status(rule.shop_deposit_rule_id, status, now)
             .await?;
-        Self::log_lifecycle_not_migrated("changeStatus", id);
+        self.on_deposit_rule_change().await;
         Ok(())
     }
 
@@ -306,10 +307,74 @@ impl DepositRuleService {
         Ok(())
     }
 
-    fn log_lifecycle_not_migrated(action: &str, rule_id: i32) {
-        tracing::warn!(
-            "deposit_rule {action}: 规则 {rule_id} 已落库；DepositLifecycleService#onDepositRuleChange 账户对账未迁移"
-        );
+    /// 规则变更后异步执行全量账户生命周期对账（对齐 Java DepositLifecycleServiceImpl#onDepositRuleChange）。
+    pub async fn on_deposit_rule_change(&self) {
+        let Ok(setting) = crate::merchant::deposit_setting::DepositSettingService::new(self.repos.clone()).detail().await else {
+            return;
+        };
+        if setting.deposit_enable != Some(1) {
+            return;
+        }
+
+        let Ok(accounts) = self.repos.merchant.deposit_account.list_all_accounts().await else {
+            return;
+        };
+
+        let now = tigshop_common::utils::now_seconds() as i32;
+        let buffer_days = setting.deposit_supplement_buffer_days.unwrap_or(7).max(1);
+        let shop_deposit_svc = crate::merchant::deposit_shop::DepositShopService::new(self.repos.clone());
+        let vendor_deposit_svc = crate::merchant::vendor_deposit_shop::VendorDepositShopService::new(self.repos.clone());
+        let account_svc = crate::merchant::deposit_account::DepositAccountService::new(self.repos.clone());
+
+        for account in accounts {
+            if account.required_manual.is_some() {
+                // 手动固定应缴，不随规则变动，跳过
+                continue;
+            }
+            let owner_type = account.owner_type;
+            let owner_id = account.owner_id;
+            if owner_id <= 0 {
+                continue;
+            }
+
+            let after = if owner_type == 1 {
+                shop_deposit_svc.compute_required(owner_id).await.unwrap_or(Decimal::ZERO)
+            } else if owner_type == 2 {
+                vendor_deposit_svc.compute_required(owner_id).await.unwrap_or(Decimal::ZERO)
+            } else {
+                continue;
+            };
+
+            let before = account.required_snapshot;
+            if after == before {
+                continue;
+            }
+
+            let supplement_due_time = if after > before && before > Decimal::ZERO {
+                Some(now + buffer_days * 86400)
+            } else {
+                None
+            };
+
+            if let Err(e) = self.repos.merchant.deposit_account.apply_rule_change_adjust(
+                account.shop_deposit_id,
+                owner_type,
+                owner_id,
+                before,
+                after,
+                supplement_due_time,
+                now,
+            ).await {
+                tracing::warn!("保证金规则调整对账账户更新失败: owner_type={owner_type}, owner_id={owner_id}, {e}");
+                continue;
+            }
+
+            // 若应缴下调且实缴已满足，触发生命周期 restore 解除处罚
+            if after <= before && account.paid >= after {
+                let _ = account_svc.restore(owner_type, owner_id).await;
+            }
+        }
+        tracing::info!("保证金规则变更全量账户对账完成");
     }
 }
 

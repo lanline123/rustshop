@@ -1,4 +1,4 @@
-﻿//! 店铺端保证金聚合服务（`merchant::deposit_shop`，5 个只读端点）。
+//! 店铺端保证金聚合服务（`merchant::deposit_shop`，5 个只读端点）。
 //!
 //! 对应原 Java `com.tigshop.service.deposit.impl.DepositShopServiceImpl`：
 //! `getOverview` / `logList` / `frozenDetailList` / `getWarning` / `getProtocol`。
@@ -255,7 +255,7 @@ impl DepositShopService {
 
     /// 应缴（Java `computeRequired`）：功能关闭 → 0；手动应缴优先；
     /// 无账户/未激活 → 0；否则规则匹配取最高。
-    async fn compute_required(&self, shop_id: i32) -> Result<Decimal> {
+    pub async fn compute_required(&self, shop_id: i32) -> Result<Decimal> {
         if !self.is_deposit_enabled().await? {
             return Ok(Decimal::ZERO);
         }

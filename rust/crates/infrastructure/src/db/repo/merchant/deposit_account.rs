@@ -129,6 +129,166 @@ impl DepositAccountRepository {
         Ok(res.rows_affected())
     }
 
+    /// 恢复保证金惩罚状态并将下架商品重新上架（Java DepositLifecycleServiceImpl#restore）。
+    pub async fn restore_account_penalty(
+        &self,
+        owner_type: i32,
+        owner_id: i32,
+        now: i32,
+    ) -> Result<u64> {
+        sqlx::query(
+            "UPDATE shop_deposit SET penalty_status = 0, collect_due_time = 0, supplement_due_time = 0, update_time = ? WHERE owner_type = ? AND owner_id = ?",
+        )
+        .bind(now)
+        .bind(owner_type)
+        .bind(owner_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+
+        let rows: Vec<(i32,)> = sqlx::query_as(
+            "SELECT product_id FROM shop_deposit_offshelf_log WHERE owner_type = ? AND owner_id = ? AND status = 1",
+        )
+        .bind(owner_type)
+        .bind(owner_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+
+        let mut restored_count = 0u64;
+        if !rows.is_empty() {
+            let product_ids: Vec<i32> = rows.into_iter().map(|(id,)| id).collect();
+            if owner_type == 1 {
+                for chunk in product_ids.chunks(100) {
+                    let placeholders = chunk.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+                    let sql = format!(
+                        "UPDATE product SET product_status = 1 WHERE shop_id = ? AND is_delete = 0 AND product_id IN ({})",
+                        placeholders
+                    );
+                    let mut q = sqlx::query(&sql).bind(owner_id);
+                    for id in chunk {
+                        q = q.bind(*id);
+                    }
+                    if let Ok(res) = q.execute(&self.pool).await {
+                        restored_count += res.rows_affected();
+                    }
+                }
+            } else {
+                for chunk in product_ids.chunks(100) {
+                    let placeholders = chunk.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+                    let sql = format!(
+                        "UPDATE vendor_product SET product_state = 1 WHERE is_del = 0 AND id IN ({})",
+                        placeholders
+                    );
+                    let mut q = sqlx::query(&sql);
+                    for id in chunk {
+                        q = q.bind(*id);
+                    }
+                    if let Ok(res) = q.execute(&self.pool).await {
+                        restored_count += res.rows_affected();
+                    }
+                }
+            }
+
+            let _ = sqlx::query(
+                "UPDATE shop_deposit_offshelf_log SET status = 2, restore_time = ? WHERE owner_type = ? AND owner_id = ? AND status = 1",
+            )
+            .bind(now)
+            .bind(owner_type)
+            .bind(owner_id)
+            .execute(&self.pool)
+            .await;
+        }
+
+        Ok(restored_count)
+    }
+
+    /// 记录惩罚下架日志并物理下架在售商品（Java DepositLifecycleServiceImpl#offShelfAllProducts）。
+    pub async fn record_and_off_shelf_products(
+        &self,
+        owner_type: i32,
+        owner_id: i32,
+        now: i32,
+    ) -> Result<u64> {
+        if owner_type == 1 {
+            let on_sale_products: Vec<(i32,)> = sqlx::query_as(
+                "SELECT product_id FROM product WHERE shop_id = ? AND product_status = 1 AND is_delete = 0",
+            )
+            .bind(owner_id)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+
+            if on_sale_products.is_empty() {
+                return Ok(0);
+            }
+
+            let logged: Vec<(i32,)> = sqlx::query_as(
+                "SELECT product_id FROM shop_deposit_offshelf_log WHERE owner_type = ? AND owner_id = ? AND status = 1",
+            )
+            .bind(owner_type)
+            .bind(owner_id)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+            let logged_set: std::collections::HashSet<i32> = logged.into_iter().map(|(id,)| id).collect();
+
+            for (pid,) in &on_sale_products {
+                if !logged_set.contains(pid) {
+                    let _ = sqlx::query(
+                        "INSERT INTO shop_deposit_offshelf_log (owner_type, owner_id, product_id, status, off_time, add_time) VALUES (?, ?, ?, 1, ?, ?)",
+                    )
+                    .bind(owner_type)
+                    .bind(owner_id)
+                    .bind(*pid)
+                    .bind(now)
+                    .bind(now)
+                    .execute(&self.pool)
+                    .await;
+                }
+            }
+
+            let res = sqlx::query("UPDATE product SET product_status = 0 WHERE shop_id = ? AND is_delete = 0")
+                .bind(owner_id)
+                .execute(&self.pool)
+                .await
+                .map_err(map_err)?;
+            Ok(res.rows_affected())
+        } else {
+            let on_sale_products: Vec<(i64,)> = sqlx::query_as(
+                "SELECT id FROM vendor_product WHERE vendor_id = ? AND product_state = 1 AND is_del = 0",
+            )
+            .bind(owner_id)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+
+            if on_sale_products.is_empty() {
+                return Ok(0);
+            }
+
+            for (vid,) in &on_sale_products {
+                let _ = sqlx::query(
+                    "INSERT INTO shop_deposit_offshelf_log (owner_type, owner_id, product_id, status, off_time, add_time) VALUES (?, ?, ?, 1, ?, ?)",
+                )
+                .bind(owner_type)
+                .bind(owner_id)
+                .bind(*vid as i32)
+                .bind(now)
+                .bind(now)
+                .execute(&self.pool)
+                .await;
+            }
+
+            let res = sqlx::query("UPDATE vendor_product SET product_state = 0 WHERE vendor_id = ? AND is_del = 0")
+                .bind(owner_id)
+                .execute(&self.pool)
+                .await
+                .map_err(map_err)?;
+            Ok(res.rows_affected())
+        }
+    }
+
     pub async fn find_by_owner(&self, owner_type: i32, owner_id: i32) -> Result<Option<AccountRow>> {
         sqlx::query_as::<_, AccountRow>(
             "SELECT shop_deposit_id, owner_type, owner_id, paid, required_manual, required_snapshot, penalty_status, add_time FROM shop_deposit WHERE owner_type = ? AND owner_id = ? LIMIT 1",
@@ -274,6 +434,55 @@ impl DepositAccountRepository {
         .execute(&self.pool)
         .await
         .map_err(map_err)?;
+        Ok(())
+    }
+
+    /// 规则变更对账：写入调整日志并更新账户应缴快照与补缴缓冲时间（Java DepositLifecycleServiceImpl#reconcileRequired）。
+    pub async fn apply_rule_change_adjust(
+        &self,
+        shop_deposit_id: i32,
+        owner_type: i32,
+        owner_id: i32,
+        before: Decimal,
+        after: Decimal,
+        supplement_due_time: Option<i32>,
+        now: i32,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO shop_deposit_adjust_log (owner_type, owner_id, before_required, after_required, source, admin_id, reason, add_time) VALUES (?, ?, ?, ?, 1, 0, '规则变更自动对账', ?)",
+        )
+        .bind(owner_type)
+        .bind(owner_id)
+        .bind(before)
+        .bind(after)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+
+        if let Some(due) = supplement_due_time {
+            sqlx::query(
+                "UPDATE shop_deposit SET required_snapshot = ?, supplement_due_time = ?, update_time = ? WHERE shop_deposit_id = ?",
+            )
+            .bind(after)
+            .bind(due)
+            .bind(now)
+            .bind(shop_deposit_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        } else {
+            sqlx::query(
+                "UPDATE shop_deposit SET required_snapshot = ?, update_time = ? WHERE shop_deposit_id = ?",
+            )
+            .bind(after)
+            .bind(now)
+            .bind(shop_deposit_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        }
+
         Ok(())
     }
 

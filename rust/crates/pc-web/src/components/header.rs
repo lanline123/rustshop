@@ -3,41 +3,53 @@ use leptos::prelude::*;
 #[component]
 pub fn TopBar() -> impl IntoView {
     view! {
-        <div class="top-bar">
-            <div class="container">
-                <div class="wrapper">
-                    <div class="region-select-warp acea-row row-middle">
-                        <span class="iconfont-pc icon-dizhi" style="font-size: 14px; margin-right: 4px; color: var(--general);"></span>
-                        <span style="font-size: 12px; color: #666;">"送至：北京 朝阳区"</span>
+        <div class="quick-top-bar" style="background: #f5f5f5; border-bottom: 1px solid #e5e5e5; height: 30px; line-height: 30px; font-size: 12px; color: #666; width: 100%; box-sizing: border-box; position: relative; z-index: 1000;">
+            <div class="container" style="width: 1190px; max-width: 1190px; min-width: 1190px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 30px; box-sizing: border-box;">
+                // 左侧: 配送区域选择 (送至: 北京 朝阳区)
+                <div class="region-select" style="display: flex; align-items: center; cursor: pointer; height: 30px;">
+                    <span class="iconfont-pc icon-dizhi" style="font-size: 14px; color: var(--general); margin-right: 4px;"></span>
+                    <span style="color: #666;">"送至："</span>
+                    <span style="color: #333; font-weight: 500; margin-left: 2px;">"北京 朝阳区"</span>
+                    <span class="iconfont-pc icon-xiajiantou" style="font-size: 9px; color: #999; margin-left: 4px;"></span>
+                </div>
+
+                // 右侧: 快捷导航与用户通道
+                <div class="quick-nav-right" style="display: flex; align-items: center; height: 30px;">
+                    // 登录 / 注册
+                    <div style="display: flex; align-items: center; padding: 0 10px;">
+                        <a href="/login" class="top-login-link" style="color: var(--general); font-weight: 500; text-decoration: none;">"你好，请登录"</a>
+                        <span style="width: 1px; height: 12px; background: #ddd; margin: 0 8px; display: inline-block;"></span>
+                        <a href="/login" class="top-register-link" style="color: #999; text-decoration: none;">"免费注册"</a>
                     </div>
-                    <div class="right acea-row row-middle">
-                        <div class="item">
-                            <div class="l-name">
-                                <a href="/login" class="top-bar-common-fontcolor">"你好，请登录"</a>
-                            </div>
-                            <div class="sline"></div>
-                            <div class="r-name">
-                                <a href="/login" class="top-bar-common-fontcolor">"免费注册"</a>
-                            </div>
-                        </div>
-                        <div class="item">
-                            <a class="item-a top-bar-common-fontcolor" href="/member">
-                                <span class="iconfont-pc icon-xiaoxi" style="margin-right: 4px;"></span>
-                                <span class="name">"站内消息"</span>
-                            </a>
-                        </div>
-                        <div class="item">
-                            <a class="item-a top-bar-common-fontcolor" href="/order/list">
-                                <span class="iconfont-pc icon-dingdan" style="margin-right: 4px;"></span>
-                                <span class="name">"我的订单"</span>
-                            </a>
-                        </div>
-                        <div class="item item-menu">
-                            <a class="flex align-center top-bar-common-fontcolor" href="#">
-                                <span class="name">"客户服务"</span>
-                                <span class="iconfont-pc icon-xiajiantou" style="font-size: 10px; margin-left: 4px;"></span>
-                            </a>
-                        </div>
+
+                    <span style="width: 1px; height: 12px; background: #e0e0e0; display: inline-block;"></span>
+
+                    // 站内消息
+                    <div style="display: flex; align-items: center; padding: 0 10px;">
+                        <a href="/member" class="top-link" style="color: #666; text-decoration: none; display: flex; align-items: center; gap: 4px;">
+                            <span class="iconfont-pc icon-xiaoxi" style="font-size: 13px; color: #999;"></span>
+                            <span>"站内消息"</span>
+                        </a>
+                    </div>
+
+                    <span style="width: 1px; height: 12px; background: #e0e0e0; display: inline-block;"></span>
+
+                    // 我的订单
+                    <div style="display: flex; align-items: center; padding: 0 10px;">
+                        <a href="/order/list" class="top-link" style="color: #666; text-decoration: none; display: flex; align-items: center; gap: 4px;">
+                            <span class="iconfont-pc icon-dingdan" style="font-size: 13px; color: #999;"></span>
+                            <span>"我的订单"</span>
+                        </a>
+                    </div>
+
+                    <span style="width: 1px; height: 12px; background: #e0e0e0; display: inline-block;"></span>
+
+                    // 客户服务
+                    <div style="display: flex; align-items: center; padding: 0 10px; cursor: pointer;">
+                        <a href="#" class="top-link" style="color: #666; text-decoration: none; display: flex; align-items: center; gap: 4px;">
+                            <span>"客户服务"</span>
+                            <span class="iconfont-pc icon-xiajiantou" style="font-size: 9px; color: #999;"></span>
+                        </a>
                     </div>
                 </div>
             </div>

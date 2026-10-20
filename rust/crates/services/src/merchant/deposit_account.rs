@@ -338,7 +338,7 @@ impl DepositAccountService {
             if pending <= rust_decimal::Decimal::ZERO {
                 if account.penalty_status != 0 {
                     self.repo()
-                        .update_penalty_status(account.shop_deposit_id, 0, now)
+                        .restore_account_penalty(account.owner_type, account.owner_id, now)
                         .await?;
                     restored += 1;
                 }
@@ -373,20 +373,20 @@ impl DepositAccountService {
                 .update_penalty_status(account.shop_deposit_id, action, now)
                 .await?;
             penalized += 1;
-            if action == 2 && account.owner_type == 1 {
+            if action == 2 {
                 match self
-                    .repos
-                    .merchant
-                    .shop_manage
-                    .off_shelf_shop_products(account.owner_id)
+                    .repo()
+                    .record_and_off_shelf_products(account.owner_type, account.owner_id, now)
                     .await
                 {
                     Ok(n) => tracing::info!(
-                        "保证金全店下架: owner_id={}, 商品 {n} 行",
+                        "保证金全店下架: owner_type={}, owner_id={}, 商品 {n} 行",
+                        account.owner_type,
                         account.owner_id
                     ),
                     Err(e) => tracing::warn!(
-                        "保证金全店下架失败: owner_id={}, {e}",
+                        "保证金全店下架失败: owner_type={}, owner_id={}, {e}",
+                        account.owner_type,
                         account.owner_id
                     ),
                 }
@@ -395,6 +395,28 @@ impl DepositAccountService {
         tracing::info!(
             "保证金到期扫描完成: 处罚 {penalized}, 恢复 {restored}"
         );
+        Ok(())
+    }
+
+    /// `restore`：实缴足额后清除惩罚状态与到期时间，并将被处罚下架的商品恢复上架（对齐 Java DepositLifecycleServiceImpl#restore）。
+    pub async fn restore(&self, owner_type: i32, owner_id: i32) -> Result<()> {
+        let account = self.repo().find_by_owner(owner_type, owner_id).await?;
+        let Some(account) = account else {
+            return Ok(());
+        };
+        let req = required(&account);
+        let pending = pending_amount(account.paid, req);
+        if pending <= Decimal::ZERO {
+            let now = tigshop_common::utils::now_seconds() as i32;
+            self.repo()
+                .restore_account_penalty(owner_type, owner_id, now)
+                .await?;
+            tracing::info!(
+                "保证金已足额，恢复处罚状态与下架商品: owner_type={}, owner_id={}",
+                owner_type,
+                owner_id
+            );
+        }
         Ok(())
     }
 

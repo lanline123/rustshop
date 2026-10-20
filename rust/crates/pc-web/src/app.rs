@@ -57,6 +57,12 @@ pub fn App() -> impl IntoView {
                         text-decoration: none;
                         color: inherit;
                     }}
+                    .quick-top-bar a:hover {{
+                        color: var(--general) !important;
+                    }}
+                    .quick-top-bar .region-select:hover span {{
+                        color: var(--general) !important;
+                    }}
                     "#, theme_css)}
                 </style>
             </head>
