@@ -27,6 +27,7 @@ use tigshop_core::models::content::wechat_video_account::{
     WechatVideoAccountUpdateDTO, WechatVideoAccountVO,
 };
 use tigshop_core::types::PageResult;
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_security::web::{ok, ApiResult};
 
 use crate::AdminState;
@@ -137,22 +138,12 @@ async fn delete(
     ok(())
 }
 
-fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
-    headers
-        .get(axum::http::HeaderName::from_bytes(name.as_bytes()).ok()?)
-        .and_then(|v| v.to_str().ok())
-        .map(ToString::to_string)
-}
-
-/// 当前店铺 ID（Java `HeaderUtils.getShopId()`）：`admin` → `None`；
-/// `shop` / `pos` → 解析 `x-shop-id`（缺失/非法 → `None`）；其它 → `None`。
+/// 当前店铺 ID（多租户：**身份只信任认证中间件**，忽略可伪造的 `x-shop-id`）。
+///
+/// 平台账号 → `None`（列表不过滤）；店铺账号 → `Some(本店)`（列表只查本店）。
 #[must_use]
-pub fn current_shop_id(headers: &HeaderMap) -> Option<i32> {
-    match header_str(headers, "x-admin-type").as_deref() {
-        Some("shop" | "pos") => header_str(headers, "x-shop-id")
-            .and_then(|v| v.trim().parse::<i32>().ok()),
-        _ => None,
-    }
+pub fn current_shop_id(_headers: &HeaderMap) -> Option<i32> {
+    TenantScope::current_list_filter()
 }
 
 #[cfg(test)]
@@ -209,21 +200,19 @@ mod tests {
         }
     }
 
-    #[test]
-    fn shop_scope_matches_java_header_utils() {
+    #[tokio::test]
+    async fn shop_scope_uses_trusted_identity() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::with_tenant_scope;
+        // 无 task-local = 平台语义 → None（不过滤）；伪造 shop 头无效
         assert_eq!(current_shop_id(&HeaderMap::new()), None);
         assert_eq!(
-            current_shop_id(&headers(&[("x-admin-type", "admin"), ("x-shop-id", "9")])),
+            current_shop_id(&headers(&[("x-admin-type", "shop"), ("x-shop-id", "9")])),
             None
         );
-        assert_eq!(
-            current_shop_id(&headers(&[("x-admin-type", "shop"), ("x-shop-id", "9")])),
-            Some(9)
-        );
-        assert_eq!(
-            current_shop_id(&headers(&[("x-admin-type", "pos"), ("x-shop-id", "3")])),
-            Some(3)
-        );
-        assert_eq!(current_shop_id(&headers(&[("x-admin-type", "shop")])), None);
+        // 店铺身份 → Some(本店)
+        let shop = TenantScope::for_shop(9);
+        let seen = with_tenant_scope(shop, async { current_shop_id(&headers(&[("x-shop-id", "3")])) })
+            .await;
+        assert_eq!(seen, Some(9));
     }
 }

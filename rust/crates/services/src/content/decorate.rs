@@ -26,7 +26,12 @@ use tigshop_core::models::{BatchDTO, OperateDTO, UpdateFieldDTO};
 use tigshop_core::types::{PageQuery, PageResult};
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::content::decorate::DecorateFilter;
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
+
+use crate::content::tenant_scope::{
+    ensure_media_access, ensure_media_write, media_write_shop_id,
+};
 
 /// 分享 token 有效期：7 天（对应 `DecorateShareConstants.EXPIRE_TIME`）。
 const SHARE_EXPIRE_SECONDS: i32 = 60 * 60 * 24 * 7;
@@ -105,6 +110,8 @@ impl DecorateService {
             // Java 找不到时返回空 VO
             return Ok(DecorateVO::default());
         };
+        // 多租户：平台装修页可读；店铺装修页仅本店可读
+        ensure_media_access(decorate.shop_id)?;
 
         let mut vo = DecorateVO::from(&decorate);
         // 草稿为空 → 回退已发布数据作为编辑基准
@@ -159,7 +166,8 @@ impl DecorateService {
             decorate_type: Some(decorate_type),
             page_type: dto.page_type.unwrap_or(1),
             is_home: dto.is_home,
-            shop_id: dto.shop_id.unwrap_or(DEFAULT_SHOP_ID),
+            // 多租户：店铺账号强制落本店；平台账号请求值优先，缺省平台（0）
+            shop_id: media_write_shop_id(dto.shop_id)?,
             status: dto.status,
             update_time: Some(now_seconds() as i32),
             locale_id: dto.locale_id,
@@ -180,6 +188,8 @@ impl DecorateService {
             let Some(existing) = self.repos.content.decorate.find_by_id(id).await? else {
                 return Err(Error::NotFound("装修页面不存在".into()));
             };
+            // 多租户：仅本店装修页可改（平台装修页对店铺账号只读）
+            ensure_media_write(existing.shop_id)?;
             let mut d = existing;
             if dto.decorate_title.is_some() {
                 d.decorate_title = dto.decorate_title.clone();
@@ -200,7 +210,8 @@ impl DecorateService {
                 d.is_home = dto.is_home;
             }
             if dto.shop_id.is_some() {
-                d.shop_id = dto.shop_id.unwrap_or(d.shop_id);
+                // 多租户：请求值必须与身份一致（店铺账号跨店 → 403）
+                d.shop_id = media_write_shop_id(dto.shop_id)?;
             }
             if dto.status.is_some() {
                 d.status = dto.status;
@@ -229,6 +240,8 @@ impl DecorateService {
             .find_by_id(parent_id)
             .await?
             .ok_or_else(|| Error::NotFound("父级装修页面不存在".into()))?;
+        // 多租户：父页需属于本店（平台页对店铺账号只读）
+        ensure_media_write(parent.shop_id)?;
         let d = Decorate {
             parent_id: Some(parent_id),
             decorate_title: parent.decorate_title.clone(),
@@ -264,6 +277,10 @@ impl DecorateService {
         let id = dto
             .id
             .ok_or_else(|| Error::Validation("装修页面ID不能为空".into()))?;
+        // 多租户：删除前校验归属
+        if let Some(row) = self.repos.content.decorate.find_by_id(id).await? {
+            ensure_media_write(row.shop_id)?;
+        }
         self.repos.content.decorate.delete(id).await
     }
 
@@ -271,7 +288,15 @@ impl DecorateService {
     pub async fn batch(&self, dto: &BatchDTO) -> Result<bool> {
         let ids = dto.ids.clone().unwrap_or_default();
         match dto.r#type.as_deref() {
-            Some("del") => Ok(self.repos.content.decorate.delete_batch(&ids).await? > 0),
+            Some("del") => {
+                // 多租户：先整体校验归属（任一越权 → 403，不做部分删除）
+                for id in &ids {
+                    if let Some(row) = self.repos.content.decorate.find_by_id(*id).await? {
+                        ensure_media_write(row.shop_id)?;
+                    }
+                }
+                Ok(self.repos.content.decorate.delete_batch(&ids).await? > 0)
+            }
             _ => Err(Error::Validation("不支持的批量操作类型".into())),
         }
     }
@@ -281,6 +306,10 @@ impl DecorateService {
         let id = dto
             .id
             .ok_or_else(|| Error::Validation("装修页面ID不能为空".into()))?;
+        // 多租户：仅本店装修页可改
+        if let Some(row) = self.repos.content.decorate.find_by_id(id).await? {
+            ensure_media_write(row.shop_id)?;
+        }
         let field = dto.field.clone().unwrap_or_default();
         let val = dto.val.clone().unwrap_or_default();
         self.repos.content.decorate.update_field(id, &field, &val).await
@@ -296,11 +325,14 @@ impl DecorateService {
         let Some(source) = self.repos.content.decorate.find_by_id(id).await? else {
             return Ok(false);
         };
+        // 多租户：允许复制可读页面；新页面落本店（平台账号保留来源店铺）
+        ensure_media_access(source.shop_id)?;
         let title = self.generate_copy_title(&source).await?;
         let d = Decorate {
             decorate_id: 0,
             decorate_title: Some(title),
             is_home: Some(0),
+            shop_id: media_write_shop_id(Some(source.shop_id))?,
             update_time: Some(now_seconds() as i32),
             ..source.clone()
         };
@@ -315,6 +347,8 @@ impl DecorateService {
         let Some(mut d) = self.repos.content.decorate.find_by_id(id).await? else {
             return Ok(false);
         };
+        // 多租户：仅本店装修页可设首页
+        ensure_media_write(d.shop_id)?;
         self.repos.content.decorate
             .clear_home_flags(d.decorate_type, page_type, Some(d.shop_id), id)
             .await?;
@@ -1185,8 +1219,8 @@ impl DecorateService {
     /// 列表过滤条件组装。
     fn build_filter(q: &DecorateListQuery) -> DecorateFilter {
         DecorateFilter {
-            // JWT 不携带店铺上下文，管理端默认不过滤店铺（单店铺等价全量）
-            shop_id: None,
+            // 多租户：店铺账号强制本店（含平台装修页）；平台账号不过滤
+            shop_id: TenantScope::current_list_filter(),
             keyword: q.keyword.clone(),
             decorate_types: q.decorate_types(),
             page_types: q.page_types(),

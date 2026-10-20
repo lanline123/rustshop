@@ -1,4 +1,4 @@
-﻿//! 微信直播服务（`content/wechat_live`，14 条管理端接口）。
+//! 微信直播服务（`content/wechat_live`，14 条管理端接口）。
 //!
 //! 对应原 Java `com.tigshop.service.content.impl.WechatLiveServiceImpl`（1614 行）
 //! 与 `com.tigshop.adminapi.controller.content.WechatLiveController`。
@@ -50,7 +50,10 @@ use tigshop_core::models::content::wechat_live::{
 };
 use tigshop_core::types::PageResult;
 use tigshop_core::{Error, Result};
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
+
+use crate::content::tenant_scope::{ensure_media_access, ensure_media_write, media_write_shop_id};
 
 /// 平台店铺 ID（无 JWT shop_id 时按平台视角处理）。
 const PLATFORM_SHOP_ID: i32 = 0;
@@ -75,7 +78,7 @@ impl WechatLiveService {
             .repos
             .content
             .wechat_live
-            .paginate(q, &page)
+            .paginate(q, &page, TenantScope::current_list_filter())
             .await?;
         let mut list = Vec::with_capacity(rows.len());
         for row in &rows {
@@ -89,6 +92,8 @@ impl WechatLiveService {
         let Some(row) = self.repos.content.wechat_live.find_by_id(id).await? else {
             return Ok(None);
         };
+        // 多租户：平台直播间可读；店铺直播间仅本店可读
+        ensure_media_access(row.shop_id)?;
         Ok(Some(self.to_vo(&row).await?))
     }
 
@@ -106,6 +111,8 @@ impl WechatLiveService {
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::biz_msg("直播不存在"))?;
+        // 多租户：仅本店直播间可改（平台直播间对店铺账号只读）
+        ensure_media_write(w.shop_id)?;
 
         // 标题：Java 先应用 wechatLiveTitle，再应用 name（name 优先）
         if let Some(v) = dto.wechat_live_title.as_deref() {
@@ -201,7 +208,7 @@ impl WechatLiveService {
             wechat_live_title: name.to_string(),
             live_status: LIVE_STATUS_NOT_START,
             last_update_time: now,
-            shop_id: PLATFORM_SHOP_ID,
+            shop_id: media_write_shop_id(None)?,
             create_time: Some(current_time_string()),
             room_id: 0,
             ..fill_room_defaults(WechatLive::default())
@@ -231,9 +238,11 @@ impl WechatLiveService {
     /// `POST /adminapi/content/wechatLive/delete`：删除直播间（本地）。
     pub async fn delete(&self, id: i32) -> Result<()> {
         let exists = self.repos.content.wechat_live.find_by_id(id).await?;
-        if exists.is_none() {
+        let Some(row) = exists else {
             return Err(Error::biz_msg("直播不存在"));
-        }
+        };
+        // 多租户：仅本店直播间可删（平台直播间对店铺账号只读）
+        ensure_media_write(row.shop_id)?;
         self.repos.content.wechat_live.delete(id).await?;
         Ok(())
     }

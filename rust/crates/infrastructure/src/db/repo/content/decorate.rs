@@ -173,7 +173,13 @@ impl DecorateRepository {
         let mut params: Vec<Bind> = Vec::new();
 
         if let Some(shop_id) = f.shop_id {
-            push_cond(&mut wh, &mut params, "shop_id = ?", &[Bind::I(shop_id)]);
+            // 平台素材规则：店铺账号可见 `shop_id = 0`（平台装修页）+ 本店
+            push_cond(
+                &mut wh,
+                &mut params,
+                "(shop_id = 0 OR shop_id = ?)",
+                &[Bind::I(shop_id)],
+            );
         }
         if let Some(kw) = f.keyword.as_ref().filter(|k| !k.trim().is_empty()) {
             push_cond(

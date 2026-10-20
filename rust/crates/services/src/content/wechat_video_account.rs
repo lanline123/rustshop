@@ -25,6 +25,8 @@ use tigshop_core::types::PageResult;
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::Repositories;
 
+use crate::content::tenant_scope::{ensure_media_access, ensure_media_write, media_write_shop_id};
+
 /// 视频号账号服务。
 pub struct WechatVideoAccountService {
     repos: Arc<Repositories>,
@@ -71,6 +73,8 @@ impl WechatVideoAccountService {
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::biz_msg(MSG_NOT_FOUND))?;
+        // 多租户：平台账号可读全部；店铺账号读本店（平台素材 shop_id=0 可读）
+        ensure_media_access(row.shop_id)?;
         Ok(to_vo(&row))
     }
 
@@ -98,7 +102,7 @@ impl WechatVideoAccountService {
             finder_id,
             add_time: now,
             update_time: now,
-            shop_id: shop_scope.filter(|s| *s > 0).unwrap_or(0),
+            shop_id: media_write_shop_id(shop_scope)?,
         };
         let id = self.repo().insert(&row).await?;
         tracing::info!("新增视频号账号: id={id}");
@@ -118,10 +122,13 @@ impl WechatVideoAccountService {
     ) -> Result<()> {
         let id = dto.id.ok_or_else(|| Error::Validation(MSG_ID_REQUIRED.into()))?;
         let finder_id = validate_finder_id(dto.finder_id.as_deref()).map_err(Error::Validation)?;
-        self.repo()
+        let existing = self
+            .repo()
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::biz_msg(MSG_NOT_FOUND))?;
+        // 多租户：仅本店账号可改
+        ensure_media_write(existing.shop_id)?;
         if self
             .repo()
             .finder_exists(shop_scope, &finder_id, Some(id))
@@ -143,10 +150,13 @@ impl WechatVideoAccountService {
     /// - 账号不存在 → 业务错误「视频号账号不存在」
     pub async fn delete(&self, dto: &OperateDTO) -> Result<()> {
         let id = dto.id.ok_or_else(|| Error::Validation(MSG_ID_REQUIRED.into()))?;
-        self.repo()
+        let existing = self
+            .repo()
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::biz_msg(MSG_NOT_FOUND))?;
+        // 多租户：仅本店账号可删
+        ensure_media_write(existing.shop_id)?;
         self.repo().delete(id).await?;
         tracing::info!("删除视频号账号: id={id}");
         Ok(())

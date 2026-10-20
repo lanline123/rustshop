@@ -44,9 +44,15 @@ impl WechatLiveRepository {
         &self,
         q: &WechatLiveListQuery,
         page: &PageQuery,
+        shop_id: Option<i32>,
     ) -> Result<(u64, Vec<WechatLive>)> {
         let mut wh = String::from(" WHERE 1 = 1");
         let mut binds: Vec<String> = Vec::new();
+        if let Some(shop_id) = shop_id {
+            // 平台素材规则：店铺账号可见 `shop_id = 0`（平台直播间）+ 本店
+            wh.push_str(" AND (shop_id = 0 OR shop_id = ?)");
+            binds.push(shop_id.to_string());
+        }
         if let Some(kw) = q.keyword.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
             push_like(&mut wh, &mut binds, " AND wechat_live_title LIKE ?", &kw);
         }
