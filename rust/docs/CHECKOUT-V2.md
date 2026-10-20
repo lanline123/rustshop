@@ -61,3 +61,10 @@ E presale: saleMode=2 deposit=5.00 final=27.00 productAmount=32.00
 F order: id=10 total=227.00 online=227.00     # 落库 points_amount=1.00 / use_points=100 / coupon=10 / 积分扣减
 G order: id=11 total=39.00                     # 运费 4.00 随单落库
 ```
+
+
+## 限时折扣接入（2026-10-20）
+
+结算 `check` 与下单 `order` 在秒杀/拼团价基础上叠加 `time_discount`：
+取当前进行中活动的最低价（折扣率/立减/固定价），累计到
+`discountTimeDiscountAmount` 并计入应付与税费基数；下单落 `order_item.price`。

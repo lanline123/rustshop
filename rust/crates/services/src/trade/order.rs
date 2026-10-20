@@ -106,7 +106,7 @@ impl OrderService {
                 .get(&pid)
                 .and_then(|p| *p)
                 .unwrap_or(line.original_price);
-            let price = if let Some(g) = groupon_prices.get(&line.cart_id) {
+            let mut price = if let Some(g) = groupon_prices.get(&line.cart_id) {
                 g.price.min(base_price)
             } else {
                 seckill
@@ -116,6 +116,15 @@ impl OrderService {
                     .map(|p| p.min(base_price))
                     .unwrap_or(base_price)
             };
+            // 限时折扣：在秒杀/拼团价基础上取更低者
+            let time_service =
+                crate::marketing::time_discount::TimeDiscountService::new(self.repos.clone());
+            if let Some(time_price) = time_service
+                .current_discount_price(pid, line.sku_id, price)
+                .await?
+            {
+                price = time_price.min(price);
+            }
             line_prices.insert(line.cart_id, price);
         }
         crate::trade::check::apply_full_reductions(

@@ -257,6 +257,9 @@ impl CheckService {
         let mut store_seckill: BTreeMap<i32, Decimal> = BTreeMap::new();
         let mut groupon_total = Decimal::ZERO;
         let mut store_groupon: BTreeMap<i32, Decimal> = BTreeMap::new();
+        let mut time_discount_total = Decimal::ZERO;
+        let mut store_time: BTreeMap<i32, Decimal> = BTreeMap::new();
+        let time_discount_service = crate::marketing::time_discount::TimeDiscountService::new(self.repos.clone());
         for cart in &carts {
             let base_price = product_price(&products, cart);
             let sku = cart.sku_id.unwrap_or(0);
@@ -264,7 +267,7 @@ impl CheckService {
                 .get(&(cart.product_id, sku))
                 .or_else(|| seckill.get(&(cart.product_id, 0)));
             let groupon_item = groupon.get(&cart.cart_id);
-            let (price, is_groupon) = if let Some(g) = groupon_item {
+            let (mut price, is_groupon) = if let Some(g) = groupon_item {
                 (g.price.min(base_price), true)
             } else {
                 (
@@ -276,6 +279,19 @@ impl CheckService {
                 )
             };
             let qty = cart.quantity.max(1);
+            // 限时折扣：在秒杀/拼团价基础上取更低者（与 Java 活动价叠加口径）
+            let before_time_price = price;
+            if let Some(time_price) = time_discount_service
+                .current_discount_price(cart.product_id, cart.sku_id, price)
+                .await?
+            {
+                price = time_price.min(price);
+            }
+            let time_saved = (before_time_price - price).max(Decimal::ZERO) * Decimal::from(qty);
+            if time_saved > Decimal::ZERO {
+                time_discount_total += time_saved;
+                *store_time.entry(cart.shop_id).or_default() += time_saved;
+            }
             let subtotal = price * Decimal::from(qty);
             let discount = (base_price - price).max(Decimal::ZERO) * Decimal::from(qty);
             if is_groupon {
@@ -383,7 +399,13 @@ impl CheckService {
 
         // —— 地区税率计算（Java OrderCheckServiceImpl#resolveOrderTaxRate）——
         let (tax_rate, _) = resolve_tax_rate(&self.repos, &region_ids).await;
-        let taxable_base = (product_amount - coupons.total - seckill_total - groupon_total - full_reduce_total).max(Decimal::ZERO);
+        let taxable_base = (product_amount
+            - coupons.total
+            - seckill_total
+            - groupon_total
+            - full_reduce_total
+            - time_discount_total)
+        .max(Decimal::ZERO);
         let tax_rate_amount = calc_tax_amount(taxable_base, tax_rate);
 
         // —— 应付 / 余额 / 账期 ——
@@ -503,6 +525,7 @@ impl CheckService {
             let store_seckill_amount = store_seckill.get(shop_id).copied().unwrap_or_default();
             let store_groupon_amount = store_groupon.get(shop_id).copied().unwrap_or_default();
             let store_full_reduce = store_full_reduce.get(shop_id).copied().unwrap_or_default();
+            let store_time_amount = store_time.get(shop_id).copied().unwrap_or_default();
             cart_list.push(CheckCartByStoreVO {
                 shop_id: *shop_id,
                 shop_title: if *shop_id == 0 {
@@ -520,10 +543,12 @@ impl CheckService {
                     discount_seckill_amount: store_seckill_amount,
                     discount_product_promotion_amount: store_groupon_amount,
                     discount_discount_amount: store_full_reduce,
+                    discount_time_discount_amount: store_time_amount,
                     discounts: store_coupon_amount
                         + store_seckill_amount
                         + store_groupon_amount
-                        + store_full_reduce,
+                        + store_full_reduce
+                        + store_time_amount,
                     ..Default::default()
                 },
                 used_promotions: Vec::new(),
@@ -535,7 +560,11 @@ impl CheckService {
         let total = CheckTotalVO {
             product_amount,
             checked_count: total_quantity,
-            discounts: coupons.total + seckill_total + groupon_total + full_reduce_total,
+            discounts: coupons.total
+                + seckill_total
+                + groupon_total
+                + full_reduce_total
+                + time_discount_total,
             discount_after: Some((product_amount - coupons.total).max(Decimal::ZERO).to_string()),
             total_count: total_quantity,
             discount_coupon_amount: coupons.total,
@@ -543,7 +572,8 @@ impl CheckService {
             discount_seckill_amount: seckill_total,
             discount_product_promotion_amount: groupon_total,
             discount_discount_amount: full_reduce_total,
-            discount_amount: seckill_total + groupon_total + full_reduce_total,
+            discount_time_discount_amount: time_discount_total,
+            discount_amount: seckill_total + groupon_total + full_reduce_total + time_discount_total,
             shipping_fee: shipping.total,
             store_shipping_fee: shipping.per_store,
             total_amount,
