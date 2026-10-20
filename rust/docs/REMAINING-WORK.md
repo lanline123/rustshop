@@ -48,6 +48,7 @@
 | 礼品卡平台店铺名/logo 读取 `shopName`/`shopLogo` | ✅ | `03b30ed2` |
 | H5 默认导航模板兜底 | ✅ 已有 | `DEFAULT_NAV_H5_DECORATE_DATA` |
 | SMTP 邮件（163 SSL/465） | ✅ 已实测 | 配置入库；Rust `sendTestEmail` 返回成功 |
+| 火山翻译 / SEO 标识生成 | ✅ 已实测 | 充值后 `TranslateText` 与 Rust SEO 接口返回 `test-product` |
 
 ---
 
@@ -106,21 +107,15 @@
 - 回调命中后能创建订单、幂等、失败可重试；
 - 不回退到「未迁移」错误。
 
-### 2.3 火山引擎翻译恢复（SEO）
+### 2.3 火山引擎翻译（SEO）✅
 
-**现状**：
+已充值并实测通过：
 
-- Rust SigV4 客户端已实现；
-- 旧 AK 签名正确，但账户返回 `account status abnormal: overdue(-403)`；
-- 新提供的 AK 返回 `InvalidAccessKey`；
-- `translateToSeoIdentification` / 批量分类/商品 SEO 代码已完成，但无法真实翻译。
+- 有效 AK/SK 调用 `TranslateText` 返回 `test product`；
+- Rust `translateToSeoIdentification` 返回 `test-product`；
+- 批量分类/商品 SEO 代码已就绪（732 个分类 / 406 个商品待生成，执行前评估翻译费用）。
 
-**完成标准**：
-
-- 提供有效、已开通翻译服务的火山 AK/SK；
-- 单条翻译返回英文；
-- 批量分类/商品 SEO 标识能回写；
-- 目标语言默认 `en`。
+> 另一组 AK 仍返回 `InvalidAccessKey`，以当前 `config` 表中可用的一组为准。
 
 ### 2.4 微信支付（Rust 在线支付/退款）
 
@@ -225,7 +220,7 @@
 | 小程序/直播 | miniProgramAppId / miniProgramSecret / 直播权限 | 缺失 |
 | 微信支付 | mchid / APIv2 key / APIv3 key / 商户证书 / 微信支付公钥 | 证书已有；公钥缺失 |
 | 阿里云 OSS | AK/SK / bucket / endpoint | ✅ 已验证 |
-| 火山翻译 | AccessKey / SecretKey / 已开通翻译服务 | ❌ 一个无效、一个欠费 |
+| 火山翻译 | AccessKey / SecretKey / 已开通翻译服务 | ✅ 已验证 |
 | SMTP | 163 邮箱用户名 / 授权码 / 发件人 | ✅ 已验证 |
 | 快递鸟 | EBusinessID / API Key / IP 白名单 | ❌ 接口拒绝 |
 | ES | URL / 账号密码 / 索引名 / 分词器 | 缺失 |
@@ -268,10 +263,9 @@ python ../tools/check_frontend.py contract --strict
 2. **补前端平台骨架与 P0 域**；
 3. **拿小程序凭据 + IP 白名单**，完成微信直播/公众号真实联调；
 4. **拿微信支付公钥**，实现 Rust 在线支付/退款/回调；
-5. **拿有效火山 AK**，验证 SEO 翻译；
-6. **快递鸟凭据修正**；
-7. **ES 全量同步**；
-8. 最后做 Docker/MySQL E2E、CI、文档清理。
+5. **快递鸟凭据修正**；
+6. **ES 全量同步**；
+7. 最后做 Docker/MySQL E2E、CI、文档清理。
 
 ---
 
