@@ -59,6 +59,7 @@ use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::marketing::groupon_promotion::{
     AdminPromotionListFilter, ClientPromotionListFilter, GrouponItemListFilter, ProductRow,
 };
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 /// 「商城自营」虚拟店铺（Java `Shop.builder().shopId(0).shopTitle("商城自营")`）。
@@ -88,7 +89,9 @@ impl GrouponPromotionService {
         shop_id: Option<i32>,
     ) -> Result<()> {
         validate_create_param(param)?;
-        let mutation = self.build_promotion(param, shop_id)?;
+        // 多租户：店铺账号强制本店；平台账号可指定/落 0
+        let shop_id = TenantScope::current().write_shop_id(shop_id)?;
+        let mutation = self.build_promotion(param, Some(shop_id))?;
         let repo = self.repo();
         let mut tx = repo.begin().await?;
         let promotion_id = repo.insert_promotion_in_tx(&mut tx, &mutation).await?;
@@ -118,6 +121,8 @@ impl GrouponPromotionService {
             .find_promotion(id)
             .await?
             .ok_or_else(|| Error::biz_msg(MSG_UNKNOWN_PROMOTION))?;
+        // 多租户：更新前校验归属
+        TenantScope::current_ensure_access(db.shop_id.unwrap_or(0))?;
         let mutation = self.build_promotion_from(&param.base, db.shop_id)?;
 
         // 过期活动重开：校验商品是否仍在其它进行中拼团
@@ -153,6 +158,8 @@ impl GrouponPromotionService {
             .find_promotion(id)
             .await?
             .ok_or_else(|| Error::biz_msg(MSG_UNKNOWN_PROMOTION))?;
+        // 多租户：结束活动前校验归属
+        TenantScope::current_ensure_access(db.shop_id.unwrap_or(0))?;
         let now = now_i64();
         let mut tx = repo.begin().await?;
         repo.update_promotion_end_time(id, now).await?;
@@ -177,6 +184,8 @@ impl GrouponPromotionService {
             .find_promotion(id)
             .await?
             .ok_or_else(|| Error::biz_msg(MSG_UNKNOWN_PROMOTION))?;
+        // 多租户：删除前校验归属
+        TenantScope::current_ensure_access(db.shop_id.unwrap_or(0))?;
         if now_millis() <= db.end_time {
             return Err(Error::biz_msg(MSG_NOT_ENDED_CANNOT_DELETE));
         }
@@ -198,6 +207,8 @@ impl GrouponPromotionService {
             .find_promotion(id)
             .await?
             .ok_or_else(|| Error::biz_msg(MSG_UNKNOWN_PROMOTION))?;
+        // 多租户：详情归属校验
+        TenantScope::current_ensure_access(db.shop_id.unwrap_or(0))?;
         let mut vo = GrouponPromotionDetailVO {
             groupon_promotion_id: db.groupon_promotion_id,
             name: db.name.clone(),
@@ -261,7 +272,8 @@ impl GrouponPromotionService {
             product_name: q.product_name.clone(),
             product_sn: q.product_sn.clone(),
             // Java `queryData()`：shopId 缺省取请求头
-            shop_id: q.shop_id.or(header_shop_id),
+            // 多租户：店铺账号强制本店；平台账号可按请求店铺过滤
+        shop_id: TenantScope::current_list_filter().or(q.shop_id.or(header_shop_id)),
             status: q.status,
             search_status_time: now,
             start_time: q.start_time.as_deref().and_then(parse_datetime),
@@ -1011,9 +1023,38 @@ fn min_detail_price(details: &[&tigshop_core::entities::GrouponPromotionDetail])
         .min()
 }
 
+/// 列表店铺过滤：店铺账号强制本店；平台账号可按请求值过滤。
+fn scoped_list_shop_id(requested: Option<i32>) -> Option<i32> {
+    TenantScope::current_list_filter().or(requested.filter(|id| *id > 0))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn tenant_scope_scopes_list_and_blocks_cross_shop_groupon() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::{
+            with_tenant_scope, TenantScope,
+        };
+        let shop = TenantScope::for_shop(8);
+        let (filter, write_shop, blocked) = with_tenant_scope(shop, async {
+            (
+                scoped_list_shop_id(Some(9)),
+                TenantScope::current().write_shop_id(None).unwrap_or(-1),
+                TenantScope::current_ensure_access(9).is_err(),
+            )
+        })
+        .await;
+        assert_eq!(filter, Some(8));
+        assert_eq!(write_shop, 8);
+        assert!(blocked);
+        let filter = with_tenant_scope(TenantScope::platform(), async {
+            scoped_list_shop_id(Some(9))
+        })
+        .await;
+        assert_eq!(filter, Some(9));
+    }
 
     #[test]
     fn marks_helper_matches_java_list_tostring() {
