@@ -39,33 +39,13 @@
 //! 单表 `shop`（`shop_type = 3`，按距离升序）分页 + `region` 表取名，
 //! 全部字段均在 schema 中真实存在。
 //!
-//! ## 3. **未迁移**：`getOrderCheckData`（`index` / `update` / `updateCoupon` /
-//!    `changePrice` / `changePriceShow` 五个接口的公共依赖）
+//! ## 3. 结算页数据：**已实现**
 //!
-//! `OrderCheckServiceImpl#getOrderCheckData`（`OrderCheckServiceImpl.java:372-756`，
-//! 约 385 行）依赖下列**尚未迁移**的服务/能力，无法在不伪造业务规则的前提下补齐：
-//!
-//! - `CartService#getCartListByStore` / `#buildCartPromotion` —— 购物车按店聚合
-//!   与**促销引擎**（满减送、限时折扣、秒杀、拼团、兑换、赠品…）
-//! - `UserCouponService#getUserCouponByCouponId` —— 用户优惠券解析与默认券选择
-//! - `ProductService#getDeliveryOption` —— 按配送方式/地址/经纬度算可用配送
-//! - `GiftCardGroups`（礼品卡库存与有效期校验）
-//! - `ShippingTplInfoService#verifyUserAddress` —— 运费模板区域校验
-//! - `LotteryRecordService`（抽奖记录校验）
-//! - `UserService#checkUserCompanyAuth`（B2B 企业认证校验）
-//! - `tigshopProperties.getIsO2o()`（O2O 总开关）
-//! - 金额汇总：积分/余额/账期/礼品卡抵扣、抹分抹角、店铺运费、税费、
-//!   改价差额（`OrderCheckVO.Total` 共 30+ 金额字段）
-//!
-//! `OrderCheckVO` 本身也是「结算页」整页契约（370 行 / 20+ 嵌套类）。
-//! **本实现不伪造该 VO，也不返回部分填充的结算结果**（那会让前端把 0 元
-//! 当成真实应付金额展示，比报错危险得多）。相关 handler 在**完整执行完
-//! 控制器自身的全部校验与赋值**（与 Java 同序）之后，返回明确的业务错误
-//! [`MSG_ORDER_CHECK_UNMIGRATED`]。
-//!
-//! 因此这五个接口当前的可观察行为是：
-//! - 入参校验失败（未选用户 / 减价额大于应付额）→ 与 Java **完全一致**的错误；
-//! - 校验通过 → 明确报「结算接口未迁移」，而不是返回错误金额。
+//! `index` / `update` / `updateCoupon` / `changePrice` / `changePriceShow`
+//! 完成控制器校验后委托 `trade::check::CheckService` 的
+//! `order_check_index/update/update_coupon`，由 `build_check` 装配：
+//! 购物车按店聚合、地址/配送方式、优惠券、积分/余额、运费、金额汇总等。
+//! 与 Java 促销引擎的差异记录在 `trade::check` 模块头。
 //!
 //! ## 4. `OrderCheckService#submit`：**已实现**
 //!
@@ -74,12 +54,6 @@
 //! 复用 `trade::order::OrderService::create` 完成下单，并回写
 //! `order_source/pos_user_id`、改价差额和管理操作日志。
 //! 拆单/库存/优惠券/积分余额/支付单等由既有下单服务负责。
-//!
-//! ## 5. `getOrderCheckData` 仍未迁移
-//!
-//! `index` / `update` / `updateCoupon` / `changePrice` / `changePriceShow`
-//! 依赖的整页结算 VO 与促销引擎仍未迁移，校验通过后返回明确的
-//! [`MSG_ORDER_CHECK_UNMIGRATED`]；带改价/优惠券的预校验无法完整返回。
 //!
 //! # 与 Java 的其它差异
 //!
@@ -144,25 +118,8 @@ pub const MSG_SHOP_NOT_FOUND: &str = "没有此门店";
 /// Java `GlobalException(String)` 的默认 code（`HttpStatus.SERVICE_DATA_ERROR`）。
 pub const SERVICE_DATA_ERROR: i32 = 1001;
 
-/// 「结算数据」接口未迁移的明确错误文案。
-///
-/// 刻意把**缺失的依赖**写进文案里，避免前端/运维把「未迁移」误判成
-/// 「购物车为空」或「金额为 0」。
-pub const MSG_ORDER_CHECK_UNMIGRATED: &str =
-    "代客下单结算接口尚未迁移：依赖 OrderCheckServiceImpl#getOrderCheckData（购物车按店聚合与促销引擎、优惠券、运费模板、积分/余额/账期/礼品卡抵扣、抹零与改价汇总均未迁移）";
-
-/// 「提交订单」未迁移的明确错误文案。
-pub const MSG_SUBMIT_UNMIGRATED: &str =
-    "代客下单提交订单尚未迁移：依赖 OrderCheckServiceImpl#submit（拆单、库存扣减、订单/地址/发票落库、优惠券与积分余额核销、支付单创建、消息通知均未迁移）";
-
 /// Java 在 `submit` 里写入的 `cashAmount`/`cashChangeAmount`（Java `:189-190`）。
 pub const CASH_AMOUNT_ZERO: Decimal = Decimal::ZERO;
-
-/// 结算数据接口未迁移时的统一错误（控制器赋值完成后抛出）。
-#[must_use]
-pub fn unmigrated_order_check() -> Error {
-    Error::biz(SERVICE_DATA_ERROR, MSG_ORDER_CHECK_UNMIGRATED)
-}
 
 // ————————————————————— config 键（Java `SettingsEnum`） —————————————————————
 
@@ -1545,24 +1502,14 @@ mod tests {
         assert_eq!(st.expect_pickup_time.as_deref(), Some("10:00"));
     }
 
-    // ————————————————— 错误文案 —————————————————
+    // ————————————————— 常量 —————————————————
 
     #[test]
-    fn unmigrated_messages_name_the_missing_dependency() {
-        assert!(MSG_ORDER_CHECK_UNMIGRATED.contains("getOrderCheckData"));
-        assert!(MSG_SUBMIT_UNMIGRATED.contains("submit"));
-        assert!(MSG_ORDER_CHECK_UNMIGRATED.contains("未迁移"));
-        assert!(MSG_SUBMIT_UNMIGRATED.contains("未迁移"));
+    fn proxy_order_constants_match_java() {
         assert_eq!(MSG_SHOP_NOT_FOUND, "没有此门店");
         assert_eq!(ORDER_SOURCE_PROXY_SHOPPING, "代客下单");
         assert_eq!(FLOW_TYPE_ADMIN_SHOPPING, 15);
         assert_eq!(CASH_AMOUNT_ZERO, Decimal::ZERO);
-        match unmigrated_order_check() {
-            Error::Biz { code, msg } => {
-                assert_eq!(code, SERVICE_DATA_ERROR);
-                assert_eq!(msg, MSG_ORDER_CHECK_UNMIGRATED);
-            }
-            other => panic!("应为业务错误，实际 {other:?}"),
-        }
+        assert_eq!(SERVICE_DATA_ERROR, 1001);
     }
 }
