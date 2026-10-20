@@ -26,6 +26,7 @@ pub mod wechat_client;
 pub mod wechat_live;
 pub mod wechat_live_goods;
 pub mod wechat_live_order_sync;
+pub mod volcengine_translate;
 pub mod wechat_live_sync_callback;
 pub mod wechat_menu;
 pub mod wechat_video_account;

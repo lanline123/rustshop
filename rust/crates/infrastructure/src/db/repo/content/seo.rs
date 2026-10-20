@@ -130,6 +130,54 @@ impl SeoRepository {
         .map_err(map_err)
     }
 
+    /// `seo_identification` 为 NULL 或空串且名称非空的分类（SEO 批量生成）。
+    pub async fn find_categories_missing_seo(&self) -> Result<Vec<(i32, String)>> {
+        sqlx::query_as(
+            "SELECT category_id, category_name FROM category \
+             WHERE (seo_identification IS NULL OR seo_identification = '') \
+               AND category_name IS NOT NULL AND category_name <> '' \
+             ORDER BY category_id ASC",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 回写分类 SEO 标识。
+    pub async fn update_category_seo(&self, category_id: i32, seo: &str) -> Result<u64> {
+        let res = sqlx::query("UPDATE category SET seo_identification = ? WHERE category_id = ?")
+            .bind(seo)
+            .bind(category_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(res.rows_affected())
+    }
+
+    /// `seo_identification` 为 NULL 或空串且名称非空的商品（SEO 批量生成）。
+    pub async fn find_products_missing_seo(&self) -> Result<Vec<(i32, String)>> {
+        sqlx::query_as(
+            "SELECT product_id, product_name FROM product \
+             WHERE (seo_identification IS NULL OR seo_identification = '') \
+               AND product_name IS NOT NULL AND product_name <> '' \
+             ORDER BY product_id ASC",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 回写商品 SEO 标识。
+    pub async fn update_product_seo(&self, product_id: i32, seo: &str) -> Result<u64> {
+        let res = sqlx::query("UPDATE product SET seo_identification = ? WHERE product_id = ?")
+            .bind(seo)
+            .bind(product_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(res.rows_affected())
+    }
+
     // ————————————————————— product —————————————————————
 
     /// 站点地图-商品（对应 Java `getSitemapProducts`：

@@ -55,8 +55,8 @@
 use std::sync::Arc;
 
 use tigshop_core::models::content::seo::{
-    article_last_update_millis, extract_seo_identification_from_link, non_blank, SeoArticleVO,
-    SeoBrandVO, SeoCategoryVO, SeoProductVO,
+    article_last_update_millis, extract_seo_identification_from_link, format_english_text,
+    non_blank, SeoArticleVO, SeoBrandVO, SeoCategoryVO, SeoProductVO,
 };
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::content::seo::SeoRepository;
@@ -139,11 +139,19 @@ impl SeoService {
         chinese_text: Option<&str>,
     ) -> Result<String> {
         let text = validate_chinese_text(chinese_text)?;
-        tracing::warn!(
-            text_len = text.chars().count(),
-            "translateToSeoIdentification 被调用，但翻译服务未迁移，返回明确业务错误"
-        );
-        Err(Error::biz(SERVICE_DATA_ERROR, TRANSLATION_UNMIGRATED_MSG))
+        let client = crate::content::volcengine_translate::VolcengineTranslateClient::from_repos(
+            &self.repos,
+        )
+        .await?;
+        let english = client.translate_text("en", text).await?;
+        let seo = format_english_text(&english);
+        if seo.is_empty() {
+            return Err(Error::biz(
+                SERVICE_DATA_ERROR,
+                "翻译结果格式化为空，无法生成 SEO 标识",
+            ));
+        }
+        Ok(seo)
     }
 
     // ——————————————————————————————————————————————
@@ -168,8 +176,26 @@ impl SeoService {
     /// # Errors
     /// 恒定返回 [`BATCH_SEO_UNMIGRATED_MSG`]（业务码 1001）。
     pub async fn batch_update_category_link(&self) -> Result<()> {
-        tracing::warn!("batchUpdateCategoryLink 被调用，但翻译服务未迁移，返回明确业务错误");
-        Err(Error::biz(SERVICE_DATA_ERROR, BATCH_SEO_UNMIGRATED_MSG))
+        let client = crate::content::volcengine_translate::VolcengineTranslateClient::from_repos(
+            &self.repos,
+        )
+        .await?;
+        let rows = self.repo().find_categories_missing_seo().await?;
+        let mut updated = 0u32;
+        for batch in rows.chunks(MAX_BATCH_TRANSLATE_SIZE) {
+            for (category_id, category_name) in batch {
+                let english = client.translate_text("en", category_name).await?;
+                let seo = format_english_text(&english);
+                if seo.is_empty() {
+                    continue;
+                }
+                if self.repo().update_category_seo(*category_id, &seo).await? > 0 {
+                    updated += 1;
+                }
+            }
+        }
+        tracing::info!("批量生成分类SEO标识完成，更新数量: {updated}");
+        Ok(())
     }
 
     // ——————————————————————————————————————————————
@@ -193,8 +219,26 @@ impl SeoService {
     /// # Errors
     /// 恒定返回 [`BATCH_SEO_UNMIGRATED_MSG`]（业务码 1001）。
     pub async fn batch_update_product_link(&self) -> Result<()> {
-        tracing::warn!("batchUpdateProductLink 被调用，但翻译服务未迁移，返回明确业务错误");
-        Err(Error::biz(SERVICE_DATA_ERROR, BATCH_SEO_UNMIGRATED_MSG))
+        let client = crate::content::volcengine_translate::VolcengineTranslateClient::from_repos(
+            &self.repos,
+        )
+        .await?;
+        let rows = self.repo().find_products_missing_seo().await?;
+        let mut updated = 0u32;
+        for batch in rows.chunks(MAX_BATCH_TRANSLATE_SIZE) {
+            for (product_id, product_name) in batch {
+                let english = client.translate_text("en", product_name).await?;
+                let seo = format_english_text(&english);
+                if seo.is_empty() {
+                    continue;
+                }
+                if self.repo().update_product_seo(*product_id, &seo).await? > 0 {
+                    updated += 1;
+                }
+            }
+        }
+        tracing::info!("批量生成商品SEO标识完成，更新数量: {updated}");
+        Ok(())
     }
 
     // ——————————————————————————————————————————————
