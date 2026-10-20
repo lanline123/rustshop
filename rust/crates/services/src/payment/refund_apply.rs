@@ -59,6 +59,16 @@ impl RefundApplyService {
     }
 
     /// 退款申请详情（含操作日志）。
+    /// 退款申请归属店铺（供管理端租户归属校验）。
+    pub async fn shop_id_of(&self, refund_id: i32) -> Result<i32> {
+        self.repos
+            .payment
+            .refund_apply
+            .find_shop_id(refund_id)
+            .await?
+            .ok_or_else(|| Error::NotFound("退款申请不存在".into()))
+    }
+
     pub async fn detail(&self, refund_id: i32) -> Result<RefundApplyDetailVO> {
         let r = self
             .repos.payment.refund_apply

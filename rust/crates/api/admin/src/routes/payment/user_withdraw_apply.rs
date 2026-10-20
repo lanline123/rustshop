@@ -15,6 +15,7 @@
 //! > 权限矩阵未迁移（Rust 只校验登录态）；`list` 返回项目 `PageResult`。
 
 use axum::{
+    extract::Extension,
     extract::{Query, State},
     routing::{get, post},
     Json, Router,
@@ -25,7 +26,7 @@ use tigshop_core::models::payment::user_withdraw_apply::{
     UserWithdrawApplyUpdateDTO, UserWithdrawApplyVO,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AuthUser};
 
 use crate::AdminState;
 
@@ -101,46 +102,90 @@ struct IdQuery {
 
 async fn list(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<UserWithdrawApplyListQuery>,
 ) -> ApiResult<PageResult<UserWithdrawApplyVO>> {
-    ok(state.payment.user_withdraw_apply.list(&q).await?)
+    ok(state
+        .payment
+        .user_withdraw_apply
+        .list(&q, auth.scoped_shop_id())
+        .await?)
 }
 
-async fn detail(State(state): State<AdminState>, Query(q): Query<IdQuery>) -> ApiResult<UserWithdrawApplyVO> {
-    ok(state.payment.user_withdraw_apply.detail(q.id).await?)
+async fn detail(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Query(q): Query<IdQuery>,
+) -> ApiResult<UserWithdrawApplyVO> {
+    ok(state
+        .payment
+        .user_withdraw_apply
+        .detail(q.id, auth.scoped_shop_id())
+        .await?)
 }
 
 async fn create(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<UserWithdrawApplyCreateDTO>,
 ) -> ApiResult<()> {
-    let _id = state.payment.user_withdraw_apply.create(&dto).await?;
+    let _id = state
+        .payment
+        .user_withdraw_apply
+        .create(&dto, auth.scoped_shop_id())
+        .await?;
     ok(())
 }
 
 async fn update(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<UserWithdrawApplyUpdateDTO>,
 ) -> ApiResult<()> {
-    state.payment.user_withdraw_apply.update(&dto).await?;
+    state
+        .payment
+        .user_withdraw_apply
+        .update(&dto, auth.scoped_shop_id())
+        .await?;
     ok(())
 }
 
-async fn del(State(state): State<AdminState>, Json(dto): Json<OperateDTO>) -> ApiResult<()> {
-    state.payment.user_withdraw_apply.delete(&dto).await?;
+async fn del(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(dto): Json<OperateDTO>,
+) -> ApiResult<()> {
+    state
+        .payment
+        .user_withdraw_apply
+        .delete(&dto, auth.scoped_shop_id())
+        .await?;
     ok(())
 }
 
 async fn update_field(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<UpdateFieldDTO>,
 ) -> ApiResult<()> {
-    state.payment.user_withdraw_apply.update_field(&dto).await?;
+    state
+        .payment
+        .user_withdraw_apply
+        .update_field(&dto, auth.scoped_shop_id())
+        .await?;
     ok(())
 }
 
-async fn batch(State(state): State<AdminState>, Json(dto): Json<BatchDTO>) -> ApiResult<()> {
-    state.payment.user_withdraw_apply.batch(&dto).await?;
+async fn batch(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(dto): Json<BatchDTO>,
+) -> ApiResult<()> {
+    state
+        .payment
+        .user_withdraw_apply
+        .batch(&dto, auth.scoped_shop_id())
+        .await?;
     ok(())
 }
 
@@ -193,5 +238,22 @@ mod tests {
         for (_, p, _) in ROUTE_TABLE.iter() {
             assert!(paths.iter().any(|(_, pp)| pp == p));
         }
+    }
+}
+#[cfg(test)]
+mod tenant_tests {
+    use super::*;
+
+    #[test]
+    fn shop_scope_forced_and_cross_shop_rejected() {
+        use tigshop_core::Error;
+        let shop = AuthUser::new(1, "s".into(), None, Some("shop".into()), Some(7));
+        assert_eq!(shop.scoped_shop_id(), Some(7));
+        assert!(matches!(
+            shop.resolve_shop_scope(Some(9)),
+            Err(Error::Forbidden(_))
+        ));
+        let admin = AuthUser::new(2, "a".into(), None, Some("admin".into()), Some(0));
+        assert_eq!(admin.scoped_shop_id(), None);
     }
 }

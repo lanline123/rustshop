@@ -26,7 +26,7 @@ use tigshop_core::models::payment::refund_apply::{
     RefundApplyListQuery, RefundApplyUpdateDTO, RefundApplyVO,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult, AuthUser};
+use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 
 use crate::AdminState;
 
@@ -89,18 +89,46 @@ struct IdQuery {
     id: i32,
 }
 
+/// 退款申请归属校验：店铺账号只能访问本店退款单（平台账号跳过）。
+async fn ensure_refund_access(
+    state: &AdminState,
+    auth: &AuthUser,
+    refund_id: i32,
+) -> Result<(), AppError> {
+    if auth.scoped_shop_id().is_some() {
+        state
+            .payment
+            .refund_apply
+            .shop_id_of(refund_id)
+            .await
+            .map_err(AppError)?;
+        let shop_id = state
+            .payment
+            .refund_apply
+            .shop_id_of(refund_id)
+            .await
+            .map_err(AppError)?;
+        auth.ensure_shop_access(shop_id).map_err(AppError)?;
+    }
+    Ok(())
+}
+
 async fn detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<RefundApplyDetailVO> {
+    ensure_refund_access(&state, &auth, q.id).await?;
     ok(state.payment.refund_apply.detail(q.id).await?)
 }
 
 /// `POST /adminapi/finance/refundApply/audit`：财务审核。
 async fn audit(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<RefundApplyAuditDTO>,
 ) -> ApiResult<&'static str> {
+    ensure_refund_access(&state, &auth, dto.refund_id).await?;
     state.payment.refund_apply.audit(&dto).await?;
     ok("审核完成")
 }
@@ -108,8 +136,10 @@ async fn audit(
 /// `POST /adminapi/finance/refundApply/offlineAudit`：确认线下转账。
 async fn offline_audit(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<OfflineAuditDTO>,
 ) -> ApiResult<&'static str> {
+    ensure_refund_access(&state, &auth, dto.refund_id).await?;
     state.payment.refund_apply.offline_audit(&dto).await?;
     ok("已确认线下转账")
 }
@@ -117,16 +147,33 @@ async fn offline_audit(
 /// `POST /adminapi/finance/refundApply/create`：创建退款申请。
 async fn create(
     State(state): State<AdminState>,
-    Json(dto): Json<RefundApplyCreateDTO>,
+    Extension(auth): Extension<AuthUser>,
+    Json(mut dto): Json<RefundApplyCreateDTO>,
 ) -> ApiResult<i32> {
+    dto.shop_id = Some(auth.require_shop_scope(dto.shop_id)?);
     ok(state.payment.refund_apply.create(&dto).await?)
 }
 
 /// `POST /adminapi/finance/refundApply/update`：更新申请（仅待处理）。
 async fn update(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<RefundApplyUpdateDTO>,
 ) -> ApiResult<&'static str> {
+    ensure_refund_access(&state, &auth, dto.refund_id).await?;
     state.payment.refund_apply.update(&dto).await?;
     ok("更新成功")
+}
+#[cfg(test)]
+mod tenant_tests {
+    use super::*;
+
+    #[test]
+    fn shop_scope_forced_for_refund_access() {
+        use tigshop_core::Error;
+        let shop = AuthUser::new(1, "s".into(), None, Some("shop".into()), Some(7));
+        assert!(shop.ensure_shop_access(7).is_ok());
+        assert!(shop.ensure_shop_access(9).is_err());
+        assert_eq!(shop.resolve_shop_scope(Some(9)).unwrap_err().to_string().contains("无权访问店铺 9"), true);
+    }
 }

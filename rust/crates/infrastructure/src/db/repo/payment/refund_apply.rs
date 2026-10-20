@@ -38,6 +38,17 @@ impl RefundApplyRepository {
     // ————————————————————— 退款申请 —————————————————————
 
     /// 按主键查询。
+    /// 退款申请归属店铺（`refund_apply.shop_id`）。
+    pub async fn find_shop_id(&self, refund_id: i32) -> Result<Option<i32>> {
+        let row: Option<(i32,)> =
+            sqlx::query_as("SELECT shop_id FROM refund_apply WHERE refund_id = ? LIMIT 1")
+                .bind(refund_id)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(map_err)?;
+        Ok(row.map(|(v,)| v))
+    }
+
     pub async fn find_by_id(&self, refund_id: i32) -> Result<Option<RefundApply>> {
         sqlx::query_as::<_, RefundApply>("SELECT * FROM refund_apply WHERE refund_id = ? LIMIT 1")
             .bind(refund_id)

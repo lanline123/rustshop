@@ -62,6 +62,7 @@ impl UserWithdrawApplyService {
     pub async fn list(
         &self,
         q: &UserWithdrawApplyListQuery,
+        shop_scope: Option<i32>,
     ) -> Result<PageResult<UserWithdrawApplyVO>> {
         let page = to_page_query(q.page, q.size);
         let (limit, offset) = q.limit_offset();
@@ -77,7 +78,7 @@ impl UserWithdrawApplyService {
         };
         let (total, rows) = self
             .repo()
-            .paginate(q, user_ids.as_deref(), limit, offset)
+            .paginate(q, user_ids.as_deref(), shop_scope, limit, offset)
             .await?;
         if rows.is_empty() {
             return Ok(PageResult::empty(&page));
@@ -98,12 +99,17 @@ impl UserWithdrawApplyService {
     // ————————————————————— 2) detail —————————————————————
 
     /// 详情（Java `detail`）。
-    pub async fn detail(&self, id: i32) -> Result<UserWithdrawApplyVO> {
+    pub async fn detail(
+        &self,
+        id: i32,
+        shop_scope: Option<i32>,
+    ) -> Result<UserWithdrawApplyVO> {
         let entity = self
             .repo()
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::biz(500, MSG_NOT_EXISTS))?;
+        self.ensure_user_scope(entity.user_id, shop_scope).await?;
         let users = UserWithdrawApplyRepository::index_users(
             self.repo().find_users(&[entity.user_id]).await?,
         );
@@ -113,8 +119,13 @@ impl UserWithdrawApplyService {
     // ————————————————————— 3) create —————————————————————
 
     /// 创建提现申请（Java `create`：校验余额 → 落库 → 冻结 + 扣可用）。
-    pub async fn create(&self, dto: &UserWithdrawApplyCreateDTO) -> Result<i32> {
+    pub async fn create(
+        &self,
+        dto: &UserWithdrawApplyCreateDTO,
+        shop_scope: Option<i32>,
+    ) -> Result<i32> {
         let input: UserWithdrawApplyCreate = dto.validate().map_err(Error::Validation)?;
+        self.ensure_user_scope(input.user_id, shop_scope).await?;
         let now = i32::try_from(now_seconds()).unwrap_or_default();
         let mut tx = self.repo().begin().await?;
         let balance = self
@@ -175,13 +186,18 @@ impl UserWithdrawApplyService {
     // ————————————————————— 4) update —————————————————————
 
     /// 更新提现申请（Java `update`）。
-    pub async fn update(&self, dto: &UserWithdrawApplyUpdateDTO) -> Result<()> {
+    pub async fn update(
+        &self,
+        dto: &UserWithdrawApplyUpdateDTO,
+        shop_scope: Option<i32>,
+    ) -> Result<()> {
         let input = dto.validate().map_err(Error::Validation)?;
         let existing = self
             .repo()
             .find_by_id(input.id)
             .await?
             .ok_or_else(|| Error::biz(500, MSG_NOT_EXISTS))?;
+        self.ensure_user_scope(existing.user_id, shop_scope).await?;
         if self.repo().find_users(&[existing.user_id]).await?.is_empty() {
             return Err(Error::biz(500, MSG_USER_NOT_EXISTS));
         }
@@ -259,11 +275,12 @@ impl UserWithdrawApplyService {
     // ————————————————————— 5) del —————————————————————
 
     /// 删除（Java `del`：待处理禁止删除）。
-    pub async fn delete(&self, dto: &OperateDTO) -> Result<()> {
+    pub async fn delete(&self, dto: &OperateDTO, shop_scope: Option<i32>) -> Result<()> {
         let Some(id) = dto.id else {
             return Ok(());
         };
         if let Some(apply) = self.repo().find_by_id(id).await? {
+            self.ensure_user_scope(apply.user_id, shop_scope).await?;
             if apply.status == STATUS_WAIT {
                 return Err(Error::biz(500, MSG_PENDING_DELETE));
             }
@@ -276,19 +293,43 @@ impl UserWithdrawApplyService {
     // ————————————————————— 6) updateField —————————————————————
 
     /// 字段更新（Java `updateField(dto, GENERAL_FIELDS)`）。
-    pub async fn update_field(&self, dto: &UpdateFieldDTO) -> Result<()> {
+    pub async fn update_field(
+        &self,
+        dto: &UpdateFieldDTO,
+        shop_scope: Option<i32>,
+    ) -> Result<()> {
         let input = dto.validate().map_err(Error::Validation)?;
+        if let Some(entity) = self.repo().find_by_id(input.id).await? {
+            self.ensure_user_scope(entity.user_id, shop_scope).await?;
+        }
         self.repo()
             .update_field(input.id, input.column, &input.val)
             .await?;
         Ok(())
     }
 
+    /// 校验提现申请人归属：店铺账号只能操作本店会员的提现。
+    async fn ensure_user_scope(&self, user_id: i32, shop_scope: Option<i32>) -> Result<()> {
+        if let Some(shop_id) = shop_scope {
+            if !self.repo().user_in_shop(user_id, shop_id).await? {
+                return Err(Error::Forbidden(format!(
+                    "无权操作店铺 {shop_id} 会员 {user_id} 的提现申请"
+                )));
+            }
+        }
+        Ok(())
+    }
+
     // ————————————————————— 7) batch —————————————————————
 
     /// 批量操作（Java `batch`：del 时含待处理整批拒绝）。
-    pub async fn batch(&self, dto: &BatchDTO) -> Result<bool> {
+    pub async fn batch(&self, dto: &BatchDTO, shop_scope: Option<i32>) -> Result<bool> {
         let ids = dto.ids.as_deref().unwrap_or_default();
+        for id in ids {
+            if let Some(entity) = self.repo().find_by_id(*id).await? {
+                self.ensure_user_scope(entity.user_id, shop_scope).await?;
+            }
+        }
         if dto.r#type.as_deref() == Some("del") && !ids.is_empty() {
             if self.repo().count_pending_by_ids(ids).await? > 0 {
                 return Err(Error::biz(500, MSG_PENDING_DELETE));

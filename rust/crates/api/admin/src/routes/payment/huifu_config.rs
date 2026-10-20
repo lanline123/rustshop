@@ -3,13 +3,14 @@
 //! `GET /adminapi/setting/config/huifuSettings`、`POST /adminapi/setting/config/saveHuifu`。
 
 use axum::{
+    extract::Extension,
     extract::State,
     routing::{get, post},
     Json, Router,
 };
 use serde_json::Value;
 use tigshop_openapi::RouteDoc;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AuthUser, AppError};
 
 use crate::AdminState;
 
@@ -27,11 +28,40 @@ const ROUTE_TABLE: [(&str, &str, &str); 2] = [
 ];
 
 /// 汇付设置路由（挂载于 `/adminapi` 下）。
+/// 支付渠道配置为平台级数据：店铺账号一律 403。
+async fn platform_only(
+    Extension(auth): Extension<AuthUser>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Result<axum::response::Response, AppError> {
+    if !auth.is_platform() {
+        return Err(AppError(tigshop_core::Error::Forbidden(
+            "仅平台账号可管理支付渠道配置".into(),
+        )));
+    }
+    Ok(next.run(req).await)
+}
+
+#[cfg(test)]
+mod tenant_tests {
+    use super::*;
+
+    #[test]
+    fn shop_account_is_not_platform() {
+        let admin = AuthUser::new(1, "a".into(), None, Some("admin".into()), Some(0));
+        assert!(admin.is_platform());
+        let shop = AuthUser::new(2, "s".into(), None, Some("shop".into()), Some(7));
+        assert!(!shop.is_platform());
+        assert_eq!(shop.scoped_shop_id(), Some(7));
+    }
+}
+
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new()
         .route("/setting/config/huifuSettings", get(get_settings))
         .route("/setting/config/saveHuifu", post(save_settings))
+        .layer(axum::middleware::from_fn(platform_only))
 }
 
 /// 本域已实现路由（完整契约路径）。

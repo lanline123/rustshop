@@ -90,10 +90,23 @@ impl SubMerchantService {
 
     /// 解绑子商户（Java `unbind`：status=FROZEN + modify_time）。
     pub async fn unbind(&self, id: i64) -> Result<()> {
-        self.repo()
+        self.unbind_scoped(id, None).await
+    }
+
+    /// 解绑子商户（带店铺归属校验：店铺账号只能解绑本店绑定）。
+    pub async fn unbind_scoped(&self, id: i64, shop_scope: Option<i32>) -> Result<()> {
+        let entity = self
+            .repo()
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::biz(500, MSG_NOT_EXISTS))?;
+        if let Some(scope) = shop_scope {
+            if entity.shop_id != i64::from(scope) {
+                return Err(Error::Forbidden(format!(
+                    "无权操作店铺 {scope} 的子商户绑定"
+                )));
+            }
+        }
         let modify_time = now_datetime();
         self.repo().freeze(id, &modify_time).await?;
         tracing::info!("解绑子商户: id={id}");

@@ -90,12 +90,13 @@ impl UserWithdrawApplyRepository {
         &self,
         q: &UserWithdrawApplyListQuery,
         user_ids: Option<&[i32]>,
+        shop_scope: Option<i32>,
         limit: i64,
         offset: i64,
     ) -> Result<(i64, Vec<UserWithdrawApply>)> {
         let mut cq: QueryBuilder<'_, MySql> =
             QueryBuilder::new("SELECT COUNT(*) FROM user_withdraw_apply WHERE 1 = 1");
-        Self::push_filters(&mut cq, q, user_ids);
+        Self::push_filters(&mut cq, q, user_ids, shop_scope);
         let total: (i64,) = cq
             .build_query_as()
             .fetch_one(&self.pool)
@@ -104,7 +105,7 @@ impl UserWithdrawApplyRepository {
 
         let mut rq: QueryBuilder<'_, MySql> =
             QueryBuilder::new(format!("{WITHDRAW_SELECT} WHERE 1 = 1"));
-        Self::push_filters(&mut rq, q, user_ids);
+        Self::push_filters(&mut rq, q, user_ids, shop_scope);
         rq.push(q.order_clause());
         rq.push(format!(" LIMIT {limit} OFFSET {offset}"));
         let rows: Vec<UserWithdrawApply> = rq
@@ -119,6 +120,7 @@ impl UserWithdrawApplyRepository {
         qb: &mut QueryBuilder<'_, MySql>,
         q: &UserWithdrawApplyListQuery,
         user_ids: Option<&[i32]>,
+        shop_scope: Option<i32>,
     ) {
         if let Some(status) = q.effective_status() {
             qb.push(" AND status = ");
@@ -133,6 +135,24 @@ impl UserWithdrawApplyRepository {
             Self::push_int_list(qb, ids);
             qb.push(")");
         }
+        if let Some(shop) = shop_scope {
+            qb.push(" AND EXISTS (SELECT 1 FROM shop_member m WHERE m.user_id = user_withdraw_apply.user_id AND m.shop_id = ");
+            qb.push_bind(shop);
+            qb.push(" AND m.is_del = 0)");
+        }
+    }
+
+    /// 提现申请人是否属于指定店铺（`shop_member` 有效关联）。
+    pub async fn user_in_shop(&self, user_id: i32, shop_id: i32) -> Result<bool> {
+        let row: Option<(i32,)> = sqlx::query_as(
+            "SELECT 1 FROM shop_member WHERE user_id = ? AND shop_id = ? AND is_del = 0 LIMIT 1",
+        )
+        .bind(user_id)
+        .bind(shop_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.is_some())
     }
 
     /// 新增（Java `save`）。

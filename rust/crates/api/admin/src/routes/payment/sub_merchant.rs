@@ -2,6 +2,7 @@
 //! Java `SubMerchantController`：`/adminapi/finance/subMerchant/{list,bind,unbind}`。
 
 use axum::{
+    extract::Extension,
     extract::{Query, State},
     routing::{get, post},
     Json, Router,
@@ -11,7 +12,7 @@ use tigshop_core::models::payment::sub_merchant::{
     SubMerchantBindParam, SubMerchantPageQuery, SubMerchantVO,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AuthUser};
 
 use crate::AdminState;
 
@@ -51,24 +52,35 @@ struct IdQuery {
 
 async fn list(
     State(state): State<AdminState>,
-    Query(q): Query<SubMerchantPageQuery>,
+    Extension(auth): Extension<AuthUser>,
+    Query(mut q): Query<SubMerchantPageQuery>,
 ) -> ApiResult<PageResult<SubMerchantVO>> {
+    let scope = auth.resolve_shop_scope(q.shop_id.and_then(|v| i32::try_from(v).ok()))?;
+    q.shop_id = scope.map(i64::from);
     ok(state.payment.sub_merchant.list(&q).await?)
 }
 
 async fn bind(
     State(state): State<AdminState>,
-    Json(param): Json<SubMerchantBindParam>,
+    Extension(auth): Extension<AuthUser>,
+    Json(mut param): Json<SubMerchantBindParam>,
 ) -> ApiResult<()> {
+    let scope = auth.require_shop_scope(param.shop_id.and_then(|v| i32::try_from(v).ok()))?;
+    param.shop_id = Some(i64::from(scope));
     state.payment.sub_merchant.bind(&param).await?;
     ok(())
 }
 
 async fn unbind(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<()> {
-    state.payment.sub_merchant.unbind(q.id).await?;
+    state
+        .payment
+        .sub_merchant
+        .unbind_scoped(q.id, auth.scoped_shop_id())
+        .await?;
     ok(())
 }
 
@@ -100,5 +112,21 @@ mod tests {
         let q: IdQuery = serde_json::from_str(r#"{"id": 12}"#).unwrap();
         assert_eq!(q.id, 12);
         assert!(serde_json::from_str::<IdQuery>(r#"{"id": "x"}"#).is_err());
+    }
+}
+#[cfg(test)]
+mod tenant_tests {
+    use super::*;
+
+    #[test]
+    fn shop_scope_rejects_cross_shop() {
+        use tigshop_core::Error;
+        let shop = AuthUser::new(1, "s".into(), None, Some("shop".into()), Some(7));
+        assert_eq!(shop.resolve_shop_scope(Some(7)).unwrap(), Some(7));
+        assert!(matches!(
+            shop.resolve_shop_scope(Some(9)),
+            Err(Error::Forbidden(_))
+        ));
+        assert_eq!(shop.scoped_shop_id(), Some(7));
     }
 }

@@ -122,8 +122,10 @@ async fn save_download(
 /// `GET /adminapi/finance/statement/exportStatement`：导出对账单（JSON 降级）。
 async fn export_statement(
     State(state): State<AdminState>,
-    Query(q): Query<StatementListQuery>,
+    Extension(auth): Extension<AuthUser>,
+    Query(mut q): Query<StatementListQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    q.shop_id = auth.resolve_shop_scope(q.shop_id)?;
     let (file_name, bytes) = state.payment.statement.export_statement_xlsx(&q).await?;
     Ok(crate::support::excel_response::xlsx_response(bytes, &file_name))
 }
@@ -131,16 +133,20 @@ async fn export_statement(
 /// `GET /adminapi/finance/statement/exportStatementStatistics`：导出统计（JSON 降级）。
 async fn export_statistics(
     State(state): State<AdminState>,
-    Query(q): Query<StatementStatisticsQuery>,
+    Extension(auth): Extension<AuthUser>,
+    Query(mut q): Query<StatementStatisticsQuery>,
 ) -> ApiResult<Vec<StatementStatisticsExportVO>> {
+    q.shop_id = auth.resolve_shop_scope(q.shop_id)?;
     ok(state.payment.statement.export_statistics(&q).await?)
 }
 
 /// `GET /adminapi/finance/statement/getStatementStatisticsList`：对账单统计。
 async fn statistics_list(
     State(state): State<AdminState>,
-    Query(q): Query<StatementStatisticsQuery>,
+    Extension(auth): Extension<AuthUser>,
+    Query(mut q): Query<StatementStatisticsQuery>,
 ) -> ApiResult<Vec<StatementStatisticsVO>> {
+    q.shop_id = auth.resolve_shop_scope(q.shop_id)?;
     ok(state.payment.statement.statistics_list(&q).await?)
 }
 
@@ -177,5 +183,20 @@ mod tests {
         assert!(ROUTE_TABLE
             .iter()
             .all(|(_, p, _)| p.starts_with("/finance/statement/")));
+    }
+}
+#[cfg(test)]
+mod tenant_tests {
+    use super::*;
+
+    #[test]
+    fn export_scope_is_forced_for_shop_account() {
+        use tigshop_core::Error;
+        let shop = AuthUser::new(1, "s".into(), None, Some("shop".into()), Some(7));
+        assert_eq!(shop.resolve_shop_scope(None).unwrap(), Some(7));
+        assert!(matches!(
+            shop.resolve_shop_scope(Some(9)),
+            Err(Error::Forbidden(_))
+        ));
     }
 }

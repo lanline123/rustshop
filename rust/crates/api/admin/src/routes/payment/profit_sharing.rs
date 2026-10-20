@@ -84,7 +84,7 @@ async fn manual_finish(
     state
         .payment
         .profit_sharing
-        .manual_finish(q.id, i64::from(auth.id))
+        .manual_finish_scoped(q.id, i64::from(auth.id), auth.scoped_shop_id())
         .await?;
     ok(())
 }

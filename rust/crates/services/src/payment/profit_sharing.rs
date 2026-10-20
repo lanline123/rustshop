@@ -119,11 +119,28 @@ impl ProfitSharingService {
 
     /// 手动完结分账单（Java `manualFinishProfitSharing`）。
     pub async fn manual_finish(&self, id: i64, operator_id: i64) -> Result<()> {
+        self.manual_finish_scoped(id, operator_id, None).await
+    }
+
+    /// 手动完成/作废分账单（带店铺归属校验：店铺账号只能操作本店分账）。
+    pub async fn manual_finish_scoped(
+        &self,
+        id: i64,
+        operator_id: i64,
+        shop_scope: Option<i32>,
+    ) -> Result<()> {
         let order = self
             .repo()
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::biz(500, MSG_NOT_EXISTS))?;
+        if let Some(scope) = shop_scope {
+            if order.shop_id != i64::from(scope) {
+                return Err(Error::Forbidden(format!(
+                    "无权操作店铺 {scope} 的分账单"
+                )));
+            }
+        }
         if order.finish_status == FINISH_FINISHED {
             return Err(Error::biz(500, MSG_ALREADY_FINISHED));
         }
