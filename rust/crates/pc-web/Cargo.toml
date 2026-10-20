@@ -24,4 +24,6 @@ anyhow = { workspace = true }
 # Workspace crates
 tigshop-core = { path = "../core" }
 tigshop-common = { path = "../common" }
+tigshop-infrastructure = { path = "../infrastructure" }
 tigshop-services = { path = "../services" }
+sqlx = { workspace = true }

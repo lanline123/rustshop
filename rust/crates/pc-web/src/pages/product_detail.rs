@@ -1,7 +1,20 @@
 use leptos::prelude::*;
+use crate::loader::DetailData;
 
 #[component]
 pub fn ProductDetailPage() -> impl IntoView {
+    let detail_opt = use_context::<DetailData>();
+
+    let name = detail_opt.as_ref().map(|d| d.name.clone()).unwrap_or_else(|| "商品不存在或已下架".to_string());
+    let sn = detail_opt.as_ref().map(|d| d.sn.clone()).unwrap_or_default();
+    let price = detail_opt.as_ref().map(|d| d.price.clone()).unwrap_or_else(|| "0.00".to_string());
+    let market_price = detail_opt.as_ref().map(|d| d.market_price.clone()).unwrap_or_else(|| "0.00".to_string());
+    let stock = detail_opt.as_ref().map(|d| d.stock).unwrap_or(0);
+    let sales = detail_opt.as_ref().map(|d| d.sales).unwrap_or(0);
+    let pic = detail_opt.as_ref().map(|d| d.pic_thumb.clone()).unwrap_or_else(|| "/static/images/goods_empty.png".to_string());
+    let desc = detail_opt.as_ref().map(|d| d.desc.clone()).unwrap_or_default();
+    let skus = detail_opt.as_ref().map(|d| d.skus.clone()).unwrap_or_default();
+
     view! {
         <div class="product-detail-page" style="background: #f2f3f5; min-height: 80vh; padding: 20px 0 60px;">
             <div class="container">
@@ -9,11 +22,9 @@ pub fn ProductDetailPage() -> impl IntoView {
                 <div class="breadcrumb acea-row row-middle" style="font-size: 13px; color: #666; margin-bottom: 16px; gap: 8px;">
                     <a href="/" style="color: #666;">"首页"</a>
                     <span>">"</span>
-                    <a href="/search" style="color: #666;">"手机数码"</a>
+                    <a href="/search" style="color: #666;">"商品列表"</a>
                     <span>">"</span>
-                    <a href="/search" style="color: #666;">"智能手机"</a>
-                    <span>">"</span>
-                    <span style="color: #333; font-weight: bold;">"Apple iPhone 16 Pro Max 256GB"</span>
+                    <span style="color: #333; font-weight: bold;">{name.clone()}</span>
                 </div>
 
                 // 商品主体卡片 (图集 + 信息)
@@ -21,17 +32,11 @@ pub fn ProductDetailPage() -> impl IntoView {
                     // 左侧: 相册主图与缩略图
                     <div class="gallery">
                         <div class="main-image" style="width: 460px; height: 460px; border: 1px solid #f0f0f0; border-radius: 4px; display: flex; align-items: center; justify-content: center; background: #fafafa; overflow: hidden;">
-                            <img src="/static/images/goods_empty.png" alt="主图" style="max-width: 90%; max-height: 90%; object-fit: contain;"/>
+                            <img src=pic.clone() alt=name.clone() style="max-width: 90%; max-height: 90%; object-fit: contain;"/>
                         </div>
                         <div class="thumbnails flex" style="margin-top: 15px; gap: 12px; display: flex;">
                             <div style="width: 70px; height: 70px; border: 2px solid var(--general); border-radius: 4px; padding: 2px; cursor: pointer; display: flex; align-items: center; justify-content: center; background: #fff;">
-                                <img src="/static/images/goods_empty.png" style="max-width: 100%; max-height: 100%; object-fit: contain;"/>
-                            </div>
-                            <div style="width: 70px; height: 70px; border: 1px solid #e5e5e5; border-radius: 4px; padding: 2px; cursor: pointer; display: flex; align-items: center; justify-content: center; background: #fff;">
-                                <img src="/static/images/goods_empty.png" style="max-width: 100%; max-height: 100%; object-fit: contain;"/>
-                            </div>
-                            <div style="width: 70px; height: 70px; border: 1px solid #e5e5e5; border-radius: 4px; padding: 2px; cursor: pointer; display: flex; align-items: center; justify-content: center; background: #fff;">
-                                <img src="/static/images/goods_empty.png" style="max-width: 100%; max-height: 100%; object-fit: contain;"/>
+                                <img src=pic.clone() style="max-width: 100%; max-height: 100%; object-fit: contain;"/>
                             </div>
                         </div>
                     </div>
@@ -39,10 +44,10 @@ pub fn ProductDetailPage() -> impl IntoView {
                     // 右侧: 商品信息与购买表单
                     <div class="info">
                         <h1 style="font-size: 22px; font-weight: bold; color: #222; margin: 0 0 10px 0; line-height: 30px;">
-                            "Apple iPhone 16 Pro Max 256GB 原色钛金属 移动联通电信5G全网通手机"
+                            {name.clone()}
                         </h1>
                         <p style="font-size: 13px; color: var(--general); margin: 0 0 16px 0; line-height: 20px;">
-                            "【限时免息特惠】搭载 A18 Pro 仿生芯片，超强续航，4800万像素超广角，支持全焦段拍摄，现货速发！"
+                            {format!("【商品编号：{}】正品保障，支持7天无理由退换货，全国顺丰包邮！", sn)}
                         </p>
 
                         // 价格栏
@@ -50,109 +55,88 @@ pub fn ProductDetailPage() -> impl IntoView {
                             <div style="display: flex; align-items: baseline; gap: 10px;">
                                 <span style="font-size: 13px; color: #666;">"商城售价："</span>
                                 <span style="font-size: 32px; font-weight: bold; color: var(--price); font-family: Arial;">
-                                    <span style="font-size: 20px;">"¥"</span>"8999.00"
+                                    <span style="font-size: 20px;">"¥"</span>{price}
                                 </span>
                                 <span style="font-size: 13px; color: #999; text-decoration: line-through; margin-left: 10px;">
-                                    "市场参考价：¥9999.00"
+                                    {format!("市场参考价：¥{}", market_price)}
                                 </span>
                             </div>
                             <div style="margin-top: 10px; font-size: 12px; color: #666; display: flex; gap: 24px;">
-                                <span>"累计销量：2,850 件"</span>
-                                <span>"用户评价：99% 好评"</span>
-                                <span>"库存状态：有货 (北京仓闪电发货)"</span>
+                                <span>{format!("累计销量：{} 件", sales)}</span>
+                                <span>{format!("库存现货：{} 件", stock)}</span>
+                                <span>"服务承诺：正品保证 · 闪电发货 · 售后无忧"</span>
                             </div>
                         </div>
 
-                        // 规格属性选择 (SKU)
-                        <div style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 25px; font-size: 13px;">
-                            <div style="display: flex; align-items: center;">
-                                <span style="width: 70px; color: #666;">"选择颜色："</span>
-                                <div style="display: flex; gap: 10px;">
-                                    <button style="border: 2px solid var(--general); background: #fff; color: var(--general); padding: 7px 18px; border-radius: 3px; cursor: pointer; font-weight: bold;">
-                                        "原色钛金属"
-                                    </button>
-                                    <button style="border: 1px solid #ddd; background: #fff; color: #333; padding: 7px 18px; border-radius: 3px; cursor: pointer;">
-                                        "沙漠钛金属"
-                                    </button>
-                                    <button style="border: 1px solid #ddd; background: #fff; color: #333; padding: 7px 18px; border-radius: 3px; cursor: pointer;">
-                                        "白色钛金属"
-                                    </button>
-                                    <button style="border: 1px solid #ddd; background: #fff; color: #333; padding: 7px 18px; border-radius: 3px; cursor: pointer;">
-                                        "黑色钛金属"
-                                    </button>
-                                </div>
-                            </div>
+                        // 规格选择 (SKU)
+                        {
+                            if !skus.is_empty() {
+                                view! {
+                                    <div class="sku-box" style="margin-bottom: 20px;">
+                                        <div style="font-size: 13px; color: #666; margin-bottom: 8px;">"选择规格："</div>
+                                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                            {
+                                                skus.into_iter().enumerate().map(|(idx, s)| {
+                                                    let border_style = if idx == 0 { "2px solid var(--general)" } else { "1px solid #ddd" };
+                                                    let color_style = if idx == 0 { "var(--general)" } else { "#333" };
+                                                    view! {
+                                                        <div style=format!("border: {}; color: {}; padding: 6px 14px; border-radius: 3px; font-size: 13px; cursor: pointer; background: #fff;", border_style, color_style)>
+                                                            {format!("{} (¥{})", s.sku_value, s.sku_price)}
+                                                        </div>
+                                                    }
+                                                }).collect::<Vec<_>>()
+                                            }
+                                        </div>
+                                    </div>
+                                }.into_any()
+                            } else {
+                                view! { <div></div> }.into_any()
+                            }
+                        }
 
-                            <div style="display: flex; align-items: center;">
-                                <span style="width: 70px; color: #666;">"存储容量："</span>
-                                <div style="display: flex; gap: 10px;">
-                                    <button style="border: 2px solid var(--general); background: #fff; color: var(--general); padding: 7px 18px; border-radius: 3px; cursor: pointer; font-weight: bold;">
-                                        "256GB"
-                                    </button>
-                                    <button style="border: 1px solid #ddd; background: #fff; color: #333; padding: 7px 18px; border-radius: 3px; cursor: pointer;">
-                                        "512GB"
-                                    </button>
-                                    <button style="border: 1px solid #ddd; background: #fff; color: #333; padding: 7px 18px; border-radius: 3px; cursor: pointer;">
-                                        "1TB"
-                                    </button>
-                                </div>
+                        // 数量选择
+                        <div class="quantity-box" style="margin-bottom: 25px; display: flex; align-items: center; gap: 12px;">
+                            <span style="font-size: 13px; color: #666;">"购买数量："</span>
+                            <div style="display: flex; border: 1px solid #ddd; border-radius: 3px; width: 110px; height: 32px; line-height: 32px; text-align: center;">
+                                <button style="width: 32px; border: none; background: #fafafa; cursor: pointer; font-size: 16px;">"-"</button>
+                                <input type="text" value="1" style="width: 46px; border: none; text-align: center; border-left: 1px solid #ddd; border-right: 1px solid #ddd;"/>
+                                <button style="width: 32px; border: none; background: #fafafa; cursor: pointer; font-size: 16px;">"+"</button>
                             </div>
-
-                            <div style="display: flex; align-items: center;">
-                                <span style="width: 70px; color: #666;">"购买数量："</span>
-                                <div style="display: flex; border: 1px solid #ddd; border-radius: 3px; overflow: hidden; width: fit-content;">
-                                    <button style="border: none; background: #f7f7f7; width: 32px; height: 32px; cursor: pointer; font-size: 15px;">"-"</button>
-                                    <input type="text" value="1" style="width: 44px; height: 32px; border: none; border-left: 1px solid #ddd; border-right: 1px solid #ddd; text-align: center; font-size: 14px; outline: none;" />
-                                    <button style="border: none; background: #f7f7f7; width: 32px; height: 32px; cursor: pointer; font-size: 15px;">"+"</button>
-                                </div>
-                                <span style="margin-left: 12px; color: #999; font-size: 12px;">"件 (库存充足)"</span>
-                            </div>
+                            <span style="font-size: 12px; color: #999;">{format!("(库存 {} 件)", stock)}</span>
                         </div>
 
-                        // 购买动作按钮
-                        <div style="display: flex; gap: 16px; margin-top: 25px;">
-                            <a
-                                href="/checkout"
-                                style="background: var(--general); color: #fff; font-size: 16px; font-weight: bold; padding: 13px 45px; border-radius: 4px; text-decoration: none; cursor: pointer; box-shadow: 0 4px 14px rgba(255, 68, 68, 0.3);"
-                            >
+                        // 购买操作按钮
+                        <div class="actions" style="display: flex; gap: 16px;">
+                            <button style="background: #ffeded; color: var(--general); border: 1px solid var(--general); padding: 12px 36px; border-radius: 4px; font-size: 16px; font-weight: bold; cursor: pointer;">
                                 "立即购买"
-                            </a>
-                            <a
-                                href="/cart"
-                                style="background: #fff; color: var(--general); border: 2px solid var(--general); font-size: 16px; font-weight: bold; padding: 11px 40px; border-radius: 4px; text-decoration: none; cursor: pointer; display: flex; align-items: center; gap: 8px;"
-                            >
-                                <span class="iconfont-pc icon-shiwu-gouwuche" style="font-size: 18px;"></span>
+                            </button>
+                            <button style="background: var(--general); color: #fff; border: 1px solid var(--general); padding: 12px 36px; border-radius: 4px; font-size: 16px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                                <span class="iconfont-pc icon-gouwuche"></span>
                                 "加入购物车"
-                            </a>
+                            </button>
                         </div>
                     </div>
                 </div>
 
-                // 底部详情与参数标签页 (Tabs)
-                <div class="detail-tabs" style="background: #fff; border: 1px solid #e5e5e5; border-radius: 4px; overflow: hidden;">
-                    <div style="display: flex; border-bottom: 1px solid #eee; background: #fafafa;">
-                        <button style="padding: 15px 30px; font-size: 15px; font-weight: bold; color: var(--general); border: none; background: #fff; border-top: 2px solid var(--general); cursor: pointer;">
-                            "商品详细介绍"
-                        </button>
-                        <button style="padding: 15px 30px; font-size: 15px; color: #666; border: none; background: transparent; cursor: pointer;">
-                            "规格与包装"
-                        </button>
-                        <button style="padding: 15px 30px; font-size: 15px; color: #666; border: none; background: transparent; cursor: pointer;">
-                            "售后与保障"
-                        </button>
-                        <button style="padding: 15px 30px; font-size: 15px; color: #666; border: none; background: transparent; cursor: pointer;">
-                            "累计评价 (2,850)"
-                        </button>
+                // 下方详情介绍与规格参数
+                <div class="detail-bottom" style="background: #fff; border: 1px solid #e5e5e5; border-radius: 4px; padding: 25px;">
+                    <div style="border-bottom: 2px solid var(--general); display: inline-block; padding-bottom: 8px; font-size: 16px; font-weight: bold; color: var(--general); margin-bottom: 20px;">
+                        "商品图文详情"
                     </div>
-
-                    <div style="padding: 40px; text-align: center; color: #666; font-size: 14px; line-height: 28px;">
-                        <div style="max-width: 800px; margin: 0 auto; text-align: left; margin-bottom: 30px;">
-                            <h3 style="font-size: 18px; color: #333; margin-bottom: 15px;">"核心亮点"</h3>
-                            <p>"• 强劲 A18 Pro 芯片，采用新一代 3 纳米工艺，带来顶尖性能与极致能效比。"</p>
-                            <p>"• 钛金属设计配合超瓷晶面板，强度跃升，边框更窄，带来沉浸式 6.9 英寸超大视界。"</p>
-                            <p>"• 4800 万像素双重超广角镜头系统，支持 5 倍光学变焦，专业电影级 4K 120 fps 杜比视界录制。"</p>
-                        </div>
-                        <img src="/static/images/goods_empty.png" alt="图文详情" style="max-width: 600px; opacity: 0.8;"/>
+                    <div class="content" style="font-size: 14px; line-height: 28px; color: #444;">
+                        {
+                            if desc.is_empty() {
+                                view! {
+                                    <div style="text-align: center; padding: 40px; color: #999;">
+                                        "暂无更多图文详情介绍"
+                                    </div>
+                                }.into_any()
+                            } else {
+                                view! {
+                                    <div inner_html=desc.clone()></div>
+                                }.into_any()
+                            }
+                        }
                     </div>
                 </div>
             </div>

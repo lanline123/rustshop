@@ -3093,7 +3093,7 @@ CREATE TABLE `pos_device` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_pos_device_shop_code` (`shop_id`,`device_code`),
   KEY `idx_pos_device_shop_status` (`shop_id`,`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='收银台设备';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='收银台设备';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `pos_device` DISABLE KEYS */;
@@ -3423,7 +3423,7 @@ CREATE TABLE `print_pos_device` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_print_pos_device` (`print_id`),
   KEY `idx_print_pos_device_shop_code` (`shop_id`,`device_code`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='打印机收银台设备绑定（单设备）';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='打印机收银台设备绑定（单设备）';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `print_pos_device` DISABLE KEYS */;

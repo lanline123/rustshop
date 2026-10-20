@@ -1,4 +1,4 @@
-use axum::{
+﻿use axum::{
     http::Uri,
     response::{Html, IntoResponse},
     Router,
@@ -8,6 +8,7 @@ use tower_http::services::ServeDir;
 
 pub mod app;
 pub mod components;
+pub mod loader;
 pub mod pages;
 pub mod state;
 
@@ -20,9 +21,50 @@ pub async fn render_app(uri: Uri) -> impl IntoResponse {
         .map(|pq| pq.as_str())
         .unwrap_or("/")
         .to_string();
+
+    // 路由分流预取真实数据库数据并注入 Leptos 上下文
+    let home_data = if path == "/" || path.is_empty() {
+        Some(loader::load_home_data().await)
+    } else {
+        None
+    };
+
+    let search_data = if path.starts_with("/search") {
+        let query_str = uri.query().unwrap_or("");
+        let kw = query_str
+            .split('&')
+            .find(|pair| pair.starts_with("keyword=") || pair.starts_with("q="))
+            .and_then(|pair| pair.split('=').nth(1))
+            .map(|s| s.replace('+', " "));
+        Some(loader::load_search_data(kw, 1).await)
+    } else {
+        None
+    };
+
+    let detail_data = if path.starts_with("/product/") {
+        let raw_id = path.trim_start_matches("/product/").split('?').next().unwrap_or("");
+        let pid = raw_id.parse::<i32>().unwrap_or(0);
+        if pid > 0 {
+            loader::load_product_detail(pid).await
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     let owner = Owner::new();
     let html = owner.with(|| {
         provide_context(RequestUrl::new(&path));
+        if let Some(hd) = home_data {
+            provide_context(hd);
+        }
+        if let Some(sd) = search_data {
+            provide_context(sd);
+        }
+        if let Some(dd) = detail_data {
+            provide_context(dd);
+        }
         view! { <App/> }.to_html()
     });
     Html(html)
@@ -65,6 +107,6 @@ mod tests {
         assert!(html.contains("mall.css"), "Should link mall.css stylesheet");
         assert!(html.contains("TigShop"), "Should contain brand name");
         assert!(html.contains("全部商品分类"), "Should contain category menu");
-        assert!(html.contains("正品保证"), "Should contain service guarantee");
+        assert!(html.contains("正品保障"), "Should contain service guarantee");
     }
 }

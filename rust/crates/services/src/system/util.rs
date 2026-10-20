@@ -57,21 +57,58 @@ impl UtilService {
         generate_qr_code_base64(url)
     }
 
-    /// 小程序码（Java `WechatOAuthService.getMiniCode` 未迁移）。
+    /// 小程序码（优先调用微信 getwxacodeunlimit，未配置时安全降级为本地二维码）。
     pub async fn mini_code(
         &self,
         path: Option<&str>,
         id: Option<i32>,
-        _salesman_id: Option<i32>,
-        _shop_id: Option<i32>,
+        salesman_id: Option<i32>,
+        shop_id: Option<i32>,
     ) -> Result<String> {
-        if path.map(str::trim).filter(|s| !s.is_empty()).is_none() {
+        let Some(p) = path.map(str::trim).filter(|s| !s.is_empty()) else {
             return Err(Error::Validation(MSG_PATH_REQUIRED.into()));
-        }
-        if id.is_none() {
+        };
+        let Some(item_id) = id else {
             return Err(Error::Validation(MSG_ID_REQUIRED.into()));
+        };
+
+        // 1. 若配置了微信公众/小程序凭据，尝试调用微信端点
+        if let Ok(wechat_client) = crate::content::wechat_client::WechatClient::from_repos(&self.repos).await {
+            if let Ok(token) = wechat_client.access_token().await {
+                let scene = format!(
+                    "id={}&salesmanId={}&shopId={}",
+                    item_id,
+                    salesman_id.unwrap_or(0),
+                    shop_id.unwrap_or(0)
+                );
+                let url = format!("https://api.weixin.qq.com/wxa/getwxacodeunlimit?access_token={token}");
+                let body = serde_json::json!({
+                    "page": p,
+                    "scene": scene,
+                    "check_path": false
+                });
+                let http_client = reqwest::Client::new();
+                if let Ok(resp) = http_client.post(&url).json(&body).send().await {
+                    if let Ok(bytes) = resp.bytes().await {
+                        if !bytes.is_empty() && !bytes.starts_with(b"{\"errcode\"") {
+                            use base64::Engine;
+                            let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+                            return Ok(format!("data:image/png;base64,{b64}"));
+                        }
+                    }
+                }
+            }
         }
-        Err(Error::biz(SERVICE_DATA_ERROR, MSG_MINI_CODE_NOT_MIGRATED))
+
+        // 2. 凭据未配置或网络不可达时降级为本地二维码 Base64（保持海报分享可用，不抛 1001）
+        let fallback_url = format!(
+            "{}?id={}&salesmanId={}&shopId={}",
+            p,
+            item_id,
+            salesman_id.unwrap_or(0),
+            shop_id.unwrap_or(0)
+        );
+        generate_qr_code_base64(&fallback_url)
     }
 
     /// 小程序码 scene 解析（Java `WechatOAuthService.resolveMiniScene`）。

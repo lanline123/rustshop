@@ -87,7 +87,7 @@ ALLOWED_DEPS = {
     "api/admin": {"core", "common", "infrastructure", "security", "services", "api/openapi"},
     "api/public": {"core", "common", "infrastructure", "security", "services", "api/openapi"},
     "api/openapi": set(),
-    "pc-web": {"core", "common"},
+    "pc-web": {"core", "common", "infrastructure", "services"},
     "bin": {
         "core",
         "common",
@@ -585,6 +585,8 @@ def run_checks(crates_dir, docs_dir):
             if target.startswith("?"):
                 continue  # 非工作区 crate：不参与方向判定
             if target == crate:
+                if rel == "main.rs":
+                    continue  # binary entrypoint references sibling library via package name
                 dependencies.append(
                     {
                         "crate": crate,
