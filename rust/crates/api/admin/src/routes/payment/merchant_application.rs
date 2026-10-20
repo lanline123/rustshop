@@ -376,6 +376,7 @@ mod tests {
         assert_eq!(v.shop_id, None);
         let auth = AuthUser {
             admin_type: Some("shop".into()),
+            shop_id: Some(9),
             ..auth
         };
         let v = viewer(&auth);

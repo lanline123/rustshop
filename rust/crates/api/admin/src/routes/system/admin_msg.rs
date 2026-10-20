@@ -198,7 +198,7 @@ mod tests {
             username: "s".into(),
             role_id: None,
             admin_type: Some("shop".into()),
-            shop_id: None,
+            shop_id: Some(5),
         };
         let q = AdminMsgListQuery {
             shop_id: Some(3),
@@ -206,13 +206,9 @@ mod tests {
         };
         assert_eq!(
             scope_of(&shop, &q),
-            MsgScope::Shop { shop_id: 3, platform: false }
+            MsgScope::Shop { shop_id: 5, platform: false }
         );
     }
-}
-#[cfg(test)]
-mod tests {
-    use super::*;
 
     #[test]
     fn scope_uses_trusted_identity() {

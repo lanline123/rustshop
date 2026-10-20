@@ -52,7 +52,7 @@ async fn my_points_logs(
         page: q.page,
         page_size: q.page_size,
     };
-    let page = state.member.member_lists.points_logs(&query).await?;
+    let page = state.member.member_lists.points_logs(&query, None).await?;
     let list: Vec<serde_json::Value> = page
         .list
         .iter()
