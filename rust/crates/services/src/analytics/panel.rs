@@ -36,16 +36,18 @@ impl PanelService {
     }
 
     /// `GET /adminapi/panel/panel/index`：首页面板。
-    pub async fn index(&self) -> Result<Value> {
+    ///
+    /// `shop_scope`：店铺账号仅统计本店订单/商品/店铺会员；平台 `None`（全平台）。
+    pub async fn index(&self, shop_scope: Option<i32>) -> Result<Value> {
         let now = now_seconds();
         let (t0, tn, y0, _y1) = day_windows(now);
-        let (today_num, today_amount) = self.repo().order_window(t0, tn).await?;
-        let (yesterday_num, yesterday_amount) = self.repo().order_window(y0, t0).await?;
-        let today_buyer = self.repo().user_window(t0, tn).await?;
-        let yesterday_buyer = self.repo().user_window(y0, t0).await?;
-        let (product_total, product_on_sale) = self.repo().product_counts().await?;
-        let await_pay = self.repo().order_count_by_status(0).await?;
-        let await_ship = self.repo().order_count_by_status(1).await?;
+        let (today_num, today_amount) = self.repo().order_window(t0, tn, shop_scope).await?;
+        let (yesterday_num, yesterday_amount) = self.repo().order_window(y0, t0, shop_scope).await?;
+        let today_buyer = self.repo().user_window(t0, tn, shop_scope).await?;
+        let yesterday_buyer = self.repo().user_window(y0, t0, shop_scope).await?;
+        let (product_total, product_on_sale) = self.repo().product_counts(shop_scope).await?;
+        let await_pay = self.repo().order_count_by_status(0, shop_scope).await?;
+        let await_ship = self.repo().order_count_by_status(1, shop_scope).await?;
         let today_amount_f = today_amount.parse::<f64>().unwrap_or(0.0);
         let yesterday_amount_f = yesterday_amount.parse::<f64>().unwrap_or(0.0);
         Ok(json!({
@@ -107,9 +109,9 @@ impl PanelService {
     pub async fn vendor_index(&self) -> Result<Value> {
         let now = now_seconds();
         let (t0, tn, _y0, _y1) = day_windows(now);
-        let (today_num, today_amount) = self.repo().order_window(t0, tn).await?;
-        let (product_total, product_on_sale) = self.repo().product_counts().await?;
-        let await_ship = self.repo().order_count_by_status(1).await?;
+        let (today_num, today_amount) = self.repo().order_window(t0, tn, None).await?;
+        let (product_total, product_on_sale) = self.repo().product_counts(None).await?;
+        let await_ship = self.repo().order_count_by_status(1, None).await?;
         Ok(json!({
             "awaitShip": await_ship,
             "awaitSettlement": 0,
@@ -128,11 +130,13 @@ impl PanelService {
     }
 
     /// `GET /adminapi/panel/panel/statisticalData?days=`：趋势（订单数/金额）。
-    pub async fn statistical_data(&self, days: i64) -> Result<Value> {
+    ///
+    /// `shop_scope`：店铺账号仅统计本店订单；平台 `None`。
+    pub async fn statistical_data(&self, days: i64, shop_scope: Option<i32>) -> Result<Value> {
         let now = now_seconds();
         let (t0, _tn, _y0, _y1) = day_windows(now);
         let from = t0 - (days.clamp(1, 365) - 1) * 86_400;
-        let rows = self.repo().order_trend(from, now).await?;
+        let rows = self.repo().order_trend(from, now, shop_scope).await?;
         let mut horizontal: Vec<String> = Vec::new();
         let mut order_num: Vec<i64> = Vec::new();
         let mut order_amount: Vec<f64> = Vec::new();
@@ -155,7 +159,7 @@ impl PanelService {
         let now = now_seconds();
         let (t0, _tn, _y0, _y1) = day_windows(now);
         let from = t0 - (days.clamp(1, 365) - 1) * 86_400;
-        let rows = self.repo().order_trend(from, now).await?;
+        let rows = self.repo().order_trend(from, now, None).await?;
         let mut horizontal: Vec<String> = Vec::new();
         let mut income: Vec<f64> = Vec::new();
         let mut order_num: Vec<i64> = Vec::new();

@@ -127,6 +127,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 // ——————————————————————————————————————————————
 
 /// 读取请求头文本值（缺失/非 UTF-8/全空白 → None）。
+#[cfg(test)]
 fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
     headers
         .get(name)
@@ -137,6 +138,7 @@ fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
 }
 
 /// 复刻 Java `HeaderUtils.getShopId()` 三态（**只读请求头**）。
+#[cfg(test)]
 fn resolve_shop_id(headers: &HeaderMap) -> Option<i32> {
     match header_str(headers, "x-admin-type").as_deref() {
         Some("admin") => Some(0),
@@ -146,20 +148,19 @@ fn resolve_shop_id(headers: &HeaderMap) -> Option<i32> {
 }
 
 /// 构造查看者（Java `isPlatformAdmin()` + `HeaderUtils.getShopId()`）。
-fn viewer(headers: &HeaderMap, auth: &AuthUser) -> MerchantApplicationViewer {
+fn viewer(auth: &AuthUser) -> MerchantApplicationViewer {
     MerchantApplicationViewer {
-        platform_admin: auth.admin_type.as_deref() == Some("admin"),
-        shop_id: resolve_shop_id(headers),
+        platform_admin: auth.is_platform(),
+        shop_id: auth.scoped_shop_id(),
     }
 }
 
 async fn list(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
     Query(q): Query<MerchantApplicationPageQuery>,
 ) -> ApiResult<PageResult<MerchantApplicationVO>> {
-    ok(state.payment.merchant_application.list(&q, viewer(&headers, &auth)).await?)
+    ok(state.payment.merchant_application.list(&q, viewer(&auth)).await?)
 }
 
 async fn submit(
@@ -180,10 +181,9 @@ struct IdQuery {
 async fn detail(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<Option<MerchantApplicationVO>> {
-    ok(state.payment.merchant_application.detail(q.id, viewer(&headers, &auth)).await?)
+    ok(state.payment.merchant_application.detail(q.id, viewer(&auth)).await?)
 }
 
 /// `media?id=&role=` 查询参数（`role`：1 营业执照 2 身份证人像面 3 身份证国徽面）。
@@ -230,10 +230,9 @@ async fn refresh(
 async fn apply(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
     Json(param): Json<MerchantApplicationSubmitParam>,
 ) -> ApiResult<MerchantApplicationVO> {
-    ok(state.payment.merchant_application.apply(&param, viewer(&headers, &auth)).await?)
+    ok(state.payment.merchant_application.apply(&param, viewer(&auth)).await?)
 }
 
 /// `current?payChannel=` 查询参数。
@@ -246,13 +245,12 @@ struct CurrentQuery {
 async fn current(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
     Query(q): Query<CurrentQuery>,
 ) -> ApiResult<Option<MerchantApplicationVO>> {
     ok(state
         .payment
         .merchant_application
-        .current(q.pay_channel.as_deref(), viewer(&headers, &auth))
+        .current(q.pay_channel.as_deref(), viewer(&auth))
         .await?)
 }
 
@@ -373,14 +371,14 @@ mod tests {
             admin_type: Some("admin".into()),
             shop_id: None,
         };
-        let v = viewer(&headers(&[("x-admin-type", "admin")]), &auth);
+        let v = viewer(&auth);
         assert!(v.platform_admin);
-        assert_eq!(v.shop_id, Some(0));
+        assert_eq!(v.shop_id, None);
         let auth = AuthUser {
             admin_type: Some("shop".into()),
             ..auth
         };
-        let v = viewer(&headers(&[("x-admin-type", "shop"), ("x-shop-id", "9")]), &auth);
+        let v = viewer(&auth);
         assert!(!v.platform_admin);
         assert_eq!(v.shop_id, Some(9));
     }

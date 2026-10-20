@@ -32,7 +32,10 @@
 //!   返回明确 1001 业务错误；详见 models 模块文档「与 Java 的差异」。
 
 use axum::{
-    extract::{Multipart, Query, State},
+    extract::{Extension, Multipart, Query, Request, State},
+    http::StatusCode,
+    middleware::{self, Next},
+    response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
@@ -41,7 +44,7 @@ use serde_json::Value;
 use tigshop_core::models::system::config_basic::{
     endpoints, EndpointKind, EndpointSpec, Verb, PUBLIC_PATHS,
 };
-use tigshop_security::web::{ok, ApiResult, AppError};
+use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 
 use crate::AdminState;
 
@@ -160,6 +163,20 @@ struct CodeQuery {
 }
 
 /// 需登录的 99 条路由（外层统一 `require_auth`）。
+/// 平台设置仅平台账号可读写；店铺账号访问一律 403。
+async fn platform_only(
+    Extension(auth): Extension<AuthUser>,
+    req: Request,
+    next: Next,
+) -> Result<Response, AppError> {
+    if !auth.is_platform() {
+        return Err(AppError(tigshop_core::Error::Forbidden(
+            "仅平台账号可访问系统设置".into(),
+        )));
+    }
+    Ok(next.run(req).await)
+}
+
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     let mut router = Router::new();
@@ -175,6 +192,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
     router
         .route("/setting/config/uploadFile", post(upload_config_file))
         .route("/setting/config/sendTestEmail", post(send_test_email))
+        .layer(middleware::from_fn(platform_only))
 }
 
 /// 匿名白名单 3 条路由（Java `URL_WHITELIST`，外层不套 `require_auth`）。

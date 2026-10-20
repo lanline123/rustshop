@@ -17,7 +17,7 @@
 use axum::{
     extract::{Query, State},
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use tigshop_core::models::payment::statement::{
     StatementDownloadSaveParam, StatementExportVO, StatementListQuery, StatementListVO,
@@ -26,7 +26,7 @@ use tigshop_core::models::payment::statement::{
 };
 use tigshop_core::types::PageResult;
 use tigshop_openapi::RouteDoc;
-use tigshop_security::web::{ok, ApiResult, AppError};
+use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 
 use crate::AdminState;
 
@@ -100,16 +100,21 @@ pub fn implemented_routes() -> Vec<RouteDoc> {
 /// `GET /adminapi/finance/statement/getStatementList`：对账单列表。
 async fn list(
     State(state): State<AdminState>,
-    Query(q): Query<StatementListQuery>,
+    Extension(auth): Extension<AuthUser>,
+    Query(mut q): Query<StatementListQuery>,
 ) -> ApiResult<PageResult<StatementListVO>> {
+    q.shop_id = auth.resolve_shop_scope(q.shop_id)?;
     ok(state.payment.statement.list(&q).await?)
 }
 
 /// `POST /adminapi/finance/statement/saveStatementDownload`：保存下载信息。
 async fn save_download(
     State(state): State<AdminState>,
-    Json(param): Json<StatementDownloadSaveParam>,
+    Extension(auth): Extension<AuthUser>,
+    Json(mut param): Json<StatementDownloadSaveParam>,
 ) -> ApiResult<()> {
+    let shop = auth.require_shop_scope(param.shop_id.and_then(|v| i32::try_from(v).ok()))?;
+    param.shop_id = Some(i64::from(shop));
     state.payment.statement.save_download(&param).await?;
     ok(())
 }

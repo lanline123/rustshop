@@ -59,8 +59,10 @@ struct IdQuery {
 
 async fn list(
     State(state): State<AdminState>,
-    Query(q): Query<ProfitSharingPageQuery>,
+    Extension(auth): Extension<AuthUser>,
+    Query(mut q): Query<ProfitSharingPageQuery>,
 ) -> ApiResult<PageResult<ProfitSharingOrderVO>> {
+    q.shop_id = auth.resolve_shop_scope(q.shop_id)?;
     ok(state.payment.profit_sharing.list(&q).await?)
 }
 
@@ -68,6 +70,8 @@ async fn submit_batch(
     State(state): State<AdminState>,
     Json(param): Json<ProfitSharingSubmitParam>,
 ) -> ApiResult<()> {
+    // 提交参数只含 settlementIds（无 shopId）；归属校验由 service 按结算单逐一执行
+    // （见模块头「多租户」说明：本域剩余缺口）。
     state.payment.profit_sharing.submit_batch(&param).await?;
     ok(())
 }

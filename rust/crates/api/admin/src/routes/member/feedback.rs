@@ -71,7 +71,7 @@ use axum::{
 use serde::Deserialize;
 use tigshop_core::models::member::feedback::{
     BatchDTO, FeedbackListQuery, FeedbackUpdateDTO, OperateDTO, TenantScope, UserFeedbackDetailVO,
-    UserFeedbackVO, SERVICE_DATA_ERROR,
+    UserFeedbackVO, MSG_MISSING_TENANT, SERVICE_DATA_ERROR,
 };
 use tigshop_core::types::PageResult;
 use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
@@ -120,11 +120,12 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 // 请求头 → 租户作用域（替代 Java HeaderUtils + currentAdminTenantScope）
 // ——————————————————————————————————————————————
 
-/// 读取请求头文本值（缺失 / 非 UTF-8 / 空白 → `None`）。
+/// 读取请求头文本值（仅测试保留；生产链路已改用 JWT 可信身份）。
 ///
 /// Java `HeaderUtils.getHeaderValue` 用 `StrUtil.isEmpty`（只判空串），
 /// 本实现按 `trim` 后判空，与 aftersales / member_tag_group / vendor_deposit_shop / logistics_company_config 的
 /// 既有口径一致（`"   "` 视为缺失，见 `uncertain_points`）。
+#[cfg(test)]
 fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
     headers
         .get(name)
@@ -148,11 +149,27 @@ fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
 ///
 /// `resolve` 报错 → [`Error::biz`]`(1001, 原文案)`，与 Java
 /// `GlobalException(String)` 的可观测口径一致。
+#[cfg(test)]
 fn tenant_scope(headers: &HeaderMap, auth: &AuthUser) -> Result<TenantScope, AppError> {
     let admin_type = header_str(headers, "x-admin-type").or_else(|| auth.admin_type.clone());
     let shop_type = header_str(headers, "x-shop-type").and_then(|v| v.parse::<i32>().ok());
     let shop_id = header_str(headers, "x-shop-id").and_then(|v| v.parse::<i32>().ok());
     TenantScope::resolve(admin_type.as_deref(), shop_type, shop_id)
+        .map_err(|msg| AppError(tigshop_core::Error::biz(SERVICE_DATA_ERROR, msg)))
+}
+
+/// 从可信 JWT 身份解析租户作用域（禁止请求头作为身份）。
+///
+/// - `admin` → 平台（不受店铺过滤）；
+/// - `shop` / `store` → 店铺作用域，`shop_id` 必须来自 JWT 且 > 0；
+/// - 其它（`pickup` / `vendor` / 缺失）→「无权访问会员留言」。
+fn trusted_tenant_scope(auth: &AuthUser) -> Result<TenantScope, AppError> {
+    let admin_type = auth
+        .admin_type
+        .as_deref()
+        .ok_or_else(|| AppError(tigshop_core::Error::biz(SERVICE_DATA_ERROR, MSG_MISSING_TENANT)))?;
+    let shop_id = if auth.is_platform() { None } else { auth.scoped_shop_id() };
+    TenantScope::resolve(Some(admin_type), None, shop_id)
         .map_err(|msg| AppError(tigshop_core::Error::biz(SERVICE_DATA_ERROR, msg)))
 }
 
@@ -186,10 +203,9 @@ struct IdQuery {
 async fn list(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
     Query(q): Query<FeedbackListQuery>,
 ) -> ApiResult<PageResult<UserFeedbackVO>> {
-    let scope = tenant_scope(&headers, &auth)?;
+    let scope = trusted_tenant_scope(&auth)?;
     ok(state.member.feedback.list(&q, scope).await?)
 }
 
@@ -203,10 +219,9 @@ async fn list(
 async fn detail(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<UserFeedbackDetailVO> {
-    let scope = tenant_scope(&headers, &auth)?;
+    let scope = trusted_tenant_scope(&auth)?;
     ok(state.member.feedback.detail(q.id, scope).await?)
 }
 
@@ -222,10 +237,9 @@ async fn detail(
 async fn del(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<()> {
-    let scope = tenant_scope(&headers, &auth)?;
+    let scope = trusted_tenant_scope(&auth)?;
     state.member.feedback.del(dto.id, scope).await?;
     ok(())
 }
@@ -241,10 +255,9 @@ async fn del(
 async fn update(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
     Json(dto): Json<FeedbackUpdateDTO>,
 ) -> ApiResult<()> {
-    let scope = tenant_scope(&headers, &auth)?;
+    let scope = trusted_tenant_scope(&auth)?;
     state.member.feedback.update(&dto, auth.id, scope).await?;
     ok(())
 }
@@ -259,16 +272,40 @@ async fn update(
 async fn batch(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
     Json(dto): Json<BatchDTO>,
 ) -> ApiResult<()> {
-    let scope = tenant_scope(&headers, &auth)?;
+    let scope = trusted_tenant_scope(&auth)?;
     state.member.feedback.batch(&dto, scope).await?;
     ok(())
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn trusted_identity_rejects_cross_shop_scope() {
+        use tigshop_security::web::AuthUser;
+        // 店铺账号：强制本店
+        let shop = AuthUser::new(1, "s".into(), None, Some("shop".into()), Some(5));
+        assert_eq!(
+            trusted_tenant_scope(&shop).expect("店铺账号应通过"),
+            TenantScope::Shop { shop_id: 5 }
+        );
+        // 平台账号：Platform
+        let admin = AuthUser::new(2, "a".into(), None, Some("admin".into()), Some(0));
+        assert_eq!(
+            trusted_tenant_scope(&admin).expect("平台应通过"),
+            TenantScope::Platform
+        );
+        // 非店铺家族（pickup/vendor）：无权
+        for t in ["pickup", "vendor"] {
+            let auth = AuthUser::new(3, "x".into(), None, Some(t.into()), Some(5));
+            assert!(trusted_tenant_scope(&auth).is_err(), "t={t}");
+        }
+        // 店铺账号缺 shop_id：缺少当前店铺信息
+        let broken = AuthUser::new(4, "x".into(), None, Some("shop".into()), None);
+        assert!(trusted_tenant_scope(&broken).is_err());
+    }
+
     use super::*;
     use axum::http::{HeaderName, HeaderValue};
     use tigshop_core::models::member::feedback::{

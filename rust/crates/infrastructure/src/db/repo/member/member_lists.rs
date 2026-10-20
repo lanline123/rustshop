@@ -33,10 +33,12 @@ impl MemberRepository {
     /// 全部标签组（含其下标签由调用方组装）。
     ///
     /// 注意真实列名为 `sort_order`（非 `sort`），主键为 `id`（非 `group_id`）。
-    pub async fn find_all_tag_groups(&self) -> Result<Vec<MemberTagGroup>> {
+    /// `shop_id`：平台 `0`，店铺强制本店（来自可信 JWT）。
+    pub async fn find_all_tag_groups(&self, shop_id: i32) -> Result<Vec<MemberTagGroup>> {
         sqlx::query_as::<_, MemberTagGroup>(
-            "SELECT * FROM member_tag_group ORDER BY is_top DESC, id ASC",
+            "SELECT * FROM member_tag_group WHERE shop_id = ? ORDER BY is_top DESC, id ASC",
         )
+        .bind(shop_id)
         .fetch_all(&self.pool)
         .await
         .map_err(map_err)
@@ -56,26 +58,31 @@ impl MemberRepository {
     pub async fn paginate_points_logs(
         &self,
         user_id: Option<i32>,
+        shop_scope: Option<i32>,
         page: &PageQuery,
     ) -> Result<(u64, Vec<UserPointsLog>)> {
         let offset = (page.page.max(1) - 1) * page.page_size;
 
         let total: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM user_points_log WHERE (? IS NULL OR user_id = ?)",
+            "SELECT COUNT(*) FROM user_points_log l WHERE (? IS NULL OR l.user_id = ?) AND (? IS NULL OR EXISTS (SELECT 1 FROM shop_member m WHERE m.user_id = l.user_id AND m.shop_id = ? AND m.is_del = 0))",
         )
         .bind(user_id)
         .bind(user_id)
+        .bind(shop_scope)
+        .bind(shop_scope)
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
 
         let rows = sqlx::query_as::<_, UserPointsLog>(
-            "SELECT * FROM user_points_log
-             WHERE (? IS NULL OR user_id = ?)
-             ORDER BY log_id DESC LIMIT ? OFFSET ?",
+            "SELECT * FROM user_points_log l
+             WHERE (? IS NULL OR l.user_id = ?) AND (? IS NULL OR EXISTS (SELECT 1 FROM shop_member m WHERE m.user_id = l.user_id AND m.shop_id = ? AND m.is_del = 0))
+             ORDER BY l.log_id DESC LIMIT ? OFFSET ?",
         )
         .bind(user_id)
         .bind(user_id)
+        .bind(shop_scope)
+        .bind(shop_scope)
         .bind(page.page_size)
         .bind(offset)
         .fetch_all(&self.pool)

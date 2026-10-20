@@ -106,7 +106,9 @@ impl SalesStatisticsService {
     }
 
     /// 销售指标卡（Java `salesIndicators`）：今日/昨日/近 7 天/近 30 天。
-    pub async fn sales_indicators(&self) -> Result<serde_json::Value> {
+    ///
+    /// `shop_scope`：店铺账号强制本店（`Some(shop_id)`），平台账号 `None`（全平台）。
+    pub async fn sales_indicators(&self, shop_scope: Option<i32>) -> Result<serde_json::Value> {
         let now = now_secs();
         let day = 24 * 3600;
         let today_start = now - now % day;
@@ -118,7 +120,7 @@ impl SalesStatisticsService {
         ];
         let mut out = serde_json::Map::new();
         for (key, start, end) in ranges {
-            let t = self.repo().totals(start, end, None).await?;
+            let t = self.repo().totals(start, end, shop_scope).await?;
             out.insert(
                 key.to_string(),
                 serde_json::json!({

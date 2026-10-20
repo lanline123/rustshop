@@ -18,7 +18,7 @@
 use axum::{
     extract::{Query, State},
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use serde::Deserialize;
 use tigshop_core::models::payment::refund_apply::{
@@ -26,7 +26,7 @@ use tigshop_core::models::payment::refund_apply::{
     RefundApplyListQuery, RefundApplyUpdateDTO, RefundApplyVO,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AuthUser};
 
 use crate::AdminState;
 
@@ -76,8 +76,10 @@ async fn config() -> ApiResult<Vec<serde_json::Value>> {
 /// `GET /adminapi/finance/refundApply/list`：退款申请分页。
 async fn list(
     State(state): State<AdminState>,
-    Query(q): Query<RefundApplyListQuery>,
+    Extension(auth): Extension<AuthUser>,
+    Query(mut q): Query<RefundApplyListQuery>,
 ) -> ApiResult<PageResult<RefundApplyVO>> {
+    q.shop_id = auth.resolve_shop_scope(q.shop_id)?;
     ok(state.payment.refund_apply.list(&q).await?)
 }
 

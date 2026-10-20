@@ -39,20 +39,28 @@ impl MemberService {
             .collect())
     }
 
-    /// 标签组（含组下标签）。
-    pub async fn tag_groups(&self) -> Result<Vec<MemberTagGroup>> {
-        self.repos.member.member_lists.find_all_tag_groups().await
+    /// 标签组（含组下标签）。`shop_id`：平台 `0`，店铺强制本店（可信 JWT）。
+    pub async fn tag_groups(&self, shop_id: i32) -> Result<Vec<MemberTagGroup>> {
+        self.repos
+            .member
+            .member_lists
+            .find_all_tag_groups(shop_id)
+            .await
     }
 
-    /// 积分流水分页。
-    pub async fn points_logs(&self, q: &UserPointsLogQuery) -> Result<PageResult<UserPointsLog>> {
+    /// 积分流水分页。`shop_scope`：平台 `None`，店铺强制本店会员流水。
+    pub async fn points_logs(
+        &self,
+        q: &UserPointsLogQuery,
+        shop_scope: Option<i32>,
+    ) -> Result<PageResult<UserPointsLog>> {
         let page = PageQuery {
             page: q.page.unwrap_or(1),
             page_size: q.page_size.unwrap_or(20),
         };
         let (total, list) = self
             .repos.member.member_lists
-            .paginate_points_logs(q.user_id, &page)
+            .paginate_points_logs(q.user_id, shop_scope, &page)
             .await?;
         Ok(PageResult::new(total, list, &page))
     }
@@ -76,11 +84,28 @@ impl MemberService {
         page: u64,
         page_size: u64,
     ) -> Result<PageResult<tigshop_core::entities::User>> {
+        // 平台会员选择器（营销域调用）默认不按店铺过滤；店铺隔离由调用方显式传 scope。
+        self.paginate_users_scoped(keyword, None, page, page_size).await
+    }
+
+    /// 会员分页（可显式传店铺作用域；平台 `None`）。
+    pub async fn paginate_users_scoped(
+        &self,
+        keyword: Option<&str>,
+        shop_scope: Option<i32>,
+        page: u64,
+        page_size: u64,
+    ) -> Result<PageResult<tigshop_core::entities::User>> {
         let page = PageQuery {
             page: page.max(1),
             page_size: page_size.clamp(1, 200),
         };
-        let (total, list) = self.repos.member.user.paginate_members(keyword, &page).await?;
+        let (total, list) = self
+            .repos
+            .member
+            .user
+            .paginate_members(keyword, shop_scope, &page)
+            .await?;
         Ok(PageResult::new(total, list, &page))
     }
 }

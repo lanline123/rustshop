@@ -9,11 +9,11 @@
 use axum::{
     extract::{Query, State},
     routing::get,
-    Router,
+    Extension, Router,
 };
 use tigshop_core::models::{UserPointsLogQuery, UserRankVO};
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AuthUser};
 
 use crate::AdminState;
 
@@ -49,8 +49,13 @@ async fn rank_list(
 /// `GET /adminapi/user/memberTagGroup/list`：标签组列表。
 async fn tag_group_list(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
 ) -> ApiResult<Vec<serde_json::Value>> {
-    let groups = state.member.member_lists.tag_groups().await?;
+    let groups = state
+        .member
+        .member_lists
+        .tag_groups(auth.scoped_shop_id().unwrap_or(0))
+        .await?;
     let list: Vec<serde_json::Value> = groups
         .iter()
         .map(|g| {
@@ -69,9 +74,14 @@ async fn tag_group_list(
 /// `GET /adminapi/user/userPointsLog/list`：积分流水分页。
 async fn points_log_list(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<UserPointsLogQuery>,
 ) -> ApiResult<PageResult<serde_json::Value>> {
-    let page = state.member.member_lists.points_logs(&q).await?;
+    let page = state
+        .member
+        .member_lists
+        .points_logs(&q, auth.scoped_shop_id())
+        .await?;
     let list: Vec<serde_json::Value> = page
         .list
         .iter()
@@ -95,4 +105,23 @@ async fn points_log_list(
         page_size: q.page_size.unwrap_or(20),
     };
     ok(PageResult::new(page.total, list, &pq))
+
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shop_account_scope_is_trusted() {
+        use tigshop_core::Error;
+        let admin = AuthUser::new(1, "a".into(), None, Some("admin".into()), Some(0));
+        assert_eq!(admin.scoped_shop_id(), None);
+        let shop = AuthUser::new(2, "s".into(), None, Some("shop".into()), Some(7));
+        assert_eq!(shop.scoped_shop_id(), Some(7));
+        assert!(matches!(
+            shop.resolve_shop_scope(Some(9)),
+            Err(Error::Forbidden(_))
+        ));
+    }
 }

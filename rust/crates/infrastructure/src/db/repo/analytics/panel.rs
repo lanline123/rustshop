@@ -23,12 +23,21 @@ impl PanelRepository {
     ///
     /// # Errors
     /// 数据库失败 → `Error::Database`。
-    pub async fn order_window(&self, from: i64, to: i64) -> Result<(i64, String)> {
-        let row: Option<(i64, Option<rust_decimal::Decimal>)> = sqlx::query_as(
-            "SELECT COUNT(*), COALESCE(SUM(paid_amount), 0) FROM `order` WHERE add_time >= ? AND add_time < ?",
-        )
-        .bind(from)
-        .bind(to)
+    pub async fn order_window(
+        &self,
+        from: i64,
+        to: i64,
+        shop_scope: Option<i32>,
+    ) -> Result<(i64, String)> {
+        let shop_sql = if shop_scope.is_some() { " AND shop_id = ?" } else { "" };
+        let sql = format!(
+            "SELECT COUNT(*), COALESCE(SUM(paid_amount), 0) FROM `order` WHERE add_time >= ? AND add_time < ?{shop_sql}"
+        );
+        let mut query = sqlx::query_as(&sql).bind(from).bind(to);
+        if let Some(shop) = shop_scope {
+            query = query.bind(shop);
+        }
+        let row: Option<(i64, Option<rust_decimal::Decimal>)> = query
         .fetch_optional(&self.pool)
         .await
         .map_err(map_err)?;
@@ -41,14 +50,31 @@ impl PanelRepository {
     ///
     /// # Errors
     /// 数据库失败 → `Error::Database`。
-    pub async fn user_window(&self, from: i64, to: i64) -> Result<i64> {
-        let (n,): (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM user WHERE reg_time >= ? AND reg_time < ?")
+    pub async fn user_window(
+        &self,
+        from: i64,
+        to: i64,
+        shop_scope: Option<i32>,
+    ) -> Result<i64> {
+        let (n,): (i64,) = match shop_scope {
+            Some(shop) => {
+                sqlx::query_as(
+                    "SELECT COUNT(DISTINCT u.user_id) FROM user u JOIN shop_member m ON m.user_id = u.user_id AND m.is_del = 0 WHERE m.shop_id = ? AND u.reg_time >= ? AND u.reg_time < ?",
+                )
+                .bind(shop)
                 .bind(from)
                 .bind(to)
                 .fetch_one(&self.pool)
                 .await
-                .map_err(map_err)?;
+                .map_err(map_err)?
+            }
+            None => sqlx::query_as("SELECT COUNT(*) FROM user WHERE reg_time >= ? AND reg_time < ?")
+                .bind(from)
+                .bind(to)
+                .fetch_one(&self.pool)
+                .await
+                .map_err(map_err)?,
+        };
         Ok(n)
     }
 
@@ -56,13 +82,18 @@ impl PanelRepository {
     ///
     /// # Errors
     /// 数据库失败 → `Error::Database`。
-    pub async fn order_count_by_status(&self, status: i32) -> Result<i64> {
-        let (n,): (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM `order` WHERE order_status = ?")
-                .bind(status)
-                .fetch_one(&self.pool)
-                .await
-                .map_err(map_err)?;
+    pub async fn order_count_by_status(
+        &self,
+        status: i32,
+        shop_scope: Option<i32>,
+    ) -> Result<i64> {
+        let shop_sql = if shop_scope.is_some() { " AND shop_id = ?" } else { "" };
+        let sql = format!("SELECT COUNT(*) FROM `order` WHERE order_status = ?{shop_sql}");
+        let mut query = sqlx::query_as(&sql).bind(status);
+        if let Some(shop) = shop_scope {
+            query = query.bind(shop);
+        }
+        let (n,): (i64,) = query.fetch_one(&self.pool).await.map_err(map_err)?;
         Ok(n)
     }
 
@@ -70,18 +101,20 @@ impl PanelRepository {
     ///
     /// # Errors
     /// 数据库失败 → `Error::Database`。
-    pub async fn product_counts(&self) -> Result<(i64, i64)> {
-        let total: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM product WHERE is_delete = 0")
-                .fetch_one(&self.pool)
-                .await
-                .map_err(map_err)?;
-        let on_sale: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM product WHERE is_delete = 0 AND product_status = 1",
-        )
-        .fetch_one(&self.pool)
-        .await
-        .map_err(map_err)?;
+    pub async fn product_counts(&self, shop_scope: Option<i32>) -> Result<(i64, i64)> {
+        let shop_sql = if shop_scope.is_some() { " AND shop_id = ?" } else { "" };
+        let total_sql = format!("SELECT COUNT(*) FROM product WHERE is_delete = 0{shop_sql}");
+        let on_sale_sql = format!(
+            "SELECT COUNT(*) FROM product WHERE is_delete = 0 AND product_status = 1{shop_sql}"
+        );
+        let mut total_query = sqlx::query_as(&total_sql);
+        let mut on_sale_query = sqlx::query_as(&on_sale_sql);
+        if let Some(shop) = shop_scope {
+            total_query = total_query.bind(shop);
+            on_sale_query = on_sale_query.bind(shop);
+        }
+        let total: (i64,) = total_query.fetch_one(&self.pool).await.map_err(map_err)?;
+        let on_sale: (i64,) = on_sale_query.fetch_one(&self.pool).await.map_err(map_err)?;
         Ok((total.0, on_sale.0))
     }
 
@@ -89,12 +122,21 @@ impl PanelRepository {
     ///
     /// # Errors
     /// 数据库失败 → `Error::Database`。
-    pub async fn order_trend(&self, from: i64, to: i64) -> Result<Vec<(i64, i64, String)>> {
-        let rows: Vec<(i64, i64, Option<rust_decimal::Decimal>)> = sqlx::query_as(
-            "SELECT (add_time DIV 86400) AS day, COUNT(*), COALESCE(SUM(paid_amount), 0) FROM `order` WHERE add_time >= ? AND add_time < ? GROUP BY day ORDER BY day ASC",
-        )
-        .bind(from)
-        .bind(to)
+    pub async fn order_trend(
+        &self,
+        from: i64,
+        to: i64,
+        shop_scope: Option<i32>,
+    ) -> Result<Vec<(i64, i64, String)>> {
+        let shop_sql = if shop_scope.is_some() { " AND shop_id = ?" } else { "" };
+        let sql = format!(
+            "SELECT (add_time DIV 86400) AS day, COUNT(*), COALESCE(SUM(paid_amount), 0) FROM `order` WHERE add_time >= ? AND add_time < ?{shop_sql} GROUP BY day ORDER BY day ASC"
+        );
+        let mut query = sqlx::query_as(&sql).bind(from).bind(to);
+        if let Some(shop) = shop_scope {
+            query = query.bind(shop);
+        }
+        let rows: Vec<(i64, i64, Option<rust_decimal::Decimal>)> = query
         .fetch_all(&self.pool)
         .await
         .map_err(map_err)?;

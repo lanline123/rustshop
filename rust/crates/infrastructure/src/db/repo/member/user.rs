@@ -143,9 +143,11 @@ impl UserRepository {
     ///
     /// 关键字模糊匹配用户名/昵称/手机号/邮箱，对齐 Java
     /// `UserCouponServiceImpl#searchIssueUsers` 的搜索口径。
+    /// 会员分页（可选店铺隔离：`shop_scope = Some(shop_id)` 时仅本店会员）。
     pub async fn paginate_members(
         &self,
         keyword: Option<&str>,
+        shop_scope: Option<i32>,
         page: &tigshop_core::types::PageQuery,
     ) -> Result<(u64, Vec<User>)> {
         let like = keyword
@@ -154,7 +156,7 @@ impl UserRepository {
             .map(|k| format!("%{k}%"));
         let (limit, offset) = page.limit_offset();
 
-        let where_sql = "WHERE user_type = 1 AND (? IS NULL OR username LIKE ? OR nickname LIKE ? OR mobile LIKE ? OR email LIKE ?)";
+        let where_sql = "WHERE user_type = 1 AND (? IS NULL OR username LIKE ? OR nickname LIKE ? OR mobile LIKE ? OR email LIKE ?) AND (? IS NULL OR EXISTS (SELECT 1 FROM shop_member m WHERE m.user_id = user.user_id AND m.shop_id = ? AND m.is_del = 0))";
 
         let count_sql = format!("SELECT COUNT(*) FROM user {where_sql}");
         let (total,): (i64,) = sqlx::query_as(&count_sql)
@@ -163,6 +165,8 @@ impl UserRepository {
             .bind(&like)
             .bind(&like)
             .bind(&like)
+            .bind(shop_scope)
+            .bind(shop_scope)
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
@@ -174,6 +178,8 @@ impl UserRepository {
             .bind(&like)
             .bind(&like)
             .bind(&like)
+            .bind(shop_scope)
+            .bind(shop_scope)
             .bind(limit)
             .bind(offset)
             .fetch_all(&self.pool)

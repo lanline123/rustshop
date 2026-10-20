@@ -138,6 +138,12 @@ struct GroupIdQuery {
 ///
 /// ⚠️ 与 product_stock / im_servant 的 `shop_id_from_headers` **语义相同但各自独立
 /// 实现**：本切片不修改共享文件，因此不复用它们的私有函数。
+/// 可信租户店铺作用域：平台账号 `0`，店铺账号强制本店（来自 JWT）。
+fn shop_scope(auth: &AuthUser) -> i32 {
+    auth.scoped_shop_id().unwrap_or(0)
+}
+
+#[cfg(test)]
 #[must_use]
 pub fn shop_id_from_headers(headers: &axum::http::HeaderMap) -> i32 {
     let admin_type = header_str(headers, "x-admin-type");
@@ -189,13 +195,13 @@ fn require_group_id(id: Option<i64>) -> Result<i64, tigshop_core::Error> {
 /// 本实现返回 404 + 同文案（项目内 order_admin/005/017/075/163 的既有约定）。
 async fn detail(
     State(state): State<AdminState>,
-    headers: axum::http::HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<GroupIdQuery>,
 ) -> ApiResult<MemberTagGroupDetailVO> {
     let id = q
         .id
         .ok_or_else(|| tigshop_core::Error::Validation(MSG_ID_REQUIRED.to_string()))?;
-    let shop_id = shop_id_from_headers(&headers);
+    let shop_id = shop_scope(&auth);
     ok(state.member.member_tag_group.detail(id, shop_id).await?)
 }
 
@@ -213,10 +219,9 @@ async fn detail(
 async fn create(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    headers: axum::http::HeaderMap,
     Json(dto): Json<MemberTagGroupCreateDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let shop_id = shop_id_from_headers(&headers);
+    let shop_id = shop_scope(&auth);
     let operator = operator_from(&auth);
     let id = state.member.member_tag_group.create(&dto, shop_id, &operator).await?;
     ok(serde_json::json!({ "id": id }))
@@ -231,10 +236,9 @@ async fn create(
 async fn update(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    headers: axum::http::HeaderMap,
     Json(dto): Json<MemberTagGroupUpdateDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let shop_id = shop_id_from_headers(&headers);
+    let shop_id = shop_scope(&auth);
     let operator = operator_from(&auth);
     let outcome = state.member.member_tag_group.update(&dto, shop_id, &operator).await?;
     ok(serde_json::json!({
@@ -255,11 +259,11 @@ async fn update(
 /// Java 返回 `void`；这里回传计数便于运维排查。
 async fn del(
     State(state): State<AdminState>,
-    headers: axum::http::HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<serde_json::Value> {
     require_group_id(dto.group_id())?;
-    let shop_id = shop_id_from_headers(&headers);
+    let shop_id = shop_scope(&auth);
     let outcome = state.member.member_tag_group.del_group(&dto, shop_id).await?;
     ok(serde_json::json!({
         "groupId": outcome.group_id,
@@ -280,11 +284,10 @@ async fn del(
 async fn set_top(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    headers: axum::http::HeaderMap,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<serde_json::Value> {
     require_group_id(dto.group_id())?;
-    let shop_id = shop_id_from_headers(&headers);
+    let shop_id = shop_scope(&auth);
     let operator = operator_from(&auth);
     let top = state.member.member_tag_group.set_top(&dto, shop_id, &operator).await?;
     ok(serde_json::json!({ "isTop": top }))
@@ -300,11 +303,10 @@ async fn set_top(
 async fn cancel_top(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    headers: axum::http::HeaderMap,
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<serde_json::Value> {
     require_group_id(dto.group_id())?;
-    let shop_id = shop_id_from_headers(&headers);
+    let shop_id = shop_scope(&auth);
     let operator = operator_from(&auth);
     let affected = state.member.member_tag_group.cancel_top(&dto, shop_id, &operator).await?;
     ok(serde_json::json!({ "affected": affected }))
@@ -516,5 +518,16 @@ mod tests {
         assert_eq!(DEFAULT_SHOP_ID, 0);
         // 与「缺失 x-admin-type 时的解析结果」一致
         assert_eq!(shop_id_from_headers(&axum::http::HeaderMap::new()), 0);
+    }
+
+    #[test]
+    fn trusted_shop_scope_from_auth() {
+        let admin = AuthUser::new(1, "a".into(), None, Some("admin".into()), Some(0));
+        assert_eq!(shop_scope(&admin), 0);
+        let shop = AuthUser::new(2, "s".into(), None, Some("shop".into()), Some(7));
+        assert_eq!(shop_scope(&shop), 7);
+        // 店铺账号缺 shop_id → 0，无法通过 query 伪造
+        let broken = AuthUser::new(3, "s".into(), None, Some("shop".into()), None);
+        assert_eq!(shop_scope(&broken), 0);
     }
 }

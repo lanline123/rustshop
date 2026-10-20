@@ -74,10 +74,14 @@ fn scope_of(auth: &AuthUser, q: &AdminMsgListQuery) -> MsgScope {
             vendor_id: q.vendor_id.unwrap_or(0),
         };
     }
-    MsgScope::Shop {
-        shop_id: q.shop_id.unwrap_or(0),
-        platform: !matches!(auth.admin_type.as_deref(), Some("shop") | Some("store") | Some("pos")),
-    }
+    // 店铺账号：强制本店；平台账号：允许显式 shopId 过滤（缺省 0）。
+    let platform = auth.is_platform();
+    let shop_id = if platform {
+        q.shop_id.unwrap_or(0)
+    } else {
+        auth.scoped_shop_id().unwrap_or(0)
+    };
+    MsgScope::Shop { shop_id, platform }
 }
 
 async fn msg_count(State(state): State<AdminState>) -> ApiResult<()> {
@@ -202,5 +206,34 @@ mod tests {
             scope_of(&shop, &q),
             MsgScope::Shop { shop_id: 3, platform: false }
         );
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn scope_uses_trusted_identity() {
+        let admin = AuthUser::new(1, "a".into(), None, Some("admin".into()), Some(0));
+        let q = AdminMsgListQuery {
+            shop_id: Some(9),
+            ..Default::default()
+        };
+        match scope_of(&admin, &q) {
+            MsgScope::Shop { shop_id, platform } => {
+                assert_eq!(shop_id, 9);
+                assert!(platform);
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+        // 店铺账号传其它店铺 shopId ⇒ 强制本店
+        let shop = AuthUser::new(2, "s".into(), None, Some("shop".into()), Some(5));
+        match scope_of(&shop, &q) {
+            MsgScope::Shop { shop_id, platform } => {
+                assert_eq!(shop_id, 5);
+                assert!(!platform);
+            }
+            other => panic!("unexpected {other:?}"),
+        }
     }
 }

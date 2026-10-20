@@ -29,13 +29,13 @@ use axum::{
     extract::{Query, State},
     http::HeaderMap,
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use serde::Deserialize;
 use tigshop_core::models::member::user_member_tag::{
     UserMemberTagBatchParam, UserMemberTagParam, UserMemberTagVO,
 };
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AuthUser};
 
 use crate::AdminState;
 
@@ -104,10 +104,10 @@ struct ListByUserQuery {
 /// `GET /adminapi/user/userMemberTag/listByUser`：查询用户的所有标签。
 async fn list_by_user(
     State(state): State<AdminState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<ListByUserQuery>,
 ) -> ApiResult<Vec<UserMemberTagVO>> {
-    let shop_id = current_shop_id(&headers);
+    let shop_id = shop_scope(&auth);
     ok(state
         .member
         .user_member_tag
@@ -118,10 +118,10 @@ async fn list_by_user(
 /// `POST /adminapi/user/userMemberTag/bindTags`：给用户打标签。
 async fn bind_tags(
     State(state): State<AdminState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<UserMemberTagParam>,
 ) -> ApiResult<()> {
-    let shop_id = current_shop_id(&headers);
+    let shop_id = shop_scope(&auth);
     state
         .member
         .user_member_tag
@@ -133,10 +133,10 @@ async fn bind_tags(
 /// `POST /adminapi/user/userMemberTag/unbindTags`：取消用户标签。
 async fn unbind_tags(
     State(state): State<AdminState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<UserMemberTagParam>,
 ) -> ApiResult<()> {
-    let shop_id = current_shop_id(&headers);
+    let shop_id = shop_scope(&auth);
     state
         .member
         .user_member_tag
@@ -148,10 +148,10 @@ async fn unbind_tags(
 /// `POST /adminapi/user/userMemberTag/batchBindTags`：批量给用户打标签。
 async fn batch_bind_tags(
     State(state): State<AdminState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<UserMemberTagBatchParam>,
 ) -> ApiResult<()> {
-    let shop_id = current_shop_id(&headers);
+    let shop_id = shop_scope(&auth);
     state
         .member
         .user_member_tag
@@ -163,10 +163,10 @@ async fn batch_bind_tags(
 /// `POST /adminapi/user/userMemberTag/batchUnbindTags`：批量取消用户标签。
 async fn batch_unbind_tags(
     State(state): State<AdminState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<UserMemberTagBatchParam>,
 ) -> ApiResult<()> {
-    let shop_id = current_shop_id(&headers);
+    let shop_id = shop_scope(&auth);
     state
         .member
         .user_member_tag
@@ -186,6 +186,12 @@ fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
 ///
 /// `admin` → 0；`shop` / `pos` → `x-shop-id`（缺失/非法 → 0）；其它 → 0。
 #[must_use]
+/// 可信租户店铺作用域：平台账号 `0`，店铺账号强制本店（来自 JWT）。
+fn shop_scope(auth: &AuthUser) -> i32 {
+    auth.scoped_shop_id().unwrap_or(0)
+}
+
+#[cfg(test)]
 pub fn current_shop_id(headers: &HeaderMap) -> i32 {
     match header_str(headers, "x-admin-type").as_deref() {
         Some("admin") => 0,
@@ -271,5 +277,13 @@ mod tests {
             current_shop_id(&headers(&[("x-admin-type", "shop"), ("x-shop-id", "abc")])),
             0
         );
+    }
+
+    #[test]
+    fn trusted_shop_scope_from_auth() {
+        let admin = AuthUser::new(1, "a".into(), None, Some("admin".into()), Some(0));
+        assert_eq!(shop_scope(&admin), 0);
+        let shop = AuthUser::new(2, "s".into(), None, Some("shop".into()), Some(7));
+        assert_eq!(shop_scope(&shop), 7);
     }
 }

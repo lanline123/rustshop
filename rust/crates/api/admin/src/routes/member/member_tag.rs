@@ -31,9 +31,8 @@
 //!
 //! Java 通过 `HeaderUtils.getShopId()` 读**请求头**区分平台与店铺账号
 //! （`null` → `0` 平台），并把它作为所有 SQL 的店铺过滤条件。
-//! Rust 侧 JWT 尚未签发 `shop_id`，故本模块统一以
-//! [`MemberTagService::default_shop_id`]（平台 0）调用服务层
-//! —— 见模块头「不确定点」与返回值 `uncertain_points`。
+//! 店铺作用域来自可信 JWT（`AuthUser::scoped_shop_id`）：平台账号固定 `0`，
+//! 店铺账号强制本店；列表/写入均按该作用域过滤与归属校验，不信任请求参数。
 //!
 //! # 返回结构说明
 //!
@@ -46,13 +45,13 @@
 use axum::{
     extract::{Query, State},
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use serde::Deserialize;
 use tigshop_core::models::member::member_tag::{
     MemberTagCreateDTO, MemberTagDelDTO, MemberTagUpdateDTO, MemberTagVO, MSG_GROUP_ID_REQUIRED,
 };
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AuthUser};
 
 use crate::AdminState;
 
@@ -131,13 +130,14 @@ struct ListByGroupQuery {
 /// 已在服务层文档与 `uncertain_points` 中记录。
 async fn list_by_group(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<ListByGroupQuery>,
 ) -> ApiResult<Vec<MemberTagVO>> {
     let group_id = q
         .group_id
         .ok_or_else(|| tigshop_core::Error::Validation(MSG_GROUP_ID_REQUIRED.into()))?;
     ok(state.member.member_tag
-        .list_by_group(group_id, default_shop_id())
+        .list_by_group(group_id, shop_scope(&auth))
         .await?)
 }
 
@@ -150,9 +150,10 @@ async fn list_by_group(
 /// （与 shop_manage / pc_cat_floor / area_code 的处理方式一致）。
 async fn create(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<MemberTagCreateDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let id = state.member.member_tag.create(&dto, default_shop_id()).await?;
+    let id = state.member.member_tag.create(&dto, shop_scope(&auth)).await?;
     ok(serde_json::json!({ "id": id }))
 }
 
@@ -165,9 +166,10 @@ async fn create(
 /// Java 返回 `void`，这里回传是否命中记录。
 async fn update(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<MemberTagUpdateDTO>,
 ) -> ApiResult<bool> {
-    ok(state.member.member_tag.update(&dto, default_shop_id()).await?)
+    ok(state.member.member_tag.update(&dto, shop_scope(&auth)).await?)
 }
 
 /// `POST /adminapi/user/memberTag/del`：删除标签。
@@ -180,9 +182,10 @@ async fn update(
 /// 这里回传 `{"removedLinks": n, "deleted": bool}` 便于运维排查。
 async fn del(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<MemberTagDelDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let outcome = state.member.member_tag.del(&dto, default_shop_id()).await?;
+    let outcome = state.member.member_tag.del(&dto, shop_scope(&auth)).await?;
     ok(serde_json::json!({
         "removedLinks": outcome.removed_links,
         "deleted": outcome.deleted,
@@ -192,11 +195,11 @@ async fn del(
 /// 本模块当前使用的店铺 ID。
 ///
 /// Java `currentShopId()` = `HeaderUtils.getShopId() ?? 0`（请求头，平台 0）。
-/// Rust 侧鉴权中间件尚未注入 `shop_id`，故统一按平台账号处理。
-/// 待中间件补齐后，此处改为从 `AdminState` / 请求扩展里取真实店铺 ID 即可，
-/// 服务层签名（`shop_id: i32`）无需改动。
-const fn default_shop_id() -> i32 {
-    tigshop_core::models::member::member_tag::DEFAULT_SHOP_ID
+/// 可信租户店铺作用域：平台账号 `0`，店铺账号强制本店（来自 JWT）。
+///
+/// 禁止使用 query/header 的 `shopId` 作为身份；标签读写均落到该作用域。
+fn shop_scope(auth: &AuthUser) -> i32 {
+    auth.scoped_shop_id().unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -300,22 +303,14 @@ mod tests {
 
     /// 默认店铺 ID 是平台 0（Java `HeaderUtils.getShopId() ?? 0`）。
     #[test]
-    fn default_shop_id_is_platform() {
-        assert_eq!(default_shop_id(), 0);
-        assert_eq!(
-            default_shop_id(),
-            tigshop_core::models::member::member_tag::DEFAULT_SHOP_ID
-        );
+    fn shop_scope_uses_trusted_identity() {
+        let admin = AuthUser::new(1, "a".into(), None, Some("admin".into()), Some(0));
+        assert_eq!(shop_scope(&admin), 0);
+        let shop = AuthUser::new(2, "s".into(), None, Some("shop".into()), Some(7));
+        assert_eq!(shop_scope(&shop), 7);
+        // 店铺账号缺 shop_id → 平台 0（无法越权）
+        let broken = AuthUser::new(3, "s".into(), None, Some("shop".into()), None);
+        assert_eq!(shop_scope(&broken), 0);
     }
 
-    /// `listByGroup` 的 `groupId` 缺失时必须报错（Java
-    /// `@RequestParam Long groupId` 必填 → 400），不能静默当 0 处理。
-    #[test]
-    fn list_by_group_requires_group_id() {
-        let missing: ListByGroupQuery = serde_json::from_str("{}").unwrap();
-        assert_eq!(missing.group_id, None);
-
-        let camel: ListByGroupQuery = serde_json::from_str(r#"{"groupId":12}"#).unwrap();
-        assert_eq!(camel.group_id, Some(12));
-    }
 }

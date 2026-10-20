@@ -14,11 +14,11 @@
 use axum::{
     extract::{Query, State},
     routing::get,
-    Router,
+    Extension, Router,
 };
 use tigshop_core::models::analytics::sales_statistics::SalesStatisticsQuery;
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AuthUser};
 
 use crate::AdminState;
 
@@ -52,22 +52,28 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 
 async fn list(
     State(state): State<AdminState>,
-    Query(q): Query<SalesStatisticsQuery>,
+    Extension(auth): Extension<AuthUser>,
+    Query(mut q): Query<SalesStatisticsQuery>,
 ) -> ApiResult<serde_json::Value> {
+    q.shop_id = auth.resolve_shop_scope(q.shop_id)?;
     ok(state.analytics.sales_statistics.list(&q).await?)
 }
 
 async fn sales_detail(
     State(state): State<AdminState>,
-    Query(q): Query<SalesStatisticsQuery>,
+    Extension(auth): Extension<AuthUser>,
+    Query(mut q): Query<SalesStatisticsQuery>,
 ) -> ApiResult<serde_json::Value> {
+    q.shop_id = auth.resolve_shop_scope(q.shop_id)?;
     ok(state.analytics.sales_statistics.sales_detail(&q).await?)
 }
 
 async fn sales_product_detail(
     State(state): State<AdminState>,
-    Query(q): Query<SalesStatisticsQuery>,
+    Extension(auth): Extension<AuthUser>,
+    Query(mut q): Query<SalesStatisticsQuery>,
 ) -> ApiResult<PageResult<serde_json::Value>> {
+    q.shop_id = auth.resolve_shop_scope(q.shop_id)?;
     ok(state
         .analytics
         .sales_statistics
@@ -77,19 +83,41 @@ async fn sales_product_detail(
 
 async fn sales_indicators(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
 ) -> ApiResult<serde_json::Value> {
-    ok(state.analytics.sales_statistics.sales_indicators().await?)
+    ok(state
+        .analytics
+        .sales_statistics
+        .sales_indicators(auth.scoped_shop_id())
+        .await?)
 }
 
 async fn sales_ranking(
     State(state): State<AdminState>,
-    Query(q): Query<SalesStatisticsQuery>,
+    Extension(auth): Extension<AuthUser>,
+    Query(mut q): Query<SalesStatisticsQuery>,
 ) -> ApiResult<PageResult<tigshop_core::models::analytics::sales_statistics::ProductSalesRow>> {
+    q.shop_id = auth.resolve_shop_scope(q.shop_id)?;
     ok(state.analytics.sales_statistics.sales_ranking(&q).await?)
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn shop_scope_rejects_cross_shop_and_forces_own() {
+        use tigshop_core::Error;
+        let shop = AuthUser::new(1, "shop".into(), None, Some("shop".into()), Some(5));
+        assert_eq!(shop.resolve_shop_scope(None).unwrap(), Some(5));
+        assert_eq!(shop.resolve_shop_scope(Some(5)).unwrap(), Some(5));
+        assert!(matches!(
+            shop.resolve_shop_scope(Some(9)),
+            Err(Error::Forbidden(_))
+        ));
+        let platform = AuthUser::new(2, "admin".into(), None, Some("admin".into()), Some(0));
+        assert_eq!(platform.resolve_shop_scope(Some(9)).unwrap(), Some(9));
+        assert_eq!(platform.resolve_shop_scope(None).unwrap(), None);
+    }
+
     use super::*;
 
     #[test]

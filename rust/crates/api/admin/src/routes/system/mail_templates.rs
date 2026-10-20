@@ -18,22 +18,39 @@
 //! 因此两个 handler 只做业务处理，不做权限判断。
 
 use axum::{
-    extract::{Extension, State},
+    extract::{Extension, Request, State},
     http::HeaderMap,
+    middleware::{self, Next},
+    response::Response,
     routing::{get, post},
     Json, Router,
 };
 use tigshop_core::models::system::mail_templates::{MailTemplatesDTO, MailTemplatesVO};
-use tigshop_security::web::{client_ip, ok, ApiResult, AuthUser};
+use tigshop_security::web::{client_ip, ok, ApiResult, AppError, AuthUser};
 
 use crate::AdminState;
 
 /// 邮箱模板域路由（挂载于 `/adminapi` 下）。
+/// 邮箱模板为平台级配置：店铺账号只读/写入一律 403。
+async fn platform_only(
+    Extension(auth): Extension<AuthUser>,
+    req: Request,
+    next: Next,
+) -> Result<Response, AppError> {
+    if !auth.is_platform() {
+        return Err(AppError(tigshop_core::Error::Forbidden(
+            "仅平台账号可管理邮箱模板".into(),
+        )));
+    }
+    Ok(next.run(req).await)
+}
+
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new()
         .route("/setting/mailTemplates/list", get(list))
         .route("/setting/mailTemplates/update", post(update))
+        .layer(middleware::from_fn(platform_only))
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。

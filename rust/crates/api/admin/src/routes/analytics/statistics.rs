@@ -148,9 +148,9 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 async fn access_statistics(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    Query(q): Query<AccessStatisticsQuery>,
+    Query(mut q): Query<AccessStatisticsQuery>,
 ) -> ApiResult<AxisVO> {
-    let _ = &auth;
+    q.shop_id = auth.resolve_shop_scope(q.shop_id)?;
     ok(state.analytics.statistics.access_statistics(&q).await?)
 }
 
@@ -165,9 +165,9 @@ async fn access_statistics(
 async fn add_user_trends(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    Query(q): Query<UserTrendsQuery>,
+    Query(mut q): Query<UserTrendsQuery>,
 ) -> ApiResult<AxisVO> {
-    let _ = &auth;
+    q.shop_id = auth.resolve_shop_scope(q.shop_id)?;
     ok(state.analytics.statistics.add_user_trends(&q).await?)
 }
 
@@ -183,9 +183,9 @@ async fn add_user_trends(
 async fn user_consumption_ranking(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    Query(q): Query<UserConsumptionRankingDTO>,
+    Query(mut q): Query<UserConsumptionRankingDTO>,
 ) -> ApiResult<PageResult<UserConsumptionRankingVO>> {
-    let _ = &auth;
+    q.shop_id = auth.resolve_shop_scope(q.shop_id)?;
     ok(state.analytics.statistics.user_consumption_ranking(&q).await?)
 }
 
@@ -201,14 +201,29 @@ async fn user_consumption_ranking(
 async fn user_statistics_panel(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
-    Query(q): Query<UserStatisticsPanelDTO>,
+    Query(mut q): Query<UserStatisticsPanelDTO>,
 ) -> ApiResult<UserStatisticsPanelVO> {
-    let _ = &auth;
+    q.shop_id = auth.resolve_shop_scope(q.shop_id)?;
     ok(state.analytics.statistics.user_statistics_panel(&q).await?)
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn shop_scope_rejects_cross_shop_and_forces_own() {
+        use tigshop_core::Error;
+        let shop = AuthUser::new(1, "shop".into(), None, Some("shop".into()), Some(5));
+        assert_eq!(shop.resolve_shop_scope(None).unwrap(), Some(5));
+        assert_eq!(shop.resolve_shop_scope(Some(5)).unwrap(), Some(5));
+        assert!(matches!(
+            shop.resolve_shop_scope(Some(9)),
+            Err(Error::Forbidden(_))
+        ));
+        let platform = AuthUser::new(2, "admin".into(), None, Some("admin".into()), Some(0));
+        assert_eq!(platform.resolve_shop_scope(Some(9)).unwrap(), Some(9));
+        assert_eq!(platform.resolve_shop_scope(None).unwrap(), None);
+    }
+
     use super::*;
 
     /// 4 条路由必须与契约逐字符一致（含 `/adminapi` 前缀）。

@@ -25,7 +25,7 @@ use axum::{
     extract::{Multipart, Query, State},
     http::HeaderMap,
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use tigshop_core::models::member::shop_member::{
     ShopMemberAddParam, ShopMemberDetailQuery, ShopMemberListVO, ShopMemberQueryPage,
@@ -35,7 +35,7 @@ use tigshop_core::models::member::shop_member::{
 use tigshop_core::models::member::user_manage::UserImportSuccessListVO;
 use tigshop_core::types::PageResult;
 use tigshop_core::Error;
-use tigshop_security::web::{ok, ApiResult, AppError};
+use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 
 use crate::AdminState;
 
@@ -118,6 +118,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 // ——————————————————————————————————————————————
 
 /// 读取请求头文本值。
+#[cfg(test)]
 fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
     headers
         .get(name)
@@ -127,12 +128,9 @@ fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
         .map(ToString::to_string)
 }
 
-/// 当前上下文店铺（Java `currentShopId`：平台=0、店铺/门店=自身）。
-fn context_shop_id(headers: &HeaderMap) -> i32 {
-    header_str(headers, "x-shop-id")
-        .and_then(|v| v.parse::<i32>().ok())
-        .unwrap_or(0)
-        .max(0)
+/// 当前上下文店铺（可信 JWT：平台 `0`、店铺/门店=自身；禁止请求头伪装）。
+fn context_shop_id(auth: &AuthUser) -> i32 {
+    auth.scoped_shop_id().unwrap_or(0)
 }
 
 async fn setting_get(State(state): State<AdminState>) -> ApiResult<ShopMemberSettingVO> {
@@ -141,8 +139,12 @@ async fn setting_get(State(state): State<AdminState>) -> ApiResult<ShopMemberSet
 
 async fn setting_save(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<ShopMemberSettingParam>,
 ) -> ApiResult<()> {
+    if !auth.is_platform() {
+        return Err(tigshop_core::Error::Forbidden("仅平台账号可修改店铺会员全局开关".into()).into());
+    }
     state.member.shop_member.setting_save(&param).await?;
     ok(())
 }
@@ -156,28 +158,31 @@ async fn shop_list(
 
 async fn list(
     State(state): State<AdminState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<ShopMemberQueryPage>,
 ) -> ApiResult<PageResult<ShopMemberListVO>> {
-    let ctx = context_shop_id(&headers);
+    // 店铺账号：显式传其他店铺 shopId ⇒ 403；平台账号可指定
+    let _ = auth.resolve_shop_scope(q.shop_id)?;
+    let ctx = context_shop_id(&auth);
     ok(state.member.shop_member.member_list(&q, ctx).await?)
 }
 
 async fn detail(
     State(state): State<AdminState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<ShopMemberDetailQuery>,
 ) -> ApiResult<ShopMemberListVO> {
-    let ctx = context_shop_id(&headers);
+    let _ = auth.resolve_shop_scope(q.shop_id)?;
+    let ctx = context_shop_id(&auth);
     ok(state.member.shop_member.member_detail(&q, ctx).await?)
 }
 
 async fn add(
     State(state): State<AdminState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     Json(param): Json<ShopMemberAddParam>,
 ) -> ApiResult<i32> {
-    let ctx = context_shop_id(&headers);
+    let ctx = context_shop_id(&auth);
     ok(state.member.shop_member.add_member(&param, ctx).await?)
 }
 
@@ -197,7 +202,7 @@ async fn download_import_template(
 /// `import`：multipart `file`，解析 xlsx 后绑定店铺会员。
 async fn import_members(
     State(state): State<AdminState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<AuthUser>,
     mut multipart: Multipart,
 ) -> ApiResult<Vec<UserImportSuccessListVO>> {
     let bytes = read_upload_file(&mut multipart).await?;
@@ -205,7 +210,7 @@ async fn import_members(
     if rows.is_empty() {
         return Err(AppError(Error::biz_msg("表格数据为空")));
     }
-    let ctx = context_shop_id(&headers);
+    let ctx = context_shop_id(&auth);
     ok(state
         .member
         .shop_member
@@ -382,11 +387,23 @@ mod tests {
     }
 
     #[test]
-    fn context_shop_id_from_headers() {
-        assert_eq!(context_shop_id(&headers(&[("x-shop-id", "5")])), 5);
-        assert_eq!(context_shop_id(&headers(&[])), 0);
-        assert_eq!(context_shop_id(&headers(&[("x-shop-id", "abc")])), 0);
-        // 负数归零（平台语义）
-        assert_eq!(context_shop_id(&headers(&[("x-shop-id", "-3")])), 0);
+    fn context_shop_id_from_auth() {
+        let admin = AuthUser::new(1, "a".into(), None, Some("admin".into()), Some(0));
+        assert_eq!(context_shop_id(&admin), 0);
+        let shop = AuthUser::new(2, "s".into(), None, Some("shop".into()), Some(7));
+        assert_eq!(context_shop_id(&shop), 7);
+        let broken = AuthUser::new(3, "s".into(), None, Some("shop".into()), None);
+        assert_eq!(context_shop_id(&broken), 0);
+    }
+
+    #[test]
+    fn shop_account_scope_rejects_cross_shop_query() {
+        use tigshop_core::Error;
+        let shop = AuthUser::new(2, "s".into(), None, Some("shop".into()), Some(7));
+        assert_eq!(shop.resolve_shop_scope(Some(7)).unwrap(), Some(7));
+        assert!(matches!(
+            shop.resolve_shop_scope(Some(9)),
+            Err(Error::Forbidden(_))
+        ));
     }
 }

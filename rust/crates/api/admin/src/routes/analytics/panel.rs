@@ -61,8 +61,11 @@ struct ShopQuery {
     shop_id: Option<i32>,
 }
 
-async fn index(State(state): State<AdminState>) -> ApiResult<Value> {
-    ok(state.analytics.panel.index().await?)
+async fn index(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+) -> ApiResult<Value> {
+    ok(state.analytics.panel.index(auth.scoped_shop_id()).await?)
 }
 
 async fn vendor_index(State(state): State<AdminState>) -> ApiResult<Value> {
@@ -71,12 +74,13 @@ async fn vendor_index(State(state): State<AdminState>) -> ApiResult<Value> {
 
 async fn statistical_data(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<DaysQuery>,
 ) -> ApiResult<Value> {
     ok(state
         .analytics
         .panel
-        .statistical_data(q.resolved_days())
+        .statistical_data(q.resolved_days(), auth.scoped_shop_id())
         .await?)
 }
 
@@ -107,11 +111,8 @@ async fn shortcut_menu(
     Extension(auth): Extension<AuthUser>,
     Query(q): Query<ShopQuery>,
 ) -> ApiResult<tigshop_core::models::analytics::panel::ShortcutMenuVO> {
-    ok(state
-        .analytics
-        .panel
-        .shortcut_menu(auth.id, q.shop_id.unwrap_or(0))
-        .await?)
+    let shop_id = auth.resolve_shop_scope(q.shop_id)?.unwrap_or(0);
+    ok(state.analytics.panel.shortcut_menu(auth.id, shop_id).await?)
 }
 
 async fn save_shortcut_menu(
@@ -120,15 +121,38 @@ async fn save_shortcut_menu(
     Query(q): Query<ShopQuery>,
     Json(dto): Json<ShortcutMenuSaveDTO>,
 ) -> ApiResult<bool> {
+    let shop_id = auth.resolve_shop_scope(q.shop_id)?.unwrap_or(0);
     ok(state
         .analytics
         .panel
-        .save_shortcut_menu(dto.list.as_deref(), auth.id, q.shop_id.unwrap_or(0))
+        .save_shortcut_menu(dto.list.as_deref(), auth.id, shop_id)
         .await?)
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn shop_account_cannot_use_other_shop_scope() {
+        use tigshop_core::Error;
+        let auth = AuthUser::new(1, "shop".into(), None, Some("shop".into()), Some(5));
+        assert_eq!(auth.resolve_shop_scope(Some(5)).unwrap(), Some(5));
+        assert!(matches!(
+            auth.resolve_shop_scope(Some(9)),
+            Err(Error::Forbidden(_))
+        ));
+        // 未传 shopId 时强制本店
+        assert_eq!(auth.resolve_shop_scope(None).unwrap(), Some(5));
+        assert_eq!(auth.require_shop_scope(None).unwrap(), 5);
+    }
+
+    #[test]
+    fn platform_account_may_filter_any_shop() {
+        let auth = AuthUser::new(1, "admin".into(), None, Some("admin".into()), Some(0));
+        assert_eq!(auth.resolve_shop_scope(Some(9)).unwrap(), Some(9));
+        assert_eq!(auth.resolve_shop_scope(None).unwrap(), None);
+        assert_eq!(auth.scoped_shop_id(), None);
+    }
+
     use super::*;
 
     #[test]
