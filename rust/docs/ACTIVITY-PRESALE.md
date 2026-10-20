@@ -133,3 +133,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File rust/tools/compat/groupon_sm
 mysql ... tigshop-java -e "source rust/tools/compat/seed_fullreduce.sql"
 powershell -NoProfile -ExecutionPolicy Bypass -File rust/tools/compat/fullreduce_smoke.ps1
 ```
+
+## 拼团失败自动退款售后（2026-10-20）
+
+拼团到期失败时，为每个真实成员订单创建 PAY_RETURN 售后单、明细与日志（描述「拼团失败，发起退款」），
+实际退款仍由财务退款流程处理。

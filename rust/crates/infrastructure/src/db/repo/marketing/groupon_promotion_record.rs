@@ -288,6 +288,20 @@ impl GrouponPromotionRecordRepository {
         Ok(row.0)
     }
 
+    /// 开团记录下的全部成员（含开团记录本身）。
+    pub async fn find_members(
+        &self,
+        open_group_id: i64,
+    ) -> Result<Vec<GrouponPromotionRecord>> {
+        sqlx::query_as::<_, GrouponPromotionRecord>(&format!(
+            "{SELECT} WHERE open_group_record_id = ? ORDER BY groupon_promotion_record_id ASC"
+        ))
+        .bind(open_group_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
     /// 成团：开团记录 + 同团成员状态置 2（`join_status` 成功）。
     pub async fn mark_success_in_tx(
         &self,

@@ -390,6 +390,34 @@ pub async fn run_groupon_expire(repos: &Repositories) -> Result<usize> {
             .await?;
         if affected > 0 {
             count += 1;
+            // 拼团失败：为真实成员订单自动发起退款售后（实际退款仍需财务处理）
+            let members = repos
+                .marketing
+                .groupon_promotion_record
+                .find_members(record.groupon_promotion_record_id)
+                .await?;
+            let aftersales = crate::trade::aftersales::AftersalesService::new(Arc::new(
+                repos.clone(),
+            ));
+            for member in members {
+                if member.is_virtual != 0 || member.user_id <= 0 || member.order_id <= 0 {
+                    continue;
+                }
+                if let Err(e) = aftersales
+                    .create_groupon_refund(
+                        i32::try_from(member.order_id).unwrap_or(0),
+                        i32::try_from(member.user_id).unwrap_or(0),
+                        member.paid_amount,
+                    )
+                    .await
+                {
+                    tracing::warn!(
+                        "拼团失败创建售后失败: open={}, order={}, {e}",
+                        record.groupon_promotion_record_id,
+                        member.order_id
+                    );
+                }
+            }
             tracing::info!(
                 "拼团过期: open_record={} 影响成员 {}",
                 record.groupon_promotion_record_id,

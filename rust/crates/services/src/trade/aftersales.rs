@@ -1068,6 +1068,82 @@ impl AftersalesService {
         self.complete_return_aftersales(aftersale_id, true).await
     }
 
+    /// 拼团失败自动发起退款售后（Java `GrouponPromotionRecordServiceImpl#buildAftersale`）。
+    ///
+    /// 仅创建售后单/明细/日志，实际退款仍由财务退款流程处理。
+    pub async fn create_groupon_refund(
+        &self,
+        order_id: i32,
+        user_id: i32,
+        refund_amount: Decimal,
+    ) -> Result<bool> {
+        let existing = self.repo().find_by_order(order_id).await?;
+        if !existing.is_empty() {
+            return Ok(false);
+        }
+        let Some(order) = self.repo().find_orders(&[order_id]).await?.into_iter().next() else {
+            return Ok(false);
+        };
+        let items = self.repo().find_order_items_by_order(order_id).await?;
+        let now = tigshop_common::utils::now_seconds() as i32;
+        let description = "拼团失败，发起退款";
+        let aftersales = Aftersales {
+            aftersale_id: 0,
+            aftersale_type: aftersales_type::PAY_RETURN,
+            status: aftersales_status::IN_REVIEW,
+            pics: "[]".to_string(),
+            description: description.to_string(),
+            reply: String::new(),
+            add_time: now,
+            tracking_no: String::new(),
+            logistics_name: String::new(),
+            return_address: None,
+            aftersale_reason: Some(description.to_string()),
+            aftersales_sn: None,
+            order_id: Some(order_id),
+            user_id: Some(user_id),
+            refund_amount,
+            shop_id: order.shop_id,
+            audit_time: 0,
+            deal_time: 0,
+            final_time: 0,
+            return_goods_tip: String::new(),
+            vendor_id: order.vendor_id,
+            close_type: 0,
+        };
+        let aftersale_id = self.repo().insert_aftersales(&aftersales).await?;
+        let rows: Vec<tigshop_core::entities::AftersalesItem> = items
+            .into_iter()
+            .map(|item| tigshop_core::entities::AftersalesItem {
+                aftersales_item_id: 0,
+                order_item_id: Some(item.item_id),
+                number: Some(item.quantity),
+                aftersale_id: Some(aftersale_id),
+            })
+            .collect();
+        self.repo().insert_items(&rows).await?;
+        self.repo()
+            .insert_log(&tigshop_core::entities::AftersalesLog {
+                log_id: 0,
+                aftersale_id,
+                log_info: description.to_string(),
+                add_time: now,
+                admin_name: String::new(),
+                refund_money: refund_amount,
+                refund_type: aftersales_type::PAY_RETURN,
+                refund_desc: description.to_string(),
+                user_name: None,
+                return_pic: Some("[]".to_string()),
+                shop_id: Some(order.shop_id),
+                vendor_id: order.vendor_id,
+            })
+            .await?;
+        tracing::info!(
+            "拼团失败创建退款售后: order_id={order_id}, aftersale_id={aftersale_id}"
+        );
+        Ok(true)
+    }
+
     /// 完结退货售后（对应 Java `AftersalesServiceImpl#completeReturnAftersales`）。
     async fn complete_return_aftersales(
         &self,

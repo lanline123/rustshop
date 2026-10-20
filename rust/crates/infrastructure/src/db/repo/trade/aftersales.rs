@@ -307,6 +307,31 @@ impl AftersalesRepository {
         .map_err(map_err)
     }
 
+    /// 按订单查询全部售后主单（幂等判断用）。
+    pub async fn find_by_order(&self, order_id: i32) -> Result<Vec<Aftersales>> {
+        sqlx::query_as::<_, Aftersales>("SELECT * FROM aftersales WHERE order_id = ?")
+            .bind(order_id)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)
+    }
+
+    /// 批量插入售后商品明细。
+    pub async fn insert_items(&self, items: &[tigshop_core::entities::AftersalesItem]) -> Result<()> {
+        for item in items {
+            sqlx::query(
+                "INSERT INTO aftersales_item (order_item_id, number, aftersale_id) VALUES (?, ?, ?)",
+            )
+            .bind(item.order_item_id)
+            .bind(item.number)
+            .bind(item.aftersale_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        }
+        Ok(())
+    }
+
     // ————————————————————— aftersales_item —————————————————————
 
     /// 按售后ID批量查询明细（含对应订单明细，消除 N+1）。
