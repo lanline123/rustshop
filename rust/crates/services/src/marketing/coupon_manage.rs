@@ -53,6 +53,7 @@ use tigshop_core::models::marketing::coupon_manage::MSG_ISSUE_TYPE_REQUIRED;
 use tigshop_core::types::PageResult;
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::marketing::coupon_manage::CouponUpdatePatch;
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 /// 优惠券管理域服务。
@@ -75,7 +76,8 @@ impl CouponManageService {
     /// 创建优惠券（Java `create`，优惠券 + 营销活动双写事务）。
     pub async fn create(&self, dto: &CouponDTO, shop_id: Option<i32>) -> Result<()> {
         validate_coupon_dto(dto, false)?;
-        let shop_id = shop_id.unwrap_or(0);
+        // 多租户：店铺账号强制本店；平台账号可指定/落 0
+        let shop_id = TenantScope::current().write_shop_id(shop_id)?;
         let coupon = build_coupon(dto, shop_id)?;
         let repo = self.repo();
         let mut tx = repo.begin().await?;
@@ -108,6 +110,8 @@ impl CouponManageService {
         let Some(existing_coupon) = existing else {
             return Err(Error::biz_msg(MSG_NOT_EXIST));
         };
+        // 多租户：更新前强制归属校验（TenantScope 优先）
+        TenantScope::current_ensure_access(existing_coupon.shop_id.unwrap_or(0))?;
         if let Some(sid) = shop_id {
             if sid > 0 {
                 let curr_sid = existing_coupon.shop_id.unwrap_or(0);
@@ -117,7 +121,8 @@ impl CouponManageService {
             }
         }
 
-        let shop_id = shop_id.unwrap_or(existing_coupon.shop_id.unwrap_or(0));
+        let shop_id = TenantScope::current()
+            .write_shop_id(shop_id.or(Some(existing_coupon.shop_id.unwrap_or(0))))?;
         let patch = build_coupon_patch(dto, shop_id)?;
         let mut tx = repo.begin().await?;
         let affected = repo
@@ -154,6 +159,8 @@ impl CouponManageService {
 
     /// 删除优惠券（支持租户隔离）。
     pub async fn del_scoped(&self, dto: &OperateDTO, scoped_shop_id: Option<i32>) -> Result<()> {
+        // 多租户：TenantScope 优先（AuthUser 兜底保留）
+        let scoped_shop_id = TenantScope::current_list_filter().or(scoped_shop_id);
         let Some(id) = dto.id else {
             // Java：id 为 null → 返回 false（控制器 void，不报错）
             return Ok(());
@@ -184,6 +191,8 @@ impl CouponManageService {
 
     /// 批量操作（支持租户隔离）。
     pub async fn batch_scoped(&self, dto: &BatchDTO, scoped_shop_id: Option<i32>) -> Result<()> {
+        // 多租户：TenantScope 优先（AuthUser 兜底保留）
+        let scoped_shop_id = TenantScope::current_list_filter().or(scoped_shop_id);
         if dto.ids.is_empty() {
             return Err(Error::Validation(tigshop_core::models::marketing::coupon_manage::MSG_UNSELECTED_ITEM.into()));
         }
@@ -726,6 +735,11 @@ const _BATCH_UNSELECTED: &str = MSG_UNSELECTED_ITEM;
 #[allow(dead_code)]
 const _BATCH_TYPE_REQUIRED: &str = MSG_OPERATION_TYPE_REQUIRED;
 
+/// 列表店铺过滤：店铺账号强制本店；平台账号可请求过滤。
+fn scoped_tenant_shop(requested: Option<i32>) -> Option<i32> {
+    TenantScope::current_list_filter().or(requested.filter(|id| *id > 0))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -739,6 +753,31 @@ mod tests {
             min_order_amount: Some(min),
             ..Default::default()
         }
+    }
+
+    #[tokio::test]
+    async fn tenant_scope_overrides_scoped_shop_and_blocks_cross_shop() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::{
+            with_tenant_scope, TenantScope,
+        };
+        let shop = TenantScope::for_shop(8);
+        let (scope, write_shop, blocked) = with_tenant_scope(shop, async {
+            (
+                scoped_tenant_shop(Some(9)),
+                TenantScope::current().write_shop_id(Some(8)).unwrap_or(-1),
+                TenantScope::current_ensure_access(9).is_err(),
+            )
+        })
+        .await;
+        // 店铺账号：即使请求其他店铺，TenantScope 也强制本店
+        assert_eq!(scope, Some(8));
+        assert_eq!(write_shop, 8);
+        assert!(blocked);
+        let scope = with_tenant_scope(TenantScope::platform(), async {
+            scoped_tenant_shop(Some(9))
+        })
+        .await;
+        assert_eq!(scope, Some(9));
     }
 
     #[test]
