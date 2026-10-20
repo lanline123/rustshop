@@ -1593,8 +1593,9 @@ impl OrderAdminService {
     /// 对应 Java `cancelOrder`：状态门（`availableActions.cancelOrder`）→
     /// 返还库存 + 扣回虚拟销量 → 置「已取消」+ 取消原因 → 级联取消子单 → 日志。
     ///
-    /// ⚠️ **未迁移**：积分/余额/优惠券返还、秒杀库存、拼团限购恢复、
-    /// 后台消息、预售尾款校验、礼品卡组库存返还。
+    /// 已补：未付款/兑换订单返还抵扣积分、余额原路返还并写余额日志、
+    /// 释放订单/父单优惠券占用、写店铺与供应商后台取消消息。
+    /// 仍未迁移：秒杀库存/销量、拼团限购恢复、礼品卡组库存返还、预售尾款校验。
     pub async fn cancel_order(
         &self,
         id: i32,
@@ -1629,6 +1630,105 @@ impl OrderAdminService {
             patch = patch.str_val("cancel_remark", remark);
         }
         self.repos.trade.order_admin.update_order(id, &patch).await?;
+
+        // 取消返还：未付款/兑换订单返还抵扣积分；余额原路返还；优惠券释放占用。
+        if order.use_points > 0
+            && (order.is_exchange_order == Some(1) || order.pay_status == 0)
+        {
+            self.repos
+                .member
+                .user_points_log
+                .inc_points(
+                    order.use_points,
+                    order.user_id,
+                    "订单取消返还积分",
+                    Some(order.order_id),
+                )
+                .await?;
+        }
+        if order.balance > Decimal::ZERO {
+            if let Some(user) = self.repos.member.user_manage.find_user(order.user_id).await? {
+                let before = user.balance;
+                if self
+                    .repos
+                    .member
+                    .user_manage
+                    .apply_balance_delta(
+                        order.user_id,
+                        tigshop_core::models::member::user_manage::CHANGE_TYPE_INC,
+                        order.balance,
+                    )
+                    .await?
+                    > 0
+                {
+                    let _ = self
+                        .repos
+                        .member
+                        .user_manage
+                        .insert_balance_log(&tigshop_core::entities::UserBalanceLog {
+                            log_id: 0,
+                            user_id: order.user_id,
+                            before_balance: before,
+                            balance: order.balance,
+                            after_balance: before + order.balance,
+                            frozen_balance: Decimal::ZERO,
+                            before_frozen_balance: Decimal::ZERO,
+                            after_frozen_balance: Decimal::ZERO,
+                            change_time: utils::now_seconds() as i32,
+                            change_desc: "订单取消返还余额".to_string(),
+                            change_type:
+                                tigshop_core::models::member::user_manage::CHANGE_TYPE_INC,
+                            wallet_type: 0,
+                            new_balance: before + order.balance,
+                            new_frozen_balance: Decimal::ZERO,
+                        })
+                        .await;
+                }
+            }
+        }
+        if order.coupon_amount > Decimal::ZERO {
+            let released = self.repos.marketing.coupon.release_by_order(id).await?;
+            if released == 0 {
+                if let Some(parent_id) = order.parent_order_id.filter(|v| *v > 0) {
+                    let _ = self
+                        .repos
+                        .marketing
+                        .coupon
+                        .release_by_order(parent_id)
+                        .await;
+                }
+            }
+        }
+
+        // 后台订单取消消息（Java AdminMsgTypeEnum.ORDER_CANCELED = 31）。
+        let title = format!("订单已被取消：{},金额：{}", order.order_sn, order.total_amount);
+        let content = format!(
+            "订单编号：{}，订单金额：{}，订单取消。",
+            order.order_sn, order.total_amount
+        );
+        let related = serde_json::json!({ "orderId": order.order_id }).to_string();
+        let _ = self
+            .repos
+            .system
+            .admin_msg
+            .create_message(31, order.shop_id, order.order_id, &title, &content, &related)
+            .await;
+        if let Some(vendor_id) = order.vendor_id.filter(|v| *v > 0) {
+            let _ = self
+                .repos
+                .system
+                .admin_msg
+                .create_vendor_message(
+                    31,
+                    vendor_id,
+                    order.shop_id,
+                    order.order_id,
+                    &title,
+                    &content,
+                    &related,
+                )
+                .await;
+        }
         self.repos
             .trade
             .order_admin
