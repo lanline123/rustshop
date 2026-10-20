@@ -63,6 +63,21 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
         .collect()
 }
 
+async fn ensure_product_access(
+    state: &AdminState,
+    auth: &AuthUser,
+    product_id: i32,
+) -> Result<(), tigshop_core::Error> {
+    let product = state
+        .catalog
+        .product_manage_client
+        .repo()
+        .find_product(product_id)
+        .await?
+        .ok_or_else(|| tigshop_core::Error::biz_msg("商品不存在"))?;
+    tenant::ensure_row_shop(auth, product.shop_id)
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ProductIdQuery {
@@ -82,16 +97,20 @@ async fn config(
 /// `POST /adminapi/product/product/copy`
 async fn copy(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<ProductCopyDTO>,
 ) -> ApiResult<String> {
+    ensure_product_access(&state, &auth, dto.product_id).await?;
     ok(state.catalog.product_manage_client.admin_copy(&dto).await?)
 }
 
 /// `GET /adminapi/product/product/getPromoteData?productId=`
 async fn get_promote_data(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<ProductIdQuery>,
 ) -> ApiResult<serde_json::Value> {
+    ensure_product_access(&state, &auth, q.product_id).await?;
     ok(state.catalog.product_manage_client.admin_promote_data(q.product_id).await?)
 }
 
@@ -108,16 +127,20 @@ async fn select_product_list(
 /// `POST /adminapi/product/product/saveShareInfo`
 async fn save_share_info(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<ProductShareInfoDTO>,
 ) -> ApiResult<bool> {
+    ensure_product_access(&state, &auth, dto.product_id).await?;
     ok(state.catalog.product_manage_client.admin_save_share_info(&dto).await?)
 }
 
 /// `GET /adminapi/product/product/shareInfo?productId=`
 async fn share_info(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<ProductIdQuery>,
 ) -> ApiResult<ProductShareInfoVO> {
+    ensure_product_access(&state, &auth, q.product_id).await?;
     ok(state.catalog.product_manage_client.admin_share_info(q.product_id).await?)
 }
 
