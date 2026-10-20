@@ -3,11 +3,10 @@
 //! 对应原 Java `OrderInvoiceServiceImpl`
 //! （`com.tigshop.service.finance.impl`，7 个管理端端点）。
 //!
-//! # 未迁移 / 偏差（如实标注）
+//! # 迁移说明
 //!
-//! - `update` 中 Java 还会把发票快照回写 `order.invoice_data` 并（状态=1 时）
-//!   发送订单发票站内信；本实现跳过订单快照回写与消息通知（订单/消息域
-//!   能力不在本切片），只更新 `order_invoice` 主表 —— 见 `uncertain_points`。
+//! - `update` 中对齐 Java `OrderInvoiceServiceImpl#update`：把发票快照回写 `order.invoice_data`，
+//!   并在审核通过（状态=1，STATUS_PASS）时向用户发送站内信通知。
 //! - `detail` 对不存在 ID：Java 在 `BeanUtils.copyProperties(null, ...)` 处抛
 //!   NPE（500）；本实现返回业务 500「发票申请不存在」。
 //! - `create` 忽略入参 `id`（Java `BeanUtils.copyProperties` 会带过去，若前端
@@ -28,7 +27,7 @@ use tigshop_core::models::payment::order_invoice::{
     resolve_update_field, status_name, BatchDTO, OperateDTO, OrderInvoiceEditParam,
     OrderInvoicePageQuery, OrderInvoiceSaveParam, OrderInvoiceVO, UpdateFieldDTO, MSG_FIELD_NAME_REQUIRED,
     MSG_FIELD_VALUE_REQUIRED, MSG_ID_REQUIRED, MSG_INVALID_FIELD_VALUE,
-    MSG_NOT_EXISTS, MSG_OPERATION_TYPE_REQUIRED, MSG_UNSELECTED_ITEM,
+    MSG_NOT_EXISTS, MSG_OPERATION_TYPE_REQUIRED, MSG_UNSELECTED_ITEM, STATUS_PASS,
 };
 use tigshop_core::types::PageResult;
 use tigshop_core::{Error, Result};
@@ -258,6 +257,28 @@ impl OrderInvoiceService {
             entity.invoicing_time = now;
         }
         self.repo().update(&entity).await?;
+
+        // 对齐 Java OrderInvoiceServiceImpl#update：
+        // 1. 若关联订单存在，回写 order.invoice_data
+        // 2. 若审核通过（status == 1），发送站内信通知用户
+        if entity.order_id > 0 {
+            if let Ok(Some(order)) = self.repos.trade.order.find_by_id(entity.order_id).await {
+                let invoice_json = serde_json::to_string(&entity).unwrap_or_default();
+                let _ = self.repos.trade.order.update_invoice_data(order.order_id, &invoice_json).await;
+                if entity.status == STATUS_PASS && order.user_id > 0 {
+                    let title = "发票开具成功";
+                    let content = format!("您关于订单 {} 的发票已开具完成，请前往查看。", order.order_sn);
+                    let _ = self.repos.member.user_message.insert_user_message(
+                        order.user_id,
+                        title,
+                        &content,
+                        1,
+                        Some(&format!("/order/invoice?id={}", entity.id)),
+                    ).await;
+                }
+            }
+        }
+
         tracing::info!("更新发票申请: id={id}");
         Ok(())
     }

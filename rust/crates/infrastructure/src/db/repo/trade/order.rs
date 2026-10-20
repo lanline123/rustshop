@@ -207,6 +207,17 @@ impl OrderRepository {
         Ok(())
     }
 
+    /// 更新订单发票快照数据（审核或开票后回写）
+    pub async fn update_invoice_data(&self, order_id: i32, invoice_data: &str) -> Result<()> {
+        sqlx::query("UPDATE `order` SET invoice_data = ? WHERE order_id = ?")
+            .bind(invoice_data)
+            .bind(order_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(())
+    }
+
     /// 待付款且下单时间早于 cutoff 的订单 ID（定时取消用）。
     pub async fn find_unpaid_before(
         &self,

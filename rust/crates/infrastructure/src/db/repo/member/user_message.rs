@@ -141,6 +141,32 @@ impl UserMessageRepository {
         Ok(r.rows_affected())
     }
 
+    /// 插入单条站内信（消息通知，对应 Java sendUserMessage）
+    pub async fn insert_user_message(
+        &self,
+        user_id: i32,
+        title: &str,
+        content: &str,
+        msg_type: i32,
+        link: Option<&str>,
+    ) -> Result<i32> {
+        let now = tigshop_common::utils::now_seconds() as i32;
+        let r = sqlx::query(
+            "INSERT INTO user_message (message_log_id, user_id, user_rank, is_read, title, content, message_template, link, add_time, type) \
+             VALUES (0, ?, 0, 0, ?, ?, '', ?, ?, ?)",
+        )
+        .bind(user_id)
+        .bind(title)
+        .bind(content)
+        .bind(link.unwrap_or(""))
+        .bind(now)
+        .bind(msg_type)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(r.last_insert_id() as i32)
+    }
+
     /// 删除单条（Java `removeById`）。
     pub async fn delete(&self, message_id: i32) -> Result<u64> {
         let r = sqlx::query("DELETE FROM user_message WHERE message_id = ?")

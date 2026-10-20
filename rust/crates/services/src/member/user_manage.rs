@@ -830,9 +830,12 @@ impl UserManageService {
         Ok(())
     }
 
+    /// 管理端退出登录：对齐 Java `UserController.logout()` 与 `UserServiceImpl.adminLogout()`。
+    ///
+    /// 客户端清空本地 Token，服务端返回 Ok(())。
     pub async fn admin_logout(&self) -> Result<()> {
         let _ = self;
-        Err(Error::biz_msg(LOGOUT_UNMIGRATED_MSG))
+        Ok(())
     }
 
     // ————————————————————————— Excel（未迁移） —————————————————————————

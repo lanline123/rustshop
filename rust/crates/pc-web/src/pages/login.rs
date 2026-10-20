@@ -3,66 +3,70 @@ use leptos::prelude::*;
 #[component]
 pub fn LoginPage() -> impl IntoView {
     view! {
-        <div class="login-page" style="background: #f6f6f6; min-height: 80vh; display: flex; align-items: center; justify-content: center; padding: 40px 0;">
-            <div class="login-box flex" style="background: #fff; width: 880px; height: 500px; border-radius: 10px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.08);">
-                // 左侧品牌形象插画区
-                <div class="left-poster flex flex-column justify-center align-center" style="width: 420px; background: linear-gradient(135deg, #ff4d4d 0%, #ff1a1a 100%); color: #fff; padding: 40px; box-sizing: border-box; text-align: center;">
-                    <img src="/static/images/logo_blue.png" alt="Logo" style="height: 40px; filter: brightness(0) invert(1); margin-bottom: 25px;"/>
-                    <h2 style="font-size: 26px; font-weight: 900; margin: 0 0 15px 0;">"欢迎登录 TigShop"</h2>
-                    <p style="font-size: 14px; opacity: 0.9; line-height: 1.6; max-width: 280px; margin: 0 auto;">
-                        "全栈 Rust 高性能企业级商城 · 极速同构加载 · 安全可靠"
-                    </p>
-                </div>
-
-                // 右侧表单交互区
-                <div class="right-form flex flex-column justify-center" style="flex: 1; padding: 50px; box-sizing: border-box;">
-                    <div class="flex" style="gap: 25px; margin-bottom: 30px; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px;">
-                        <span style="font-size: 18px; font-weight: bold; color: #ff3838; border-bottom: 2px solid #ff3838; padding-bottom: 10px; margin-bottom: -12px; cursor: pointer;">
-                            "密码登录"
-                        </span>
-                        <span style="font-size: 18px; color: #888; cursor: pointer;">
-                            "手机验证码登录"
-                        </span>
+        <div class="login-page" style="background: #f2f3f5; min-height: 80vh; display: flex; align-items: center; justify-content: center; padding: 50px 0;">
+            <div class="container" style="display: flex; justify-content: center;">
+                <div style="width: 880px; height: 500px; background: #fff; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); overflow: hidden; display: grid; grid-template-columns: 380px 1fr;">
+                    // 左侧海报区
+                    <div style="background: linear-gradient(135deg, #ff4444 0%, #ff8855 100%); padding: 50px 40px; color: #fff; display: flex; flex-direction: column; justify-content: space-between;">
+                        <div>
+                            <div style="font-size: 28px; font-weight: 800; letter-spacing: 2px;">"TigShop"</div>
+                            <div style="font-size: 14px; opacity: 0.9; margin-top: 4px;">"新一代高性能商业电商系统"</div>
+                            <div style="margin-top: 50px; line-height: 28px; font-size: 14px; opacity: 0.95;">
+                                <p>"• 100% 正品行货，售后无忧"</p>
+                                <p>"• 极速物流顺丰直达，闪电发货"</p>
+                                <p>"• 尊享会员专属折扣与大额优惠券"</p>
+                            </div>
+                        </div>
+                        <div style="font-size: 12px; opacity: 0.7;">
+                            "© 2026 TigShop Team · 全栈 Rust 驱动"
+                        </div>
                     </div>
 
-                    // 表单输入
-                    <form action="/login" method="post" style="display: flex; flex-direction: column; gap: 20px;">
-                        <div>
-                            <input
-                                type="text"
-                                name="username"
-                                placeholder="请输入手机号 / 会员用户名 / 邮箱"
-                                style="width: 100%; padding: 12px 15px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; outline: none; box-sizing: border-box;"
-                            />
-                        </div>
-                        <div>
-                            <input
-                                type="password"
-                                name="password"
-                                placeholder="请输入登录密码"
-                                style="width: 100%; padding: 12px 15px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; outline: none; box-sizing: border-box;"
-                            />
+                    // 右侧登录面板
+                    <div style="padding: 50px 50px; display: flex; flex-direction: column; justify-content: center;">
+                        <div style="display: flex; border-bottom: 2px solid #eee; margin-bottom: 30px; gap: 30px;">
+                            <span style="font-size: 18px; font-weight: bold; color: var(--general); padding-bottom: 10px; border-bottom: 2px solid var(--general); margin-bottom: -2px; cursor: pointer;">
+                                "账号密码登录"
+                            </span>
+                            <span style="font-size: 18px; color: #999; padding-bottom: 10px; cursor: pointer;">
+                                "验证码快捷登录"
+                            </span>
                         </div>
 
-                        <div class="flex justify-between align-center" style="font-size: 12px; color: #666;">
-                            <label class="flex align-center" style="cursor: pointer;">
-                                <input type="checkbox" style="margin-right: 6px;"/>
-                                <span>"记住账号"</span>
-                            </label>
-                            <a href="#" style="color: #888; text-decoration: none;">"忘记密码？"</a>
+                        <form action="/member" method="get" style="display: flex; flex-direction: column; gap: 18px;">
+                            <div>
+                                <input
+                                    type="text"
+                                    placeholder="请输入手机号 / 用户名 / 邮箱"
+                                    style="width: 100%; height: 44px; border: 1px solid #ddd; border-radius: 4px; padding: 0 14px; box-sizing: border-box; font-size: 14px; outline: none;"
+                                />
+                            </div>
+                            <div>
+                                <input
+                                    type="password"
+                                    placeholder="请输入登录密码"
+                                    style="width: 100%; height: 44px; border: 1px solid #ddd; border-radius: 4px; padding: 0 14px; box-sizing: border-box; font-size: 14px; outline: none;"
+                                />
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 13px; color: #666;">
+                                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                                    <input type="checkbox" checked=true style="accent-color: var(--general);" />
+                                    <span>"记住账号"</span>
+                                </label>
+                                <a href="#" style="color: #999;">"忘记密码？"</a>
+                            </div>
+                            <button
+                                type="submit"
+                                style="width: 100%; height: 46px; background: var(--general); color: #fff; font-size: 16px; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; margin-top: 10px; box-shadow: 0 4px 14px rgba(255, 68, 68, 0.35);"
+                            >
+                                "立 即 登 录"
+                            </button>
+                        </form>
+
+                        <div style="margin-top: 25px; text-align: center; font-size: 13px; color: #999;">
+                            "还没有账号？"
+                            <a href="/login" style="color: var(--general); font-weight: bold; margin-left: 4px;">"免费注册"</a>
                         </div>
-
-                        <button
-                            type="submit"
-                            style="background: #ff3838; color: #fff; border: none; padding: 14px; border-radius: 4px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; box-shadow: 0 4px 12px rgba(255, 56, 56, 0.35);"
-                        >
-                            "登 录"
-                        </button>
-                    </form>
-
-                    <div style="margin-top: 25px; text-align: center; font-size: 13px; color: #888;">
-                        "还没有账号？ "
-                        <a href="/login" style="color: #ff3838; font-weight: bold; text-decoration: none;">"免费注册"</a>
                     </div>
                 </div>
             </div>

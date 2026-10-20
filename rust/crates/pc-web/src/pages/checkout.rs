@@ -3,121 +3,124 @@ use leptos::prelude::*;
 #[component]
 pub fn CheckoutPage() -> impl IntoView {
     view! {
-        <div class="checkout-page" style="background: #f6f6f6; padding: 25px 0 60px 0;">
-            <div class="container" style="max-width: 1200px; margin: 0 auto;">
-                // 订单步骤条
-                <div class="flex justify-between align-center" style="margin-bottom: 25px; padding-bottom: 15px; border-bottom: 2px solid #eee;">
-                    <h2 style="font-size: 22px; color: #222; font-weight: bold; margin: 0;">"填写并核对订单信息"</h2>
-                    <div class="steps flex align-center" style="font-size: 13px; gap: 15px;">
-                        <span style="color: #999;">"1. 购物车"</span>
-                        <span style="color: #ccc;">">"</span>
-                        <span style="color: #ff3838; font-weight: bold;">"2. 填写核对订单"</span>
-                        <span style="color: #ccc;">">"</span>
+        <div class="checkout-page" style="background: #f2f3f5; min-height: 80vh; padding: 25px 0 60px;">
+            <div class="container">
+                // 结算步骤指示器
+                <div style="background: #fff; padding: 20px 30px; border-radius: 4px; border: 1px solid #e5e5e5; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center;">
+                    <div style="font-size: 20px; font-weight: bold; color: #333;">"填写并核对订单信息"</div>
+                    <div style="display: flex; align-items: center; gap: 12px; font-size: 13px;">
+                        <span style="color: #999;">"1. 我的购物车"</span>
+                        <span style="color: #ccc;">"——"</span>
+                        <span style="color: var(--general); font-weight: bold;">"2. 填写核对订单信息"</span>
+                        <span style="color: #ccc;">"——"</span>
                         <span style="color: #999;">"3. 成功提交订单"</span>
                     </div>
                 </div>
 
-                // 1. 收货人地址选择块
-                <div class="section-card" style="background: #fff; padding: 25px 30px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 20px;">
-                    <div class="flex justify-between align-center" style="margin-bottom: 18px;">
-                        <span style="font-size: 16px; font-weight: bold; color: #333;">"收货人信息"</span>
-                        <button style="border: 1px solid #ddd; background: #fff; color: #666; font-size: 12px; padding: 4px 12px; border-radius: 4px; cursor: pointer;">
-                            "+ 新增收货地址"
-                        </button>
-                    </div>
-
-                    // 默认选中的收货地址
-                    <div style="border: 2px solid #ff3838; border-radius: 6px; padding: 15px 20px; width: 380px; position: relative; background: #fffcfc;">
-                        <div class="flex align-center" style="gap: 15px; margin-bottom: 8px;">
-                            <span style="font-size: 15px; font-weight: bold; color: #222;">"张三"</span>
-                            <span style="color: #666; font-size: 13px;">"138****8888"</span>
-                            <span style="background: #ff3838; color: #fff; font-size: 10px; padding: 1px 5px; border-radius: 2px;">"默认"</span>
+                // 结算内容卡片
+                <div style="background: #fff; border: 1px solid #e5e5e5; border-radius: 4px; padding: 30px; box-sizing: border-box;">
+                    // 收货人信息
+                    <div style="margin-bottom: 30px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <span style="font-size: 16px; font-weight: bold; color: #333;">"收货人信息"</span>
+                            <a href="#" style="font-size: 13px; color: var(--general);">"+ 新增收货地址"</a>
                         </div>
-                        <div style="font-size: 13px; color: #666; line-height: 1.5;">
-                            "浙江省 杭州市 滨江区 江南大道 888号 科技园区 6号楼 801室"
+                        <div style="border: 2px solid var(--general); border-radius: 4px; padding: 16px 20px; max-width: 480px; position: relative; background: #fffcfc;">
+                            <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; color: #333; margin-bottom: 8px;">
+                                <span>"张三 (先生) 138****8888"</span>
+                                <span style="font-size: 12px; background: var(--general); color: #fff; padding: 1px 8px; border-radius: 2px;">"默认地址"</span>
+                            </div>
+                            <div style="font-size: 13px; color: #666; line-height: 20px;">
+                                "北京市 朝阳区 建国路88号 现代SOHO大厦 A座 1808室"
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                // 2. 支付及配送方式
-                <div class="section-card" style="background: #fff; padding: 25px 30px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 20px; font-size: 13px;">
-                    <div style="font-size: 16px; font-weight: bold; color: #333; margin-bottom: 18px;">"支付及配送方式"</div>
-                    <div class="flex" style="gap: 15px; margin-bottom: 15px;">
-                        <button style="border: 2px solid #ff3838; background: #fff; color: #ff3838; font-weight: bold; padding: 8px 24px; border-radius: 4px; cursor: pointer;">
-                            "在线支付 (微信/支付宝/银行卡)"
-                        </button>
-                        <button style="border: 1px solid #ddd; background: #fff; color: #666; padding: 8px 24px; border-radius: 4px; cursor: pointer;">
-                            "企业对公转账 / 账期月结"
-                        </button>
-                    </div>
-                    <div style="color: #888; font-size: 12px;">"配送服务：顺丰特快直发 · 预计下单后次日即可送达"</div>
-                </div>
-
-                // 3. 商品清单核对
-                <div class="section-card" style="background: #fff; padding: 25px 30px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 20px;">
-                    <div style="font-size: 16px; font-weight: bold; color: #333; margin-bottom: 18px;">"送货清单"</div>
-                    <div class="item-list flex align-center" style="padding: 15px 0; border-bottom: 1px solid #f0f0f0; gap: 20px; font-size: 13px;">
-                        <img src="/static/images/goods_empty.png" style="width: 60px; height: 60px; border: 1px solid #eee; border-radius: 4px; object-fit: contain;"/>
-                        <div style="flex: 1;">
-                            <div style="font-weight: bold; color: #333;">"Apple iPhone 16 Pro Max 256GB 原色钛金属"</div>
-                            <div style="color: #999; font-size: 12px; margin-top: 4px;">"原色钛金属 / 256GB"</div>
+                    // 支付方式
+                    <div style="margin-bottom: 30px; border-top: 1px solid #eee; padding-top: 25px;">
+                        <div style="font-size: 16px; font-weight: bold; color: #333; margin-bottom: 16px;">"支付方式"</div>
+                        <div style="display: flex; gap: 15px;">
+                            <button style="border: 2px solid var(--general); background: #fff; color: var(--general); padding: 10px 24px; border-radius: 4px; font-size: 14px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                                <span class="iconfont-pc icon-zhifubao" style="font-size: 18px; color: #1677ff;"></span>
+                                "支付宝支付"
+                            </button>
+                            <button style="border: 1px solid #ddd; background: #fff; color: #333; padding: 10px 24px; border-radius: 4px; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                                <span class="iconfont-pc icon-weixin" style="font-size: 18px; color: #52c41a;"></span>
+                                "微信支付"
+                            </button>
+                            <button style="border: 1px solid #ddd; background: #fff; color: #333; padding: 10px 24px; border-radius: 4px; font-size: 14px; cursor: pointer;">
+                                "余额支付 (可用：¥0.00)"
+                            </button>
                         </div>
-                        <div style="color: #ff3838; font-weight: bold; width: 120px; text-align: center;">"¥ 8999.00"</div>
-                        <div style="color: #666; width: 80px; text-align: center;">"x 1"</div>
-                        <div style="color: #ff3838; font-weight: bold; width: 120px; text-align: right;">"¥ 8999.00"</div>
                     </div>
-                    <div class="item-list flex align-center" style="padding: 15px 0; gap: 20px; font-size: 13px;">
-                        <img src="/static/images/goods_empty.png" style="width: 60px; height: 60px; border: 1px solid #eee; border-radius: 4px; object-fit: contain;"/>
-                        <div style="flex: 1;">
-                            <div style="font-weight: bold; color: #333;">"Sony WH-1000XM5 无线头戴式降噪耳机 铂金银"</div>
-                            <div style="color: #999; font-size: 12px; margin-top: 4px;">"铂金银 / 标配"</div>
+
+                    // 送货清单
+                    <div style="margin-bottom: 30px; border-top: 1px solid #eee; padding-top: 25px;">
+                        <div style="font-size: 16px; font-weight: bold; color: #333; margin-bottom: 16px;">"送货清单"</div>
+                        <div style="border: 1px solid #f0f0f0; border-radius: 4px; overflow: hidden;">
+                            <div style="display: grid; grid-template-columns: 1fr 140px 140px 140px; padding: 12px 20px; background: #fafafa; font-size: 13px; font-weight: bold; color: #666;">
+                                <div>"商品信息"</div>
+                                <div style="text-align: center;">"单价"</div>
+                                <div style="text-align: center;">"数量"</div>
+                                <div style="text-align: right;">"小计"</div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 140px 140px 140px; padding: 18px 20px; align-items: center; font-size: 13px; border-bottom: 1px solid #f5f5f5;">
+                                <div style="display: flex; gap: 15px; align-items: center;">
+                                    <img src="/static/images/goods_empty.png" style="width: 60px; height: 60px; border: 1px solid #eee; border-radius: 4px; object-fit: contain;"/>
+                                    <div>
+                                        <div style="font-weight: 500; color: #333;">"Apple iPhone 16 Pro Max 256GB 原色钛金属"</div>
+                                        <div style="font-size: 12px; color: #999; margin-top: 4px;">"规格：原色钛金属 / 256GB"</div>
+                                    </div>
+                                </div>
+                                <div style="text-align: center; color: #333;">"¥8999.00"</div>
+                                <div style="text-align: center; color: #666;">"1"</div>
+                                <div style="text-align: right; font-weight: bold; color: var(--price);">"¥8999.00"</div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 140px 140px 140px; padding: 18px 20px; align-items: center; font-size: 13px;">
+                                <div style="display: flex; gap: 15px; align-items: center;">
+                                    <img src="/static/images/goods_empty.png" style="width: 60px; height: 60px; border: 1px solid #eee; border-radius: 4px; object-fit: contain;"/>
+                                    <div>
+                                        <div style="font-weight: 500; color: #333;">"Sony WH-1000XM5 头戴式无线蓝牙降噪耳机"</div>
+                                        <div style="font-size: 12px; color: #999; margin-top: 4px;">"规格：黑色 / 官方标配"</div>
+                                    </div>
+                                </div>
+                                <div style="text-align: center; color: #333;">"¥2299.00"</div>
+                                <div style="text-align: center; color: #666;">"1"</div>
+                                <div style="text-align: right; font-weight: bold; color: var(--price);">"¥2299.00"</div>
+                            </div>
                         </div>
-                        <div style="color: #ff3838; font-weight: bold; width: 120px; text-align: center;">"¥ 2299.00"</div>
-                        <div style="color: #666; width: 80px; text-align: center;">"x 1"</div>
-                        <div style="color: #ff3838; font-weight: bold; width: 120px; text-align: right;">"¥ 2299.00"</div>
                     </div>
 
-                    // 订单买家留言
-                    <div style="margin-top: 20px; padding-top: 15px; border-top: 1px dashed #eee;">
-                        <span style="font-size: 13px; color: #666;">"买家订单备注："</span>
-                        <input
-                            type="text"
-                            placeholder="选填：如包装配送要求、发货时间说明等"
-                            style="width: 450px; margin-left: 10px; padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; outline: none;"
-                        />
+                    // 费用明细与提交订单
+                    <div style="border-top: 1px solid #eee; padding-top: 25px; display: flex; justify-content: flex-end;">
+                        <div style="text-align: right; min-width: 300px;">
+                            <div style="font-size: 13px; color: #666; line-height: 28px;">
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span>"商品件数："</span>
+                                    <span>"2 件"</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span>"商品总额："</span>
+                                    <span>"¥11,298.00"</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span>"运费："</span>
+                                    <span>"¥0.00 (满额包邮)"</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; border-top: 1px solid #eee; margin-top: 10px; padding-top: 10px;">
+                                    <span style="font-size: 15px; font-weight: bold; color: #333;">"应付总额："</span>
+                                    <span style="font-size: 26px; font-weight: bold; color: var(--price); font-family: Arial;">"¥11,298.00"</span>
+                                </div>
+                            </div>
+                            <div style="margin-top: 20px;">
+                                <button
+                                    style="background: var(--general); color: #fff; font-size: 18px; font-weight: bold; border: none; padding: 14px 50px; border-radius: 4px; cursor: pointer; box-shadow: 0 4px 14px rgba(255, 68, 68, 0.35);"
+                                >
+                                    "提交订单"
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                </div>
-
-                // 4. 结算金额总计面板
-                <div
-                    class="settlement-summary flex flex-column align-end"
-                    style="background: #fff; padding: 25px 30px; border-radius: 8px; border: 1px solid #eee; font-size: 14px; gap: 10px;"
-                >
-                    <div class="flex justify-between" style="width: 280px; color: #666;">
-                        <span>"商品总金额："</span>
-                        <span style="color: #333; font-weight: bold;">"¥ 11298.00"</span>
-                    </div>
-                    <div class="flex justify-between" style="width: 280px; color: #666;">
-                        <span>"运费："</span>
-                        <span style="color: #333; font-weight: bold;">"+ ¥ 0.00"</span>
-                    </div>
-                    <div class="flex justify-between" style="width: 280px; color: #666;">
-                        <span>"活动立减优惠："</span>
-                        <span style="color: #ff3838; font-weight: bold;">"- ¥ 0.00"</span>
-                    </div>
-                    <div style="border-top: 1px solid #eee; width: 100%; margin: 10px 0;"></div>
-                    <div style="text-align: right;">
-                        <span style="font-size: 15px; color: #333;">"应付总额："</span>
-                        <span style="color: #ff3838; font-size: 30px; font-weight: 900;">"¥ 11298.00"</span>
-                    </div>
-                    <div style="color: #888; font-size: 12px; margin-top: 5px;">
-                        "寄送至：浙江省 杭州市 滨江区 江南大道888号 801室 · 张三 (138****8888)"
-                    </div>
-                    <button
-                        style="background: #ff3838; color: #fff; border: none; width: 180px; height: 50px; border-radius: 4px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 15px; box-shadow: 0 4px 15px rgba(255, 56, 56, 0.4);"
-                    >
-                        "提交订单"
-                    </button>
                 </div>
             </div>
         </div>

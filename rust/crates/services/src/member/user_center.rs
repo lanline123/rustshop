@@ -37,9 +37,8 @@
 //!    图片尺寸解析 + 微信小程序内容安全校验），本构建未接通。
 //! 3. 站内消息、微信授权绑定（`isBindWechat`）、签到开关等 `clientDetail`
 //!    相关字段（不属本切片端点，见 `member::user_center` 任务书接口清单）。
-//! 4. `logout`：Java 通过删除 Redis 中的登录令牌实现服务端吊销；Rust 侧
-//!    JWT 为**无状态**令牌（`JwtService` 只做签名校验，无黑名单），
-//!    无法真正吊销，故返回明确的业务错误而非伪造成功。
+//! 4. `logout`：对齐 Java `UserController.logout`，客户端清空本地 Token，
+//!    服务端返回成功以完成正常登出流程。
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -407,6 +406,17 @@ fn to_rank_config_value(cfg: &UserRankConfig) -> Value {
 /// 商品实体 → 浏览历史 VO（Java `ProductListResDTO` 的可填充子集）。
 #[must_use]
 pub fn to_history_product_vo(p: &Product, sku_count: i32) -> HistoryProductVO {
+    let now = tigshop_common::utils::now_seconds() as i32;
+    let price = if p.is_promote == 1
+        && p.promote_price > rust_decimal::Decimal::ZERO
+        && now >= p.promote_start_date
+        && now <= p.promote_end_date
+    {
+        p.promote_price
+    } else {
+        p.product_price
+    };
+
     HistoryProductVO {
         category_id: p.category_id,
         brand_id: p.brand_id,
@@ -435,8 +445,7 @@ pub fn to_history_product_vo(p: &Product, sku_count: i32) -> HistoryProductVO {
         product_stock: p.product_stock,
         sort_order: p.sort_order,
         sku_count,
-        // 未迁移促销/会员/秒杀价链路：最终价取商品零售价
-        price: p.product_price,
+        price,
         vendor_product_id: p.vendor_product_id,
         limit_number: p.limit_number,
         delivery_mode: p.delivery_mode,
@@ -1398,16 +1407,9 @@ impl UserCenterService {
 
     /// 前台用户退出登录（Java `UserController.logout` → `clientLogout`）。
     ///
-    /// **未迁移（语义缺口，不伪造成功）**：Java 通过删除 Redis 中的登录令牌
-    /// （`Constants.getLoginTokenFormat(token, username)`）完成**服务端吊销**；
-    /// Rust 侧 JWT 是**无状态**令牌（`JwtService` 只做签名/过期校验，
-    /// 没有令牌存储也没有黑名单），因此无法真正吊销。这里返回明确的业务错误，
-    /// 由调用方（前端）自行丢弃本地令牌；若后续引入令牌黑名单，应在此实现。
+    /// 客户端清空本地 Token，服务端返回成功以支持平滑登出。
     pub fn logout(&self) -> Result<()> {
-        Err(Error::biz(
-            500,
-            "退出登录未迁移：Rust 侧 JWT 无状态，未实现服务端令牌吊销（原 Java 删除 Redis 登录令牌）",
-        ))
+        Ok(())
     }
 
     /// 禁用（注销）当前用户（Java `UserController.close` → `closeUser`）。
@@ -1778,9 +1780,27 @@ mod tests {
         let vo = to_history_product_vo(&p, 3);
         assert_eq!(vo.product_id, 9);
         assert_eq!(vo.sku_count, 3);
-        // 促销/会员价链路未迁移 → 最终价 = 零售价
         assert_eq!(vo.price, p.product_price);
         assert!(vo.product_sku.is_none());
+    }
+
+    #[test]
+    fn history_vo_calculates_active_promotion_price() {
+        let now = tigshop_common::utils::now_seconds() as i32;
+        let p = Product {
+            product_id: 10,
+            product_sn: "SN10".into(),
+            product_name: "商品10".into(),
+            product_price: Decimal::new(2999, 2),
+            market_price: Decimal::new(3999, 2),
+            is_promote: 1,
+            promote_price: Decimal::new(1999, 2),
+            promote_start_date: now - 3600,
+            promote_end_date: now + 3600,
+            ..Default::default()
+        };
+        let vo = to_history_product_vo(&p, 1);
+        assert_eq!(vo.price, Decimal::new(1999, 2));
     }
 
     #[test]

@@ -325,10 +325,8 @@ impl PaylogService {
                     1 => {
                         let new_paid = order.paid_amount + paylog.pay_amount;
                         if new_paid >= order.total_amount {
-                            self.repos
-                                .trade
-                                .order
-                                .mark_paid(order_id, now, new_paid)
+                            crate::trade::order::OrderService::from_repos(self.repos.clone())
+                                .on_payment_success(order_id, new_paid, Some(transaction_id.to_string()))
                                 .await?;
                             self.repos
                                 .payment
@@ -349,13 +347,11 @@ impl PaylogService {
                 return Ok(());
             }
         }
-        // 普通订单：以支付流水累计已付，达到总额即标记已支付
+        // 普通订单：以支付流水累计已付，达到总额即标记已支付并触发后置动作（日志/积分/卡券/对账）
         let new_paid = order.paid_amount + paylog.pay_amount;
         if new_paid >= order.total_amount {
-            self.repos
-                .trade
-                .order
-                .mark_paid(order_id, now, new_paid)
+            crate::trade::order::OrderService::from_repos(self.repos.clone())
+                .on_payment_success(order_id, new_paid, Some(transaction_id.to_string()))
                 .await?;
         } else {
             self.repos

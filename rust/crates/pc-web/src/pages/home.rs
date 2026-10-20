@@ -3,128 +3,224 @@ use crate::components::product_card::ProductCard;
 
 #[component]
 pub fn HomePage() -> impl IntoView {
-    // 模拟常用分类
-    let categories = vec![
-        ("手机 / 数码 / 充值", vec!["智能手机", "数码相机", "平板电脑", "智能手表"]),
-        ("电脑 / 办公 / 硬件", vec!["轻薄本", "游戏本", "显示器", "机械键盘"]),
-        ("家用电器 / 电视", vec!["冰箱", "洗衣机", "空调", "智能扫地机"]),
-        ("美妆个护 / 宠物", vec!["面部护肤", "彩妆香氛", "洗发护发", "宠物食品"]),
-        ("食品生鲜 / 熟食", vec!["休闲零食", "坚果炒货", "新鲜水果", "精品粮油"]),
-        ("服饰内衣 / 鞋靴", vec!["潮流男装", "时尚女装", "运动鞋", "羽绒服"]),
-        ("家居家装 / 厨具", vec!["实木家具", "厨房电器", "床上用品", "灯饰照明"]),
-        ("运动户外 / 健身", vec!["跑步机", "动感单车", "户外装备", "钓具装备"]),
+    // 首页商品数据
+    let recommend_products = vec![
+        (1001, "Apple iPhone 16 Pro Max 256GB 原色钛金属 5G手机", "8999.00", "9999.00", "/static/images/goods_empty.png", 2850, vec!["自营", "特惠", "免息"]),
+        (1002, "联想 ThinkPad X1 Carbon 14英寸英特尔酷睿Ultra7 商务笔记本", "11999.00", "13999.00", "/static/images/goods_empty.png", 1420, vec!["企业采购", "限时特惠"]),
+        (1003, "华为 Mate 60 Pro 12GB+512GB 雅丹黑 全网通 卫星通话", "6999.00", "6999.00", "/static/images/goods_empty.png", 5630, vec!["自营", "热销"]),
+        (1004, "戴森 (Dyson) V12 Detect Slim 轻量手持无线吸尘器", "3499.00", "4199.00", "/static/images/goods_empty.png", 980, vec!["正品保证", "保价"]),
+        (1005, "Sony WH-1000XM5 头戴式无线蓝牙降噪耳机 黑色", "2299.00", "2799.00", "/static/images/goods_empty.png", 1890, vec!["热卖榜", "Hi-Res"]),
+        (1006, "三只松鼠 坚果礼盒 每日坚果 1428g/箱 休闲零食", "128.00", "168.00", "/static/images/goods_empty.png", 12500, vec!["包邮", "精选"]),
+        (1007, "飞利浦 (Philips) 钻石牙刷 礼盒装 声波震动 粉色", "799.00", "999.00", "/static/images/goods_empty.png", 3420, vec!["热卖"]),
+        (1008, "科沃斯 (ECOVACS) 地宝 T30 PRO 扫地机器人", "3299.00", "3999.00", "/static/images/goods_empty.png", 870, vec!["新品", "满减"]),
     ];
 
-    // 精选推荐商品数据
-    let recommend_products = vec![
-        (1001, "Apple iPhone 16 Pro Max 256GB 原色钛金属 5G手机", "8999.00", "9999.00", "/static/images/goods_empty.png", 2850, vec!["自营", "热卖", "分期免息"]),
-        (1002, "联想 ThinkPad X1 Carbon 14英寸英特尔酷睿Ultra7 商务轻薄笔记本电脑", "11999.00", "13999.00", "/static/images/goods_empty.png", 1420, vec!["企业采购", "限时特惠"]),
-        (1003, "华为 Mate 60 Pro 12GB+512GB 雅川青 卫星通话 超可靠玄武架构", "6999.00", "6999.00", "/static/images/goods_empty.png", 5630, vec!["自营", "现货即发"]),
-        (1004, "戴森 (Dyson) V12 Detect Slim 智能无绳手持吸尘器 除螨吸尘一体", "3499.00", "4199.00", "/static/images/goods_empty.png", 980, vec!["正品保证", "赠配件包"]),
-        (1005, "Sony WH-1000XM5 无线头戴式主动降噪耳机 铂金银", "2299.00", "2799.00", "/static/images/goods_empty.png", 1890, vec!["秒杀", "Hi-Res"]),
-        (1006, "三只松鼠 坚果大礼包 每日坚果送礼尊享版 1428g/箱", "128.00", "168.00", "/static/images/goods_empty.png", 12500, vec!["满减", "送礼佳选"]),
-        (1007, "飞利浦 (Philips) 钻石亮白智能声波电动牙刷 送旅行盒+4刷头", "799.00", "999.00", "/static/images/goods_empty.png", 3420, vec!["热销爆款"]),
-        (1008, "科沃斯 (ECOVACS) 地宝 T30 PRO 扫拖一体洗地全自动基站清洁机器人", "3299.00", "3999.00", "/static/images/goods_empty.png", 870, vec!["新品上市", "保价618"]),
+    let seckill_products = vec![
+        (1001, "iPhone 16 Pro Max", "7999.00", "9999.00", "/static/images/goods_empty.png"),
+        (1005, "Sony WH-1000XM5", "1999.00", "2799.00", "/static/images/goods_empty.png"),
+        (1004, "戴森无线吸尘器 V12", "2999.00", "4199.00", "/static/images/goods_empty.png"),
+        (1006, "每日坚果大礼盒", "99.00", "168.00", "/static/images/goods_empty.png"),
+        (1007, "飞利浦声波震动牙刷", "599.00", "999.00", "/static/images/goods_empty.png"),
+    ];
+
+    let categories = vec![
+        ("手机数码", "手机 / 数码 / 摄影"),
+        ("电脑办公", "笔记本 / 平板 / 台式机"),
+        ("家用电器", "电视 / 空调 / 洗衣机"),
+        ("服饰鞋包", "男装 / 女装 / 箱包"),
+        ("美妆个护", "护肤 / 彩妆 / 香水"),
+        ("食品生鲜", "生鲜 / 零食 / 茗茶"),
+        ("母婴玩具", "奶粉 / 纸尿裤 / 玩具"),
+        ("家居生活", "家纺 / 厨具 / 家具"),
+        ("运动户外", "运动鞋 / 健身器材"),
+        ("企业采购", "礼品 / 办公耗材 / 定制"),
     ];
 
     view! {
-        <div class="home-page" style="background: #f6f6f6; padding-bottom: 40px;">
-            // 1. 首屏 Banner 与 分类导航区
-            <div class="hero-section" style="background: #fff; margin-bottom: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
-                <div class="container flex" style="max-width: 1200px; margin: 0 auto; min-height: 460px;">
-                    // 左侧分类导航
-                    <div class="category-menu" style="width: 200px; background: #2b2e33; color: #fff; padding: 10px 0; box-sizing: border-box;">
-                        {
-                            categories.into_iter().map(|(main_cat, subs)| {
-                                view! {
-                                    <div
-                                        class="cat-item"
-                                        style="padding: 10px 15px; cursor: pointer; transition: background 0.2s;"
-                                        onmouseover="this.style.background='#ff3838';"
-                                        onmouseout="this.style.background='transparent';"
-                                    >
-                                        <div style="font-size: 13px; font-weight: bold;">{main_cat}</div>
-                                        <div style="font-size: 11px; color: #bbb; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                                            {subs.join(" / ")}
+        <div class="home-page" style="background: #f2f3f5; padding-bottom: 50px;">
+            // 1. 焦点 Banner 与首页三栏布局 (Banner Section)
+            <div class="banner container" style="margin-top: 10px;">
+                <div class="inner" style="display: flex; height: 470px;">
+                    // 左侧: 全部商品分类 (AllCate 190px)
+                    <div class="left" style="width: 190px; height: 470px; background: #fff; box-shadow: 0 0 8px rgba(0,0,0,0.04); box-sizing: border-box; overflow: hidden;">
+                        <div class="cate_menu" style="padding: 10px 0; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-around;">
+                            {
+                                categories.into_iter().map(|(name, sub)| {
+                                    view! {
+                                        <div class="cate_menu_item" style="padding: 0 16px; height: 38px; line-height: 38px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; transition: background-color 0.2s ease;">
+                                            <a href="/search" class="cate_menu_lk" style="font-size: 13px; color: #333; font-weight: 500;">
+                                                {name}
+                                            </a>
+                                            <span style="font-size: 11px; color: #999; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{sub}</span>
                                         </div>
-                                    </div>
-                                }
-                            }).collect::<Vec<_>>()
-                        }
-                    </div>
-
-                    // 中间主轮播大图 (Hero Banner)
-                    <div class="hero-banner" style="flex: 1; position: relative; overflow: hidden; background: linear-gradient(135deg, #fceceb 0%, #fae1dc 100%); display: flex; align-items: center; justify-content: center;">
-                        <div style="text-align: center; padding: 40px;">
-                            <div style="color: #ff3838; font-size: 14px; font-weight: bold; letter-spacing: 2px;">"2026 全球超级品牌盛典 · 全球甄选"</div>
-                            <h1 style="font-size: 38px; color: #222; margin: 15px 0 10px 0; font-weight: 900;">"正品现货 · 闪电速达 · 跨店每满300减50"</h1>
-                            <p style="font-size: 16px; color: #666; max-width: 500px; margin: 0 auto 25px auto;">
-                                "大牌数码、智能家电、生鲜零食一站式购齐，全场支持企业集中批发与阳光采购。"
-                            </p>
-                            <a
-                                href="/search"
-                                style="background: #ff3838; color: #fff; padding: 12px 35px; border-radius: 25px; font-size: 16px; font-weight: bold; text-decoration: none; display: inline-block; box-shadow: 0 6px 16px rgba(255, 56, 56, 0.35);"
-                            >
-                                "立即探索热卖榜单"
-                            </a>
+                                    }
+                                }).collect::<Vec<_>>()
+                            }
                         </div>
                     </div>
 
-                    // 右侧个人快捷中心与商城头条
-                    <div class="user-quick-panel" style="width: 250px; background: #fff; border-left: 1px solid #f0f0f0; padding: 25px 20px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;">
-                        // 用户头像与登录状态
-                        <div style="text-align: center;">
-                            <div style="width: 64px; height: 64px; border-radius: 50%; background: #ffebeb; margin: 0 auto; display: flex; align-items: center; justify-content: center; font-size: 24px; color: #ff3838; font-weight: bold;">
-                                "Hi"
+                    // 中间: 轮播主图与推荐位 (Middle 790px: 590px + 190px)
+                    <div class="middle" style="width: 790px; height: 470px; margin: 0 10px; display: flex; gap: 10px;">
+                        // 主轮播图 (590px)
+                        <div style="width: 590px; height: 470px; border-radius: 4px; overflow: hidden; position: relative; background: #2c3e50;">
+                            <div style="width: 100%; height: 100%; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); display: flex; flex-direction: column; justify-content: center; padding: 50px; box-sizing: border-box; color: #fff;">
+                                <span style="background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-size: 13px; width: fit-content; margin-bottom: 16px;">
+                                    "2026 年度重磅首发"
+                                </span>
+                                <h1 style="font-size: 38px; font-weight: 800; margin: 0 0 12px 0; letter-spacing: 1px;">
+                                    "超凡科技 · 巅峰体验"
+                                </h1>
+                                <p style="font-size: 16px; opacity: 0.9; margin: 0 0 28px 0; line-height: 24px;">
+                                    "全场大牌新品限时直降，专享最高 24 期免息"
+                                </p>
+                                <a
+                                    href="/search"
+                                    style="background: #fff; color: var(--general); font-weight: bold; padding: 12px 28px; border-radius: 25px; text-decoration: none; width: fit-content; font-size: 15px; box-shadow: 0 4px 14px rgba(0,0,0,0.2);"
+                                >
+                                    "立即探索 >"
+                                </a>
                             </div>
-                            <div style="font-size: 15px; font-weight: bold; margin-top: 12px; color: #333;">"Hi，欢迎来到 TigShop"</div>
-                            <div class="flex justify-center" style="gap: 10px; margin-top: 15px;">
-                                <a href="/login" style="background: #ff3838; color: #fff; padding: 6px 18px; border-radius: 15px; font-size: 12px; text-decoration: none; font-weight: bold;">"登录"</a>
-                                <a href="/login" style="background: #f5f5f5; color: #333; padding: 6px 18px; border-radius: 15px; font-size: 12px; text-decoration: none;">"注册"</a>
+                            // 轮播圆点
+                            <div style="position: absolute; bottom: 15px; width: 100%; display: flex; justify-content: center; gap: 8px;">
+                                <span style="width: 20px; height: 6px; background: #fff; border-radius: 3px;"></span>
+                                <span style="width: 6px; height: 6px; background: rgba(255,255,255,0.5); border-radius: 50%;"></span>
+                                <span style="width: 6px; height: 6px; background: rgba(255,255,255,0.5); border-radius: 50%;"></span>
                             </div>
                         </div>
 
-                        // 新人福利
-                        <div style="background: #fff8f8; border: 1px dashed #ffb4b4; border-radius: 6px; padding: 12px; text-align: center; margin: 20px 0;">
-                            <div style="color: #ff3838; font-weight: bold; font-size: 13px;">"新人专享 ¥188 礼包"</div>
-                            <div style="font-size: 11px; color: #888; margin-top: 4px;">"注册即领，全场通用券"</div>
+                        // 右侧双图推荐 (190px)
+                        <div style="width: 190px; height: 470px; display: flex; flex-direction: column; gap: 10px;">
+                            <div style="height: 230px; background: #fff; border-radius: 4px; padding: 16px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 0 6px rgba(0,0,0,0.04);">
+                                <div>
+                                    <span style="font-size: 11px; background: #fee; color: var(--general); padding: 2px 6px; border-radius: 2px;">"大牌特卖"</span>
+                                    <div style="font-size: 15px; font-weight: bold; color: #333; margin-top: 6px;">"数码狂欢季"</div>
+                                    <div style="font-size: 12px; color: #999; margin-top: 2px;">"满 2000 减 300"</div>
+                                </div>
+                                <img src="/static/images/goods_empty.png" alt="数码" style="width: 100px; height: 100px; align-self: center; object-fit: contain;"/>
+                            </div>
+                            <div style="height: 230px; background: #fff; border-radius: 4px; padding: 16px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 0 6px rgba(0,0,0,0.04);">
+                                <div>
+                                    <span style="font-size: 11px; background: #e6f7ff; color: #1890ff; padding: 2px 6px; border-radius: 2px;">"居家精选"</span>
+                                    <div style="font-size: 15px; font-weight: bold; color: #333; margin-top: 6px;">"智能生活馆"</div>
+                                    <div style="font-size: 12px; color: #999; margin-top: 2px;">"爆款直降 5 折起"</div>
+                                </div>
+                                <img src="/static/images/goods_empty.png" alt="家居" style="width: 100px; height: 100px; align-self: center; object-fit: contain;"/>
+                            </div>
+                        </div>
+                    </div>
+
+                    // 右侧: 会员小中心卡片 (SmallPersonalCenter 190px)
+                    <div class="right small-personal_center" style="width: 190px; height: 470px; background: #fff; border-radius: 4px; box-shadow: 0 0 8px rgba(0,0,0,0.04); padding: 20px 14px; box-sizing: border-box; text-align: center; display: flex; flex-direction: column; justify-content: space-between;">
+                        <div class="uphoto-wrap">
+                            <div style="width: 60px; height: 60px; border-radius: 50%; background: #f0f0f0; margin: 0 auto; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                <span class="iconfont-pc icon-wode" style="font-size: 32px; color: #bbb;"></span>
+                            </div>
+                            <div class="login-box" style="margin-top: 12px;">
+                                <div style="font-size: 14px; font-weight: bold; color: #333;">"Hi，您好！"</div>
+                                <div style="font-size: 12px; color: #999; margin-top: 4px;">"欢迎来到 TigShop 商城"</div>
+                                <div style="margin-top: 14px; display: flex; gap: 8px; justify-content: center;">
+                                    <a href="/login" class="login_btn" style="background: var(--general); color: #fff; padding: 5px 16px; border-radius: 15px; font-size: 12px; font-weight: bold;">"登录"</a>
+                                    <a href="/login" class="login_btn" style="background: #fff; color: #333; border: 1px solid #ddd; padding: 5px 16px; border-radius: 15px; font-size: 12px;">"注册"</a>
+                                </div>
+                            </div>
+                        </div>
+
+                        // 会员特权与快速通道
+                        <div class="vip-list" style="border-top: 1px solid #f2f2f2; border-bottom: 1px solid #f2f2f2; padding: 12px 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 11px; color: #666;">
+                            <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer;">
+                                <span class="iconfont-pc icon-youhuiquan" style="font-size: 20px; color: var(--general);"></span>
+                                <span>"领券"</span>
+                            </div>
+                            <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer;">
+                                <span class="iconfont-pc icon-dingdan" style="font-size: 20px; color: #1890ff;"></span>
+                                <span>"订单"</span>
+                            </div>
+                            <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer;">
+                                <span class="iconfont-pc icon-kefu" style="font-size: 20px; color: #52c41a;"></span>
+                                <span>"客服"</span>
+                            </div>
                         </div>
 
                         // 商城公告
-                        <div>
-                            <div class="flex justify-between" style="font-size: 13px; font-weight: bold; color: #333; margin-bottom: 10px;">
-                                <span>"商城公告"</span>
-                                <a href="#" style="font-size: 11px; color: #999; text-decoration: none;">"更多 >"</a>
+                        <div class="notice-list" style="text-align: left; font-size: 12px; line-height: 22px;">
+                            <div style="font-weight: bold; color: #333; margin-bottom: 4px; font-size: 12px;">"商城头条"</div>
+                            <div style="color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                <span style="color: var(--general); font-weight: bold;">"【通知】"</span>"商城服务升级公告"
                             </div>
-                            <ul style="list-style: none; padding: 0; margin: 0; font-size: 12px; color: #666; display: flex; flex-direction: column; gap: 8px;">
-                                <li style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">"· 关于2026年大促物流配送保障公告"</li>
-                                <li style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">"· 企业采购专属发票与账期系统上线"</li>
-                                <li style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">"· 防范网络电信网络诈骗安全温馨提示"</li>
-                            </ul>
+                            <div style="color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                <span style="color: var(--general); font-weight: bold;">"【特惠】"</span>"全场满 300 减 50 优惠券"
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            // 2. 秒杀专区楼层 (Seckill Floor)
-            <div class="seckill-floor" style="max-width: 1200px; margin: 0 auto 30px auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.03);">
-                // 秒杀头部
-                <div class="flex justify-between align-center" style="background: linear-gradient(90deg, #ff3838 0%, #ff6b6b 100%); color: #fff; padding: 15px 25px;">
-                    <div class="flex align-center" style="gap: 15px;">
-                        <span style="font-size: 20px; font-weight: 900; letter-spacing: 1px;">"⚡ 限时秒杀 · FLASH SALE"</span>
-                        <span style="font-size: 13px; background: rgba(0,0,0,0.2); padding: 3px 10px; border-radius: 12px;">"每日四场，正品低价"</span>
+            // 2. 限时秒杀专区楼层 (HomeSeckill 1:1)
+            <div class="container" style="margin-top: 25px;">
+                <div class="mod_seckill" style="height: 260px; display: flex; background: #fff; border-radius: 4px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                    // 红色秒杀倒计时侧栏 (190px)
+                    <div class="count_down" style="width: 190px; height: 260px; background-color: #e83632; background-image: url('/assets/images/index/qg-bg.png'); background-size: contain; background-repeat: no-repeat; color: #fff; text-align: center; padding: 25px 15px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;">
+                        <div>
+                            <div class="count_down_tips" style="font-size: 28px; font-weight: bold; letter-spacing: 2px;">"限时秒杀"</div>
+                            <div style="font-size: 12px; opacity: 0.85; margin-top: 4px;">"FLASH DEALS"</div>
+                            <div style="font-size: 13px; margin-top: 30px; font-weight: 500;">"本场距离结束还剩"</div>
+                            <div class="count_time" style="display: flex; justify-content: center; align-items: center; gap: 4px; margin-top: 8px;">
+                                <em style="background: #2f2f2f; color: #fff; font-size: 15px; font-weight: bold; padding: 4px 6px; border-radius: 3px; font-style: normal;">"02"</em>
+                                <span style="color: #fff; font-weight: bold;">":"</span>
+                                <em style="background: #2f2f2f; color: #fff; font-size: 15px; font-weight: bold; padding: 4px 6px; border-radius: 3px; font-style: normal;">"45"</em>
+                                <span style="color: #fff; font-weight: bold;">":"</span>
+                                <em style="background: #2f2f2f; color: #fff; font-size: 15px; font-weight: bold; padding: 4px 6px; border-radius: 3px; font-style: normal;">"18"</em>
+                            </div>
+                        </div>
+                        <div class="more-seckill">
+                            <a href="/search" style="color: #fff; border: 1px solid rgba(255,255,255,0.7); border-radius: 20px; padding: 5px 0; font-size: 12px; text-decoration: none; display: block;">"查看更多 >"</a>
+                        </div>
                     </div>
-                    <div class="flex align-center" style="gap: 10px; font-size: 13px;">
-                        <span>"本场距结束还剩："</span>
-                        <span style="background: #222; padding: 3px 6px; border-radius: 4px; font-weight: bold; font-family: monospace;">"02"</span>":"
-                        <span style="background: #222; padding: 3px 6px; border-radius: 4px; font-weight: bold; font-family: monospace;">"45"</span>":"
-                        <span style="background: #222; padding: 3px 6px; border-radius: 4px; font-weight: bold; font-family: monospace;">"18"</span>
+
+                    // 秒杀商品卡片清单 (5个等分)
+                    <div class="seckill_list_wrap" style="flex: 1; display: grid; grid-template-columns: repeat(5, 1fr); background: #fff;">
+                        {
+                            seckill_products.into_iter().map(|(id, name, price, market, pic)| {
+                                view! {
+                                    <div class="proditem" style="padding: 20px 15px; border-right: 1px solid #f2f2f2; display: flex; flex-direction: column; justify-content: space-between; text-align: center; box-sizing: border-box;">
+                                        <a href=format!("/product/{}", id) style="display: block; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+                                            <div class="seckill-item-image" style="width: 130px; height: 130px; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
+                                                <img src=pic alt=name style="max-width: 100%; max-height: 100%; object-fit: contain;"/>
+                                            </div>
+                                            <div class="seckill-item__name" style="font-size: 13px; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 10px;">
+                                                {name}
+                                            </div>
+                                            <div class="seckill-item__price" style="margin-top: 8px;">
+                                                <div style="color: var(--price); font-size: 18px; font-weight: bold;">
+                                                    <span style="font-size: 12px;">"¥"</span>{price}
+                                                </div>
+                                                <div style="font-size: 12px; color: #bbb; text-decoration: line-through; margin-top: 2px;">
+                                                    "¥"{market}
+                                                </div>
+                                            </div>
+                                        </a>
+                                    </div>
+                                }
+                            }).collect::<Vec<_>>()
+                        }
                     </div>
                 </div>
-                // 秒杀商品卡片行
-                <div class="grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; padding: 20px;">
+            </div>
+
+            // 3. 精选好物推荐楼层 (Recommend Floor)
+            <div class="container" style="margin-top: 30px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div style="width: 4px; height: 22px; background: var(--general); border-radius: 2px;"></div>
+                        <span style="font-size: 22px; font-weight: bold; color: #333;">"精选好物推荐"</span>
+                        <span style="font-size: 13px; color: #999; margin-left: 10px;">"品质保障 · 严选爆款"</span>
+                    </div>
+                    <a href="/search" style="font-size: 13px; color: #666; text-decoration: none;">"查看全部商品 >"</a>
+                </div>
+
+                <div class="grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
                     {
-                        recommend_products.iter().take(4).map(|(id, name, price, market, pic, sales, item_tags)| {
+                        recommend_products.iter().map(|(id, name, price, market, pic, sales, item_tags)| {
                             view! {
                                 <ProductCard
                                     id=*id
@@ -134,41 +230,6 @@ pub fn HomePage() -> impl IntoView {
                                     pic_thumb=(*pic).to_string()
                                     sales=*sales
                                     badges={item_tags.iter().map(|t| (*t).to_string()).collect::<Vec<_>>()}
-                                />
-                            }
-                        }).collect::<Vec<_>>()
-                    }
-                </div>
-            </div>
-
-            // 3. 精选好物推荐楼层 (Recommend Goods Grid)
-            <div class="recommend-floor" style="max-width: 1200px; margin: 0 auto;">
-                <div class="flex justify-between align-center" style="margin-bottom: 20px;">
-                    <div style="font-size: 22px; font-weight: 900; color: #222; display: flex; align-items: center; gap: 10px;">
-                        <span style="width: 4px; height: 22px; background: #ff3838; border-radius: 2px;"></span>
-                        <span>"精选好物 · 猜你喜欢"</span>
-                    </div>
-                    <div class="flex" style="gap: 20px; font-size: 14px;">
-                        <a href="#" style="color: #ff3838; font-weight: bold; text-decoration: none;">"热门推荐"</a>
-                        <a href="#" style="color: #666; text-decoration: none;">"新品首发"</a>
-                        <a href="#" style="color: #666; text-decoration: none;">"企业大宗"</a>
-                        <a href="#" style="color: #666; text-decoration: none;">"品牌特卖"</a>
-                    </div>
-                </div>
-
-                // 推荐商品瀑布流/网格 (8张卡片)
-                <div class="grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
-                    {
-                        recommend_products.into_iter().map(|(id, name, price, market, pic, sales, item_tags)| {
-                            view! {
-                                <ProductCard
-                                    id=id
-                                    name=name.to_string()
-                                    price=price.to_string()
-                                    market_price=market.to_string()
-                                    pic_thumb=pic.to_string()
-                                    sales=sales
-                                    badges={item_tags.into_iter().map(|t| t.to_string()).collect::<Vec<_>>()}
                                 />
                             }
                         }).collect::<Vec<_>>()

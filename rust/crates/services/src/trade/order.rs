@@ -49,6 +49,12 @@ impl OrderService {
         Self { repos, product, cart }
     }
 
+    pub fn from_repos(repos: Arc<Repositories>) -> Self {
+        let product = ProductService::new(repos.clone(), None);
+        let cart = CartService::new(repos.clone(), product.clone());
+        Self { repos, product, cart }
+    }
+
     /// 创建订单：
     /// 1. 读取勾选购物车行
     /// 2. 校验并扣减库存（不足则整体失败）

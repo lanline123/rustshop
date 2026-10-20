@@ -3,63 +3,74 @@ use crate::components::product_card::ProductCard;
 
 #[component]
 pub fn SearchPage() -> impl IntoView {
-    // 模拟搜索结果
     let search_results = vec![
-        (1001, "Apple iPhone 16 Pro Max 256GB 原色钛金属 5G全网通手机", "8999.00", "9999.00", "/static/images/goods_empty.png", 2850, vec!["自营", "热卖", "分期免息"]),
-        (1003, "华为 Mate 60 Pro 12GB+512GB 雅川青 卫星通话 超可靠玄武架构", "6999.00", "6999.00", "/static/images/goods_empty.png", 5630, vec!["自营", "现货即发"]),
-        (1005, "Sony WH-1000XM5 无线头戴式主动降噪蓝牙耳机 铂金银", "2299.00", "2799.00", "/static/images/goods_empty.png", 1890, vec!["秒杀", "Hi-Res"]),
-        (1009, "小米 14 Ultra 徕卡光学全焦段四摄 骁龙8Gen3 摄影旗舰手机 16GB+512GB", "6499.00", "6999.00", "/static/images/goods_empty.png", 3210, vec!["自营", "赠摄影手柄"]),
-        (1010, "Apple iPad Air 11英寸 M2芯片 128GB WLAN版 深空灰色", "4799.00", "4799.00", "/static/images/goods_empty.png", 4120, vec!["自营", "教育特惠"]),
-        (1011, "ROG 魔霸新锐 2026 16英寸游戏笔记本电脑 (i9-13980HX 16G 1TB RTX4060)", "8999.00", "9999.00", "/static/images/goods_empty.png", 890, vec!["电竞热卖"]),
+        (1001, "Apple iPhone 16 Pro Max 256GB 原色钛金属 5G全网通手机", "8999.00", "9999.00", "/static/images/goods_empty.png", 2850, vec!["自营", "特惠", "免息"]),
+        (1003, "华为 Mate 60 Pro 12GB+512GB 雅丹黑 鸿蒙旗舰 卫星通话", "6999.00", "6999.00", "/static/images/goods_empty.png", 5630, vec!["自营", "热销手机"]),
+        (1005, "Sony WH-1000XM5 头戴式无线蓝牙降噪耳机 黑色", "2299.00", "2799.00", "/static/images/goods_empty.png", 1890, vec!["热卖榜", "Hi-Res"]),
+        (1009, "小米 14 Ultra 徕卡光学全焦段四摄 骁龙8Gen3 影像旗舰手机 16GB+512GB", "6499.00", "6999.00", "/static/images/goods_empty.png", 3210, vec!["自营", "影像标杆"]),
+        (1010, "Apple iPad Air 11英寸 M2芯片 128GB WLAN版 紫色平板电脑", "4799.00", "4799.00", "/static/images/goods_empty.png", 4120, vec!["自营", "限时特惠"]),
+        (1011, "ROG 魔霸新锐 2026 16英寸游戏笔记本 (i9-13980HX 16G 1TB RTX4060)", "8999.00", "9999.00", "/static/images/goods_empty.png", 890, vec!["电竞神机"]),
+        (1002, "联想 ThinkPad X1 Carbon 14英寸商务笔记本电脑", "11999.00", "13999.00", "/static/images/goods_empty.png", 1420, vec!["企业采购"]),
+        (1008, "科沃斯 (ECOVACS) 地宝 T30 PRO 扫拖一体机 全自动基站", "3299.00", "3999.00", "/static/images/goods_empty.png", 870, vec!["智能家电"]),
     ];
 
     view! {
-        <div class="search-page" style="background: #f6f6f6; padding: 20px 0 40px 0;">
-            <div class="container" style="max-width: 1200px; margin: 0 auto;">
-                // 面包屑导航
-                <div class="breadcrumb" style="font-size: 13px; color: #666; margin-bottom: 15px;">
-                    <a href="/" style="color: #666; text-decoration: none;">"首页"</a>
-                    <span style="margin: 0 8px;">">"</span>
+        <div class="search-page" style="background: #f2f3f5; min-height: 80vh; padding: 20px 0 50px;">
+            <div class="container">
+                // 面包屑
+                <div class="breadcrumb acea-row row-middle" style="font-size: 13px; color: #666; margin-bottom: 15px; gap: 8px;">
+                    <a href="/" style="color: #666;">"首页"</a>
+                    <span>">"</span>
                     <span style="color: #333; font-weight: bold;">"全部搜索结果"</span>
+                    <span style="color: #999;">"(共 8 件相关商品)"</span>
                 </div>
 
-                // 筛选条件框
-                <div class="filter-box" style="background: #fff; border: 1px solid #e8e8e8; border-radius: 6px; padding: 15px 20px; margin-bottom: 20px; font-size: 13px;">
-                    // 品牌筛选
-                    <div class="filter-row flex align-center" style="padding: 10px 0; border-bottom: 1px dashed #eee;">
-                        <span style="width: 80px; color: #999;">"品牌："</span>
-                        <div class="flex" style="gap: 18px; flex-wrap: wrap;">
-                            <a href="#" style="color: #ff3838; font-weight: bold; text-decoration: none;">"全部"</a>
-                            <a href="#" style="color: #444; text-decoration: none;">"Apple (苹果)"</a>
-                            <a href="#" style="color: #444; text-decoration: none;">"华为 (HUAWEI)"</a>
-                            <a href="#" style="color: #444; text-decoration: none;">"小米 (XIAOMI)"</a>
-                            <a href="#" style="color: #444; text-decoration: none;">"索尼 (SONY)"</a>
-                            <a href="#" style="color: #444; text-decoration: none;">"联想 (Lenovo)"</a>
+                // 筛选面板
+                <div class="filter-panel" style="background: #fff; border: 1px solid #e5e5e5; border-radius: 4px; padding: 15px 20px; margin-bottom: 20px;">
+                    <div style="display: flex; align-items: center; padding: 8px 0; border-bottom: 1px dashed #eee;">
+                        <span style="width: 80px; font-weight: bold; color: #666; font-size: 13px;">"品牌："</span>
+                        <div style="display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: #333;">
+                            <a href="#" style="color: var(--general); font-weight: bold;">"全部"</a>
+                            <a href="#">"Apple (苹果)"</a>
+                            <a href="#">"HUAWEI (华为)"</a>
+                            <a href="#">"Xiaomi (小米)"</a>
+                            <a href="#">"Sony (索尼)"</a>
+                            <a href="#">"ThinkPad (联想)"</a>
+                            <a href="#">"ASUS (华硕)"</a>
+                            <a href="#">"Dyson (戴森)"</a>
                         </div>
                     </div>
-                    // 价格区间
-                    <div class="filter-row flex align-center" style="padding: 10px 0;">
-                        <span style="width: 80px; color: #999;">"价格区间："</span>
-                        <div class="flex align-center" style="gap: 10px;">
-                            <input type="text" placeholder="¥ 最低价" style="width: 80px; padding: 4px 8px; border: 1px solid #ddd; border-radius: 3px; font-size: 12px;"/>
-                            <span>"-"</span>
-                            <input type="text" placeholder="¥ 最高价" style="width: 80px; padding: 4px 8px; border: 1px solid #ddd; border-radius: 3px; font-size: 12px;"/>
-                            <button style="background: #ff3838; color: #fff; border: none; padding: 4px 12px; border-radius: 3px; cursor: pointer; font-size: 12px;">"确定"</button>
+                    <div style="display: flex; align-items: center; padding: 8px 0;">
+                        <span style="width: 80px; font-weight: bold; color: #666; font-size: 13px;">"价格区间："</span>
+                        <div style="display: flex; gap: 16px; font-size: 13px; color: #333;">
+                            <a href="#" style="color: var(--general); font-weight: bold;">"全部"</a>
+                            <a href="#">"0-500元"</a>
+                            <a href="#">"500-2000元"</a>
+                            <a href="#">"2000-5000元"</a>
+                            <a href="#">"5000-10000元"</a>
+                            <a href="#">"10000元以上"</a>
                         </div>
                     </div>
                 </div>
 
-                // 排序工具条
-                <div class="sort-bar flex justify-between align-center" style="background: #fff; border: 1px solid #e8e8e8; border-radius: 6px; padding: 10px 20px; margin-bottom: 20px; font-size: 13px;">
-                    <div class="flex align-center" style="gap: 20px;">
-                        <span style="color: #999;">"排序："</span>
-                        <a href="#" style="color: #ff3838; font-weight: bold; text-decoration: none;">"综合"</a>
-                        <a href="#" style="color: #444; text-decoration: none;">"销量 ▼"</a>
-                        <a href="#" style="color: #444; text-decoration: none;">"新品"</a>
-                        <a href="#" style="color: #444; text-decoration: none;">"价格 ▲"</a>
+                // 排序工具条 (sort-filter-wrap)
+                <div class="sort-filter-wrap" style="background: #fff; border: 1px solid #e5e5e5; border-radius: 4px; padding: 8px 15px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
+                    <div class="sort-filter-left" style="display: flex; gap: 4px;">
+                        <button class="sort-item active" style="border: 1px solid var(--general); background: var(--general); color: #fff; padding: 6px 16px; border-radius: 3px; font-size: 13px; cursor: pointer; font-weight: 500;">
+                            "综合排序"
+                        </button>
+                        <button class="sort-item" style="border: 1px solid #ddd; background: #fff; color: #333; padding: 6px 16px; border-radius: 3px; font-size: 13px; cursor: pointer;">
+                            "销量优先"
+                        </button>
+                        <button class="sort-item" style="border: 1px solid #ddd; background: #fff; color: #333; padding: 6px 16px; border-radius: 3px; font-size: 13px; cursor: pointer;">
+                            "价格从低到高"
+                        </button>
+                        <button class="sort-item" style="border: 1px solid #ddd; background: #fff; color: #333; padding: 6px 16px; border-radius: 3px; font-size: 13px; cursor: pointer;">
+                            "最新上架"
+                        </button>
                     </div>
-                    <div style="color: #888; font-size: 12px;">
-                        "共找到 "{search_results.len()}" 件相关商品"
+                    <div style="font-size: 12px; color: #999;">
+                        "显示 1-8 件"
                     </div>
                 </div>
 
@@ -83,9 +94,9 @@ pub fn SearchPage() -> impl IntoView {
                 </div>
 
                 // 分页器
-                <div class="pagination flex justify-center align-center" style="margin-top: 35px; gap: 8px;">
+                <div class="pagination acea-row row-center-wrapper" style="margin-top: 35px; gap: 8px;">
                     <button style="border: 1px solid #ddd; background: #fff; padding: 6px 14px; border-radius: 4px; cursor: pointer; color: #999;">"上一页"</button>
-                    <button style="border: 1px solid #ff3838; background: #ff3838; color: #fff; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-weight: bold;">"1"</button>
+                    <button style="border: 1px solid var(--general); background: var(--general); color: #fff; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-weight: bold;">"1"</button>
                     <button style="border: 1px solid #ddd; background: #fff; padding: 6px 14px; border-radius: 4px; cursor: pointer; color: #666;">"2"</button>
                     <button style="border: 1px solid #ddd; background: #fff; padding: 6px 14px; border-radius: 4px; cursor: pointer; color: #666;">"3"</button>
                     <button style="border: 1px solid #ddd; background: #fff; padding: 6px 14px; border-radius: 4px; cursor: pointer; color: #666;">"下一页"</button>

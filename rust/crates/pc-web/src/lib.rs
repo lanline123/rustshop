@@ -38,6 +38,13 @@ pub fn router() -> Router {
                 .fallback(ServeDir::new("crates/pc-web/public"))
                 .fallback(ServeDir::new("public")),
         )
+        // 兼容 /assets/* 静态映射（支持 CSS 内部 url('/assets/...') 引用）
+        .nest_service(
+            "/assets",
+            ServeDir::new("rust/crates/pc-web/public")
+                .fallback(ServeDir::new("crates/pc-web/public"))
+                .fallback(ServeDir::new("public")),
+        )
         // 所有前端页面路由统一走 Leptos SSR 直出渲染
         .fallback(render_app)
 }
