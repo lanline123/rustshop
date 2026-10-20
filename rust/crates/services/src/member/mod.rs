@@ -24,6 +24,7 @@ pub mod user_points_log;
 pub mod user_price_inquiry;
 pub mod user_rank;
 pub mod user_sign;
+pub mod wechat_mp;
 
 use std::sync::Arc;
 

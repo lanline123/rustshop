@@ -40,9 +40,11 @@
 //! > 明确的 1001 业务错误；验证码接口不做行为验证、短信/邮件只写缓存不实际发送。
 
 use axum::{
+    body::Bytes,
     extract::{Query, State},
-    http::HeaderMap,
+    http::{header, HeaderMap, StatusCode},
     middleware,
+    response::{IntoResponse, Response},
     routing::{get, post},
     Extension, Json, Router,
 };
@@ -54,6 +56,7 @@ use tigshop_core::models::member::login::{
     SERVICE_DATA_ERROR,
 };
 use tigshop_security::web::{ok, require_auth, ApiResult, AuthUser};
+use tigshop_services::member::login::WechatServerQuery;
 
 use crate::PublicState;
 
@@ -249,10 +252,47 @@ async fn get_wx_login_info_by_code(
     ok(state.member.login.wx_login_info_by_code(Some(code)).await?)
 }
 
-/// `GET|POST /api/user/login/wechatServer`：微信服务器回调（未迁移）。
-async fn wechat_server(State(state): State<PublicState>) -> ApiResult<()> {
-    state.member.login.wechat_server()?;
-    ok(())
+/// 微信服务器回调查询参数（GET 验证 / POST 安全模式）。
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct WechatServerQueryParams {
+    signature: Option<String>,
+    timestamp: Option<String>,
+    nonce: Option<String>,
+    echostr: Option<String>,
+    #[serde(rename = "encrypt_type")]
+    encrypt_type: Option<String>,
+    #[serde(rename = "msg_signature")]
+    msg_signature: Option<String>,
+}
+
+/// `GET|POST /api/user/login/wechatServer`：微信服务器回调（URL 验证 + 安全模式事件）。
+async fn wechat_server(
+    State(state): State<PublicState>,
+    Query(q): Query<WechatServerQueryParams>,
+    body: Bytes,
+) -> Response {
+    let query = WechatServerQuery {
+        signature: q.signature,
+        timestamp: q.timestamp,
+        nonce: q.nonce,
+        echostr: q.echostr,
+        encrypt_type: q.encrypt_type,
+        msg_signature: q.msg_signature,
+    };
+    let text = match state.member.login.wechat_server(&query, &body).await {
+        Ok(text) => text,
+        Err(e) => {
+            tracing::warn!("微信服务器回调处理失败: {e}");
+            format!("{e}")
+        }
+    };
+    (
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
+        text,
+    )
+        .into_response()
 }
 
 // ————————————————————— 需登录端点 —————————————————————
