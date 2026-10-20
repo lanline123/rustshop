@@ -26,7 +26,8 @@
 //! - **财务退款执行**：退款申请与 `refund_log` 已创建；`financialReview != 1`
 //!   时自动把申请置为处理中。实际渠道退款执行（微信/支付宝/线下）仍由支付域
 //!   负责；退款结算单/RabbitMQ 退款结算路由未迁移。
-//! - **整单售后退回优惠券**（`restoreOrderCouponUsageIfFullAftersales`）。
+//! - **整单售后退回优惠券**：仅退款审核通过且整单被售后覆盖时，
+//!   释放订单/父单的 `user_coupon` 占用（与 Java 一致）。
 //! - **供应商审核环节**：已读取 `vendor.after_sales_review`（仅
 //!   `tigshop.is-vendor=1` 的供应商退货售后生效）；未开启时按 Java 跳过供应商审核。
 //! - **站内消息 / 语音播报**（`AdminMsgService`）、**微信直播同步**
@@ -1074,6 +1075,47 @@ impl AftersalesService {
                     .await
                 {
                     tracing::warn!("售后仅退款创建财务退款申请失败: {e}");
+                }
+                // 整单售后：释放订单/父单优惠券占用（Java
+                // `restoreOrderCouponUsageIfFullAftersales`）。
+                if let Some(order_id) = aftersales.order_id.filter(|id| *id > 0) {
+                    let total = self
+                        .repos
+                        .trade
+                        .order_admin
+                        .order_items_total_quantity(order_id)
+                        .await?;
+                    let covered = self
+                        .repos
+                        .trade
+                        .order_admin
+                        .aftersales_covered_quantity(
+                            order_id,
+                            &aftersales_status::valid_statuses(),
+                        )
+                        .await?;
+                    if total > 0 && covered >= total {
+                        let released = self
+                            .repos
+                            .marketing
+                            .coupon
+                            .release_by_order(order_id)
+                            .await?;
+                        if released == 0 {
+                            if let Some(order) = order.as_ref() {
+                                if let Some(parent_id) =
+                                    order.parent_order_id.filter(|id| *id > 0)
+                                {
+                                    let _ = self
+                                        .repos
+                                        .marketing
+                                        .coupon
+                                        .release_by_order(parent_id)
+                                        .await;
+                                }
+                            }
+                        }
+                    }
                 }
             }
             let log_info = format!("更新退换货:{aftersale_id}");
