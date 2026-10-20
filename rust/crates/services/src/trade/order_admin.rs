@@ -1513,6 +1513,8 @@ impl OrderAdminService {
                 .order_admin
                 .update_item_prices(&updates)
                 .await?;
+            self.reallocate_amount_detail_shop_discount(id, &items, discount)
+                .await?;
             patch = patch.decimal("discount_amount", discount);
         }
         self.repos.trade.order_admin.update_order(id, &patch).await?;
@@ -1522,6 +1524,56 @@ impl OrderAdminService {
             .order_admin
             .insert_order_log(id, &order.order_sn, "订单金额修改", admin_id, order.shop_id)
             .await?;
+        Ok(())
+    }
+
+    /// 按店铺重算 `order_amount_detail.discount_amount`（Java `modifyOrderMoney`）。
+    async fn reallocate_amount_detail_shop_discount(
+        &self,
+        order_id: i32,
+        items: &[OrderItem],
+        discount: Decimal,
+    ) -> Result<()> {
+        let details = self
+            .repos
+            .trade
+            .order_admin
+            .find_amount_details(order_id)
+            .await?;
+        if details.is_empty() {
+            return Ok(());
+        }
+        let mut shop_subtotals: HashMap<i32, Decimal> = HashMap::new();
+        let mut total = Decimal::ZERO;
+        for it in items {
+            let unit = it.admin_change_pre_price.unwrap_or(it.price);
+            let subtotal = unit * Decimal::from(it.quantity);
+            *shop_subtotals.entry(it.shop_id).or_insert(Decimal::ZERO) += subtotal;
+            total += subtotal;
+        }
+        if total <= Decimal::ZERO {
+            return Ok(());
+        }
+        let mut allocated = Decimal::ZERO;
+        for (index, detail) in details.iter().enumerate() {
+            let part = if index + 1 < details.len() {
+                let shop_subtotal = shop_subtotals
+                    .get(&detail.shop_id.unwrap_or(0))
+                    .copied()
+                    .unwrap_or(Decimal::ZERO);
+                let v = (discount * shop_subtotal / total)
+                    .round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero);
+                allocated += v;
+                v
+            } else {
+                discount - allocated
+            };
+            self.repos
+                .trade
+                .order_admin
+                .update_amount_detail_discount(detail.order_discount_detail_id, part)
+                .await?;
+        }
         Ok(())
     }
 

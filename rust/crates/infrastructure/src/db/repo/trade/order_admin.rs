@@ -959,6 +959,37 @@ impl OrderAdminRepository {
         Ok((total.0.max(0) as u64, rows))
     }
 
+    /// 查询订单店铺金额明细（`order_amount_detail`）。
+    pub async fn find_amount_details(
+        &self,
+        order_id: i32,
+    ) -> Result<Vec<tigshop_core::entities::OrderAmountDetail>> {
+        sqlx::query_as::<_, tigshop_core::entities::OrderAmountDetail>(
+            "SELECT * FROM order_amount_detail WHERE order_id = ? ORDER BY order_discount_detail_id ASC",
+        )
+        .bind(order_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 更新店铺金额明细的优惠金额。
+    pub async fn update_amount_detail_discount(
+        &self,
+        order_discount_detail_id: i32,
+        discount_amount: rust_decimal::Decimal,
+    ) -> Result<u64> {
+        let res = sqlx::query(
+            "UPDATE order_amount_detail SET discount_amount = ? WHERE order_discount_detail_id = ?",
+        )
+        .bind(discount_amount)
+        .bind(order_discount_detail_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(res.rows_affected())
+    }
+
     /// 批量更新订单明细价格（改价后按比例分摊折扣，Java `orderItemService.updateBatchById`）。
     pub async fn update_item_prices(
         &self,
