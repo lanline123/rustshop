@@ -1,33 +1,29 @@
 <template>
   <header class="tig-pc-header">
-    <!-- 1. Top Shortcut Bar -->
+    <!-- 顶部快捷条 -->
     <div class="top-shortcut-bar">
       <div class="container flex-between">
         <div class="shortcut-left flex-align-center">
-          <span v-if="!username">您好，欢迎来到 TigShop 官方商城！</span>
-          <span v-else>欢迎您，<strong>{{ username }}</strong></span>
-          <template v-if="!username">
-            <router-link to="/login" class="login-link">请登录</router-link>
-            <router-link to="/register" class="register-link">免费注册</router-link>
-          </template>
+          <span v-if="!user.isLoggedIn">您好，欢迎来到 TigShop 官方商城！</span>
+          <span v-else>欢迎您，<strong>{{ user.displayName || user.username }}</strong></span>
+          <router-link v-if="!user.isLoggedIn" to="/login" class="login-link">请登录</router-link>
           <template v-else>
             <a href="javascript:;" class="logout-link" @click="handleLogout">退出</a>
           </template>
         </div>
-
         <div class="shortcut-right flex-align-center">
-          <router-link to="/member">我的订单</router-link>
+          <router-link to="/member/orders">我的订单</router-link>
           <span class="sep">|</span>
           <router-link to="/member">个人中心</router-link>
           <span class="sep">|</span>
-          <a href="javascript:;" @click="showMobileTip">手机商城</a>
+          <router-link to="/member/address">收货地址</router-link>
           <span class="sep">|</span>
-          <a href="javascript:;">客户服务</a>
+          <a href="javascript:;" @click="showMobileTip">手机商城</a>
         </div>
       </div>
     </div>
 
-    <!-- 2. Main Search & Logo Bar -->
+    <!-- 搜索 / Logo 主栏 -->
     <div class="main-search-bar">
       <div class="container flex-between">
         <router-link to="/" class="mall-logo flex-align-center">
@@ -40,11 +36,7 @@
 
         <div class="search-input-wrapper">
           <div class="search-input-box flex-align-center">
-            <input
-              v-model="keyword"
-              placeholder="搜索心仪的商品..."
-              @keyup.enter="handleSearch"
-            />
+            <input v-model="keyword" placeholder="搜索心仪的商品..." @keyup.enter="handleSearch" />
             <button class="search-btn" @click="handleSearch">
               <el-icon><Search /></el-icon> 搜索
             </button>
@@ -54,25 +46,45 @@
         <router-link to="/cart" class="header-cart-box flex-align-center">
           <el-icon class="cart-icon"><ShoppingCart /></el-icon>
           <span>我的购物车</span>
-          <span class="cart-badge">{{ cartCount }}</span>
+          <span class="cart-badge">{{ cart.count }}</span>
         </router-link>
       </div>
     </div>
 
-    <!-- 3. Navigation Bar -->
+    <!-- 导航栏 -->
     <nav class="mall-nav-bar">
       <div class="container flex-align-center">
-        <!-- All Categories Dropdown Button -->
-        <div class="all-categories-btn flex-align-center" @click="$router.push('/search')">
+        <div class="all-categories-btn flex-align-center" @click="toggleCategoryPanel">
           <el-icon class="mr6"><Menu /></el-icon>
           <span>全部商品分类</span>
         </div>
-
-        <!-- Main Nav Links -->
         <div class="nav-links flex-align-center">
-          <router-link to="/" :class="{ active: $route.path === '/' }">首页</router-link>
-          <router-link to="/search" :class="{ active: $route.path === '/search' }">商品大厅</router-link>
-          <router-link to="/member">会员中心</router-link>
+          <router-link to="/" :class="{ active: route.path === '/' }">首页</router-link>
+          <router-link to="/search" :class="{ active: route.path === '/search' }">商品大厅</router-link>
+          <router-link to="/member" :class="{ active: route.path.startsWith('/member') }">会员中心</router-link>
+        </div>
+      </div>
+
+      <!-- 分类面板（真实分类树） -->
+      <div v-if="panelVisible" class="category-panel">
+        <div class="container category-panel-inner">
+          <div v-if="categorizing" class="panel-tip">分类加载中...</div>
+          <div v-else-if="categories.length === 0" class="panel-tip">暂无分类数据</div>
+          <div v-else class="category-panel-grid">
+            <div
+              v-for="node in categories"
+              :key="node.categoryId"
+              class="category-panel-item"
+              @click="goCategory(node.categoryId)"
+            >
+              <div class="cat-title">{{ node.categoryName }}</div>
+              <div class="cat-children">
+                <span v-for="child in (node.children || []).slice(0, 6)" :key="child.categoryId">
+                  {{ child.categoryName }}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </nav>
@@ -80,64 +92,70 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { onMounted, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { Search, ShoppingCart, Menu } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import request from '@/utils/request';
+import { homeApi } from '@/api';
+import type { CategoryNode } from '@/api/types';
+import { useUserStore } from '@/stores/user';
+import { useCartStore } from '@/stores/cart';
 
+const route = useRoute();
 const router = useRouter();
-const keyword = ref('');
-const username = ref(localStorage.getItem('tig_user_name') || '');
-const cartCount = ref(0);
+const user = useUserStore();
+const cart = useCartStore();
 
-async function fetchCartCount() {
-  const token = localStorage.getItem('tig_user_token');
-  if (!token) {
-    cartCount.value = 0;
-    return;
-  }
-  try {
-    const res: any = await request({
-      url: '/cart/cart/getCount',
-      method: 'get'
-    });
-    if (typeof res === 'number') {
-      cartCount.value = res;
-    } else if (res && typeof res.count === 'number') {
-      cartCount.value = res.count;
-    }
-  } catch (err) {
-    cartCount.value = 0;
-  }
-}
+const keyword = ref('');
+const categories = ref<CategoryNode[]>([]);
+const categorizing = ref(false);
+const panelVisible = ref(false);
 
 function handleSearch() {
-  if (!keyword.value.trim()) {
-    router.push('/search');
-    return;
-  }
   router.push({
     path: '/search',
-    query: { keyword: keyword.value.trim() }
+    query: keyword.value.trim() ? { keyword: keyword.value.trim() } : {},
   });
 }
 
+function goCategory(categoryId: number) {
+  panelVisible.value = false;
+  router.push({ path: '/search', query: { categoryId: String(categoryId) } });
+}
+
+function toggleCategoryPanel() {
+  panelVisible.value = !panelVisible.value;
+  if (panelVisible.value && categories.value.length === 0) {
+    loadCategories();
+  }
+}
+
+async function loadCategories() {
+  categorizing.value = true;
+  try {
+    categories.value = await homeApi.categoryTree();
+  } catch {
+    categories.value = [];
+  } finally {
+    categorizing.value = false;
+  }
+}
+
 function handleLogout() {
-  localStorage.removeItem('tig_user_token');
-  localStorage.removeItem('tig_user_name');
-  username.value = '';
-  cartCount.value = 0;
-  ElMessage.success('已安全退出登录');
-  router.push('/login');
+  user.logout();
+  cart.reset();
+  ElMessage.success('已退出登录');
+  router.push('/');
 }
 
 function showMobileTip() {
-  ElMessage.info('手机 H5 端与小程序可通过移动端浏览器直接访问');
+  ElMessage.info('移动端请使用浏览器访问同一商城域名');
 }
 
 onMounted(() => {
-  fetchCartCount();
+  if (user.isLoggedIn) {
+    cart.fetchCount(user.token);
+  }
 });
 </script>
 
@@ -159,7 +177,6 @@ onMounted(() => {
     gap: 12px;
     strong { color: var(--tig-red); }
     .login-link { color: var(--tig-red); font-weight: bold; }
-    .register-link { color: #666; &:hover { color: var(--tig-red); } }
     .logout-link { color: #999; &:hover { color: var(--tig-red); } }
   }
 
@@ -212,6 +229,7 @@ onMounted(() => {
 
   .search-input-wrapper {
     width: 540px;
+    max-width: 44vw;
 
     .search-input-box {
       border: 2px solid var(--tig-red);
@@ -239,11 +257,7 @@ onMounted(() => {
         display: flex;
         align-items: center;
         gap: 6px;
-        transition: background 0.2s;
-
-        &:hover {
-          background: #c81c13;
-        }
+        &:hover { background: #c81c13; }
       }
     }
   }
@@ -265,15 +279,10 @@ onMounted(() => {
       background: var(--tig-red);
       color: #ffffff;
       border-color: var(--tig-red);
-      .cart-badge {
-        background: #ffffff;
-        color: var(--tig-red);
-      }
+      .cart-badge { background: #ffffff; color: var(--tig-red); }
     }
 
-    .cart-icon {
-      font-size: 18px;
-    }
+    .cart-icon { font-size: 18px; }
 
     .cart-badge {
       background: var(--tig-red);
@@ -288,6 +297,7 @@ onMounted(() => {
 .mall-nav-bar {
   border-top: 1px solid #f0f0f0;
   height: 42px;
+  position: relative;
 
   .all-categories-btn {
     width: 220px;
@@ -312,13 +322,61 @@ onMounted(() => {
       font-size: 15px;
       font-weight: 600;
       color: #333333;
-      position: relative;
       transition: color 0.2s;
-
-      &:hover, &.active {
-        color: var(--tig-red);
-      }
+      &:hover, &.active { color: var(--tig-red); }
     }
+  }
+}
+
+.category-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 42px;
+  background: #ffffff;
+  border: 1px solid var(--tig-border-color);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  z-index: 30;
+
+  .category-panel-inner {
+    max-height: 420px;
+    overflow-y: auto;
+    padding: 16px 0;
+  }
+
+  .category-panel-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+
+  .category-panel-item {
+    padding: 10px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    &:hover { background: #fff5f4; }
+
+    .cat-title {
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--tig-text-main);
+      margin-bottom: 6px;
+    }
+
+    .cat-children {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 12px;
+      color: #888;
+      span:hover { color: var(--tig-red); }
+    }
+  }
+
+  .panel-tip {
+    color: #999;
+    text-align: center;
+    padding: 20px 0;
   }
 }
 </style>

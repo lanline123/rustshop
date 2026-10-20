@@ -1,271 +1,391 @@
 <template>
   <div class="tig-pc-home-page">
-    <!-- Loading Skeleton -->
+    <!-- 首屏骨架 -->
     <div v-if="loading" class="container loading-box">
       <el-skeleton :rows="10" animated />
     </div>
 
-    <!-- Empty State -->
-    <div v-else-if="!loading && homeVersion === 'new' && modules.length === 0" class="container empty-box">
-      <el-empty description="商城首页暂无装修数据，请先在管理后台完成装修发布" />
-    </div>
-
-    <!-- ==================== 1. PC 新版全景全宽模式 (New Suite) ==================== -->
-    <template v-else-if="homeVersion === 'new'">
-      <!-- Dynamic Modules Renderer for New PC Home -->
-      <div v-for="(module, idx) in modules" :key="idx" class="dynamic-module-wrapper">
-        <!-- New Fullscreen Banner -->
-        <section v-if="module.type === 'pcNewBanner' || module.type === 'banner'" class="pc-hero-banner-section">
-          <div class="banner-inner container" :style="{ height: `${module.params?.height || 420}px` }">
-            <div class="hero-content">
-              <span class="tag">旗舰精选</span>
-              <h1 class="hero-title">{{ module.params?.title || '全景数字生活馆' }}</h1>
-              <p class="hero-desc">{{ module.params?.subTitle || '官方正品保证 · 极速物流履约' }}</p>
-              <router-link to="/search" class="hero-btn">立即选购 &gt;</router-link>
-            </div>
-          </div>
-        </section>
-
-        <!-- New Magic Cube Ads -->
-        <section v-else-if="module.type === 'pcNewCube' || module.type === 'cube'" class="pc-cube-section container">
-          <div class="cube-grid">
-            <div class="cube-item cube-large" @click="$router.push('/search')">
-              <div class="cube-text">
-                <h3>超值爆款</h3>
-                <p>每日特惠直降</p>
-                <span class="action-link">立即抢购</span>
-              </div>
-            </div>
-            <div class="cube-item cube-sub1" @click="$router.push('/search')">
-              <div class="cube-text">
-                <h3>新品推荐</h3>
-                <p>本季上新专区</p>
-              </div>
-            </div>
-            <div class="cube-item cube-sub2" @click="$router.push('/search')">
-              <div class="cube-text">
-                <h3>企业采购</h3>
-                <p>批量采购专享</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- New Floor Goods Matrix -->
-        <section v-else-if="module.type === 'pcNewFloor' || module.type === 'floor'" class="pc-floor-section container">
-          <div class="floor-header flex-between" :style="{ borderBottomColor: module.params?.bgColor || '#e1251b' }">
-            <div class="floor-title-box flex-align-center">
-              <span class="floor-mark" :style="{ backgroundColor: module.params?.bgColor || '#e1251b' }"></span>
-              <h2 class="floor-title" :style="{ color: module.params?.bgColor || '#e1251b' }">
-                {{ module.params?.title || '热门精选好物' }}
-              </h2>
-            </div>
-            <div class="floor-sub-nav">
-              <router-link to="/search">全部好物 &gt;</router-link>
-            </div>
-          </div>
-
-          <div v-if="floorProducts.length > 0" class="goods-matrix">
-            <div
-              v-for="product in floorProducts"
-              :key="product.productId"
-              class="goods-matrix-card"
-              @click="$router.push(`/product/${product.productId}`)"
-            >
-              <div class="card-img-box">
-                <img :src="product.picThumb || product.picUrl || '/default-goods.png'" />
-              </div>
-              <div class="card-info">
-                <div class="card-name">{{ product.productName }}</div>
-                <div class="card-price-row flex-between">
-                  <div class="price-text">
-                    <span class="symbol">¥</span>
-                    <span class="integer">{{ Math.floor(product.productPrice || 0) }}</span>
-                    <span class="decimal">.{{ ((product.productPrice || 0) % 1 * 100).toFixed(0).padStart(2, '0') }}</span>
-                  </div>
-                  <span class="sales-count">已售 {{ product.sales || 0 }} 件</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <el-empty v-else description="本楼层暂无在售商品" :image-size="80" />
-        </section>
-      </div>
-    </template>
-
-    <!-- ==================== 2. PC 老版经典三栏模式 (Old Suite) ==================== -->
     <template v-else>
-      <div class="classic-home-wrapper container">
-        <!-- Top 3 Columns Banner Section -->
-        <div class="classic-three-cols flex-between">
-          <!-- Left: Dynamic Categories Menu -->
-          <div class="classic-category-menu">
-            <div
-              v-for="cat in categoryTree.slice(0, 8)"
-              :key="cat.categoryId"
-              class="cat-menu-item flex-between"
-              @click="$router.push(`/search?cat=${cat.categoryId}`)"
+      <!-- 分类导航 + 首屏装修模块 -->
+      <div class="container home-top">
+        <aside class="home-side-categories">
+          <div class="side-title">商品分类</div>
+          <ul>
+            <li
+              v-for="node in categoryTree.slice(0, 10)"
+              :key="node.categoryId"
+              @click="goCategory(node.categoryId)"
             >
-              <span class="cat-name">{{ cat.categoryName }}</span>
-              <span class="cat-sub">{{ cat.subCategoryList?.[0]?.categoryName || '精选' }}</span>
-            </div>
-            <div v-if="categoryTree.length === 0" style="padding: 20px; color: #999; text-align: center;">
-              正在加载分类...
-            </div>
-          </div>
+              <span class="cat-name">{{ node.categoryName }}</span>
+              <span class="cat-arrow">›</span>
+            </li>
+            <li v-if="categoryTree.length === 0" class="cat-empty">暂无分类</li>
+          </ul>
+        </aside>
 
-          <!-- Center: Main Banner Area -->
-          <div class="classic-main-carousel">
-            <el-carousel height="440px" :interval="4000">
-              <el-carousel-item v-for="(b, i) in bannerList" :key="i">
-                <div class="banner-slide" :style="{ background: b.bg || 'linear-gradient(135deg, #1456f0, #092b7a)' }">
-                  <h2>{{ b.title || '品质甄选 官方商城' }}</h2>
-                  <p>{{ b.sub || '全场正品保障 · 支持七天无理由退货' }}</p>
-                </div>
-              </el-carousel-item>
-            </el-carousel>
-          </div>
-
-          <!-- Right: User & News Card -->
-          <div class="classic-user-card">
-            <div class="user-greeting">
-              <div class="avatar-ph">Hi</div>
-              <p>欢迎来到 TigShop 商城</p>
-            </div>
-            <div class="quick-notice-box">
-              <div class="notice-header">商城快讯</div>
-              <ul>
-                <li><span>[特惠]</span> 官方甄选品质商品火热销售中</li>
-                <li><span>[服务]</span> 全网支持在线下单与全国配送</li>
-                <li><span>[保障]</span> 严格品质检验 售后贴心保障</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <!-- Classic Floor -->
-        <div class="classic-floor-box">
-          <div class="floor-title-row flex-between">
-            <h3 class="c-floor-title">热门爆款精选</h3>
-            <router-link to="/search" class="more-link">查看全部商品 &gt;</router-link>
-          </div>
-          <div v-if="floorProducts.length > 0" class="classic-floor-grid">
+        <div class="home-banner-area">
+          <template v-if="heroModule">
             <div
-              v-for="p in floorProducts"
-              :key="p.productId"
-              class="goods-matrix-card"
-              @click="$router.push(`/product/${p.productId}`)"
+              class="hero-card"
+              :style="heroModule.image ? { backgroundImage: `url(${heroModule.image})` } : {}"
+              @click="goLink(heroModule.link)"
             >
-              <div class="card-img-box">
-                <img :src="p.picThumb || p.picUrl || '/default-goods.png'" />
-              </div>
-              <div class="card-info">
-                <div class="card-name">{{ p.productName }}</div>
-                <div class="card-price-row flex-between">
-                  <span class="price-text">¥{{ p.productPrice }}</span>
-                  <span class="sales-count">已售 {{ p.sales }}</span>
-                </div>
+              <div class="hero-mask">
+                <h1>{{ heroModule.title || 'TigShop 官方旗舰商城' }}</h1>
+                <p>{{ heroModule.subtitle || '官方正品 · 极速物流 · 售后无忧' }}</p>
+                <span class="hero-btn">立即选购</span>
               </div>
             </div>
+          </template>
+          <div v-else class="hero-fallback">
+            <h1>TigShop 官方旗舰商城</h1>
+            <p>当前首页尚未配置装修首屏，以下为实时热销商品</p>
+            <router-link to="/search" class="hero-btn">去商品大厅</router-link>
           </div>
-          <el-empty v-else description="暂无推荐商品" :image-size="100" />
+
+          <!-- 图片广告模块：pc-image-ad / pcImageAd / pcBanner 等 -->
+          <div v-if="adImages.length" class="home-ad-row">
+            <div
+              v-for="(ad, idx) in adImages"
+              :key="idx"
+              class="ad-card"
+              @click="goLink(ad.link)"
+            >
+              <img :src="imageUrl(ad.image)" :alt="ad.title || '广告'" />
+            </div>
+          </div>
         </div>
       </div>
+
+      <!-- 装修商品模块（pc-product / pc-recommend-product / pc-product-group 等） -->
+      <section v-for="(section, idx) in productSections" :key="`ps-${idx}`" class="container home-section">
+        <div class="section-header flex-between">
+          <div class="section-title-box flex-align-center">
+            <span class="section-mark"></span>
+            <h2>{{ section.title || '精选好物' }}</h2>
+          </div>
+          <router-link to="/search" class="section-more">更多商品 ›</router-link>
+        </div>
+        <div class="goods-grid">
+          <div
+            v-for="product in section.products"
+            :key="product.productId"
+            class="goods-card"
+            @click="goProduct(product.productId)"
+          >
+            <div class="card-img-box">
+              <img :src="imageUrl(product.picThumb || product.picUrl)" :alt="product.productName" />
+            </div>
+            <div class="card-info">
+              <div class="card-name">{{ product.productName }}</div>
+              <div class="card-bottom flex-between">
+                <div class="price-text">
+                  <span class="symbol">¥</span>
+                  <span class="integer">{{ priceInteger(product.productPrice) }}</span>
+                  <span class="decimal">.{{ priceDecimal(product.productPrice) }}</span>
+                </div>
+                <span class="sales-count">已售 {{ product.sales || 0 }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <el-empty v-if="section.products.length === 0" description="该楼层暂无在售商品" :image-size="80" />
+      </section>
+
+      <!-- 实时热销（真实商品接口，装修数据缺失时的兜底内容） -->
+      <section class="container home-section">
+        <div class="section-header flex-between">
+          <div class="section-title-box flex-align-center">
+            <span class="section-mark"></span>
+            <h2>实时热销</h2>
+          </div>
+          <router-link to="/search" class="section-more">更多商品 ›</router-link>
+        </div>
+        <div v-if="hotProducts.length" class="goods-grid">
+          <div
+            v-for="product in hotProducts"
+            :key="product.productId"
+            class="goods-card"
+            @click="goProduct(product.productId)"
+          >
+            <div class="card-img-box">
+              <img :src="imageUrl(product.picThumb || product.picUrl)" :alt="product.productName" />
+            </div>
+            <div class="card-info">
+              <div class="card-name">{{ product.productName }}</div>
+              <div class="card-bottom flex-between">
+                <div class="price-text">
+                  <span class="symbol">¥</span>
+                  <span class="integer">{{ priceInteger(product.productPrice) }}</span>
+                  <span class="decimal">.{{ priceDecimal(product.productPrice) }}</span>
+                </div>
+                <span class="sales-count">已售 {{ product.sales || 0 }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <el-empty v-else description="暂无在售商品" :image-size="100" />
+      </section>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import request from '@/utils/request';
+import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { homeApi, productApi } from '@/api';
+import { pageItems } from '@/api/types';
+import type { CategoryNode, DecorateIndex, DecorateModule, ProductVO } from '@/api/types';
+import { applySeo } from '@/composables/useSeo';
+import { imageUrl, priceDecimal, priceInteger } from '@/utils/format';
+
+const router = useRouter();
 
 const loading = ref(true);
-const homeVersion = ref<'new' | 'old'>('new');
-const modules = ref<any[]>([]);
-const floorProducts = ref<any[]>([]);
-const categoryTree = ref<any[]>([]);
-const bannerList = ref<any[]>([
-  { title: '正品行货 极速到家', sub: '全场大牌 极速发货', bg: 'linear-gradient(135deg, #1456f0, #092b7a)' },
-  { title: '新品首发 独家礼赠', sub: '品质保障 售后无忧', bg: 'linear-gradient(135deg, #e1251b, #8a0c06)' }
+const categoryTree = ref<CategoryNode[]>([]);
+const decorate = ref<DecorateIndex | null>(null);
+const hotProducts = ref<ProductVO[]>([]);
+const moduleProducts = ref<Record<number, ProductVO[]>>({});
+
+interface HeroInfo {
+  image?: string;
+  title?: string;
+  subtitle?: string;
+  link?: string;
+}
+interface AdInfo {
+  image: string;
+  link?: string;
+  title?: string;
+}
+
+/** 支持的图片/广告类模块（新旧两套命名，逐字对齐原版 registry）。 */
+const IMAGE_MODULE_TYPES = new Set([
+  'pc-image-ad',
+  'pcImageAd',
+  'pcBanner',
+  'banner',
+  'pc-image-square-ad',
+  'pc-image-nav',
+  'pcCustomAd1',
+  'pcCustomAd2',
+  'pc-home-hero',
 ]);
 
-// 1. 加载首页动态装修配置
-async function loadHomeDecorate() {
-  try {
-    // 正确入口是 `GET /api/home/home/pcIndex`（返回 DecorateModuleListVO）。
-    // 原实现误用 `/decorate/decorate/detail`——那是 admin 端接口（需 admin JWT），前台必 404。
-    const res = await request<{
-      moduleList?: any[];
-      pageModule?: Record<string, any>;
-    }>({
-      url: '/home/home/pcIndex',
-      method: 'get'
+/** 商品类模块（旧版 camelCase + 新版 kebab）。 */
+const PRODUCT_MODULE_TYPES = new Set([
+  'pc-product',
+  'pc-recommend-product',
+  'pc-product-group',
+  'pcProductGroup',
+  'pcRecommendProduct',
+  'pcSeckill',
+  'pcGroupon',
+  'pcCatProductNormal',
+  'pcCatProductWide',
+  'pcCatProductSimple',
+  'pc-seckill',
+  'pc-home-seckill',
+  'pc-home-groupon',
+]);
+
+const modules = computed<DecorateModule[]>(() => {
+  const list = decorate.value?.moduleList;
+  return Array.isArray(list) ? list.filter((m) => m && m.isShow !== false) : [];
+});
+
+/** 递归从装修模块里找出所有图片/链接（覆盖后端松散 JSON 的多种字段命名）。 */
+function collectImages(value: any, out: AdInfo[], depth = 0): void {
+  if (!value || depth > 4 || out.length >= 8) return;
+  if (Array.isArray(value)) {
+    for (const item of value) collectImages(item, out, depth + 1);
+    return;
+  }
+  if (typeof value !== 'object') return;
+
+  const pick = (keys: string[]): string | undefined => {
+    for (const key of keys) {
+      const v = value[key];
+      if (typeof v === 'string' && v.trim()) return v.trim();
+    }
+    return undefined;
+  };
+  const image = pick(['picUrl', 'image', 'imgUrl', 'pic', 'picture', 'imageUrl', 'picThumb', 'cover']);
+  if (image) {
+    out.push({
+      image,
+      link: pick(['link', 'url', 'href', 'jumpUrl', 'to']),
+      title: pick(['title', 'name', 'text', 'adName']),
     });
-
-    if (!res) return;
-
-    // 版本口径与原版 isNewHome.ts 一致：优先 pageModule.homeStyleVersion
-    const styleVersion = res.pageModule?.homeStyleVersion;
-    if (styleVersion === 'old' || styleVersion === 'new') {
-      homeVersion.value = styleVersion;
-    }
-
-    // moduleList 已由后端过滤掉 isShow=false 的模块
-    if (Array.isArray(res.moduleList)) {
-      modules.value = res.moduleList;
-    }
-  } catch (err) {
-    console.error('获取装修数据失败:', err);
-    modules.value = [];
+    return;
+  }
+  for (const key of Object.keys(value)) {
+    const child = value[key];
+    if (child && typeof child === 'object') collectImages(child, out, depth + 1);
   }
 }
 
-// 2. 加载热门真实商品列表
-async function loadRealProducts() {
-  try {
-    const res: any = await request({
-      url: '/product/product/list',
-      method: 'get',
-      params: {
-        page: 1,
-        size: 10,
-        sort_by: 'sales',
-        sort_order: 'desc'
-      }
-    });
-    if (res && Array.isArray(res.list)) {
-      floorProducts.value = res.list;
+/** 递归找出模块里形如商品对象的数组。 */
+function collectProducts(value: any, out: ProductVO[], depth = 0): void {
+  if (!value || depth > 4 || out.length >= 20) return;
+  if (Array.isArray(value)) {
+    const items = value.filter((it) => it && typeof it === 'object' && 'productId' in it && 'productName' in it) as ProductVO[];
+    if (items.length) {
+      out.push(...items);
+      return;
     }
-  } catch (err) {
-    console.error('获取商品列表失败:', err);
-    floorProducts.value = [];
+    for (const item of value) collectProducts(item, out, depth + 1);
+    return;
+  }
+  if (typeof value !== 'object') return;
+  if ('productId' in value && 'productName' in value) {
+    out.push(value as ProductVO);
+    return;
+  }
+  for (const key of Object.keys(value)) {
+    const child = value[key];
+    if (child && typeof child === 'object') collectProducts(child, out, depth + 1);
   }
 }
 
-// 3. 加载分类树
+function moduleData(m: DecorateModule): any {
+  return m.module ?? m.data ?? m;
+}
+
+/** 首屏视觉模块（第一条含图片的图片类模块）。 */
+const heroModule = computed<HeroInfo | null>(() => {
+  for (const m of modules.value) {
+    if (!IMAGE_MODULE_TYPES.has(String(m.type))) continue;
+    const data = moduleData(m);
+    const ads: AdInfo[] = [];
+    collectImages(data, ads);
+    const first = ads[0];
+    if (!first) continue;
+    const title = data?.title ?? data?.name ?? m.style?.title;
+    const subtitle = data?.subTitle ?? data?.subtitle ?? data?.desc;
+    const link = first.link ?? data?.link ?? data?.url;
+    return {
+      image: first.image,
+      title: typeof title === 'string' ? title : undefined,
+      subtitle: typeof subtitle === 'string' ? subtitle : undefined,
+      link: typeof link === 'string' ? link : undefined,
+    };
+  }
+  return null;
+});
+
+/** 首屏之外的图片广告位（取图片类模块中的图片，最多 4 张）。 */
+const adImages = computed<AdInfo[]>(() => {
+  const out: AdInfo[] = [];
+  for (const m of modules.value) {
+    if (!IMAGE_MODULE_TYPES.has(String(m.type))) continue;
+    collectImages(moduleData(m), out);
+  }
+  // 去掉首屏 hero 已使用的那张
+  return out.slice(heroModule.value?.image ? 1 : 0, heroModule.value?.image ? 5 : 4);
+});
+
+/** 装修商品楼层：优先使用模块自带商品，缺省时回退到已加载的热销商品。 */
+const productSections = computed<Array<{ title?: string; products: ProductVO[] }>>(() => {
+  const result: Array<{ title?: string; products: ProductVO[] }> = [];
+  modules.value.forEach((m, index) => {
+    if (!PRODUCT_MODULE_TYPES.has(String(m.type))) return;
+    const data = moduleData(m);
+    const fromModule = moduleProducts.value[index] ?? [];
+    const inline: ProductVO[] = [];
+    collectProducts(data, inline);
+    const products = fromModule.length ? fromModule : inline;
+    result.push({
+      title: typeof data?.title === 'string' ? data.title : typeof data?.name === 'string' ? data.name : undefined,
+      products: products.length ? products : hotProducts.value.slice(0, 10),
+    });
+  });
+  return result;
+});
+
+function goLink(link?: string) {
+  if (!link) return;
+  if (/^https?:\/\//i.test(link)) {
+    window.open(link, '_blank', 'noopener');
+    return;
+  }
+  router.push(link.startsWith('/') ? link : `/${link}`);
+}
+
+function goCategory(categoryId: number) {
+  router.push({ path: '/search', query: { categoryId: String(categoryId) } });
+}
+
+function goProduct(productId: number) {
+  router.push(`/product/${productId}`);
+}
+
 async function loadCategories() {
   try {
-    const res: any = await request({
-      url: '/category/category/all',
-      method: 'get'
+    categoryTree.value = await homeApi.categoryTree();
+  } catch {
+    categoryTree.value = [];
+  }
+}
+
+async function loadHotProducts() {
+  try {
+    const page = await productApi.list({ sortBy: 'sales', sortOrder: 'desc', page: 1, pageSize: 10 });
+    hotProducts.value = pageItems(page);
+  } catch {
+    hotProducts.value = [];
+  }
+}
+
+async function loadDecorate() {
+  try {
+    decorate.value = await homeApi.pcIndex();
+    const pageModule = decorate.value?.pageModule;
+    const seo = pageModule?.seo;
+    applySeo({
+      title: typeof pageModule?.pageTitle === 'string' ? pageModule.pageTitle : undefined,
+      description: typeof seo?.description === 'string' ? seo.description : undefined,
+      keywords: typeof seo?.keywords === 'string' ? seo.keywords : undefined,
+      image: typeof pageModule?.shareImage === 'string' ? imageUrl(pageModule.shareImage) : undefined,
     });
-    if (Array.isArray(res)) {
-      categoryTree.value = res;
-    }
-  } catch (err) {
-    console.error('获取分类树失败:', err);
+  } catch {
+    decorate.value = null;
+    applySeo({});
+  }
+}
+
+/** 商品类模块若未自带商品，按模块类型从真实商品接口补数据。 */
+async function fillModuleProducts() {
+  if (!modules.value.length) return;
+  const entries = await Promise.all(
+    modules.value.map(async (m, index) => {
+      if (!PRODUCT_MODULE_TYPES.has(String(m.type))) return null;
+      const inline: ProductVO[] = [];
+      collectProducts(moduleData(m), inline);
+      if (inline.length) return null;
+      try {
+        const page = await productApi.list({ sortBy: 'sales', sortOrder: 'desc', page: 1, pageSize: 10 });
+        return [index, pageItems(page)] as const;
+      } catch {
+        return null;
+      }
+    }),
+  );
+  for (const entry of entries) {
+    if (entry) moduleProducts.value[entry[0]] = entry[1];
   }
 }
 
 onMounted(async () => {
   loading.value = true;
-  await Promise.allSettled([
-    loadHomeDecorate(),
-    loadRealProducts(),
-    loadCategories()
-  ]);
-  loading.value = false;
+  try {
+    await Promise.all([loadCategories(), loadHotProducts(), loadDecorate()]);
+    await fillModuleProducts();
+  } finally {
+    loading.value = false;
+  }
 });
+
 </script>
 
 <style scoped lang="less">
@@ -273,326 +393,214 @@ onMounted(async () => {
   padding-bottom: 40px;
 }
 
-.loading-box, .empty-box {
+.loading-box {
   padding: 60px 0;
 }
 
-/* ================== PC 新版样式 ================== */
-.pc-hero-banner-section {
-  background: linear-gradient(180deg, #1f2329 0%, #2f3238 100%);
-  margin-bottom: 24px;
-
-  .banner-inner {
-    display: flex;
-    align-items: center;
-    color: #fff;
-    padding: 0 40px;
-
-    .hero-content {
-      .tag {
-        background: rgba(255, 255, 255, 0.2);
-        padding: 4px 14px;
-        border-radius: 14px;
-        font-size: 13px;
-        letter-spacing: 1px;
-      }
-      .hero-title {
-        font-size: 42px;
-        margin: 16px 0 10px;
-        font-weight: 700;
-        letter-spacing: 2px;
-      }
-      .hero-desc {
-        font-size: 16px;
-        color: #ddd;
-        margin-bottom: 24px;
-      }
-      .hero-btn {
-        display: inline-block;
-        background: var(--tig-red);
-        color: #fff;
-        padding: 10px 28px;
-        border-radius: 24px;
-        font-size: 15px;
-        font-weight: bold;
-        transition: all 0.3s;
-        &:hover {
-          background: #c81c13;
-          transform: translateY(-2px);
-        }
-      }
-    }
-  }
+.home-top {
+  display: flex;
+  gap: 16px;
+  padding: 16px 0;
 }
 
-.pc-cube-section {
-  margin-bottom: 30px;
-  .cube-grid {
-    display: grid;
-    grid-template-columns: 2fr 1fr 1fr;
-    gap: 16px;
-    height: 220px;
+.home-side-categories {
+  width: 220px;
+  flex: 0 0 220px;
+  background: #ffffff;
+  border: 1px solid var(--tig-border-color);
+  border-radius: 6px;
+  overflow: hidden;
 
-    .cube-item {
-      background: #f7f8fa;
-      border-radius: 8px;
-      padding: 24px;
-      position: relative;
+  .side-title {
+    height: 40px;
+    line-height: 40px;
+    padding: 0 16px;
+    font-weight: 700;
+    background: #fafafa;
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  ul {
+    list-style: none;
+    padding: 6px 0;
+
+    li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      font-size: 13px;
+      color: var(--tig-text-regular);
       cursor: pointer;
-      overflow: hidden;
-      transition: all 0.3s;
-      border: 1px solid transparent;
-
       &:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 8px 20px rgba(0,0,0,0.06);
-        border-color: #eee;
-      }
-
-      h3 { font-size: 20px; font-weight: 700; color: #222; margin-bottom: 6px; }
-      p { font-size: 13px; color: #888; }
-      .action-link {
-        display: inline-block;
-        margin-top: 14px;
         color: var(--tig-red);
-        font-weight: 600;
-        font-size: 13px;
+        background: #fff5f4;
       }
+      .cat-arrow { color: #ccc; }
+      &.cat-empty { color: #999; cursor: default; }
     }
-
-    .cube-large { background: linear-gradient(135deg, #fff1f0 0%, #fff7f7 100%); }
-    .cube-sub1 { background: linear-gradient(135deg, #e6f7ff 0%, #f0faff 100%); }
-    .cube-sub2 { background: linear-gradient(135deg, #f6ffed 0%, #fcffe6 100%); }
   }
 }
 
-.pc-floor-section {
-  margin-bottom: 36px;
-  .floor-header {
-    border-bottom: 2px solid;
-    padding-bottom: 12px;
-    margin-bottom: 16px;
+.home-banner-area {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
 
-    .floor-mark {
-      width: 4px;
-      height: 20px;
-      border-radius: 2px;
-      margin-right: 10px;
+.hero-card {
+  height: 300px;
+  border-radius: 8px;
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+
+  .hero-mask {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.05));
+    color: #fff;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+
+    h1 { font-size: 32px; margin-bottom: 10px; }
+    p { font-size: 15px; color: #eee; margin-bottom: 18px; }
+    .hero-btn {
+      display: inline-block;
+      width: fit-content;
+      background: var(--tig-red);
+      color: #fff;
+      padding: 9px 26px;
+      border-radius: 20px;
+      font-weight: 600;
     }
-
-    .floor-title {
-      font-size: 20px;
-      font-weight: 700;
-      margin: 0;
-    }
-
-    .floor-sub-nav {
-      a {
-        color: #666;
-        font-size: 13px;
-        margin-left: 20px;
-        &:hover { color: var(--tig-red); }
-      }
-    }
-  }
-
-  .goods-matrix {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 16px;
   }
 }
 
-.goods-matrix-card {
-  background: #fff;
+.hero-fallback {
+  height: 300px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #1f2329, #3a3f47);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+
+  h1 { font-size: 30px; }
+  p { color: #ddd; }
+  .hero-btn {
+    background: var(--tig-red);
+    color: #fff;
+    padding: 9px 26px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+}
+
+.home-ad-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+
+  .ad-card {
+    height: 110px;
+    border-radius: 6px;
+    overflow: hidden;
+    cursor: pointer;
+    background: #fff;
+    img { width: 100%; height: 100%; object-fit: cover; }
+  }
+}
+
+.home-section {
+  margin-top: 26px;
+
+  .section-header {
+    margin-bottom: 14px;
+
+    .section-title-box {
+      gap: 10px;
+      .section-mark {
+        width: 6px;
+        height: 22px;
+        background: var(--tig-red);
+        border-radius: 3px;
+      }
+      h2 { font-size: 22px; font-weight: 700; }
+    }
+
+    .section-more {
+      color: #888;
+      font-size: 13px;
+      &:hover { color: var(--tig-red); }
+    }
+  }
+}
+
+.goods-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+}
+
+.goods-card {
+  background: #ffffff;
+  border: 1px solid var(--tig-border-color);
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid #f0f0f0;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: box-shadow 0.2s, transform 0.2s;
 
   &:hover {
-    border-color: var(--tig-red);
-    box-shadow: 0 6px 18px rgba(0,0,0,0.06);
-    transform: translateY(-3px);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
   }
 
   .card-img-box {
-    width: 100%;
-    height: 210px;
-    background: #fcfcfc;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    img {
-      max-width: 100%;
-      max-height: 100%;
-      object-fit: cover;
-    }
+    height: 180px;
+    background: #f8f8f8;
+    img { width: 100%; height: 100%; object-fit: cover; }
   }
 
   .card-info {
-    padding: 12px 14px 16px;
+    padding: 10px 12px 14px;
 
     .card-name {
       font-size: 13px;
-      color: #333;
+      color: var(--tig-text-main);
       line-height: 1.5;
-      height: 38px;
+      height: 39px;
       overflow: hidden;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
-      margin-bottom: 10px;
     }
 
-    .card-price-row {
+    .card-bottom {
+      margin-top: 8px;
       .price-text {
-        color: var(--tig-red);
-        font-weight: bold;
-        .symbol { font-size: 13px; }
-        .integer { font-size: 18px; }
+        display: flex;
+        align-items: baseline;
+        gap: 2px;
+        font-weight: 700;
+        .symbol { font-size: 12px; }
+        .integer { font-size: 20px; }
         .decimal { font-size: 12px; }
       }
-      .sales-count {
-        font-size: 12px;
-        color: #999;
-      }
+      .sales-count { font-size: 12px; color: #999; }
     }
   }
 }
 
-/* ================== PC 老版样式 ================== */
-.classic-three-cols {
-  height: 440px;
-  margin-bottom: 30px;
-
-  .classic-category-menu {
-    width: 220px;
-    background: #2b303b;
-    border-radius: 6px;
-    padding: 10px 0;
-
-    .cat-menu-item {
-      padding: 10px 20px;
-      cursor: pointer;
-      color: #eee;
-      font-size: 14px;
-      transition: all 0.2s;
-
-      .cat-sub {
-        font-size: 12px;
-        color: #888;
-      }
-
-      &:hover {
-        background: var(--tig-red);
-        color: #fff;
-        .cat-sub { color: #ffe5e5; }
-      }
-    }
-  }
-
-  .classic-main-carousel {
-    flex: 1;
-    margin: 0 16px;
-    border-radius: 6px;
-    overflow: hidden;
-
-    .banner-slide {
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      padding: 0 60px;
-      color: #fff;
-
-      h2 { font-size: 36px; font-weight: 700; margin-bottom: 12px; }
-      p { font-size: 16px; opacity: 0.9; }
-    }
-  }
-
-  .classic-user-card {
-    width: 240px;
-    background: #fff;
-    border: 1px solid var(--tig-border-color);
-    border-radius: 6px;
-    padding: 20px;
-
-    .user-greeting {
-      text-align: center;
-      border-bottom: 1px solid #f0f0f0;
-      padding-bottom: 16px;
-
-      .avatar-ph {
-        width: 50px;
-        height: 50px;
-        border-radius: 50%;
-        background: var(--tig-red);
-        color: #fff;
-        line-height: 50px;
-        font-size: 20px;
-        margin: 0 auto 10px;
-      }
-
-      p { font-size: 13px; color: #555; }
-    }
-
-    .quick-notice-box {
-      margin-top: 16px;
-
-      .notice-header {
-        font-size: 13px;
-        font-weight: bold;
-        color: #333;
-        margin-bottom: 10px;
-      }
-
-      ul {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-
-        li {
-          font-size: 12px;
-          color: #666;
-          line-height: 22px;
-          overflow: hidden;
-          white-space: nowrap;
-          text-overflow: ellipsis;
-
-          span { color: var(--tig-red); font-weight: 600; margin-right: 4px; }
-        }
-      }
-    }
-  }
-}
-
-.classic-floor-box {
-  margin-bottom: 30px;
-
-  .floor-title-row {
-    border-bottom: 2px solid #333;
-    padding-bottom: 8px;
-    margin-bottom: 16px;
-
-    .c-floor-title {
-      font-size: 20px;
-      font-weight: 700;
-      color: #222;
-    }
-
-    .more-link {
-      font-size: 13px;
-      color: #666;
-      &:hover { color: var(--tig-red); }
-    }
-  }
-
-  .classic-floor-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 16px;
-  }
+@media (max-width: 1280px) {
+  .goods-grid { grid-template-columns: repeat(4, 1fr); }
 }
 </style>

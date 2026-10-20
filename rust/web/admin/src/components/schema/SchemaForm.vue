@@ -135,7 +135,8 @@
                 <el-cascader
                   v-else-if="field.type === 'cascader'"
                   v-model="formData[field.prop]"
-                  :options="field.options"
+                  :options="optionsOf(field)"
+                  :props="field.cascaderProps || { emitPath: false }"
                   :placeholder="field.placeholder || '请选择分类/地区'"
                   style="max-width: 480px"
                   clearable
@@ -188,7 +189,7 @@
       </div>
 
       <!-- Action Footer -->
-      <div class="form-action-footer tig-card" v-if="schema.apiSave || showSubmit">
+      <div class="form-action-footer tig-card" v-if="schema.apiSave || schema.apiCreate || schema.apiUpdate || showSubmit">
         <el-button
           type="primary"
           size="large"
@@ -196,7 +197,7 @@
           @click="handleSubmit"
           class="submit-btn"
         >
-          保存设置
+          {{ schema.submitText || (props.mode === 'edit' ? '保存修改' : '确定新增') }}
         </el-button>
         <el-button size="large" @click="handleReset">重置</el-button>
       </div>
@@ -210,7 +211,7 @@ import type { FormInstance } from 'element-plus';
 import { ElMessage } from 'element-plus';
 import { Delete } from '@element-plus/icons-vue';
 import request from '@/utils/request';
-import type { FormSchema } from './types';
+import type { FormSchema, FormFieldSchema, FormOption } from './types';
 import ImageUpload from '../widgets/ImageUpload.vue';
 
 const props = withDefaults(
@@ -218,9 +219,12 @@ const props = withDefaults(
     schema: FormSchema;
     initialData?: Record<string, any>;
     showSubmit?: boolean;
+    /** create：新增；edit：编辑（提交走 apiUpdate，并回填详情）。 */
+    mode?: 'create' | 'edit';
   }>(),
   {
-    showSubmit: true
+    showSubmit: true,
+    mode: 'create'
   }
 );
 
@@ -232,6 +236,26 @@ const formRef = ref<FormInstance>();
 const loading = ref(false);
 const submitting = ref(false);
 const formData = reactive<Record<string, any>>({});
+/** 异步加载的字段选项（optionsLoader 结果）。 */
+const dynamicOptions = reactive<Record<string, FormOption[]>>({});
+
+function optionsOf(field: FormFieldSchema): FormOption[] {
+  return field.options || dynamicOptions[field.prop] || [];
+}
+
+async function initDynamicOptions() {
+  for (const sec of props.schema.sections) {
+    for (const f of sec.fields) {
+      if (!f.optionsLoader) continue;
+      try {
+        dynamicOptions[f.prop] = await f.optionsLoader();
+      } catch (err) {
+        // 下拉数据加载失败不阻塞表单；错误提示由请求基座统一处理
+        dynamicOptions[f.prop] = [];
+      }
+    }
+  }
+}
 
 const formRules = computed(() => {
   const rulesMap: Record<string, any[]> = {};
@@ -283,10 +307,33 @@ function initDefaults() {
 }
 
 async function loadData() {
+  const pk = props.schema.primaryKey || 'id';
+  // 编辑：先回填列表行，再按 apiDetail 拉完整详情（列表行通常缺图片/描述等字段）
   if (props.initialData) {
     Object.assign(formData, props.initialData);
+  }
+  if (props.mode === 'edit' && props.schema.apiDetail) {
+    const id = props.initialData?.[pk];
+    if (id !== undefined && id !== null) {
+      loading.value = true;
+      try {
+        const res = await request({
+          url: props.schema.apiDetail,
+          method: 'get',
+          params: { [pk]: id }
+        });
+        if (res && typeof res === 'object') {
+          Object.assign(formData, res);
+        }
+      } catch (err: any) {
+        // 错误提示由请求基座统一处理
+      } finally {
+        loading.value = false;
+      }
+    }
     return;
   }
+  if (props.initialData) return;
   if (!props.schema.apiGet) return;
 
   loading.value = true;
@@ -309,20 +356,32 @@ async function handleSubmit() {
   await formRef.value.validate(async (valid) => {
     if (!valid) return;
 
-    if (!props.schema.apiSave) {
+    const url =
+      props.mode === 'edit'
+        ? props.schema.apiUpdate || props.schema.apiSave
+        : props.schema.apiCreate || props.schema.apiSave;
+
+    if (!url) {
       emit('success', { ...formData });
       return;
+    }
+
+    const payload: Record<string, any> = { ...formData };
+    if (props.mode === 'edit') {
+      const pk = props.schema.primaryKey || 'id';
+      const id = props.initialData?.[pk];
+      if (id !== undefined) payload[pk] = id;
     }
 
     submitting.value = true;
     try {
       await request({
-        url: props.schema.apiSave,
+        url,
         method: 'post',
-        data: formData
+        data: payload
       });
-      ElMessage.success('配置已成功保存！');
-      emit('success', { ...formData });
+      ElMessage.success(props.mode === 'edit' ? '保存成功' : '新增成功');
+      emit('success', payload);
     } catch (err) {
     } finally {
       submitting.value = false;
@@ -335,9 +394,10 @@ function handleReset() {
   loadData();
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await initDynamicOptions();
   initDefaults();
-  loadData();
+  await loadData();
 });
 </script>
 

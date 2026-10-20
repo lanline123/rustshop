@@ -1,128 +1,111 @@
 <template>
   <div class="tig-product-detail-page container">
-    <!-- Loading Skeleton -->
-    <div v-if="loading" style="padding: 40px 0;">
-      <el-skeleton :rows="12" animated />
-    </div>
+    <el-skeleton v-if="loading" :rows="12" animated class="detail-skeleton" />
 
-    <!-- Not Found State -->
-    <div v-else-if="!product || !product.item" style="padding: 60px 0; text-align: center;">
-      <el-empty description="该商品不存在或已下架" :image-size="120">
-        <el-button type="primary" @click="$router.push('/search')">去选购其他商品</el-button>
-      </el-empty>
-    </div>
+    <el-empty v-else-if="!detail" description="商品不存在或已下架" :image-size="140" />
 
-    <!-- Product Detail Content -->
     <template v-else>
-      <div class="product-crumb">
-        <router-link to="/">首页</router-link> &gt;
-        <router-link to="/search">商品列表</router-link> &gt;
-        <span>{{ product.item.productName }}</span>
-      </div>
-
-      <!-- Main Detail Panel -->
-      <div class="product-main-panel flex-between">
-        <!-- Left: Gallery -->
-        <div class="gallery-col">
-          <div class="main-img-box">
-            <img :src="currentImg || product.item.picUrl || product.item.picThumb || '/default-goods.png'" />
-          </div>
-          <div v-if="galleryList.length > 0" class="thumb-list flex-align-center">
-            <div
-              v-for="(img, idx) in galleryList"
-              :key="idx"
-              :class="['thumb-item', { active: currentImg === img }]"
-              @mouseenter="currentImg = img"
-            >
-              <img :src="img" />
-            </div>
+      <div class="detail-main">
+        <!-- 图片区 -->
+        <div class="gallery-panel">
+          <el-carousel height="420px" :interval="5000" indicator-position="outside">
+            <el-carousel-item v-for="pic in gallery" :key="pic.picId">
+              <img class="gallery-img" :src="imageUrl(pic.picUrl || pic.picThumb)" :alt="item?.productName" />
+            </el-carousel-item>
+          </el-carousel>
+          <div class="thumbs">
+            <img
+              v-for="pic in gallery"
+              :key="`t-${pic.picId}`"
+              :src="imageUrl(pic.picThumb || pic.picUrl)"
+              :alt="item?.productName"
+            />
           </div>
         </div>
 
-        <!-- Right: Buying Form -->
-        <div class="buy-col">
-          <h1 class="p-title">{{ product.item.productName }}</h1>
-          <p class="p-subtitle">{{ product.item.subTitle || '官方正品保证 · 极速物流 · 售后无忧' }}</p>
+        <!-- 信息区 -->
+        <div class="info-panel">
+          <h1 class="product-name">{{ item?.productName }}</h1>
+          <div class="product-brief" v-if="item?.productBrief">{{ item?.productBrief }}</div>
 
-          <div class="price-banner">
-            <div class="price-row flex-align-center">
-              <span class="label">售价</span>
-              <div class="price-text">
-                <span class="symbol">¥</span>
-                <span class="integer">{{ Math.floor(activePrice) }}</span>
-                <span class="decimal">.{{ ((activePrice % 1) * 100).toFixed(0).padStart(2, '0') }}</span>
-              </div>
-              <span v-if="product.item.marketPrice" class="market-price">
-                参考划线价 ¥{{ product.item.marketPrice }}
+          <div class="price-block">
+            <div class="price-line flex-align-center">
+              <span class="price-label">商城价</span>
+              <span class="price-value">¥{{ formatPrice(currentPrice) }}</span>
+              <span v-if="Number(item?.marketPrice) > Number(item?.productPrice)" class="market-price">
+                ¥{{ formatPrice(item?.marketPrice) }}
               </span>
             </div>
-            <div class="coupon-tips flex-align-center">
-              <span class="coupon-tag">正品保障</span>
-              <span class="coupon-tag">顺丰速达</span>
-              <span class="tip-text">支持 7 天无理由退换货（部分特殊商品除外）</span>
+            <div class="meta-line flex-align-center">
+              <span>累计销量 {{ item?.sales || item?.virtualSales || 0 }}</span>
+              <span class="sep">|</span>
+              <span>库存 {{ currentStock }}</span>
+              <span class="sep">|</span>
+              <span>商品编号 {{ item?.productSn }}</span>
             </div>
           </div>
 
-          <!-- Spec Selections (SKU) -->
-          <div class="spec-section">
-            <div v-if="product.skuList && product.skuList.length > 0" class="spec-row flex-align-center">
-              <span class="spec-label">规格选择</span>
-              <div class="spec-options flex-align-center">
-                <span
-                  v-for="sku in product.skuList"
-                  :key="sku.skuId"
-                  :class="['spec-btn', { active: selectedSkuId === sku.skuId }]"
-                  @click="selectedSkuId = sku.skuId"
-                >
-                  {{ sku.skuName || sku.skuValue || `规格 #${sku.skuId}` }}
-                </span>
-              </div>
-            </div>
-
-            <div class="spec-row flex-align-center">
-              <span class="spec-label">购买数量</span>
-              <el-input-number v-model="quantity" :min="1" :max="Math.max(1, activeStock)" size="large" />
-              <span class="stock-text">库存：{{ activeStock }} 件</span>
+          <!-- SKU 选择 -->
+          <div v-if="enabledSkus.length" class="sku-block">
+            <div class="sku-label">规格</div>
+            <div class="sku-options">
+              <button
+                v-for="sku in enabledSkus"
+                :key="sku.skuId"
+                class="sku-btn"
+                :class="{ active: selectedSkuId === sku.skuId, disabled: sku.skuStock <= 0 }"
+                :disabled="sku.skuStock <= 0"
+                @click="selectedSkuId = sku.skuId"
+              >
+                {{ sku.skuValue || `规格 ${sku.skuId}` }}
+                <span v-if="sku.skuStock <= 0" class="sold-out">无货</span>
+              </button>
             </div>
           </div>
 
-          <!-- Action Buttons -->
-          <div class="action-buttons flex-align-center">
-            <button class="btn-buy-now" :disabled="submitting || activeStock <= 0" @click="handleBuyNow">
-              {{ activeStock > 0 ? '立即购买' : '暂时缺货' }}
-            </button>
-            <button class="btn-add-cart" :disabled="submitting || activeStock <= 0" @click="handleAddToCart">
-              <el-icon><ShoppingCart /></el-icon> 加入购物车
-            </button>
+          <div class="quantity-block flex-align-center">
+            <span class="sku-label">数量</span>
+            <el-input-number v-model="quantity" :min="1" :max="Math.max(1, currentStock)" />
+          </div>
+
+          <div class="action-block">
+            <el-button type="primary" size="large" :loading="adding" @click="addToCart">加入购物车</el-button>
+            <el-button size="large" @click="buyNow">立即购买</el-button>
+          </div>
+
+          <div class="service-block" v-if="serviceList.length">
+            <span class="service-label">服务</span>
+            <span v-for="(s, idx) in serviceList" :key="idx" class="service-item">
+              {{ s.name || s.title || s.serviceName || '官方服务' }}
+            </span>
           </div>
         </div>
       </div>
 
-      <!-- Product Introduction Tabs -->
-      <div class="product-intro-tabs">
-        <el-tabs v-model="activeTab" class="detail-tabs">
-          <el-tab-pane label="商品详情介绍" name="detail">
-            <div class="rich-content">
-              <div v-if="product.item.productDesc" v-html="product.item.productDesc"></div>
-              <div v-else-if="product.descArr && product.descArr.length > 0">
-                <div v-for="(desc, i) in product.descArr" :key="i" class="desc-item">
-                  <img v-if="desc.picUrl" :src="desc.picUrl" style="max-width: 100%;" />
-                  <p v-if="desc.text">{{ desc.text }}</p>
-                </div>
-              </div>
-              <el-empty v-else description="暂无图文详情介绍" :image-size="80" />
+      <!-- 详情 / 参数 -->
+      <div class="detail-tabs">
+        <el-tabs v-model="activeTab">
+          <el-tab-pane label="商品详情" name="desc">
+            <div class="desc-wrap">
+              <template v-for="(block, idx) in descArr" :key="idx">
+                <img v-if="block.type === 'image' && block.pic" :src="imageUrl(block.pic)" class="desc-img" />
+                <video v-else-if="block.type === 'video' && block.videoUrl" :src="imageUrl(block.videoUrl)" controls class="desc-video" />
+                <div v-else-if="block.html" class="desc-html" v-html="block.html"></div>
+              </template>
+              <el-empty v-if="descArr.length === 0" description="暂无图文详情" :image-size="100" />
             </div>
           </el-tab-pane>
-          <el-tab-pane label="规格与包装" name="specs">
-            <div style="padding: 24px;">
-              <table class="spec-table" v-if="product.attrList?.attrList?.length">
-                <tr v-for="attr in product.attrList.attrList" :key="attr.attrId">
-                  <td style="width: 160px; font-weight: bold; background: #fafafa; padding: 10px;">{{ attr.attrName }}</td>
-                  <td style="padding: 10px;">{{ attr.attrValue }}</td>
+
+          <el-tab-pane label="规格参数" name="attrs">
+            <table v-if="attrRows.length" class="attr-table">
+              <tbody>
+                <tr v-for="row in attrRows" :key="row.name">
+                  <th>{{ row.name }}</th>
+                  <td>{{ row.value }}</td>
                 </tr>
-              </table>
-              <p v-else style="color: #888;">标准商品包装与官方出厂配置。</p>
-            </div>
+              </tbody>
+            </table>
+            <el-empty v-else description="暂无参数" :image-size="100" />
           </el-tab-pane>
         </el-tabs>
       </div>
@@ -131,164 +114,174 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ShoppingCart } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import request from '@/utils/request';
-import { applySeo, resolveImageUrl } from '@/composables/useSeo';
+import { productApi } from '@/api';
+import type { ProductDetail, ProductGallery, ProductSku } from '@/api/types';
+import { applySeo } from '@/composables/useSeo';
+import { useCartStore } from '@/stores/cart';
+import { useUserStore } from '@/stores/user';
+import { formatPrice, imageUrl } from '@/utils/format';
 
 const route = useRoute();
 const router = useRouter();
+const user = useUserStore();
+const cart = useCartStore();
 
 const loading = ref(true);
-const submitting = ref(false);
-const activeTab = ref('detail');
-const quantity = ref(1);
+const adding = ref(false);
+const detail = ref<ProductDetail | null>(null);
 const selectedSkuId = ref<number | null>(null);
-const currentImg = ref('');
-const product = ref<any>(null);
+const quantity = ref(1);
+const activeTab = ref('desc');
 
-const galleryList = computed(() => {
-  if (!product.value) return [];
-  if (Array.isArray(product.value.picList) && product.value.picList.length > 0) {
-    return product.value.picList.map((p: any) => p.picUrl || p.picThumb).filter(Boolean);
+const item = computed(() => detail.value?.item);
+const gallery = computed<ProductGallery[]>(() => {
+  const list = detail.value?.picList ?? [];
+  if (list.length) return list;
+  if (!item.value) return [];
+  return [
+    {
+      picId: 0,
+      picUrl: item.value.picUrl,
+      picThumb: item.value.picThumb,
+      picOriginal: item.value.picUrl,
+      picLarge: item.value.picUrl,
+      sortOrder: 0,
+    },
+  ];
+});
+const enabledSkus = computed<ProductSku[]>(() =>
+  (detail.value?.skuList ?? []).filter((sku) => Number(sku.isEnabled) !== 0),
+);
+const selectedSku = computed<ProductSku | null>(() =>
+  enabledSkus.value.find((sku) => sku.skuId === selectedSkuId.value) ?? null,
+);
+const currentPrice = computed(() => {
+  if (selectedSku.value?.skuPrice !== null && selectedSku.value?.skuPrice !== undefined) {
+    return selectedSku.value.skuPrice;
   }
-  if (product.value.item?.picUrl) {
-    return [product.value.item.picUrl];
-  }
-  return [];
+  return item.value?.productPrice ?? 0;
+});
+const currentStock = computed(() => {
+  if (selectedSku.value) return Number(selectedSku.value.skuStock ?? 0);
+  return Number(item.value?.productStock ?? 0);
+});
+const descArr = computed(() => detail.value?.descArr ?? []);
+const serviceList = computed<any[]>(() => detail.value?.serviceList ?? []);
+
+/** 属性表展平：normal / spe / extra 三组。 */
+const attrRows = computed<Array<{ name: string; value: string }>>(() => {
+  const groups = detail.value?.attrList;
+  const rows: Array<{ name: string; value: string }> = [];
+  const pushGroup = (list?: any[]) => {
+    for (const g of list ?? []) {
+      if (Array.isArray(g.attrList)) {
+        for (const a of g.attrList) {
+          rows.push({ name: String(a.attrName ?? a.name ?? ''), value: String(a.attrValue ?? a.value ?? '') });
+        }
+      } else if (g.attrName) {
+        rows.push({ name: String(g.attrName), value: String(g.attrValue ?? '') });
+      }
+    }
+  };
+  pushGroup(groups?.normal);
+  pushGroup(groups?.spe);
+  pushGroup(groups?.extra);
+  return rows.filter((r) => r.name);
 });
 
-const activePrice = computed(() => {
-  if (!product.value?.item) return 0;
-  if (selectedSkuId.value && Array.isArray(product.value.skuList)) {
-    const sku = product.value.skuList.find((s: any) => s.skuId === selectedSkuId.value);
-    if (sku && sku.skuPrice) return Number(sku.skuPrice);
+function restoreSku() {
+  if (!enabledSkus.value.length) {
+    selectedSkuId.value = null;
+    return;
   }
-  return Number(product.value.item.productPrice || 0);
-});
+  const inStock = enabledSkus.value.find((sku) => Number(sku.skuStock) > 0);
+  selectedSkuId.value = (inStock ?? enabledSkus.value[0]).skuId;
+}
 
-const activeStock = computed(() => {
-  if (!product.value?.item) return 0;
-  if (selectedSkuId.value && Array.isArray(product.value.skuList)) {
-    const sku = product.value.skuList.find((s: any) => s.skuId === selectedSkuId.value);
-    if (sku && sku.skuStock !== undefined) return Number(sku.skuStock);
+function requireLogin(): boolean {
+  if (user.isLoggedIn) return true;
+  router.push({ path: '/login', query: { redirect: route.fullPath } });
+  return false;
+}
+
+async function addToCart() {
+  if (!requireLogin()) return;
+  if (enabledSkus.value.length && !selectedSkuId.value) {
+    ElMessage.warning('请选择商品规格');
+    return;
   }
-  return Number(product.value.item.productStock || 0);
-});
+  if (currentStock.value <= 0) {
+    ElMessage.warning('该规格库存不足');
+    return;
+  }
+  adding.value = true;
+  try {
+    await cart.add(user.token, {
+      productId: Number(item.value?.productId ?? 0),
+      skuId: selectedSkuId.value,
+      quantity: quantity.value,
+    });
+    ElMessage.success('已加入购物车');
+  } finally {
+    adding.value = false;
+  }
+}
 
-async function fetchProductDetail() {
-  const id = route.params.id || route.query.id;
-  if (!id) {
+async function buyNow() {
+  if (!requireLogin()) return;
+  if (enabledSkus.value.length && !selectedSkuId.value) {
+    ElMessage.warning('请选择商品规格');
+    return;
+  }
+  adding.value = true;
+  try {
+    await cart.add(user.token, {
+      productId: Number(item.value?.productId ?? 0),
+      skuId: selectedSkuId.value,
+      quantity: quantity.value,
+    });
+    router.push('/cart');
+  } finally {
+    adding.value = false;
+  }
+}
+
+async function loadDetail() {
+  const id = Number(route.params.id);
+  if (!Number.isFinite(id) || id <= 0) {
+    detail.value = null;
     loading.value = false;
     return;
   }
-
   loading.value = true;
   try {
-    const res: any = await request({
-      url: '/product/product/detail',
-      method: 'get',
-      params: { id }
+    detail.value = await productApi.detail(id);
+    restoreSku();
+    const info = detail.value?.item;
+    applySeo({
+      title: info?.productName,
+      description: info?.productBrief || info?.productName,
+      keywords: info?.keywords || undefined,
+      image: info ? imageUrl(info.picUrl) : undefined,
     });
-
-    if (res) {
-      product.value = res;
-      if (Array.isArray(res.skuList) && res.skuList.length > 0) {
-        selectedSkuId.value = res.skuList[0].skuId;
-      }
-      if (Array.isArray(res.picList) && res.picList.length > 0) {
-        currentImg.value = res.picList[0].picUrl || res.picList[0].picThumb || '';
-      } else if (res.item?.picUrl) {
-        currentImg.value = res.item.picUrl;
-      }
-
-      // SEO：商品详情是最需要被索引的页面，标题/描述/主图都取自真实数据
-      applySeo({
-        title: res.item?.productName || '商品详情',
-        description: buildProductDescription(res),
-        keywords: res.item?.keywords || res.item?.productName || '',
-        image: currentImg.value
-          ? resolveImageUrl(currentImg.value, '/static')
-          : undefined,
-        type: 'product',
-      });
-    } else {
-      product.value = null;
-    }
-  } catch (err: any) {
-    console.error('获取商品详情失败:', err);
-    product.value = null;
+  } catch {
+    detail.value = null;
   } finally {
     loading.value = false;
   }
 }
 
-/**
- * 生成商品描述（SEO meta description）。
- *
- * 优先用商品副标题/简介，缺失时用「名称 + 价格 + 商城名」兜底，
- * 并截断到 SEO 建议的 160 字符以内。
- */
-function buildProductDescription(res: any): string {
-  const name = res.item?.productName || '';
-  const brief = res.item?.productBrief || res.item?.productDesc || '';
-  const price = res.item?.productPrice;
-  let desc = brief || `${name} - 正品保障，价格 ¥${price ?? '--'}`;
-  if (desc.length > 160) desc = desc.slice(0, 157) + '...';
-  return desc;
-}
+watch(
+  () => route.params.id,
+  () => {
+    loadDetail();
+  },
+);
 
-async function handleAddToCart() {
-  const id = Number(route.params.id || route.query.id);
-  if (!id) return;
-
-  submitting.value = true;
-  try {
-    await request({
-      url: '/cart/cart/addToCart',
-      method: 'post',
-      data: {
-        productId: id,
-        skuId: selectedSkuId.value || undefined,
-        quantity: quantity.value
-      }
-    });
-    ElMessage.success('已成功加入购物车！');
-  } catch (err: any) {
-    // 拦截器已弹出错误提示或引导去登录
-  } finally {
-    submitting.value = false;
-  }
-}
-
-async function handleBuyNow() {
-  const id = Number(route.params.id || route.query.id);
-  if (!id) return;
-
-  submitting.value = true;
-  try {
-    await request({
-      url: '/cart/cart/addToCart',
-      method: 'post',
-      data: {
-        productId: id,
-        skuId: selectedSkuId.value || undefined,
-        quantity: quantity.value
-      }
-    });
-    router.push('/cart');
-  } catch (err: any) {
-    // 拦截器处理
-  } finally {
-    submitting.value = false;
-  }
-}
-
-onMounted(() => {
-  fetchProductDetail();
-});
+onMounted(loadDetail);
 </script>
 
 <style scoped lang="less">
@@ -296,233 +289,157 @@ onMounted(() => {
   padding: 20px 0 50px;
 }
 
-.product-crumb {
-  font-size: 13px;
-  color: #999;
-  margin-bottom: 20px;
-  a { color: #666; &:hover { color: var(--tig-red); } }
-  span { color: #333; }
+.detail-skeleton { padding: 30px 0; }
+
+.detail-main {
+  display: flex;
+  gap: 30px;
+  background: #fff;
+  border: 1px solid var(--tig-border-color);
+  border-radius: 8px;
+  padding: 20px;
 }
 
-.product-main-panel {
-  background: #ffffff;
-  padding: 30px;
-  border-radius: 8px;
-  border: 1px solid var(--tig-border-color);
-  margin-bottom: 30px;
+.gallery-panel {
+  width: 460px;
+  flex: 0 0 460px;
 
-  .gallery-col {
-    width: 440px;
-
-    .main-img-box {
-      width: 440px;
-      height: 440px;
-      border: 1px solid #eee;
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 16px;
-      overflow: hidden;
-
-      img {
-        max-width: 100%;
-        max-height: 100%;
-        object-fit: contain;
-      }
-    }
-
-    .thumb-list {
-      gap: 12px;
-
-      .thumb-item {
-        width: 68px;
-        height: 68px;
-        border: 2px solid #eee;
-        border-radius: 4px;
-        cursor: pointer;
-        padding: 2px;
-        transition: all 0.2s;
-
-        img { width: 100%; height: 100%; object-fit: cover; }
-
-        &:hover, &.active {
-          border-color: var(--tig-red);
-        }
-      }
-    }
-  }
-
-  .buy-col {
-    flex: 1;
-    margin-left: 40px;
-
-    .p-title {
-      font-size: 22px;
-      font-weight: 700;
-      color: #222;
-      line-height: 1.4;
-      margin-bottom: 8px;
-    }
-
-    .p-subtitle {
-      font-size: 14px;
-      color: #999;
-      margin-bottom: 20px;
-    }
-
-    .price-banner {
-      background: #fdf5f5;
-      padding: 16px 20px;
-      border-radius: 6px;
-      margin-bottom: 24px;
-
-      .label {
-        font-size: 13px;
-        color: #888;
-        margin-right: 14px;
-      }
-
-      .price-text {
-        color: var(--tig-red);
-        font-weight: bold;
-        .symbol { font-size: 16px; }
-        .integer { font-size: 32px; }
-        .decimal { font-size: 18px; }
-      }
-
-      .market-price {
-        font-size: 13px;
-        color: #999;
-        text-decoration: line-through;
-        margin-left: 16px;
-      }
-
-      .coupon-tips {
-        margin-top: 12px;
-        padding-top: 10px;
-        border-top: 1px dashed rgba(225, 37, 27, 0.2);
-
-        .coupon-tag {
-          background: #fff;
-          color: var(--tig-red);
-          border: 1px solid var(--tig-red);
-          font-size: 12px;
-          padding: 2px 8px;
-          border-radius: 2px;
-          margin-right: 8px;
-        }
-
-        .tip-text {
-          font-size: 12px;
-          color: #777;
-        }
-      }
-    }
-
-    .spec-section {
-      margin-bottom: 30px;
-
-      .spec-row {
-        margin-bottom: 18px;
-
-        .spec-label {
-          width: 70px;
-          font-size: 13px;
-          color: #777;
-          flex-shrink: 0;
-        }
-
-        .spec-options {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 10px;
-
-          .spec-btn {
-            border: 1px solid #ddd;
-            padding: 6px 16px;
-            font-size: 13px;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: all 0.2s;
-
-            &:hover { border-color: var(--tig-red); color: var(--tig-red); }
-            &.active {
-              border-color: var(--tig-red);
-              color: var(--tig-red);
-              background: #fff6f6;
-              font-weight: bold;
-            }
-          }
-        }
-
-        .stock-text {
-          font-size: 13px;
-          color: #999;
-          margin-left: 16px;
-        }
-      }
-    }
-
-    .action-buttons {
-      gap: 16px;
-
-      button {
-        height: 48px;
-        padding: 0 36px;
-        font-size: 16px;
-        font-weight: bold;
-        border-radius: 4px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        transition: all 0.2s;
-
-        &:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-      }
-
-      .btn-buy-now {
-        background: #ffeded;
-        color: var(--tig-red);
-        border: 1px solid var(--tig-red);
-        &:hover:not(:disabled) { background: #ffe0e0; }
-      }
-
-      .btn-add-cart {
-        background: var(--tig-red);
-        color: #fff;
-        border: none;
-        &:hover:not(:disabled) { background: #c81c13; }
-      }
-    }
-  }
-}
-
-.product-intro-tabs {
-  background: #ffffff;
-  border-radius: 8px;
-  border: 1px solid var(--tig-border-color);
-  padding: 20px 30px;
-
-  .rich-content {
-    padding: 20px 0;
-    min-height: 200px;
-    font-size: 14px;
-    line-height: 1.8;
-    color: #444;
-  }
-
-  .spec-table {
+  .gallery-img {
     width: 100%;
-    border-collapse: collapse;
-    td {
+    height: 100%;
+    object-fit: contain;
+    background: #fafafa;
+  }
+
+  .thumbs {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    overflow-x: auto;
+
+    img {
+      width: 64px;
+      height: 64px;
+      object-fit: cover;
       border: 1px solid #eee;
+      border-radius: 4px;
+      cursor: pointer;
     }
+  }
+}
+
+.info-panel {
+  flex: 1;
+  min-width: 0;
+
+  .product-name { font-size: 22px; font-weight: 700; line-height: 1.4; }
+  .product-brief { color: #888; font-size: 13px; margin-top: 8px; }
+}
+
+.price-block {
+  background: #fff7f6;
+  border-radius: 6px;
+  padding: 14px 16px;
+  margin: 16px 0;
+
+  .price-line {
+    gap: 10px;
+    .price-label { color: #888; font-size: 13px; }
+    .price-value { color: var(--tig-red); font-size: 28px; font-weight: 800; }
+    .market-price { color: #aaa; text-decoration: line-through; font-size: 13px; }
+  }
+
+  .meta-line {
+    gap: 10px;
+    color: #888;
+    font-size: 12px;
+    margin-top: 8px;
+    .sep { color: #ddd; }
+  }
+}
+
+.sku-block {
+  margin-bottom: 14px;
+
+  .sku-label { color: #888; font-size: 13px; margin-bottom: 8px; }
+  .sku-options { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .sku-btn {
+    min-width: 72px;
+    padding: 7px 12px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+
+    &.active {
+      border-color: var(--tig-red);
+      color: var(--tig-red);
+      background: #fff5f4;
+    }
+
+    &.disabled { color: #bbb; cursor: not-allowed; }
+    .sold-out { font-size: 11px; margin-left: 4px; }
+  }
+}
+
+.quantity-block {
+  gap: 12px;
+  margin-bottom: 18px;
+  .sku-label { color: #888; font-size: 13px; }
+}
+
+.action-block {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.service-block {
+  border-top: 1px dashed #eee;
+  padding-top: 12px;
+  font-size: 12px;
+  color: #888;
+
+  .service-label { margin-right: 10px; }
+  .service-item {
+    margin-right: 14px;
+    color: #555;
+  }
+}
+
+.detail-tabs {
+  background: #fff;
+  border: 1px solid var(--tig-border-color);
+  border-radius: 8px;
+  margin-top: 20px;
+  padding: 0 20px 24px;
+
+  .desc-wrap { padding: 10px 0; }
+  .desc-img { display: block; max-width: 100%; margin: 0 auto 10px; }
+  .desc-video { display: block; max-width: 100%; margin: 0 auto 10px; }
+  .desc-html { line-height: 1.8; }
+}
+
+.attr-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 13px;
+
+  th,
+  td {
+    border: 1px solid #eee;
+    padding: 8px 12px;
+    text-align: left;
+  }
+
+  th {
+    width: 180px;
+    background: #fafafa;
+    color: #666;
+    font-weight: 600;
   }
 }
 </style>

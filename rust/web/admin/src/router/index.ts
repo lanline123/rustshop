@@ -4,6 +4,10 @@ import LoginView from '@/views/login/LoginView.vue';
 import Dashboard from '@/views/panel/Dashboard.vue';
 import SchemaPageView from '@/views/schema/SchemaPageView.vue';
 import DecorateEditor from '@/views/decorate/DecorateEditor.vue';
+import ProductListView from '@/views/business/ProductListView.vue';
+import OrderListView from '@/views/business/OrderListView.vue';
+import MemberListView from '@/views/business/MemberListView.vue';
+import CouponListView from '@/views/business/CouponListView.vue';
 
 // Schemas
 import { basicSettingSchema } from '@/schemas/setting/basic';
@@ -12,9 +16,6 @@ import { shoppingSettingSchema } from '@/schemas/setting/shopping';
 import { paymentSettingSchema } from '@/schemas/setting/payment';
 import { categoryTableSchema } from '@/schemas/product/category';
 import { adminUserTableSchema } from '@/schemas/authority/adminUser';
-import { orderListTableSchema } from '@/schemas/order/orderList';
-import { userListTableSchema } from '@/schemas/member/userList';
-import { couponTableSchema } from '@/schemas/marketing/coupon';
 import { articleTableSchema } from '@/schemas/content/article';
 import { shopListTableSchema } from '@/schemas/merchant/shopList';
 
@@ -44,6 +45,12 @@ const routes: RouteRecordRaw[] = [
       },
       // 商品管理
       {
+        path: 'product/list',
+        name: 'ProductList',
+        component: ProductListView,
+        meta: { title: '商品列表' }
+      },
+      {
         path: 'product/category',
         name: 'ProductCategory',
         component: SchemaPageView,
@@ -57,34 +64,22 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'order/list',
         name: 'OrderList',
-        component: SchemaPageView,
-        meta: {
-          title: '订单列表',
-          schemaType: 'table',
-          schema: orderListTableSchema
-        }
+        component: OrderListView,
+        meta: { title: '订单列表' }
       },
       // 会员管理
       {
         path: 'member/users',
         name: 'MemberUsers',
-        component: SchemaPageView,
-        meta: {
-          title: '会员用户列表',
-          schemaType: 'table',
-          schema: userListTableSchema
-        }
+        component: MemberListView,
+        meta: { title: '会员用户列表' }
       },
       // 营销中心
       {
         path: 'promotion/coupon',
         name: 'PromotionCoupon',
-        component: SchemaPageView,
-        meta: {
-          title: '优惠券管理',
-          schemaType: 'table',
-          schema: couponTableSchema
-        }
+        component: CouponListView,
+        meta: { title: '优惠券管理' }
       },
       // 店铺装修
       {

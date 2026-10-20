@@ -6,6 +6,7 @@
       :headers="headers"
       :show-file-list="false"
       :on-success="handleSuccess"
+      :on-error="handleError"
       :before-upload="beforeUpload"
       name="file"
     >
@@ -35,14 +36,20 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void;
 }>();
 
-const uploadUrl = '/adminapi/common/upload/upload';
+/**
+ * 素材库上传接口（契约：`POST /adminapi/setting/galleryPic/uploadImg`，multipart `file`）。
+ * 原 `/adminapi/common/upload/upload` 在契约中不存在 → 一直 404。
+ */
+const uploadUrl = '/adminapi/setting/galleryPic/uploadImg';
 
 const headers = computed(() => {
   const token = localStorage.getItem('tig_token');
+  const shopId = localStorage.getItem('tig_shop_id');
   return {
     Authorization: token ? `Bearer ${token}` : '',
     'X-ADMIN-TYPE': 'admin',
-    'X-CLIENT-TYPE': 'admin'
+    'X-CLIENT-TYPE': 'admin',
+    ...(shopId ? { 'X-Shop-Id': shopId } : {})
   };
 });
 
@@ -54,14 +61,31 @@ function resolveImageUrl(url: string) {
 }
 
 function handleSuccess(res: any) {
-  if (res.code === 0 && res.data?.url) {
-    emit('update:modelValue', res.data.url);
+  // 契约返回 GalleryPicUploadVO：{ picUrl, picThumb, picName, ... }
+  const data = res?.data ?? res;
+  const url = data?.picUrl || data?.pic_url || data?.url;
+  if (res?.code === 0 && url) {
+    emit('update:modelValue', url);
     ElMessage.success('图片上传成功');
   } else if (typeof res === 'string') {
     emit('update:modelValue', res);
-  } else if (res.url) {
-    emit('update:modelValue', res.url);
+  } else if (url) {
+    emit('update:modelValue', url);
+  } else {
+    ElMessage.error(res?.message || res?.msg || '图片上传失败');
   }
+}
+
+function handleError(err: any) {
+  // el-upload 的 error 是原始 XHR/Error，真正的业务文案在响应体里
+  let message = '图片上传失败';
+  try {
+    const body = JSON.parse(err?.message ?? '{}');
+    message = body.message || body.msg || message;
+  } catch (_) {
+    // ignore
+  }
+  ElMessage.error(message);
 }
 
 function beforeUpload(file: File) {

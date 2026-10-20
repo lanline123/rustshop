@@ -264,6 +264,7 @@
       <SchemaForm
         :schema="schema.formSchema"
         :initial-data="currentEditRow"
+        :mode="isEdit ? 'edit' : 'create'"
         @success="handleFormSuccess"
       />
     </el-dialog>
@@ -371,11 +372,15 @@ function handleEdit(row: any) {
 async function handleDelete(row: any) {
   if (!props.schema.apiDelete) return;
   const pk = props.schema.primaryKey || 'id';
+  const url = props.schema.apiBatchDelete || props.schema.apiDelete;
+  const data = props.schema.apiBatchDelete
+    ? { ids: [row[pk]], type: 'del' }
+    : { id: row[pk] };
   try {
     await request({
-      url: props.schema.apiDelete,
+      url,
       method: 'post',
-      data: { id: row[pk] }
+      data
     });
     ElMessage.success('删除成功');
     fetchData();
@@ -386,6 +391,8 @@ async function handleBatchDelete() {
   if (!props.schema.apiDelete || selectedRows.value.length === 0) return;
   const pk = props.schema.primaryKey || 'id';
   const ids = selectedRows.value.map((r) => r[pk]);
+  // Rust 批量删除走 `/batch` + BatchDTO { ids, type: 'del' }；单条 OperateDTO 只认 { id }
+  const url = props.schema.apiBatchDelete || props.schema.apiDelete;
 
   ElMessageBox.confirm(`确定要批量删除选中的 ${ids.length} 项记录吗？`, '批量删除', {
     confirmButtonText: '确定删除',
@@ -394,9 +401,9 @@ async function handleBatchDelete() {
   }).then(async () => {
     try {
       await request({
-        url: props.schema.apiDelete!,
+        url,
         method: 'post',
-        data: { ids }
+        data: { ids, type: 'del' }
       });
       ElMessage.success('批量删除成功');
       fetchData();
@@ -440,7 +447,8 @@ async function handleSwitchChange(row: any, col: TableColumnSchema) {
       data: {
         id: row[pk],
         field: col.prop,
-        val: row[col.prop]
+        // 后端 UpdateFieldDTO.val 统一为字符串（serde 不接受 number）
+        val: String(row[col.prop])
       }
     });
     ElMessage.success('更新成功');

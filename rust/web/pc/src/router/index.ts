@@ -1,18 +1,20 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
+import { useUserStore } from '@/stores/user';
 import MallLayout from '@/layouts/MallLayout.vue';
-import HomeView from '@/views/HomeView.vue';
-import SearchView from '@/views/SearchView.vue';
-import ProductDetailView from '@/views/ProductDetailView.vue';
-import CartView from '@/views/CartView.vue';
-import LoginView from '@/views/LoginView.vue';
-import MemberView from '@/views/MemberView.vue';
 
+/**
+ * PC 商城路由。
+ *
+ * - 布局内页面全部懒加载，首屏只加载首页 chunk；
+ * - `meta.requiresAuth` 的页面在未登录时跳登录页并携带 `redirect`；
+ * - 404 统一重定向首页（PC 端 SPA 无独立 404 页，属已知未完成项）。
+ */
 const routes: RouteRecordRaw[] = [
   {
     path: '/login',
     name: 'Login',
-    component: LoginView,
-    meta: { title: '会员登录' }
+    component: () => import('@/views/LoginView.vue'),
+    meta: { title: '会员登录' },
   },
   {
     path: '/',
@@ -21,45 +23,69 @@ const routes: RouteRecordRaw[] = [
       {
         path: '',
         name: 'Home',
-        component: HomeView,
-        meta: { title: '官方旗舰商城 - 首页' }
+        component: () => import('@/views/HomeView.vue'),
+        meta: { title: '首页' },
       },
       {
         path: 'search',
         name: 'Search',
-        component: SearchView,
-        meta: { title: '商品搜索列表' }
+        component: () => import('@/views/SearchView.vue'),
+        meta: { title: '商品搜索' },
       },
       {
         path: 'product/:id',
         name: 'ProductDetail',
-        component: ProductDetailView,
-        meta: { title: '商品详情' }
+        component: () => import('@/views/ProductDetailView.vue'),
+        meta: { title: '商品详情' },
       },
       {
         path: 'cart',
         name: 'Cart',
-        component: CartView,
-        meta: { title: '我的购物车' }
+        component: () => import('@/views/CartView.vue'),
+        meta: { title: '我的购物车', requiresAuth: true },
+      },
+      {
+        path: 'checkout',
+        name: 'Checkout',
+        component: () => import('@/views/CheckoutView.vue'),
+        meta: { title: '确认订单', requiresAuth: true },
+      },
+      {
+        path: 'pay/result',
+        name: 'PayResult',
+        component: () => import('@/views/PayResultView.vue'),
+        meta: { title: '支付结果', requiresAuth: true },
       },
       {
         path: 'member',
         name: 'Member',
-        component: MemberView,
-        meta: { title: '个人中心' }
+        component: () => import('@/views/ProfileView.vue'),
+        meta: { title: '个人中心', requiresAuth: true },
       },
       {
         path: 'member/orders',
         name: 'MemberOrders',
-        component: MemberView,
-        meta: { title: '我的订单' }
-      }
-    ]
+        component: () => import('@/views/OrdersView.vue'),
+        meta: { title: '我的订单', requiresAuth: true },
+      },
+      {
+        path: 'member/orders/:id',
+        name: 'OrderDetail',
+        component: () => import('@/views/OrderDetailView.vue'),
+        meta: { title: '订单详情', requiresAuth: true },
+      },
+      {
+        path: 'member/address',
+        name: 'MemberAddress',
+        component: () => import('@/views/AddressView.vue'),
+        meta: { title: '收货地址', requiresAuth: true },
+      },
+    ],
   },
   {
     path: '/:pathMatch(.*)*',
-    redirect: '/'
-  }
+    redirect: '/',
+  },
 ];
 
 const router = createRouter({
@@ -67,14 +93,26 @@ const router = createRouter({
   routes,
   scrollBehavior() {
     return { top: 0 };
-  }
+  },
 });
 
-router.beforeEach((to, from, next) => {
-  if (to.meta.title) {
-    document.title = `${to.meta.title} - TigShop 官方商城`;
+router.beforeEach((to) => {
+  const title = to.meta.title as string | undefined;
+  document.title = title ? `${title} - TigShop 官方商城` : 'TigShop 官方商城';
+
+  if (!to.meta.requiresAuth) {
+    return true;
   }
-  next();
+
+  const user = useUserStore();
+  if (user.isLoggedIn) {
+    return true;
+  }
+
+  return {
+    path: '/login',
+    query: { redirect: to.fullPath },
+  };
 });
 
 export default router;

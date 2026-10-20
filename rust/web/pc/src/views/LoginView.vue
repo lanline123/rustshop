@@ -1,130 +1,153 @@
 <template>
   <div class="tig-mall-login-page">
-    <div class="login-box-container container flex-between">
+    <div class="login-box-container container">
       <div class="login-left-banner">
         <h2>正品保障 · 全球甄选</h2>
-        <p>加入 TigShop 会员，尊享极速顺丰配送与专属会员价</p>
+        <p>登录 TigShop 会员账号，下单、查订单、管理收货地址一体化</p>
+        <ul class="feature-list">
+          <li>官方正品 · 假一赔十</li>
+          <li>极速物流 · 全程可追踪</li>
+          <li>7 天无理由退换 · 售后无忧</li>
+        </ul>
       </div>
 
       <div class="login-form-card">
         <div class="card-header">
-          <h3>商城会员登录</h3>
-          <router-link to="/register" class="reg-tip">没有账号？免费注册</router-link>
+          <h1>会员登录</h1>
+          <p>还没有账号？请联系官方客服开通</p>
         </div>
 
-        <el-form size="large" class="user-login-form" @keyup.enter="handleLogin">
-          <el-form-item>
-            <el-input v-model="form.username" placeholder="请输入会员手机号 / 账号" :prefix-icon="User" />
+        <el-form ref="formRef" :model="form" :rules="rules" size="large" @submit.prevent>
+          <el-form-item prop="username">
+            <el-input v-model="form.username" placeholder="手机号 / 用户名" :prefix-icon="User" clearable />
+          </el-form-item>
+          <el-form-item prop="password">
+            <el-input
+              v-model="form.password"
+              type="password"
+              placeholder="登录密码"
+              :prefix-icon="Lock"
+              show-password
+              @keyup.enter="submit"
+            />
           </el-form-item>
           <el-form-item>
-            <el-input v-model="form.password" type="password" show-password placeholder="请输入登录密码" :prefix-icon="Lock" />
-          </el-form-item>
-
-          <el-form-item>
-            <el-button type="primary" :loading="loading" class="submit-btn" @click="handleLogin">
-              立即登录
-            </el-button>
+            <el-button type="primary" class="login-btn" :loading="loading" @click="submit">登 录</el-button>
           </el-form-item>
         </el-form>
+
+        <div class="extra-links">
+          <router-link to="/">返回首页</router-link>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
-import { User, Lock } from '@element-plus/icons-vue';
+import { reactive, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import request from '@/utils/request';
+import type { FormInstance, FormRules } from 'element-plus';
+import { User, Lock } from '@element-plus/icons-vue';
+import { applySeo } from '@/composables/useSeo';
+import { useUserStore } from '@/stores/user';
+import { useCartStore } from '@/stores/cart';
 
-const router = useRouter();
 const route = useRoute();
+const router = useRouter();
+const user = useUserStore();
+const cart = useCartStore();
+
+const formRef = ref<FormInstance>();
 const loading = ref(false);
+const form = reactive({ username: '', password: '' });
 
-const form = reactive({
-  username: '',
-  password: ''
-});
+const rules: FormRules = {
+  username: [{ required: true, message: '请输入手机号或用户名', trigger: 'blur' }],
+  password: [{ required: true, min: 6, message: '密码至少 6 位', trigger: 'blur' }],
+};
 
-async function handleLogin() {
-  if (!form.username || !form.password) {
-    ElMessage.warning('请输入账号和密码');
-    return;
-  }
+function redirectTarget(): string {
+  const redirect = route.query.redirect;
+  if (typeof redirect === 'string' && redirect.startsWith('/')) return redirect;
+  return '/member';
+}
+
+async function submit() {
+  if (!formRef.value) return;
+  const valid = await formRef.value.validate().catch(() => false);
+  if (!valid) return;
   loading.value = true;
   try {
-    const res: any = await request({
-      url: '/user/login/signin',
-      method: 'post',
-      data: form
-    });
-    const token = res.token || res.accessToken;
-    if (!token) {
-      ElMessage.error('登录响应异常：未获取到授权凭证');
-      return;
-    }
-    localStorage.setItem('tig_user_token', token);
-    localStorage.setItem('tig_user_name', res.username || form.username);
-    ElMessage.success('登录成功！');
-    const redirect = (route.query.redirect as string) || '/';
-    router.push(redirect);
-  } catch (e: any) {
-    // 接口失败直接交由全局拦截器提示错误，不作任何本地伪造
-    console.error('会员登录失败:', e);
+    await user.login(form.username.trim(), form.password);
+    await cart.fetchCount(user.token);
+    ElMessage.success('登录成功');
+    router.replace(redirectTarget());
   } finally {
     loading.value = false;
   }
 }
+
+applySeo({ title: '会员登录', noindex: true });
 </script>
 
 <style scoped lang="less">
 .tig-mall-login-page {
-  background: #f0f2f5;
-  padding: 60px 0;
+  min-height: 100vh;
+  background: linear-gradient(120deg, #1f2329 0%, #33383f 55%, #4a2020 100%);
+  display: flex;
+  align-items: center;
 }
 
 .login-box-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 40px;
+}
+
+.login-left-banner {
+  color: #fff;
+  max-width: 520px;
+
+  h2 { font-size: 38px; font-weight: 800; margin-bottom: 14px; }
+  p { color: #d8d8d8; font-size: 15px; line-height: 1.8; }
+  .feature-list {
+    margin-top: 26px;
+    padding-left: 18px;
+    color: #cfcfcf;
+    font-size: 14px;
+    line-height: 2;
+  }
+}
+
+.login-form-card {
+  width: 400px;
   background: #ffffff;
   border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
-  overflow: hidden;
-  height: 480px;
+  padding: 30px 30px 22px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.25);
 
-  .login-left-banner {
-    flex: 1;
-    background: linear-gradient(135deg, #e1251b, #8a0c06);
-    color: #fff;
-    padding: 60px;
+  .card-header {
+    margin-bottom: 22px;
+    h1 { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
+    p { color: #999; font-size: 13px; }
+  }
+
+  .login-btn { width: 100%; font-weight: 700; letter-spacing: 4px; }
+
+  .extra-links {
     display: flex;
-    flex-direction: column;
     justify-content: center;
-    h2 { font-size: 32px; font-weight: 800; margin-bottom: 16px; }
-    p { font-size: 16px; opacity: 0.9; }
+    font-size: 13px;
+    color: #888;
+    a:hover { color: var(--tig-red); }
   }
+}
 
-  .login-form-card {
-    width: 440px;
-    padding: 60px 48px;
-
-    .card-header {
-      margin-bottom: 32px;
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      h3 { font-size: 20px; font-weight: 700; color: #333; }
-      .reg-tip { font-size: 13px; color: var(--tig-red); }
-    }
-
-    .submit-btn {
-      width: 100%;
-      height: 44px;
-      font-size: 16px;
-      font-weight: 600;
-      background: var(--tig-red);
-      border-color: var(--tig-red);
-      border-radius: 22px;
-    }
-  }
+@media (max-width: 1000px) {
+  .login-left-banner { display: none; }
+  .login-box-container { justify-content: center; }
 }
 </style>

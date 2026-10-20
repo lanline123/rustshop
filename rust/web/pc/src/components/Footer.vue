@@ -18,7 +18,7 @@
       <div class="help-col" v-for="col in helpLinks" :key="col.title">
         <div class="help-title">{{ col.title }}</div>
         <ul>
-          <li v-for="lk in col.items" :key="lk"><a href="javascript:;">{{ lk }}</a></li>
+          <li v-for="lk in col.items" :key="lk"><span class="footer-link-text">{{ lk }}</span></li>
         </ul>
       </div>
 
@@ -26,7 +26,7 @@
         <div class="hotline-title">官方客服热线</div>
         <div class="hotline-phone">{{ servicePhone || '暂未配置' }}</div>
         <div class="hotline-time">工作时间：09:00 - 18:00</div>
-        <button class="online-btn">在线客服咨询</button>
+        <button class="online-btn" @click="onContact">联系在线客服</button>
       </div>
     </div>
 
@@ -46,6 +46,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { ElMessage } from 'element-plus';
 import request from '@/utils/request';
 
 const servicePhone = ref('');
@@ -91,6 +92,12 @@ async function loadSiteConfig() {
   } catch (err) {
     // 配置缺失时保持空值，页脚正常渲染
   }
+}
+
+function onContact() {
+  ElMessage.info(
+    servicePhone.value ? `客服热线：${servicePhone.value}` : '客服热线暂未配置，请稍后再试',
+  );
 }
 
 onMounted(() => {
@@ -147,6 +154,7 @@ onMounted(() => {
         margin-bottom: 8px;
         font-size: 12px;
         color: var(--tig-text-regular);
+        .footer-link-text { cursor: default; }
         a:hover { color: var(--tig-red); }
       }
     }

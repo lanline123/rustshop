@@ -21,22 +21,11 @@ export const userListTableSchema: TableSchema = {
     { prop: 'username', label: '客户名称', minWidth: 130 },
     { prop: 'nickname', label: '会员昵称', minWidth: 130 },
     { prop: 'mobile', label: '绑定手机', minWidth: 130 },
-    { prop: 'rankName', label: '客户等级', minWidth: 110 },
-    { prop: 'isCompanyAuth', label: '是否认证', width: 100, align: 'center' },
+    { prop: 'email', label: '邮箱', minWidth: 160 },
     { prop: 'balance', label: '余额', type: 'money', width: 110 },
+    { prop: 'frozenBalance', label: '冻结余额', type: 'money', width: 110 },
     { prop: 'points', label: '消费积分', width: 100, align: 'center' },
-    { prop: 'orderCount', label: '累计消费次数', width: 120, align: 'center' },
-    { prop: 'orderAmount', label: '累计消费金额', type: 'money', width: 130 },
-    {
-      prop: 'status',
-      label: '是否启用',
-      type: 'tag',
-      width: 100,
-      tagMap: {
-        1: { text: '启用', type: 'success' },
-        0: { text: '停用', type: 'danger' }
-      }
-    },
+    { prop: 'growthPoints', label: '成长积分', width: 100, align: 'center' },
     { prop: 'regTime', label: '注册日期', minWidth: 160 }
   ]
 };
