@@ -27,6 +27,7 @@ use tigshop_core::models::marketing::groupon_promotion_record::{
 use tigshop_core::types::PageResult;
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::marketing::groupon_promotion_record::GrouponPromotionRecordRepository;
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 /// 拼团活动记录（管理端）域服务。
@@ -51,7 +52,10 @@ impl GrouponPromotionRecordService {
     ) -> Result<PageResult<GrouponRecordOpenJonPageVO>> {
         let page = to_page(q.page, q.size);
         let (limit, offset) = tigshop_core::models::marketing::groupon_promotion_record::limit_offset(q.page, q.size);
-        let (total, rows) = self.repo().open_join_list(q, limit, offset).await?;
+        let (total, rows) = self
+            .repo()
+            .open_join_list(q, TenantScope::current_list_filter(), limit, offset)
+            .await?;
         let list = rows
             .iter()
             .map(|r| GrouponRecordOpenJonPageVO {
@@ -74,7 +78,10 @@ impl GrouponPromotionRecordService {
     ) -> Result<PageResult<GrouponRecordOrderPageVO>> {
         let page = to_page(q.page, q.size);
         let (limit, offset) = tigshop_core::models::marketing::groupon_promotion_record::limit_offset(q.page, q.size);
-        let (total, rows) = self.repo().order_list(q, limit, offset).await?;
+        let (total, rows) = self
+            .repo()
+            .order_list(q, TenantScope::current_list_filter(), limit, offset)
+            .await?;
         let list = rows
             .iter()
             .map(|r| {
@@ -106,6 +113,10 @@ impl GrouponPromotionRecordService {
         let Some(record_id) = q.groupon_promotion_record_id else {
             return Ok(Vec::new());
         };
+        // 多租户：团员列表随开团记录归属校验
+        if let Some(record) = self.repo().find_by_id(record_id).await? {
+            TenantScope::current_ensure_access(record.shop_id)?;
+        }
         let rows = self.repo().members(record_id).await?;
         if rows.is_empty() {
             return Ok(Vec::new());
@@ -151,6 +162,8 @@ impl GrouponPromotionRecordService {
             .await?
             .filter(|r| r.join_status != 3)
             .ok_or_else(|| Error::biz(500, MSG_NOT_EXISTS_OR_FAILED))?;
+        // 多租户：成团操作前校验归属
+        TenantScope::current_ensure_access(record.shop_id)?;
         let member_count = self.repo().count_members(id).await?;
         let virtual_count = (i64::from(record.min_group_num) - member_count).max(0);
         let now = now_seconds();
@@ -200,6 +213,11 @@ fn to_page(page: Option<i64>, size: Option<i64>) -> tigshop_core::types::PageQue
         page: u64::try_from(page_no.max(1)).unwrap_or(1),
         page_size: u64::try_from(size.max(1)).unwrap_or(15),
     }
+}
+
+/// 列表店铺过滤：店铺账号强制本店；平台账号不过滤。
+fn scoped_list_shop_id() -> Option<i32> {
+    TenantScope::current_list_filter()
 }
 
 #[cfg(test)]

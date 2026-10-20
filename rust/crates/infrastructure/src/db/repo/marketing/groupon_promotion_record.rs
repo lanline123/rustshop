@@ -64,18 +64,19 @@ impl GrouponPromotionRecordRepository {
     pub async fn open_join_list(
         &self,
         q: &OpenJoinListQuery,
+        shop_id: Option<i32>,
         limit: i64,
         offset: i64,
     ) -> Result<(i64, Vec<GrouponPromotionRecord>)> {
         let mut cq: QueryBuilder<'_, MySql> = QueryBuilder::new(
             "SELECT COUNT(*) FROM groupon_promotion_record WHERE join_type = 1",
         );
-        Self::push_open_filters(&mut cq, q);
+        Self::push_open_filters(&mut cq, q, shop_id);
         let total: (i64,) = cq.build_query_as().fetch_one(&self.pool).await.map_err(map_err)?;
         let mut rq: QueryBuilder<'_, MySql> = QueryBuilder::new(format!(
             "{SELECT} WHERE join_type = 1"
         ));
-        Self::push_open_filters(&mut rq, q);
+        Self::push_open_filters(&mut rq, q, shop_id);
         rq.push(" ORDER BY open_group_time DESC");
         rq.push(format!(" LIMIT {limit} OFFSET {offset}"));
         let rows: Vec<GrouponPromotionRecord> =
@@ -83,7 +84,15 @@ impl GrouponPromotionRecordRepository {
         Ok((total.0, rows))
     }
 
-    fn push_open_filters(qb: &mut QueryBuilder<'_, MySql>, q: &OpenJoinListQuery) {
+    fn push_open_filters(
+        qb: &mut QueryBuilder<'_, MySql>,
+        q: &OpenJoinListQuery,
+        shop_id: Option<i32>,
+    ) {
+        // 多租户：店铺账号强制按 shop_id 过滤（i32 内部值）
+        if let Some(shop_id) = shop_id {
+            qb.push(format!(" AND shop_id = {shop_id}"));
+        }
         if let Some(id) = q.groupon_promotion_id {
             qb.push(" AND groupon_promotion_id = ");
             qb.push_bind(id);
@@ -102,18 +111,19 @@ impl GrouponPromotionRecordRepository {
     pub async fn order_list(
         &self,
         q: &OrderListQuery,
+        shop_id: Option<i32>,
         limit: i64,
         offset: i64,
     ) -> Result<(i64, Vec<OrderRecordRow>)> {
         let mut cq: QueryBuilder<'_, MySql> = QueryBuilder::new(
             "SELECT COUNT(*) FROM groupon_promotion_record gpr LEFT JOIN `user` u ON gpr.user_id = u.user_id LEFT JOIN `order` o ON gpr.order_id = o.order_id WHERE o.order_id != 0",
         );
-        Self::push_order_filters(&mut cq, q);
+        Self::push_order_filters(&mut cq, q, shop_id);
         let total: (i64,) = cq.build_query_as().fetch_one(&self.pool).await.map_err(map_err)?;
         let mut rq: QueryBuilder<'_, MySql> = QueryBuilder::new(
             "SELECT gpr.groupon_promotion_record_id, gpr.groupon_promotion_id, gpr.groupon_promotion_item_id, gpr.product_id, gpr.product_name, gpr.join_type, gpr.join_status, gpr.user_id, gpr.order_id, gpr.order_sn, gpr.is_virtual, gpr.paid_amount, gpr.open_group_record_id, gpr.open_group_time, gpr.group_captain_name, gpr.join_expiration_time, gpr.min_group_num, gpr.shop_id, gpr.add_time, u.username, o.order_status FROM groupon_promotion_record gpr LEFT JOIN `user` u ON gpr.user_id = u.user_id LEFT JOIN `order` o ON gpr.order_id = o.order_id WHERE o.order_id != 0",
         );
-        Self::push_order_filters(&mut rq, q);
+        Self::push_order_filters(&mut rq, q, shop_id);
         rq.push(" ORDER BY gpr.add_time DESC");
         rq.push(format!(" LIMIT {limit} OFFSET {offset}"));
         let rows: Vec<OrderRecordRow> =
@@ -121,7 +131,15 @@ impl GrouponPromotionRecordRepository {
         Ok((total.0, rows))
     }
 
-    fn push_order_filters(qb: &mut QueryBuilder<'_, MySql>, q: &OrderListQuery) {
+    fn push_order_filters(
+        qb: &mut QueryBuilder<'_, MySql>,
+        q: &OrderListQuery,
+        shop_id: Option<i32>,
+    ) {
+        // 多租户：店铺账号强制按 shop_id 过滤（i32 内部值）
+        if let Some(shop_id) = shop_id {
+            qb.push(format!(" AND gpr.shop_id = {shop_id}"));
+        }
         if let Some(id) = q.groupon_promotion_id {
             qb.push(" AND gpr.groupon_promotion_id = ");
             qb.push_bind(id);

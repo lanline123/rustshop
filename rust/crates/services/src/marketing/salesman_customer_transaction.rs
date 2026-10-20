@@ -23,6 +23,7 @@ use tigshop_core::models::marketing::salesman_customer_transaction::{
 use tigshop_core::types::{PageQuery, PageResult};
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::marketing::salesman_customer_transaction::SalesmanCustomerTransactionRepository;
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 /// 客户交易服务（挂载于 `AdminState.marketing.salesman_customer_transaction`）。
@@ -52,6 +53,16 @@ impl SalesmanCustomerTransactionService {
         let salesman_id = q
             .salesman_id
             .ok_or_else(|| Error::Validation(MSG_SALESMAN_ID_REQUIRED.into()))?;
+        // 多租户：店铺账号只能查看本店分销员的客户交易
+        if let Some(salesman) = self
+            .repos
+            .marketing
+            .salesman_admin
+            .find_salesman(salesman_id)
+            .await?
+        {
+            TenantScope::current_ensure_access(salesman.shop_id.unwrap_or(0))?;
+        }
         let page = PageQuery {
             page: q.page.unwrap_or(1),
             page_size: q.page_size.unwrap_or(DEFAULT_PAGE_SIZE).min(MAX_PAGE_SIZE),
@@ -102,6 +113,20 @@ impl SalesmanCustomerTransactionService {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn tenant_scope_blocks_cross_shop_transaction() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::{
+            with_tenant_scope, TenantScope,
+        };
+        let shop = TenantScope::for_shop(8);
+        assert!(with_tenant_scope(shop, async { TenantScope::current_ensure_access(9) })
+            .await
+            .is_err());
+        assert!(with_tenant_scope(shop, async { TenantScope::current_ensure_access(8) })
+            .await
+            .is_ok());
+    }
 
     #[test]
     fn missing_salesman_id_is_validation_error() {

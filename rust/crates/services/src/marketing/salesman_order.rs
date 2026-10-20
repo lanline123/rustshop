@@ -28,6 +28,7 @@ use tigshop_core::models::marketing::salesman_order::{
 use tigshop_core::types::{PageQuery, PageResult};
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::marketing::salesman_order::SalesmanOrderRepository;
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 /// 业绩订单服务（挂载于 `AdminState.marketing.salesman_order` / `PublicState`）。
@@ -51,7 +52,8 @@ impl SalesmanOrderService {
     /// # Errors
     /// 数据库错误 → `Error::Database`。
     pub async fn list(&self, q: &SalesmanOrderListQuery) -> Result<PageResult<SalesmanOrderVO>> {
-        self.query_page(q).await
+        // 多租户：店铺账号强制本店（经 salesman 关联）；平台账号不过滤
+        self.query_page(q, TenantScope::current_list_filter()).await
     }
 
     /// public 分页（Java `clientList`：`salesmanId` 由登录态强制）。
@@ -79,10 +81,14 @@ impl SalesmanOrderService {
         };
         let mut effective = q.clone();
         effective.salesman_id = Some(salesman.salesman_id);
-        self.query_page(&effective).await
+        self.query_page(&effective, None).await
     }
 
-    async fn query_page(&self, q: &SalesmanOrderListQuery) -> Result<PageResult<SalesmanOrderVO>> {
+    async fn query_page(
+        &self,
+        q: &SalesmanOrderListQuery,
+        shop_id: Option<i32>,
+    ) -> Result<PageResult<SalesmanOrderVO>> {
         let page = PageQuery {
             page: q.page.unwrap_or(1),
             page_size: q.page_size.unwrap_or(DEFAULT_PAGE_SIZE).min(MAX_PAGE_SIZE),
@@ -111,6 +117,7 @@ impl SalesmanOrderService {
             .repo()
             .paginate(
                 q.salesman_id,
+                shop_id,
                 order_ids.as_deref(),
                 q.status,
                 q.sort_field.as_deref(),
@@ -138,22 +145,49 @@ impl SalesmanOrderService {
         let Some(ids) = dto.ids.as_deref() else {
             return Ok(false);
         };
+        // 多租户：批量删除前逐条校验归属（经 salesman.shop_id）
+        self.ensure_records_access(ids).await?;
         Ok(self.repo().delete(ids).await? > 0)
     }
 
     /// 人工结算（Java `manualSettle`；差异 1）。
     ///
     /// # Errors
-    /// 未传 ids → `Validation(请选择要结算的记录)`。
+    /// 未传 ids → `Validation(请选择要结算的记录)`；越权 → `Forbidden`。
     pub async fn settlement(&self, dto: &SalesmanOrderSettlementDTO) -> Result<u64> {
         let ids = dto
             .ids
             .as_deref()
             .filter(|v| !v.is_empty())
             .ok_or_else(|| Error::Validation(MSG_IDS_REQUIRED.into()))?;
+        // 多租户：人工结算前逐条校验归属
+        self.ensure_records_access(ids).await?;
         let now = i32::try_from(tigshop_common::utils::now_seconds()).unwrap_or(i32::MAX);
         let affected = self.repo().mark_settled(ids, now).await?;
         Ok(affected)
+    }
+
+    /// 逐条校验记录归属：`salesman_order.salesman_id → salesman.shop_id`。
+    async fn ensure_records_access(&self, ids: &[i32]) -> Result<()> {
+        for id in ids {
+            let Some(record) = self.repo().find_by_id(*id).await? else {
+                continue;
+            };
+            let Some(salesman_id) = record.salesman_id else {
+                continue;
+            };
+            let Some(salesman) = self
+                .repos
+                .marketing
+                .salesman_admin
+                .find_salesman(salesman_id)
+                .await?
+            else {
+                continue;
+            };
+            TenantScope::current_ensure_access(salesman.shop_id.unwrap_or(0))?;
+        }
+        Ok(())
     }
 }
 
@@ -178,6 +212,24 @@ fn to_vo(r: &SalesmanOrder, sn_map: &HashMap<i32, String>) -> SalesmanOrderVO {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn tenant_scope_filters_admin_list_by_shop() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::{
+            with_tenant_scope, TenantScope,
+        };
+        let shop = TenantScope::for_shop(8);
+        let filter = with_tenant_scope(shop, async { TenantScope::current_list_filter() }).await;
+        assert_eq!(filter, Some(8));
+        assert!(with_tenant_scope(shop, async { TenantScope::current_ensure_access(9) })
+            .await
+            .is_err());
+        let filter = with_tenant_scope(TenantScope::platform(), async {
+            TenantScope::current_list_filter()
+        })
+        .await;
+        assert_eq!(filter, None);
+    }
 
     #[test]
     fn to_vo_backfills_order_sn_and_status_text() {

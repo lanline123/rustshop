@@ -86,10 +86,12 @@ impl SalesmanOrderRepository {
         Ok(rows.into_iter().map(|(id,)| id).collect())
     }
 
-    /// 分页（Java `list` 的过滤组合：`salesmanId` + `orderIds` + `status`）。
+    /// 分页（Java `list` 的过滤组合：`salesmanId` + `orderIds` + `status` +
+    /// 多租户 `shop_id`（经 `salesman` 关联））。
     pub async fn paginate(
         &self,
         salesman_id: Option<i32>,
+        shop_id: Option<i32>,
         order_ids: Option<&[i32]>,
         status: Option<i32>,
         sort_field: Option<&str>,
@@ -100,6 +102,12 @@ impl SalesmanOrderRepository {
         let mut where_parts: Vec<String> = Vec::new();
         if salesman_id.is_some() {
             where_parts.push("salesman_id = ?".into());
+        }
+        // 多租户：店铺账号只看到本店分销员的订单（经 salesman.shop_id 关联）
+        if let Some(shop_id) = shop_id {
+            where_parts.push(format!(
+                "salesman_id IN (SELECT salesman_id FROM salesman WHERE shop_id = {shop_id})"
+            ));
         }
         if let Some(ids) = order_ids {
             if ids.is_empty() {
