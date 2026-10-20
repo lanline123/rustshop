@@ -57,6 +57,7 @@ use tigshop_core::models::member::user_manage::CHANGE_TYPE_INC;
 use tigshop_core::types::{PageQuery, PageResult};
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::marketing::gift_card::GiftCardRepository;
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 /// 演示站开关（Java `tigshop.is-demo`，默认 `0`）。
@@ -85,6 +86,10 @@ impl GiftCardService {
     pub async fn list(&self, q: &GiftCardsListQuery) -> Result<PageResult<GiftCardsVO>> {
         let page = to_page_query(q.page, q.size);
         let (limit, offset) = q.limit_offset();
+        // 多租户：卡组归属校验（gift_card_groups.shop_id）
+        if let Some(card_groups_id) = q.card_groups_id {
+            ensure_group_access(self.repo(), card_groups_id).await?;
+        }
         let (total, rows) = self.repo().paginate(q, limit, offset).await?;
         if rows.is_empty() {
             return Ok(PageResult::empty(&page));
@@ -104,6 +109,8 @@ impl GiftCardService {
             .find_by_id(gift_cards_id)
             .await?
             .ok_or_else(|| Error::biz(500, MSG_CARD_NOT_EXISTS))?;
+        // 多租户：详情归属校验（经卡组 shop_id）
+        ensure_group_access(self.repo(), card.card_groups_id).await?;
         let sn = card
             .gift_card_sn
             .clone()
@@ -182,6 +189,8 @@ impl GiftCardService {
 
     /// 导出列表（Java `@ResponseExcel` → 本实现返回导出行 JSON）。
     pub async fn export_list(&self, card_groups_id: i32) -> Result<Vec<GiftCardsExportVO>> {
+        // 多租户：导出前校验卡组归属
+        ensure_group_access(self.repo(), card_groups_id).await?;
         let rows: Vec<GiftCards> = self.repo().find_by_group(card_groups_id).await?;
         Ok(rows
             .into_iter()
@@ -209,6 +218,8 @@ impl GiftCardService {
             return Err(Error::biz(500, MSG_UPLOAD_FILE_REQUIRED));
         }
         let group_id = card_groups_id.ok_or_else(|| Error::biz(500, MSG_CARD_GROUP_INVALID))?;
+        // 多租户：导入前校验卡组归属
+        ensure_group_access(self.repo(), group_id).await?;
         if self.repo().find_group(group_id).await?.is_none() {
             return Err(Error::biz(500, MSG_CARD_GROUP_INVALID));
         }
@@ -227,6 +238,8 @@ impl GiftCardService {
             .find_by_id(gift_cards_id)
             .await?
             .ok_or_else(|| Error::biz(500, MSG_CARD_NOT_EXISTS))?;
+        // 多租户：删除前校验归属（经卡组 shop_id）
+        ensure_group_access(self.repo(), card.card_groups_id).await?;
         // 未过期但已售出未兑换 ⇒ 不可删除
         if card.status == Some(0) && card.user_id.is_some() {
             return Err(Error::biz(500, MSG_CARD_SOLD_CANNOT_DELETE));
@@ -258,6 +271,8 @@ impl GiftCardService {
             .find_by_id(gift_cards_id)
             .await?
             .ok_or_else(|| Error::biz(500, MSG_CARD_ABNORMAL))?;
+        // 多租户：状态变更前校验归属
+        ensure_group_access(self.repo(), card.card_groups_id).await?;
         if card.is_available == Some(is_available) {
             return Ok(());
         }
@@ -658,6 +673,17 @@ fn to_page_query(page: Option<i64>, size: Option<i64>) -> PageQuery {
     }
 }
 
+/// 归属校验：经卡组 `gift_card_groups.shop_id`（店铺账号越权 → 403）。
+async fn ensure_group_access(
+    repo: &tigshop_infrastructure::db::repo::marketing::gift_card::GiftCardRepository,
+    card_groups_id: i32,
+) -> Result<()> {
+    if let Some(group) = repo.find_group(card_groups_id).await? {
+        TenantScope::current_ensure_access(group.shop_id.unwrap_or(0))?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -679,6 +705,25 @@ mod tests {
             claimed_status: Some(CLAIMED_RECEIVABLE),
             order_time: None,
         }
+    }
+
+    #[tokio::test]
+    async fn tenant_scope_blocks_cross_shop_gift_card() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::{
+            with_tenant_scope, TenantScope,
+        };
+        let shop = TenantScope::for_shop(8);
+        assert!(with_tenant_scope(shop, async { TenantScope::current_ensure_access(9) })
+            .await
+            .is_err());
+        assert!(with_tenant_scope(shop, async { TenantScope::current_ensure_access(8) })
+            .await
+            .is_ok());
+        let filter = with_tenant_scope(TenantScope::platform(), async {
+            TenantScope::current_list_filter()
+        })
+        .await;
+        assert_eq!(filter, None);
     }
 
     #[test]
