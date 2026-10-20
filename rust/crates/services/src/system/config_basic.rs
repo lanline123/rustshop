@@ -579,27 +579,15 @@ mod tests {
     }
 
     #[test]
-    fn placeholder_errors_cover_unmigrated_kinds_only() {
-        for kind in [
-            EndpointKind::BasicConfig,
-            EndpointKind::IconSettings,
-            EndpointKind::WorkBuddySettings,
-            EndpointKind::WorkBuddyGenerate,
-            EndpointKind::WorkBuddyReveal,
-            EndpointKind::UploadFile,
-            EndpointKind::SendTestEmail,
-        ] {
-            assert!(placeholder_message(kind).is_some(), "{kind:?} 应有占位错误");
-        }
-        for kind in [
-            EndpointKind::Group,
-            EndpointKind::SaveReturningVo,
-            EndpointKind::RawConfigByCode,
-            EndpointKind::LoginProtocolContent,
-            EndpointKind::LoginProtocolSave,
-            EndpointKind::CreatePlatformCertificate,
-        ] {
-            assert!(placeholder_message(kind).is_none(), "{kind:?} 不应有占位错误");
+    fn no_endpoint_kind_uses_placeholder_errors() {
+        // 102 个端点均已迁移到真实实现（或返回明确的空响应），不再有占位错误。
+        use tigshop_core::models::system::config_basic::endpoints;
+        for ep in endpoints() {
+            assert!(
+                placeholder_message(ep.kind).is_none(),
+                "{:?} 不应再有占位错误",
+                ep.kind
+            );
         }
     }
 

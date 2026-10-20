@@ -150,6 +150,15 @@ pub const PUBLIC_PATHS: [&str; 3] = [
 ];
 
 /// 一个配置项规格（Java `@ConfigItemField(SettingsEnum.X)` + 字段类型）。
+///
+/// # UI 元数据（Schema-Driven 前端的基础）
+///
+/// `label` / `widget` / `required` 是给前端「Schema 引擎」用的渲染提示：
+/// Rust 侧是唯一真相来源，前端不再手写表单字段。
+/// 通过 `GET /adminapi/setting/config/schema` 导出为 JSON Schema。
+///
+/// 为保持既有 859 个 `FieldSpec` 字面量可编译，新增字段全部有默认值语义
+/// （用 `Default` 辅助构造），见 [`FieldSpec::new`]。
 #[derive(Debug, Clone, Copy)]
 pub struct FieldSpec {
     /// JSON 字段名（Java VO/Param 字段名，camelCase）
@@ -162,6 +171,119 @@ pub struct FieldSpec {
     pub default: Option<&'static str>,
     /// Java 字段是否为 `List<...>`（保存时强制 JSON 序列化，见 `extractConfigs`）
     pub is_list: bool,
+    /// **UI**：字段中文标签（来自 Java `@Schema(description)` / 参数名）。
+    /// `None` 时前端回退显示 `field`。
+    pub label: Option<&'static str>,
+    /// **UI**：建议的控件类型。`None` 时前端按 `ty` + `is_list` 推断。
+    pub widget: Option<FieldWidget>,
+    /// **UI**：是否必填。`None` 视为非必填。
+    pub required: Option<bool>,
+    /// **UI**：分组标题（同一表单内分段展示）。`None` 归入默认分组。
+    pub group: Option<&'static str>,
+}
+
+/// 表单控件类型提示（前端 Schema 引擎据此选择 Element Plus 组件）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FieldWidget {
+    /// `<el-input>`
+    Input,
+    /// `<el-input type="textarea">`
+    Textarea,
+    /// `<el-input type="password">`
+    Password,
+    /// `<el-input-number>`
+    Number,
+    /// `<el-switch>`
+    Switch,
+    /// `<el-select>`（选项来自 `options` 或枚举字典）
+    Select,
+    /// `<el-radio-group>`
+    Radio,
+    /// `<el-checkbox-group>`
+    Checkbox,
+    /// `<el-date-picker>`
+    Date,
+    /// `<el-date-picker type="datetime">`
+    DateTime,
+    /// 图片上传（单图）
+    Image,
+    /// 图片上传（多图）
+    Images,
+    /// 文件上传
+    File,
+    /// 富文本编辑器
+    RichText,
+    /// 颜色选择
+    Color,
+    /// JSON 编辑器（复杂结构）
+    Json,
+}
+
+impl FieldSpec {
+    /// 构造「仅数据、无 UI 元数据」的规格（保持既有字面量兼容）。
+    #[must_use]
+    pub const fn new(
+        field: &'static str,
+        code: &'static str,
+        ty: ValueType,
+        default: Option<&'static str>,
+        is_list: bool,
+    ) -> Self {
+        Self {
+            field,
+            code,
+            ty,
+            default,
+            is_list,
+            label: None,
+            widget: None,
+            required: None,
+            group: None,
+        }
+    }
+
+    /// 补充 UI 元数据（链式，便于在规格表里就地标注）。
+    #[must_use]
+    pub const fn with_ui(
+        mut self,
+        label: &'static str,
+        widget: FieldWidget,
+    ) -> Self {
+        self.label = Some(label);
+        self.widget = Some(widget);
+        self
+    }
+
+    /// 标记必填。
+    #[must_use]
+    pub const fn required(mut self) -> Self {
+        self.required = Some(true);
+        self
+    }
+
+    /// 指定分组。
+    #[must_use]
+    pub const fn in_group(mut self, group: &'static str) -> Self {
+        self.group = Some(group);
+        self
+    }
+
+    /// 按值类型推断控件（UI 元数据缺失时的回退）。
+    #[must_use]
+    pub const fn inferred_widget(&self) -> FieldWidget {
+        if let Some(w) = self.widget {
+            return w;
+        }
+        if self.is_list {
+            return FieldWidget::Checkbox;
+        }
+        match self.ty {
+            ValueType::Bool => FieldWidget::Switch,
+            ValueType::Int | ValueType::Long | ValueType::Decimal => FieldWidget::Number,
+            ValueType::Json | ValueType::JsonArray => FieldWidget::Json,
+            _ => FieldWidget::Input,
+        }
+    }
 }
 
 /// `@ConfigInnerParam` 嵌套对象规格。
@@ -195,825 +317,825 @@ pub struct EndpointSpec {
 // ———————————————— 规格表（由 Java 源码机械抽取生成，勿手工编辑） ————————————————
 
 static EP0_FIELDS: [FieldSpec; 21] = [
-    FieldSpec { field: "shopLogo", code: "shopLogo", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "lightShopLogo", code: "lightShopLogo", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "shopName", code: "shopName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "shopCompany", code: "shopCompany", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "defaultCopyright", code: "defaultCopyright", ty: ValueType::Str, default: Some("© 2018 江西佰商科技版权所有"), is_list: false },
-    FieldSpec { field: "shopCompanyTxt", code: "shopCompanyTxt", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "poweredByStatus", code: "poweredByStatus", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "poweredBy", code: "poweredBy", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "defaultTechSupport", code: "defaultTechSupport", ty: ValueType::Str, default: Some("/static/mini/images/common/default_tech_support.png"), is_list: false },
-    FieldSpec { field: "poweredByLogo", code: "poweredByLogo", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "kefuAddress", code: "kefuAddress", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "shopIcpNo", code: "shopIcpNo", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "shopIcpNoUrl", code: "shopIcpNoUrl", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "shop110No", code: "shop110No", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "shop110Link", code: "shop110Link", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "businessLicenseEnabled", code: "businessLicenseEnabled", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "businessLicense", code: "businessLicense", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "ediLicense", code: "ediLicense", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "businessLicenseType", code: "businessLicenseType", ty: ValueType::JsonArray, default: Some("[]"), is_list: true },
-    FieldSpec { field: "closeOrder", code: "closeOrder", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "shopRegClosed", code: "shopRegClosed", ty: ValueType::Int, default: None, is_list: false },
+    FieldSpec { field: "shopLogo", code: "shopLogo", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "lightShopLogo", code: "lightShopLogo", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopName", code: "shopName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopCompany", code: "shopCompany", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "defaultCopyright", code: "defaultCopyright", ty: ValueType::Str, default: Some("© 2018 江西佰商科技版权所有"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopCompanyTxt", code: "shopCompanyTxt", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "poweredByStatus", code: "poweredByStatus", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "poweredBy", code: "poweredBy", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "defaultTechSupport", code: "defaultTechSupport", ty: ValueType::Str, default: Some("/static/mini/images/common/default_tech_support.png"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "poweredByLogo", code: "poweredByLogo", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kefuAddress", code: "kefuAddress", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopIcpNo", code: "shopIcpNo", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopIcpNoUrl", code: "shopIcpNoUrl", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shop110No", code: "shop110No", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shop110Link", code: "shop110Link", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "businessLicenseEnabled", code: "businessLicenseEnabled", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "businessLicense", code: "businessLicense", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "ediLicense", code: "ediLicense", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "businessLicenseType", code: "businessLicenseType", ty: ValueType::JsonArray, default: Some("[]"), is_list: true, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "closeOrder", code: "closeOrder", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopRegClosed", code: "shopRegClosed", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP1_FIELDS: [FieldSpec; 21] = [
-    FieldSpec { field: "shopLogo", code: "shopLogo", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "lightShopLogo", code: "lightShopLogo", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "shopName", code: "shopName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "shopCompany", code: "shopCompany", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "defaultCopyright", code: "defaultCopyright", ty: ValueType::Str, default: Some("© 2018 江西佰商科技版权所有"), is_list: false },
-    FieldSpec { field: "shopCompanyTxt", code: "shopCompanyTxt", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "poweredByStatus", code: "poweredByStatus", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "poweredBy", code: "poweredBy", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "defaultTechSupport", code: "defaultTechSupport", ty: ValueType::Str, default: Some("/static/mini/images/common/default_tech_support.png"), is_list: false },
-    FieldSpec { field: "poweredByLogo", code: "poweredByLogo", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "kefuAddress", code: "kefuAddress", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "shopIcpNo", code: "shopIcpNo", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "shopIcpNoUrl", code: "shopIcpNoUrl", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "shop110No", code: "shop110No", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "shop110Link", code: "shop110Link", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "businessLicenseEnabled", code: "businessLicenseEnabled", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "businessLicense", code: "businessLicense", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "ediLicense", code: "ediLicense", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "businessLicenseType", code: "businessLicenseType", ty: ValueType::JsonArray, default: Some("[]"), is_list: true },
-    FieldSpec { field: "closeOrder", code: "closeOrder", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "shopRegClosed", code: "shopRegClosed", ty: ValueType::Int, default: None, is_list: false },
+    FieldSpec { field: "shopLogo", code: "shopLogo", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "lightShopLogo", code: "lightShopLogo", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopName", code: "shopName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopCompany", code: "shopCompany", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "defaultCopyright", code: "defaultCopyright", ty: ValueType::Str, default: Some("© 2018 江西佰商科技版权所有"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopCompanyTxt", code: "shopCompanyTxt", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "poweredByStatus", code: "poweredByStatus", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "poweredBy", code: "poweredBy", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "defaultTechSupport", code: "defaultTechSupport", ty: ValueType::Str, default: Some("/static/mini/images/common/default_tech_support.png"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "poweredByLogo", code: "poweredByLogo", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kefuAddress", code: "kefuAddress", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopIcpNo", code: "shopIcpNo", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopIcpNoUrl", code: "shopIcpNoUrl", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shop110No", code: "shop110No", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shop110Link", code: "shop110Link", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "businessLicenseEnabled", code: "businessLicenseEnabled", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "businessLicense", code: "businessLicense", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "ediLicense", code: "ediLicense", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "businessLicenseType", code: "businessLicenseType", ty: ValueType::JsonArray, default: Some("[]"), is_list: true, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "closeOrder", code: "closeOrder", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopRegClosed", code: "shopRegClosed", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP2_FIELDS: [FieldSpec; 14] = [
-    FieldSpec { field: "dollarSign", code: "dollarSign", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "dollarSignCn", code: "dollarSignCn", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "snPrefix", code: "snPrefix", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "marketPriceRate", code: "marketPriceRate", ty: ValueType::Decimal, default: None, is_list: false },
-    FieldSpec { field: "showSelledCount", code: "showSelledCount", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "showMarketprice", code: "showMarketprice", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "productCommentEnabled", code: "productCommentEnabled", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "anonymousCommentEnabled", code: "anonymousCommentEnabled", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "isEnquiry", code: "isEnquiry", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "bulkPurchase", code: "bulkPurchase", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "enableAttributeFilter", code: "enableAttributeFilter", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "productEditStockModify", code: "productEditStockModify", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "specImageMode", code: "specImageMode", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "customProductNameLength", code: "customProductNameLength", ty: ValueType::Int, default: Some("200"), is_list: false },
+    FieldSpec { field: "dollarSign", code: "dollarSign", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "dollarSignCn", code: "dollarSignCn", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "snPrefix", code: "snPrefix", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "marketPriceRate", code: "marketPriceRate", ty: ValueType::Decimal, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "showSelledCount", code: "showSelledCount", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "showMarketprice", code: "showMarketprice", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "productCommentEnabled", code: "productCommentEnabled", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "anonymousCommentEnabled", code: "anonymousCommentEnabled", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "isEnquiry", code: "isEnquiry", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "bulkPurchase", code: "bulkPurchase", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "enableAttributeFilter", code: "enableAttributeFilter", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "productEditStockModify", code: "productEditStockModify", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "specImageMode", code: "specImageMode", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "customProductNameLength", code: "customProductNameLength", ty: ValueType::Int, default: Some("200"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP3_FIELDS: [FieldSpec; 14] = [
-    FieldSpec { field: "dollarSign", code: "dollarSign", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "dollarSignCn", code: "dollarSignCn", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "snPrefix", code: "snPrefix", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "marketPriceRate", code: "marketPriceRate", ty: ValueType::Decimal, default: None, is_list: false },
-    FieldSpec { field: "showSelledCount", code: "showSelledCount", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "showMarketprice", code: "showMarketprice", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "productCommentEnabled", code: "productCommentEnabled", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "anonymousCommentEnabled", code: "anonymousCommentEnabled", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "isEnquiry", code: "isEnquiry", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "bulkPurchase", code: "bulkPurchase", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "enableAttributeFilter", code: "enableAttributeFilter", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "productEditStockModify", code: "productEditStockModify", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "specImageMode", code: "specImageMode", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "customProductNameLength", code: "customProductNameLength", ty: ValueType::Int, default: Some("200"), is_list: false },
+    FieldSpec { field: "dollarSign", code: "dollarSign", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "dollarSignCn", code: "dollarSignCn", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "snPrefix", code: "snPrefix", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "marketPriceRate", code: "marketPriceRate", ty: ValueType::Decimal, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "showSelledCount", code: "showSelledCount", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "showMarketprice", code: "showMarketprice", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "productCommentEnabled", code: "productCommentEnabled", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "anonymousCommentEnabled", code: "anonymousCommentEnabled", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "isEnquiry", code: "isEnquiry", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "bulkPurchase", code: "bulkPurchase", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "enableAttributeFilter", code: "enableAttributeFilter", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "productEditStockModify", code: "productEditStockModify", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "specImageMode", code: "specImageMode", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "customProductNameLength", code: "customProductNameLength", ty: ValueType::Int, default: Some("200"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP4_FIELDS: [FieldSpec; 17] = [
-    FieldSpec { field: "childAreaNeedRegion", code: "childAreaNeedRegion", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "integralName", code: "integralName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "integralScale", code: "integralScale", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "orderSendPoint", code: "orderSendPoint", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "orderSendPointNode", code: "orderSendPointNode", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "orderCompleteSendPointDays", code: "orderCompleteSendPointDays", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "integralPercent", code: "integralPercent", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "integralPercentBaseAmount", code: "integralPercentBaseAmount", ty: ValueType::Str, default: Some("100"), is_list: false },
-    FieldSpec { field: "commentSendPoint", code: "commentSendPoint", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "showSendPoint", code: "showSendPoint", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "useQiandaoPoint", code: "useQiandaoPoint", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "continuousSignIn", code: "continuousSignIn", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "canInvoice", code: "canInvoice", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "invoiceAdded", code: "invoiceAdded", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "returnConsignee", code: "returnConsignee", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "returnMobile", code: "returnMobile", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "returnAddress", code: "returnAddress", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "childAreaNeedRegion", code: "childAreaNeedRegion", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "integralName", code: "integralName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "integralScale", code: "integralScale", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "orderSendPoint", code: "orderSendPoint", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "orderSendPointNode", code: "orderSendPointNode", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "orderCompleteSendPointDays", code: "orderCompleteSendPointDays", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "integralPercent", code: "integralPercent", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "integralPercentBaseAmount", code: "integralPercentBaseAmount", ty: ValueType::Str, default: Some("100"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "commentSendPoint", code: "commentSendPoint", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "showSendPoint", code: "showSendPoint", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "useQiandaoPoint", code: "useQiandaoPoint", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "continuousSignIn", code: "continuousSignIn", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "canInvoice", code: "canInvoice", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "invoiceAdded", code: "invoiceAdded", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "returnConsignee", code: "returnConsignee", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "returnMobile", code: "returnMobile", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "returnAddress", code: "returnAddress", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP5_FIELDS: [FieldSpec; 17] = [
-    FieldSpec { field: "childAreaNeedRegion", code: "childAreaNeedRegion", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "integralName", code: "integralName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "integralScale", code: "integralScale", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "orderSendPoint", code: "orderSendPoint", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "orderSendPointNode", code: "orderSendPointNode", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "orderCompleteSendPointDays", code: "orderCompleteSendPointDays", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "integralPercent", code: "integralPercent", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "integralPercentBaseAmount", code: "integralPercentBaseAmount", ty: ValueType::Str, default: Some("100"), is_list: false },
-    FieldSpec { field: "commentSendPoint", code: "commentSendPoint", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "showSendPoint", code: "showSendPoint", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "useQiandaoPoint", code: "useQiandaoPoint", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "continuousSignIn", code: "continuousSignIn", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "canInvoice", code: "canInvoice", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "invoiceAdded", code: "invoiceAdded", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "returnConsignee", code: "returnConsignee", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "returnMobile", code: "returnMobile", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "returnAddress", code: "returnAddress", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "childAreaNeedRegion", code: "childAreaNeedRegion", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "integralName", code: "integralName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "integralScale", code: "integralScale", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "orderSendPoint", code: "orderSendPoint", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "orderSendPointNode", code: "orderSendPointNode", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "orderCompleteSendPointDays", code: "orderCompleteSendPointDays", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "integralPercent", code: "integralPercent", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "integralPercentBaseAmount", code: "integralPercentBaseAmount", ty: ValueType::Str, default: Some("100"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "commentSendPoint", code: "commentSendPoint", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "showSendPoint", code: "showSendPoint", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "useQiandaoPoint", code: "useQiandaoPoint", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "continuousSignIn", code: "continuousSignIn", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "canInvoice", code: "canInvoice", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "invoiceAdded", code: "invoiceAdded", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "returnConsignee", code: "returnConsignee", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "returnMobile", code: "returnMobile", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "returnAddress", code: "returnAddress", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP6_FIELDS: [FieldSpec; 16] = [
-    FieldSpec { field: "autoDeliveryDays", code: "autoDeliveryDays", ty: ValueType::Decimal, default: None, is_list: false },
-    FieldSpec { field: "autoReturnGoods", code: "autoReturnGoods", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "autoReturnGoodsDays", code: "autoReturnGoodsDays", ty: ValueType::Decimal, default: None, is_list: false },
-    FieldSpec { field: "autoConfirmReceiptDays", code: "autoConfirmReceiptDays", ty: ValueType::Decimal, default: None, is_list: false },
-    FieldSpec { field: "afterSalesLimitDays", code: "afterSalesLimitDays", ty: ValueType::Decimal, default: None, is_list: false },
-    FieldSpec { field: "autoCancelOrderMinute", code: "autoCancelOrderMinute", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "isPlatformCancelPaidOrder", code: "isPlatformCancelPaidOrder", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "isPlatformCancelDeliverOrder", code: "isPlatformCancelDeliverOrder", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "isShopCancelDeliverOrder", code: "isShopCancelDeliverOrder", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "afterSalesReview", code: "afterSalesReview", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "financialReview", code: "financialReview", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "virtualOrderAutoDeliver", code: "virtualOrderAutoDeliver", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "afterSalesReasonEnabled", code: "afterSalesReasonEnabled", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "afterSalesReasonList", code: "afterSalesReasonList", ty: ValueType::JsonArray, default: Some("[\"多拍/拍错/不喜欢\",\"未按约定时间发货\",\"协商一致退款\",\"地址/电话填错了\",\"其他\"]"), is_list: true },
-    FieldSpec { field: "adminShoppingUsePoint", code: "adminShoppingUsePoint", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "adminShoppingUseBalance", code: "adminShoppingUseBalance", ty: ValueType::Int, default: Some("0"), is_list: false },
+    FieldSpec { field: "autoDeliveryDays", code: "autoDeliveryDays", ty: ValueType::Decimal, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "autoReturnGoods", code: "autoReturnGoods", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "autoReturnGoodsDays", code: "autoReturnGoodsDays", ty: ValueType::Decimal, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "autoConfirmReceiptDays", code: "autoConfirmReceiptDays", ty: ValueType::Decimal, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "afterSalesLimitDays", code: "afterSalesLimitDays", ty: ValueType::Decimal, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "autoCancelOrderMinute", code: "autoCancelOrderMinute", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "isPlatformCancelPaidOrder", code: "isPlatformCancelPaidOrder", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "isPlatformCancelDeliverOrder", code: "isPlatformCancelDeliverOrder", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "isShopCancelDeliverOrder", code: "isShopCancelDeliverOrder", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "afterSalesReview", code: "afterSalesReview", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "financialReview", code: "financialReview", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "virtualOrderAutoDeliver", code: "virtualOrderAutoDeliver", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "afterSalesReasonEnabled", code: "afterSalesReasonEnabled", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "afterSalesReasonList", code: "afterSalesReasonList", ty: ValueType::JsonArray, default: Some("[\"多拍/拍错/不喜欢\",\"未按约定时间发货\",\"协商一致退款\",\"地址/电话填错了\",\"其他\"]"), is_list: true, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "adminShoppingUsePoint", code: "adminShoppingUsePoint", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "adminShoppingUseBalance", code: "adminShoppingUseBalance", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP7_FIELDS: [FieldSpec; 16] = [
-    FieldSpec { field: "autoDeliveryDays", code: "autoDeliveryDays", ty: ValueType::Decimal, default: None, is_list: false },
-    FieldSpec { field: "autoReturnGoods", code: "autoReturnGoods", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "autoReturnGoodsDays", code: "autoReturnGoodsDays", ty: ValueType::Decimal, default: None, is_list: false },
-    FieldSpec { field: "autoConfirmReceiptDays", code: "autoConfirmReceiptDays", ty: ValueType::Decimal, default: None, is_list: false },
-    FieldSpec { field: "afterSalesLimitDays", code: "afterSalesLimitDays", ty: ValueType::Decimal, default: None, is_list: false },
-    FieldSpec { field: "autoCancelOrderMinute", code: "autoCancelOrderMinute", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "isPlatformCancelPaidOrder", code: "isPlatformCancelPaidOrder", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "isPlatformCancelDeliverOrder", code: "isPlatformCancelDeliverOrder", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "isShopCancelDeliverOrder", code: "isShopCancelDeliverOrder", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "afterSalesReview", code: "afterSalesReview", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "financialReview", code: "financialReview", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "virtualOrderAutoDeliver", code: "virtualOrderAutoDeliver", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "afterSalesReasonEnabled", code: "afterSalesReasonEnabled", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "afterSalesReasonList", code: "afterSalesReasonList", ty: ValueType::JsonArray, default: Some("[\"多拍/拍错/不喜欢\",\"未按约定时间发货\",\"协商一致退款\",\"地址/电话填错了\",\"其他\"]"), is_list: true },
-    FieldSpec { field: "adminShoppingUsePoint", code: "adminShoppingUsePoint", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "adminShoppingUseBalance", code: "adminShoppingUseBalance", ty: ValueType::Int, default: Some("0"), is_list: false },
+    FieldSpec { field: "autoDeliveryDays", code: "autoDeliveryDays", ty: ValueType::Decimal, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "autoReturnGoods", code: "autoReturnGoods", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "autoReturnGoodsDays", code: "autoReturnGoodsDays", ty: ValueType::Decimal, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "autoConfirmReceiptDays", code: "autoConfirmReceiptDays", ty: ValueType::Decimal, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "afterSalesLimitDays", code: "afterSalesLimitDays", ty: ValueType::Decimal, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "autoCancelOrderMinute", code: "autoCancelOrderMinute", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "isPlatformCancelPaidOrder", code: "isPlatformCancelPaidOrder", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "isPlatformCancelDeliverOrder", code: "isPlatformCancelDeliverOrder", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "isShopCancelDeliverOrder", code: "isShopCancelDeliverOrder", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "afterSalesReview", code: "afterSalesReview", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "financialReview", code: "financialReview", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "virtualOrderAutoDeliver", code: "virtualOrderAutoDeliver", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "afterSalesReasonEnabled", code: "afterSalesReasonEnabled", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "afterSalesReasonList", code: "afterSalesReasonList", ty: ValueType::JsonArray, default: Some("[\"多拍/拍错/不喜欢\",\"未按约定时间发货\",\"协商一致退款\",\"地址/电话填错了\",\"其他\"]"), is_list: true, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "adminShoppingUsePoint", code: "adminShoppingUsePoint", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "adminShoppingUseBalance", code: "adminShoppingUseBalance", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP8_FIELDS: [FieldSpec; 9] = [
-    FieldSpec { field: "kefuType", code: "kefuType", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "kefuYzfType", code: "kefuYzfType", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "kefuYzfSign", code: "kefuYzfSign", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "kefuWorkwxId", code: "kefuWorkwxId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "corpId", code: "corpId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "kefuCode", code: "kefuCode", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "kefuCodeBlank", code: "kefuCodeBlank", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "kefuPhone", code: "kefuPhone", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "kefuTime", code: "kefuTime", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "kefuType", code: "kefuType", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kefuYzfType", code: "kefuYzfType", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kefuYzfSign", code: "kefuYzfSign", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kefuWorkwxId", code: "kefuWorkwxId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "corpId", code: "corpId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kefuCode", code: "kefuCode", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kefuCodeBlank", code: "kefuCodeBlank", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kefuPhone", code: "kefuPhone", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kefuTime", code: "kefuTime", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP9_FIELDS: [FieldSpec; 9] = [
-    FieldSpec { field: "kefuType", code: "kefuType", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "kefuYzfType", code: "kefuYzfType", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "kefuYzfSign", code: "kefuYzfSign", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "kefuWorkwxId", code: "kefuWorkwxId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "corpId", code: "corpId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "kefuCode", code: "kefuCode", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "kefuCodeBlank", code: "kefuCodeBlank", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "kefuPhone", code: "kefuPhone", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "kefuTime", code: "kefuTime", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "kefuType", code: "kefuType", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kefuYzfType", code: "kefuYzfType", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kefuYzfSign", code: "kefuYzfSign", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kefuWorkwxId", code: "kefuWorkwxId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "corpId", code: "corpId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kefuCode", code: "kefuCode", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kefuCodeBlank", code: "kefuCodeBlank", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kefuPhone", code: "kefuPhone", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kefuTime", code: "kefuTime", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP10_FIELDS: [FieldSpec; 21] = [
-    FieldSpec { field: "defaultLogisticsName", code: "defaultLogisticsName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "logisticsProvider", code: "logisticsProvider", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "kdniaoApiKey", code: "kdniaoApiKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "kdniaoBusinessId", code: "kdniaoBusinessId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "kuaidi100Customer", code: "kuaidi100Customer", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "kuaidi100Key", code: "kuaidi100Key", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "kuaidi100Secret", code: "kuaidi100Secret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "kuaidi100Siid", code: "kuaidi100Siid", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "kuaidi100PrintType", code: "kuaidi100PrintType", ty: ValueType::Str, default: Some("HTML"), is_list: false },
-    FieldSpec { field: "sender", code: "sender", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "mobile", code: "mobile", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "provinceName", code: "provinceName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "cityName", code: "cityName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "areaName", code: "areaName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "address", code: "address", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "receiveSender", code: "receiveSender", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "receiveMobile", code: "receiveMobile", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "receiveProvinceName", code: "receiveProvinceName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "receiveCityName", code: "receiveCityName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "receiveAreaName", code: "receiveAreaName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "receiveAddress", code: "receiveAddress", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "defaultLogisticsName", code: "defaultLogisticsName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "logisticsProvider", code: "logisticsProvider", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kdniaoApiKey", code: "kdniaoApiKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kdniaoBusinessId", code: "kdniaoBusinessId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kuaidi100Customer", code: "kuaidi100Customer", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kuaidi100Key", code: "kuaidi100Key", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kuaidi100Secret", code: "kuaidi100Secret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kuaidi100Siid", code: "kuaidi100Siid", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kuaidi100PrintType", code: "kuaidi100PrintType", ty: ValueType::Str, default: Some("HTML"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "sender", code: "sender", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "mobile", code: "mobile", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "provinceName", code: "provinceName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "cityName", code: "cityName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "areaName", code: "areaName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "address", code: "address", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "receiveSender", code: "receiveSender", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "receiveMobile", code: "receiveMobile", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "receiveProvinceName", code: "receiveProvinceName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "receiveCityName", code: "receiveCityName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "receiveAreaName", code: "receiveAreaName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "receiveAddress", code: "receiveAddress", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP11_FIELDS: [FieldSpec; 21] = [
-    FieldSpec { field: "defaultLogisticsName", code: "defaultLogisticsName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "logisticsProvider", code: "logisticsProvider", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "kdniaoApiKey", code: "kdniaoApiKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "kdniaoBusinessId", code: "kdniaoBusinessId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "kuaidi100Customer", code: "kuaidi100Customer", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "kuaidi100Key", code: "kuaidi100Key", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "kuaidi100Secret", code: "kuaidi100Secret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "kuaidi100Siid", code: "kuaidi100Siid", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "kuaidi100PrintType", code: "kuaidi100PrintType", ty: ValueType::Str, default: Some("HTML"), is_list: false },
-    FieldSpec { field: "sender", code: "sender", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "mobile", code: "mobile", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "provinceName", code: "provinceName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "cityName", code: "cityName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "areaName", code: "areaName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "address", code: "address", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "receiveSender", code: "receiveSender", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "receiveMobile", code: "receiveMobile", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "receiveProvinceName", code: "receiveProvinceName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "receiveCityName", code: "receiveCityName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "receiveAreaName", code: "receiveAreaName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "receiveAddress", code: "receiveAddress", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "defaultLogisticsName", code: "defaultLogisticsName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "logisticsProvider", code: "logisticsProvider", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kdniaoApiKey", code: "kdniaoApiKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kdniaoBusinessId", code: "kdniaoBusinessId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kuaidi100Customer", code: "kuaidi100Customer", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kuaidi100Key", code: "kuaidi100Key", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kuaidi100Secret", code: "kuaidi100Secret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kuaidi100Siid", code: "kuaidi100Siid", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "kuaidi100PrintType", code: "kuaidi100PrintType", ty: ValueType::Str, default: Some("HTML"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "sender", code: "sender", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "mobile", code: "mobile", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "provinceName", code: "provinceName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "cityName", code: "cityName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "areaName", code: "areaName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "address", code: "address", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "receiveSender", code: "receiveSender", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "receiveMobile", code: "receiveMobile", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "receiveProvinceName", code: "receiveProvinceName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "receiveCityName", code: "receiveCityName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "receiveAreaName", code: "receiveAreaName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "receiveAddress", code: "receiveAddress", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP12_FIELDS: [FieldSpec; 56] = [
-    FieldSpec { field: "navTheme", code: "navTheme", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "primaryColor", code: "primaryColor", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "layout", code: "layout", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "adminLightLogo", code: "adminLightLogo", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "versionInfoHidden", code: "versionInfoHidden", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "seoCategoryEnable", code: "seoCategoryEnable", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "seoProductEnable", code: "seoProductEnable", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "shopTitleSuffix", code: "shopTitleSuffix", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "shopTitle", code: "shopTitle", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "shopKeywords", code: "shopKeywords", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "shopDesc", code: "shopDesc", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "icoImg", code: "icoImg", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "clientDefaultUse", code: "clientDefaultUse", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "pcDomain", code: "pcDomain", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "h5Domain", code: "h5Domain", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "adminDomain", code: "adminDomain", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "autoRedirect", code: "autoRedirect", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "uploadMaxSize", code: "uploadMaxSize", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "imageUploadMaxSize", code: "imageUploadMaxSize", ty: ValueType::Decimal, default: Some("20"), is_list: false },
-    FieldSpec { field: "materialUploadNameType", code: "materialUploadNameType", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "searchKeywords", code: "searchKeywords", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "msgHackWord", code: "msgHackWord", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "isOpenPscws", code: "isOpenPscws", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "selectSearchType", code: "selectSearchType", ty: ValueType::Str, default: Some("mysql"), is_list: false },
-    FieldSpec { field: "shopDefaultRegions", code: "shopDefaultRegions", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "defaultCountry", code: "defaultCountry", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "icoDefinedCss", code: "icoDefinedCss", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageType", code: "storageType", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "storageLocalUrl", code: "storageLocalUrl", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageOssUrl", code: "storageOssUrl", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageOssAccessKeyId", code: "storageOssAccessKeyId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageOssAccessKeySecret", code: "storageOssAccessKeySecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageOssBucket", code: "storageOssBucket", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageOssRegion", code: "storageOssRegion", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageCosUrl", code: "storageCosUrl", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageCosSecretId", code: "storageCosSecretId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageCosSecretKey", code: "storageCosSecretKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageCosBucket", code: "storageCosBucket", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageCosRegion", code: "storageCosRegion", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageQiniuUrl", code: "storageQiniuUrl", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageQiniuAccessKey", code: "storageQiniuAccessKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageQiniuSecretKey", code: "storageQiniuSecretKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageQiniuBucket", code: "storageQiniuBucket", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageQiniuRegion", code: "storageQiniuRegion", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageS3Url", code: "storageS3Url", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageS3AccessKey", code: "storageS3AccessKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageS3SecretKey", code: "storageS3SecretKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageS3Bucket", code: "storageS3Bucket", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageS3Region", code: "storageS3Region", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageS3Endpoint", code: "storageS3Endpoint", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "langOn", code: "langOn", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "langType", code: "langType", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "langVolcengineAccessKey", code: "langVolcengineAccessKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "langVolcengineSecret", code: "langVolcengineSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "workbuddyApiKey", code: "workbuddyApiKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "workbuddyApiKeyExpiresAt", code: "workbuddyApiKeyExpiresAt", ty: ValueType::Long, default: None, is_list: false },
+    FieldSpec { field: "navTheme", code: "navTheme", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "primaryColor", code: "primaryColor", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "layout", code: "layout", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "adminLightLogo", code: "adminLightLogo", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "versionInfoHidden", code: "versionInfoHidden", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "seoCategoryEnable", code: "seoCategoryEnable", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "seoProductEnable", code: "seoProductEnable", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopTitleSuffix", code: "shopTitleSuffix", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopTitle", code: "shopTitle", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopKeywords", code: "shopKeywords", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopDesc", code: "shopDesc", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "icoImg", code: "icoImg", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "clientDefaultUse", code: "clientDefaultUse", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "pcDomain", code: "pcDomain", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "h5Domain", code: "h5Domain", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "adminDomain", code: "adminDomain", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "autoRedirect", code: "autoRedirect", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "uploadMaxSize", code: "uploadMaxSize", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "imageUploadMaxSize", code: "imageUploadMaxSize", ty: ValueType::Decimal, default: Some("20"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "materialUploadNameType", code: "materialUploadNameType", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "searchKeywords", code: "searchKeywords", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "msgHackWord", code: "msgHackWord", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "isOpenPscws", code: "isOpenPscws", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "selectSearchType", code: "selectSearchType", ty: ValueType::Str, default: Some("mysql"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopDefaultRegions", code: "shopDefaultRegions", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "defaultCountry", code: "defaultCountry", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "icoDefinedCss", code: "icoDefinedCss", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageType", code: "storageType", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageLocalUrl", code: "storageLocalUrl", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageOssUrl", code: "storageOssUrl", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageOssAccessKeyId", code: "storageOssAccessKeyId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageOssAccessKeySecret", code: "storageOssAccessKeySecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageOssBucket", code: "storageOssBucket", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageOssRegion", code: "storageOssRegion", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageCosUrl", code: "storageCosUrl", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageCosSecretId", code: "storageCosSecretId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageCosSecretKey", code: "storageCosSecretKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageCosBucket", code: "storageCosBucket", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageCosRegion", code: "storageCosRegion", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageQiniuUrl", code: "storageQiniuUrl", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageQiniuAccessKey", code: "storageQiniuAccessKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageQiniuSecretKey", code: "storageQiniuSecretKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageQiniuBucket", code: "storageQiniuBucket", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageQiniuRegion", code: "storageQiniuRegion", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageS3Url", code: "storageS3Url", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageS3AccessKey", code: "storageS3AccessKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageS3SecretKey", code: "storageS3SecretKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageS3Bucket", code: "storageS3Bucket", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageS3Region", code: "storageS3Region", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageS3Endpoint", code: "storageS3Endpoint", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "langOn", code: "langOn", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "langType", code: "langType", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "langVolcengineAccessKey", code: "langVolcengineAccessKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "langVolcengineSecret", code: "langVolcengineSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "workbuddyApiKey", code: "workbuddyApiKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "workbuddyApiKeyExpiresAt", code: "workbuddyApiKeyExpiresAt", ty: ValueType::Long, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP13_FIELDS: [FieldSpec; 56] = [
-    FieldSpec { field: "navTheme", code: "navTheme", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "primaryColor", code: "primaryColor", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "layout", code: "layout", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "adminLightLogo", code: "adminLightLogo", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "versionInfoHidden", code: "versionInfoHidden", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "seoCategoryEnable", code: "seoCategoryEnable", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "seoProductEnable", code: "seoProductEnable", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "shopTitleSuffix", code: "shopTitleSuffix", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "shopTitle", code: "shopTitle", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "shopKeywords", code: "shopKeywords", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "shopDesc", code: "shopDesc", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "icoImg", code: "icoImg", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "clientDefaultUse", code: "clientDefaultUse", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "pcDomain", code: "pcDomain", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "h5Domain", code: "h5Domain", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "adminDomain", code: "adminDomain", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "autoRedirect", code: "autoRedirect", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "uploadMaxSize", code: "uploadMaxSize", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "imageUploadMaxSize", code: "imageUploadMaxSize", ty: ValueType::Decimal, default: Some("20"), is_list: false },
-    FieldSpec { field: "materialUploadNameType", code: "materialUploadNameType", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "searchKeywords", code: "searchKeywords", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "msgHackWord", code: "msgHackWord", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "isOpenPscws", code: "isOpenPscws", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "selectSearchType", code: "selectSearchType", ty: ValueType::Str, default: Some("mysql"), is_list: false },
-    FieldSpec { field: "shopDefaultRegions", code: "shopDefaultRegions", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "defaultCountry", code: "defaultCountry", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "icoDefinedCss", code: "icoDefinedCss", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageType", code: "storageType", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "storageLocalUrl", code: "storageLocalUrl", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageOssUrl", code: "storageOssUrl", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageOssAccessKeyId", code: "storageOssAccessKeyId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageOssAccessKeySecret", code: "storageOssAccessKeySecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageOssBucket", code: "storageOssBucket", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageOssRegion", code: "storageOssRegion", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageCosUrl", code: "storageCosUrl", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageCosSecretId", code: "storageCosSecretId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageCosSecretKey", code: "storageCosSecretKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageCosBucket", code: "storageCosBucket", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageCosRegion", code: "storageCosRegion", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageQiniuUrl", code: "storageQiniuUrl", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageQiniuAccessKey", code: "storageQiniuAccessKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageQiniuSecretKey", code: "storageQiniuSecretKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageQiniuBucket", code: "storageQiniuBucket", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageQiniuRegion", code: "storageQiniuRegion", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageS3Url", code: "storageS3Url", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageS3AccessKey", code: "storageS3AccessKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageS3SecretKey", code: "storageS3SecretKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageS3Bucket", code: "storageS3Bucket", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageS3Region", code: "storageS3Region", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageS3Endpoint", code: "storageS3Endpoint", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "langOn", code: "langOn", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "langType", code: "langType", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "langVolcengineAccessKey", code: "langVolcengineAccessKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "langVolcengineSecret", code: "langVolcengineSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "workbuddyApiKey", code: "workbuddyApiKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "workbuddyApiKeyExpiresAt", code: "workbuddyApiKeyExpiresAt", ty: ValueType::Long, default: None, is_list: false },
+    FieldSpec { field: "navTheme", code: "navTheme", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "primaryColor", code: "primaryColor", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "layout", code: "layout", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "adminLightLogo", code: "adminLightLogo", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "versionInfoHidden", code: "versionInfoHidden", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "seoCategoryEnable", code: "seoCategoryEnable", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "seoProductEnable", code: "seoProductEnable", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopTitleSuffix", code: "shopTitleSuffix", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopTitle", code: "shopTitle", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopKeywords", code: "shopKeywords", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopDesc", code: "shopDesc", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "icoImg", code: "icoImg", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "clientDefaultUse", code: "clientDefaultUse", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "pcDomain", code: "pcDomain", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "h5Domain", code: "h5Domain", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "adminDomain", code: "adminDomain", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "autoRedirect", code: "autoRedirect", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "uploadMaxSize", code: "uploadMaxSize", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "imageUploadMaxSize", code: "imageUploadMaxSize", ty: ValueType::Decimal, default: Some("20"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "materialUploadNameType", code: "materialUploadNameType", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "searchKeywords", code: "searchKeywords", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "msgHackWord", code: "msgHackWord", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "isOpenPscws", code: "isOpenPscws", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "selectSearchType", code: "selectSearchType", ty: ValueType::Str, default: Some("mysql"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopDefaultRegions", code: "shopDefaultRegions", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "defaultCountry", code: "defaultCountry", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "icoDefinedCss", code: "icoDefinedCss", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageType", code: "storageType", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageLocalUrl", code: "storageLocalUrl", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageOssUrl", code: "storageOssUrl", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageOssAccessKeyId", code: "storageOssAccessKeyId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageOssAccessKeySecret", code: "storageOssAccessKeySecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageOssBucket", code: "storageOssBucket", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageOssRegion", code: "storageOssRegion", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageCosUrl", code: "storageCosUrl", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageCosSecretId", code: "storageCosSecretId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageCosSecretKey", code: "storageCosSecretKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageCosBucket", code: "storageCosBucket", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageCosRegion", code: "storageCosRegion", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageQiniuUrl", code: "storageQiniuUrl", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageQiniuAccessKey", code: "storageQiniuAccessKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageQiniuSecretKey", code: "storageQiniuSecretKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageQiniuBucket", code: "storageQiniuBucket", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageQiniuRegion", code: "storageQiniuRegion", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageS3Url", code: "storageS3Url", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageS3AccessKey", code: "storageS3AccessKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageS3SecretKey", code: "storageS3SecretKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageS3Bucket", code: "storageS3Bucket", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageS3Region", code: "storageS3Region", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageS3Endpoint", code: "storageS3Endpoint", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "langOn", code: "langOn", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "langType", code: "langType", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "langVolcengineAccessKey", code: "langVolcengineAccessKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "langVolcengineSecret", code: "langVolcengineSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "workbuddyApiKey", code: "workbuddyApiKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "workbuddyApiKeyExpiresAt", code: "workbuddyApiKeyExpiresAt", ty: ValueType::Long, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP17_FIELDS: [FieldSpec; 21] = [
-    FieldSpec { field: "openWechatOauth", code: "openWechatOauth", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "wechatAppId", code: "wechatAppId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "wechatAppSecret", code: "wechatAppSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "wechatServerToken", code: "wechatServerToken", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "wechatServerSecret", code: "wechatServerSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "openWechatRegister", code: "openWechatRegister", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "wechatShareNeedLogin", code: "wechatShareNeedLogin", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "openWechatPcLogin", code: "openWechatPcLogin", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "wechatRegisterBindPhone", code: "wechatRegisterBindPhone", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "facebookLoginOn", code: "facebookLoginOn", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "facebookClientId", code: "facebookClientId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "facebookClientSecret", code: "facebookClientSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "googleLoginOn", code: "googleLoginOn", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "googleClientId", code: "googleClientId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "googleClientSecret", code: "googleClientSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "twitterLoginOn", code: "twitterLoginOn", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "twitterClientId", code: "twitterClientId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "twitterClientSecret", code: "twitterClientSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "isOpenMobileAreaCode", code: "isOpenMobileAreaCode", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "usernamePrefix", code: "usernamePrefix", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "openEmailRegister", code: "openEmailRegister", ty: ValueType::Int, default: None, is_list: false },
+    FieldSpec { field: "openWechatOauth", code: "openWechatOauth", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatAppId", code: "wechatAppId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatAppSecret", code: "wechatAppSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatServerToken", code: "wechatServerToken", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatServerSecret", code: "wechatServerSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "openWechatRegister", code: "openWechatRegister", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatShareNeedLogin", code: "wechatShareNeedLogin", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "openWechatPcLogin", code: "openWechatPcLogin", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatRegisterBindPhone", code: "wechatRegisterBindPhone", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "facebookLoginOn", code: "facebookLoginOn", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "facebookClientId", code: "facebookClientId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "facebookClientSecret", code: "facebookClientSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "googleLoginOn", code: "googleLoginOn", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "googleClientId", code: "googleClientId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "googleClientSecret", code: "googleClientSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "twitterLoginOn", code: "twitterLoginOn", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "twitterClientId", code: "twitterClientId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "twitterClientSecret", code: "twitterClientSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "isOpenMobileAreaCode", code: "isOpenMobileAreaCode", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "usernamePrefix", code: "usernamePrefix", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "openEmailRegister", code: "openEmailRegister", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP18_FIELDS: [FieldSpec; 21] = [
-    FieldSpec { field: "openWechatOauth", code: "openWechatOauth", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "wechatAppId", code: "wechatAppId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "wechatAppSecret", code: "wechatAppSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "wechatServerToken", code: "wechatServerToken", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "wechatServerSecret", code: "wechatServerSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "openWechatRegister", code: "openWechatRegister", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "wechatShareNeedLogin", code: "wechatShareNeedLogin", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "openWechatPcLogin", code: "openWechatPcLogin", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "wechatRegisterBindPhone", code: "wechatRegisterBindPhone", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "facebookLoginOn", code: "facebookLoginOn", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "facebookClientId", code: "facebookClientId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "facebookClientSecret", code: "facebookClientSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "googleLoginOn", code: "googleLoginOn", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "googleClientId", code: "googleClientId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "googleClientSecret", code: "googleClientSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "twitterLoginOn", code: "twitterLoginOn", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "twitterClientId", code: "twitterClientId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "twitterClientSecret", code: "twitterClientSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "isOpenMobileAreaCode", code: "isOpenMobileAreaCode", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "usernamePrefix", code: "usernamePrefix", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "openEmailRegister", code: "openEmailRegister", ty: ValueType::Int, default: None, is_list: false },
+    FieldSpec { field: "openWechatOauth", code: "openWechatOauth", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatAppId", code: "wechatAppId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatAppSecret", code: "wechatAppSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatServerToken", code: "wechatServerToken", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatServerSecret", code: "wechatServerSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "openWechatRegister", code: "openWechatRegister", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatShareNeedLogin", code: "wechatShareNeedLogin", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "openWechatPcLogin", code: "openWechatPcLogin", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatRegisterBindPhone", code: "wechatRegisterBindPhone", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "facebookLoginOn", code: "facebookLoginOn", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "facebookClientId", code: "facebookClientId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "facebookClientSecret", code: "facebookClientSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "googleLoginOn", code: "googleLoginOn", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "googleClientId", code: "googleClientId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "googleClientSecret", code: "googleClientSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "twitterLoginOn", code: "twitterLoginOn", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "twitterClientId", code: "twitterClientId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "twitterClientSecret", code: "twitterClientSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "isOpenMobileAreaCode", code: "isOpenMobileAreaCode", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "usernamePrefix", code: "usernamePrefix", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "openEmailRegister", code: "openEmailRegister", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP19_FIELDS: [FieldSpec; 5] = [
-    FieldSpec { field: "useSurplus", code: "useSurplus", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "usePoints", code: "usePoints", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "useCoupon", code: "useCoupon", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "useCredit", code: "useCredit", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "paymentOrder", code: "paymentOrder", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "useSurplus", code: "useSurplus", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "usePoints", code: "usePoints", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "useCoupon", code: "useCoupon", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "useCredit", code: "useCredit", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "paymentOrder", code: "paymentOrder", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP20_FIELDS: [FieldSpec; 5] = [
-    FieldSpec { field: "useSurplus", code: "useSurplus", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "usePoints", code: "usePoints", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "useCoupon", code: "useCoupon", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "useCredit", code: "useCredit", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "paymentOrder", code: "paymentOrder", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "useSurplus", code: "useSurplus", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "usePoints", code: "usePoints", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "useCoupon", code: "useCoupon", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "useCredit", code: "useCredit", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "paymentOrder", code: "paymentOrder", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP21_FIELDS: [FieldSpec; 17] = [
-    FieldSpec { field: "useWechat", code: "useWechat", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "wechatMchidType", code: "wechatMchidType", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "wechatPayMchid", code: "wechatPayMchid", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "wechatPaySubMchid", code: "wechatPaySubMchid", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "wechatPayKey", code: "wechatPayKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "wechatPayV2Key", code: "wechatPayV2Key", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "wechatPaySerialNo", code: "wechatPaySerialNo", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "wechatPayCertificate", code: "wechatPayCertificate", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "wechatPayPrivateKey", code: "wechatPayPrivateKey", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "wechatPayCheckType", code: "wechatPayCheckType", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "wechatPayPlatformCertificate", code: "wechatPayPlatformCertificate", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "wechatPayPublicKeyId", code: "wechatPayPublicKeyId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "wechatPayPublicKey", code: "wechatPayPublicKey", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "wechatMiniProgramAppId", code: "wechatMiniProgramAppId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "wechatMiniProgramSecret", code: "wechatMiniProgramSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "wechatPayAppId", code: "wechatPayAppId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "wechatPayAppSecret", code: "wechatPayAppSecret", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "useWechat", code: "useWechat", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatMchidType", code: "wechatMchidType", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPayMchid", code: "wechatPayMchid", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPaySubMchid", code: "wechatPaySubMchid", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPayKey", code: "wechatPayKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPayV2Key", code: "wechatPayV2Key", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPaySerialNo", code: "wechatPaySerialNo", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPayCertificate", code: "wechatPayCertificate", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPayPrivateKey", code: "wechatPayPrivateKey", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPayCheckType", code: "wechatPayCheckType", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPayPlatformCertificate", code: "wechatPayPlatformCertificate", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPayPublicKeyId", code: "wechatPayPublicKeyId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPayPublicKey", code: "wechatPayPublicKey", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatMiniProgramAppId", code: "wechatMiniProgramAppId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatMiniProgramSecret", code: "wechatMiniProgramSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPayAppId", code: "wechatPayAppId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPayAppSecret", code: "wechatPayAppSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP22_FIELDS: [FieldSpec; 17] = [
-    FieldSpec { field: "useWechat", code: "useWechat", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "wechatMchidType", code: "wechatMchidType", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "wechatPayMchid", code: "wechatPayMchid", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "wechatPaySubMchid", code: "wechatPaySubMchid", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "wechatPayKey", code: "wechatPayKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "wechatPayV2Key", code: "wechatPayV2Key", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "wechatPaySerialNo", code: "wechatPaySerialNo", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "wechatPayCertificate", code: "wechatPayCertificate", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "wechatPayPrivateKey", code: "wechatPayPrivateKey", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "wechatPayCheckType", code: "wechatPayCheckType", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "wechatPayPlatformCertificate", code: "wechatPayPlatformCertificate", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "wechatPayPublicKeyId", code: "wechatPayPublicKeyId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "wechatPayPublicKey", code: "wechatPayPublicKey", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "wechatMiniProgramAppId", code: "wechatMiniProgramAppId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "wechatMiniProgramSecret", code: "wechatMiniProgramSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "wechatPayAppId", code: "wechatPayAppId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "wechatPayAppSecret", code: "wechatPayAppSecret", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "useWechat", code: "useWechat", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatMchidType", code: "wechatMchidType", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPayMchid", code: "wechatPayMchid", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPaySubMchid", code: "wechatPaySubMchid", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPayKey", code: "wechatPayKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPayV2Key", code: "wechatPayV2Key", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPaySerialNo", code: "wechatPaySerialNo", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPayCertificate", code: "wechatPayCertificate", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPayPrivateKey", code: "wechatPayPrivateKey", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPayCheckType", code: "wechatPayCheckType", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPayPlatformCertificate", code: "wechatPayPlatformCertificate", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPayPublicKeyId", code: "wechatPayPublicKeyId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPayPublicKey", code: "wechatPayPublicKey", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatMiniProgramAppId", code: "wechatMiniProgramAppId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatMiniProgramSecret", code: "wechatMiniProgramSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPayAppId", code: "wechatPayAppId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatPayAppSecret", code: "wechatPayAppSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP23_FIELDS: [FieldSpec; 1] = [
-    FieldSpec { field: "miniImgSecCheck", code: "miniImgSecCheck", ty: ValueType::Int, default: Some("0"), is_list: false },
+    FieldSpec { field: "miniImgSecCheck", code: "miniImgSecCheck", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP24_FIELDS: [FieldSpec; 1] = [
-    FieldSpec { field: "miniImgSecCheck", code: "miniImgSecCheck", ty: ValueType::Int, default: Some("0"), is_list: false },
+    FieldSpec { field: "miniImgSecCheck", code: "miniImgSecCheck", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP25_FIELDS: [FieldSpec; 2] = [
-    FieldSpec { field: "wechatLiveMiniAppId", code: "wechatLiveMiniAppId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "wechatLiveMiniAppSecret", code: "wechatLiveMiniAppSecret", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "wechatLiveMiniAppId", code: "wechatLiveMiniAppId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatLiveMiniAppSecret", code: "wechatLiveMiniAppSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP26_FIELDS: [FieldSpec; 2] = [
-    FieldSpec { field: "wechatLiveMiniAppId", code: "wechatLiveMiniAppId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "wechatLiveMiniAppSecret", code: "wechatLiveMiniAppSecret", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "wechatLiveMiniAppId", code: "wechatLiveMiniAppId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "wechatLiveMiniAppSecret", code: "wechatLiveMiniAppSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP29_FIELDS: [FieldSpec; 12] = [
-    FieldSpec { field: "useAlipay", code: "useAlipay", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "alipayAppid", code: "alipayAppid", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "alipayMobileAppid", code: "alipayMobileAppid", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "alipayRsaPrivateKey", code: "alipayRsaPrivateKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "alipayRsaPublicKey", code: "alipayRsaPublicKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "alipayProfitSharingEnabled", code: "alipayProfitSharingEnabled", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "alipayDelayAcctEnabled", code: "alipayDelayAcctEnabled", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "alipayProfitSharingNotifyUrl", code: "alipayProfitSharingNotifyUrl", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "alipayProfitSharingMaxRatio", code: "alipayProfitSharingMaxRatio", ty: ValueType::Str, default: Some("30.00"), is_list: false },
-    FieldSpec { field: "alipayProfitSharingRuleOrigin", code: "alipayProfitSharingRuleOrigin", ty: ValueType::Str, default: Some("01"), is_list: false },
-    FieldSpec { field: "alipayProfitSharingPlatformId", code: "alipayProfitSharingPlatformId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "alipayAppAuthToken", code: "alipayAppAuthToken", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "useAlipay", code: "useAlipay", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "alipayAppid", code: "alipayAppid", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "alipayMobileAppid", code: "alipayMobileAppid", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "alipayRsaPrivateKey", code: "alipayRsaPrivateKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "alipayRsaPublicKey", code: "alipayRsaPublicKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "alipayProfitSharingEnabled", code: "alipayProfitSharingEnabled", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "alipayDelayAcctEnabled", code: "alipayDelayAcctEnabled", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "alipayProfitSharingNotifyUrl", code: "alipayProfitSharingNotifyUrl", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "alipayProfitSharingMaxRatio", code: "alipayProfitSharingMaxRatio", ty: ValueType::Str, default: Some("30.00"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "alipayProfitSharingRuleOrigin", code: "alipayProfitSharingRuleOrigin", ty: ValueType::Str, default: Some("01"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "alipayProfitSharingPlatformId", code: "alipayProfitSharingPlatformId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "alipayAppAuthToken", code: "alipayAppAuthToken", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP30_FIELDS: [FieldSpec; 12] = [
-    FieldSpec { field: "useAlipay", code: "useAlipay", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "alipayAppid", code: "alipayAppid", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "alipayMobileAppid", code: "alipayMobileAppid", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "alipayRsaPrivateKey", code: "alipayRsaPrivateKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "alipayRsaPublicKey", code: "alipayRsaPublicKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "alipayProfitSharingEnabled", code: "alipayProfitSharingEnabled", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "alipayDelayAcctEnabled", code: "alipayDelayAcctEnabled", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "alipayProfitSharingNotifyUrl", code: "alipayProfitSharingNotifyUrl", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "alipayProfitSharingMaxRatio", code: "alipayProfitSharingMaxRatio", ty: ValueType::Str, default: Some("30.00"), is_list: false },
-    FieldSpec { field: "alipayProfitSharingRuleOrigin", code: "alipayProfitSharingRuleOrigin", ty: ValueType::Str, default: Some("01"), is_list: false },
-    FieldSpec { field: "alipayProfitSharingPlatformId", code: "alipayProfitSharingPlatformId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "alipayAppAuthToken", code: "alipayAppAuthToken", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "useAlipay", code: "useAlipay", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "alipayAppid", code: "alipayAppid", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "alipayMobileAppid", code: "alipayMobileAppid", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "alipayRsaPrivateKey", code: "alipayRsaPrivateKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "alipayRsaPublicKey", code: "alipayRsaPublicKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "alipayProfitSharingEnabled", code: "alipayProfitSharingEnabled", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "alipayDelayAcctEnabled", code: "alipayDelayAcctEnabled", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "alipayProfitSharingNotifyUrl", code: "alipayProfitSharingNotifyUrl", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "alipayProfitSharingMaxRatio", code: "alipayProfitSharingMaxRatio", ty: ValueType::Str, default: Some("30.00"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "alipayProfitSharingRuleOrigin", code: "alipayProfitSharingRuleOrigin", ty: ValueType::Str, default: Some("01"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "alipayProfitSharingPlatformId", code: "alipayProfitSharingPlatformId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "alipayAppAuthToken", code: "alipayAppAuthToken", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP31_FIELDS: [FieldSpec; 6] = [
-    FieldSpec { field: "useYabanpay", code: "useYabanpay", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "useYabanpayWechat", code: "useYabanpayWechat", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "useYabanpayAlipay", code: "useYabanpayAlipay", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "yabanpayCurrency", code: "yabanpayCurrency", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "yabandpayUid", code: "yabandpayUid", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "yabandpaySecretKey", code: "yabandpaySecretKey", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "useYabanpay", code: "useYabanpay", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "useYabanpayWechat", code: "useYabanpayWechat", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "useYabanpayAlipay", code: "useYabanpayAlipay", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "yabanpayCurrency", code: "yabanpayCurrency", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "yabandpayUid", code: "yabandpayUid", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "yabandpaySecretKey", code: "yabandpaySecretKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP32_FIELDS: [FieldSpec; 6] = [
-    FieldSpec { field: "useYabanpay", code: "useYabanpay", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "useYabanpayWechat", code: "useYabanpayWechat", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "useYabanpayAlipay", code: "useYabanpayAlipay", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "yabanpayCurrency", code: "yabanpayCurrency", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "yabandpayUid", code: "yabandpayUid", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "yabandpaySecretKey", code: "yabandpaySecretKey", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "useYabanpay", code: "useYabanpay", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "useYabanpayWechat", code: "useYabanpayWechat", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "useYabanpayAlipay", code: "useYabanpayAlipay", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "yabanpayCurrency", code: "yabanpayCurrency", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "yabandpayUid", code: "yabandpayUid", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "yabandpaySecretKey", code: "yabandpaySecretKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP33_FIELDS: [FieldSpec; 9] = [
-    FieldSpec { field: "useOffline", code: "useOffline", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "offlinePayBankEnable", code: "offlinePayBankEnable", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "offlinePayBank", code: "offlinePayBank", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "offlinePayCompanyEnable", code: "offlinePayCompanyEnable", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "offlinePayCompany", code: "offlinePayCompany", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "thirdPartyPaymentTransferEnable", code: "thirdPartyPaymentTransferEnable", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "thirdPartyPaymentTransfer", code: "thirdPartyPaymentTransfer", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "otherPaymentRemittanceEnable", code: "otherPaymentRemittanceEnable", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "otherPaymentRemittance", code: "otherPaymentRemittance", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "useOffline", code: "useOffline", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "offlinePayBankEnable", code: "offlinePayBankEnable", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "offlinePayBank", code: "offlinePayBank", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "offlinePayCompanyEnable", code: "offlinePayCompanyEnable", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "offlinePayCompany", code: "offlinePayCompany", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "thirdPartyPaymentTransferEnable", code: "thirdPartyPaymentTransferEnable", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "thirdPartyPaymentTransfer", code: "thirdPartyPaymentTransfer", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "otherPaymentRemittanceEnable", code: "otherPaymentRemittanceEnable", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "otherPaymentRemittance", code: "otherPaymentRemittance", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP34_FIELDS: [FieldSpec; 9] = [
-    FieldSpec { field: "useOffline", code: "useOffline", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "offlinePayBankEnable", code: "offlinePayBankEnable", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "offlinePayBank", code: "offlinePayBank", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "offlinePayCompanyEnable", code: "offlinePayCompanyEnable", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "offlinePayCompany", code: "offlinePayCompany", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "thirdPartyPaymentTransferEnable", code: "thirdPartyPaymentTransferEnable", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "thirdPartyPaymentTransfer", code: "thirdPartyPaymentTransfer", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "otherPaymentRemittanceEnable", code: "otherPaymentRemittanceEnable", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "otherPaymentRemittance", code: "otherPaymentRemittance", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "useOffline", code: "useOffline", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "offlinePayBankEnable", code: "offlinePayBankEnable", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "offlinePayBank", code: "offlinePayBank", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "offlinePayCompanyEnable", code: "offlinePayCompanyEnable", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "offlinePayCompany", code: "offlinePayCompany", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "thirdPartyPaymentTransferEnable", code: "thirdPartyPaymentTransferEnable", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "thirdPartyPaymentTransfer", code: "thirdPartyPaymentTransfer", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "otherPaymentRemittanceEnable", code: "otherPaymentRemittanceEnable", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "otherPaymentRemittance", code: "otherPaymentRemittance", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP35_FIELDS: [FieldSpec; 6] = [
-    FieldSpec { field: "usePaypal", code: "usePaypal", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "paypalCurrency", code: "paypalCurrency", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "paypalClientId", code: "paypalClientId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "paypalSecret", code: "paypalClientSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "paypalCurrencyListStr", code: "paypalCurrencyList", ty: ValueType::Str, default: Some(""), is_list: false },
-    FieldSpec { field: "paypalCurrencyList", code: "paypalCurrencyList", ty: ValueType::Str, default: Some(""), is_list: false },
+    FieldSpec { field: "usePaypal", code: "usePaypal", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "paypalCurrency", code: "paypalCurrency", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "paypalClientId", code: "paypalClientId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "paypalSecret", code: "paypalClientSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "paypalCurrencyListStr", code: "paypalCurrencyList", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "paypalCurrencyList", code: "paypalCurrencyList", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP36_FIELDS: [FieldSpec; 4] = [
-    FieldSpec { field: "usePaypal", code: "usePaypal", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "paypalCurrency", code: "paypalCurrency", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "paypalClientId", code: "paypalClientId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "paypalSecret", code: "paypalClientSecret", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "usePaypal", code: "usePaypal", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "paypalCurrency", code: "paypalCurrency", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "paypalClientId", code: "paypalClientId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "paypalSecret", code: "paypalClientSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP37_FIELDS: [FieldSpec; 3] = [
-    FieldSpec { field: "useYunpay", code: "useYunpay", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "yunpayUid", code: "yunpayUid", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "yunpaySecretKey", code: "yunpaySecretKey", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "useYunpay", code: "useYunpay", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "yunpayUid", code: "yunpayUid", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "yunpaySecretKey", code: "yunpaySecretKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP38_FIELDS: [FieldSpec; 3] = [
-    FieldSpec { field: "useYunpay", code: "useYunpay", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "yunpayUid", code: "yunpayUid", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "yunpaySecretKey", code: "yunpaySecretKey", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "useYunpay", code: "useYunpay", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "yunpayUid", code: "yunpayUid", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "yunpaySecretKey", code: "yunpaySecretKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP39_FIELDS: [FieldSpec; 10] = [
-    FieldSpec { field: "mailService", code: "mailService", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "smtpSsl", code: "smtpSsl", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "smtpHost", code: "smtpHost", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smtpPort", code: "smtpPort", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smtpUser", code: "smtpUser", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smtpPass", code: "smtpPass", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smtpMail", code: "smtpMail", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "mailCharset", code: "mailCharset", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "testMailAddress", code: "testMailAddress", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "serviceEMail", code: "serviceEmail", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "mailService", code: "mailService", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smtpSsl", code: "smtpSsl", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smtpHost", code: "smtpHost", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smtpPort", code: "smtpPort", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smtpUser", code: "smtpUser", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smtpPass", code: "smtpPass", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smtpMail", code: "smtpMail", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "mailCharset", code: "mailCharset", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "testMailAddress", code: "testMailAddress", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "serviceEMail", code: "serviceEmail", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP40_FIELDS: [FieldSpec; 10] = [
-    FieldSpec { field: "mailService", code: "mailService", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "smtpSsl", code: "smtpSsl", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "smtpHost", code: "smtpHost", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smtpPort", code: "smtpPort", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smtpUser", code: "smtpUser", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smtpPass", code: "smtpPass", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smtpMail", code: "smtpMail", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "mailCharset", code: "mailCharset", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "testMailAddress", code: "testMailAddress", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "serviceEMail", code: "serviceEmail", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "mailService", code: "mailService", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smtpSsl", code: "smtpSsl", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smtpHost", code: "smtpHost", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smtpPort", code: "smtpPort", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smtpUser", code: "smtpUser", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smtpPass", code: "smtpPass", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smtpMail", code: "smtpMail", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "mailCharset", code: "mailCharset", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "testMailAddress", code: "testMailAddress", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "serviceEMail", code: "serviceEmail", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP42_FIELDS: [FieldSpec; 28] = [
-    FieldSpec { field: "smsProvider", code: "smsProvider", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "smsKeyId", code: "smsKeyId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsKeySecret", code: "smsKeySecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsSignName", code: "smsSignName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsShopMobile", code: "smsShopMobile", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsTencentSecretId", code: "smsTencentSecretId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsTencentSecretKey", code: "smsTencentSecretKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsTencentSdkAppId", code: "smsTencentSdkAppId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsTencentSignName", code: "smsTencentSignName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsTencentShopMobile", code: "smsTencentShopMobile", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsHuaweiAppKey", code: "smsHuaweiAppKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsHuaweiAppSecret", code: "smsHuaweiAppSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsHuaweiChannel", code: "smsHuaweiChannel", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsHuaweiSignName", code: "smsHuaweiSignName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsHuaweiEndpoint", code: "smsHuaweiEndpoint", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsHuaweiShopMobile", code: "smsHuaweiShopMobile", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsVolcengineAccessKey", code: "smsVolcengineAccessKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsVolcengineSecretKey", code: "smsVolcengineSecretKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsVolcengineSmsAccount", code: "smsVolcengineSmsAccount", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsVolcengineSignName", code: "smsVolcengineSignName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsVolcengineShopMobile", code: "smsVolcengineShopMobile", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsAliyunChannel", code: "smsAliyunChannel", ty: ValueType::Str, default: Some("1"), is_list: false },
-    FieldSpec { field: "smsSenderId", code: "smsSenderId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "serviceEmail", code: "serviceEmail", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "sendConfirmEmail", code: "sendConfirmEmail", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "orderPayEmail", code: "orderPayEmail", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "sendServiceEmail", code: "sendServiceEmail", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "sendShipEmail", code: "sendShipEmail", ty: ValueType::Int, default: None, is_list: false },
+    FieldSpec { field: "smsProvider", code: "smsProvider", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsKeyId", code: "smsKeyId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsKeySecret", code: "smsKeySecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsSignName", code: "smsSignName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsShopMobile", code: "smsShopMobile", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsTencentSecretId", code: "smsTencentSecretId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsTencentSecretKey", code: "smsTencentSecretKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsTencentSdkAppId", code: "smsTencentSdkAppId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsTencentSignName", code: "smsTencentSignName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsTencentShopMobile", code: "smsTencentShopMobile", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsHuaweiAppKey", code: "smsHuaweiAppKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsHuaweiAppSecret", code: "smsHuaweiAppSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsHuaweiChannel", code: "smsHuaweiChannel", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsHuaweiSignName", code: "smsHuaweiSignName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsHuaweiEndpoint", code: "smsHuaweiEndpoint", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsHuaweiShopMobile", code: "smsHuaweiShopMobile", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsVolcengineAccessKey", code: "smsVolcengineAccessKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsVolcengineSecretKey", code: "smsVolcengineSecretKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsVolcengineSmsAccount", code: "smsVolcengineSmsAccount", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsVolcengineSignName", code: "smsVolcengineSignName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsVolcengineShopMobile", code: "smsVolcengineShopMobile", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsAliyunChannel", code: "smsAliyunChannel", ty: ValueType::Str, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsSenderId", code: "smsSenderId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "serviceEmail", code: "serviceEmail", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "sendConfirmEmail", code: "sendConfirmEmail", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "orderPayEmail", code: "orderPayEmail", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "sendServiceEmail", code: "sendServiceEmail", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "sendShipEmail", code: "sendShipEmail", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP43_FIELDS: [FieldSpec; 28] = [
-    FieldSpec { field: "smsProvider", code: "smsProvider", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "smsKeyId", code: "smsKeyId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsKeySecret", code: "smsKeySecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsSignName", code: "smsSignName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsShopMobile", code: "smsShopMobile", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsTencentSecretId", code: "smsTencentSecretId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsTencentSecretKey", code: "smsTencentSecretKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsTencentSdkAppId", code: "smsTencentSdkAppId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsTencentSignName", code: "smsTencentSignName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsTencentShopMobile", code: "smsTencentShopMobile", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsHuaweiAppKey", code: "smsHuaweiAppKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsHuaweiAppSecret", code: "smsHuaweiAppSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsHuaweiChannel", code: "smsHuaweiChannel", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsHuaweiSignName", code: "smsHuaweiSignName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsHuaweiEndpoint", code: "smsHuaweiEndpoint", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsHuaweiShopMobile", code: "smsHuaweiShopMobile", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsVolcengineAccessKey", code: "smsVolcengineAccessKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsVolcengineSecretKey", code: "smsVolcengineSecretKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsVolcengineSmsAccount", code: "smsVolcengineSmsAccount", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsVolcengineSignName", code: "smsVolcengineSignName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsVolcengineShopMobile", code: "smsVolcengineShopMobile", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "smsAliyunChannel", code: "smsAliyunChannel", ty: ValueType::Str, default: Some("1"), is_list: false },
-    FieldSpec { field: "smsSenderId", code: "smsSenderId", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "serviceEmail", code: "serviceEmail", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "sendConfirmEmail", code: "sendConfirmEmail", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "orderPayEmail", code: "orderPayEmail", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "sendServiceEmail", code: "sendServiceEmail", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "sendShipEmail", code: "sendShipEmail", ty: ValueType::Int, default: None, is_list: false },
+    FieldSpec { field: "smsProvider", code: "smsProvider", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsKeyId", code: "smsKeyId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsKeySecret", code: "smsKeySecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsSignName", code: "smsSignName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsShopMobile", code: "smsShopMobile", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsTencentSecretId", code: "smsTencentSecretId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsTencentSecretKey", code: "smsTencentSecretKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsTencentSdkAppId", code: "smsTencentSdkAppId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsTencentSignName", code: "smsTencentSignName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsTencentShopMobile", code: "smsTencentShopMobile", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsHuaweiAppKey", code: "smsHuaweiAppKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsHuaweiAppSecret", code: "smsHuaweiAppSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsHuaweiChannel", code: "smsHuaweiChannel", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsHuaweiSignName", code: "smsHuaweiSignName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsHuaweiEndpoint", code: "smsHuaweiEndpoint", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsHuaweiShopMobile", code: "smsHuaweiShopMobile", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsVolcengineAccessKey", code: "smsVolcengineAccessKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsVolcengineSecretKey", code: "smsVolcengineSecretKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsVolcengineSmsAccount", code: "smsVolcengineSmsAccount", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsVolcengineSignName", code: "smsVolcengineSignName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsVolcengineShopMobile", code: "smsVolcengineShopMobile", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsAliyunChannel", code: "smsAliyunChannel", ty: ValueType::Str, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsSenderId", code: "smsSenderId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "serviceEmail", code: "serviceEmail", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "sendConfirmEmail", code: "sendConfirmEmail", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "orderPayEmail", code: "orderPayEmail", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "sendServiceEmail", code: "sendServiceEmail", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "sendShipEmail", code: "sendShipEmail", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP44_FIELDS: [FieldSpec; 5] = [
-    FieldSpec { field: "closeAuth", code: "closeAuth", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "type", code: "type", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "isIdentity", code: "isIdentity", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "smsNote", code: "smsNote", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "tips", code: "tips", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "closeAuth", code: "closeAuth", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "type", code: "type", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "isIdentity", code: "isIdentity", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsNote", code: "smsNote", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "tips", code: "tips", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP45_FIELDS: [FieldSpec; 5] = [
-    FieldSpec { field: "closeAuth", code: "closeAuth", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "type", code: "type", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "isIdentity", code: "isIdentity", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "smsNote", code: "smsNote", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "tips", code: "tips", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "closeAuth", code: "closeAuth", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "type", code: "type", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "isIdentity", code: "isIdentity", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "smsNote", code: "smsNote", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "tips", code: "tips", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP46_FIELDS: [FieldSpec; 2] = [
-    FieldSpec { field: "templateContent", code: "templateContent", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "showTemplateContent", code: "showTemplateContent", ty: ValueType::Bool, default: Some("true"), is_list: false },
+    FieldSpec { field: "templateContent", code: "templateContent", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "showTemplateContent", code: "showTemplateContent", ty: ValueType::Bool, default: Some("true"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP47_FIELDS: [FieldSpec; 2] = [
-    FieldSpec { field: "templateContent", code: "templateContent", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "showTemplateContent", code: "showTemplateContent", ty: ValueType::Bool, default: Some("true"), is_list: false },
+    FieldSpec { field: "templateContent", code: "templateContent", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "showTemplateContent", code: "showTemplateContent", ty: ValueType::Bool, default: Some("true"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP48_FIELDS: [FieldSpec; 1] = [
-    FieldSpec { field: "themeStyle", code: "themeStyle", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "themeStyle", code: "themeStyle", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP49_FIELDS: [FieldSpec; 1] = [
-    FieldSpec { field: "themeStyle", code: "themeStyle", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "themeStyle", code: "themeStyle", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP50_FIELDS: [FieldSpec; 1] = [
-    FieldSpec { field: "productCategoryDecorateType", code: "productCategoryDecorateType", ty: ValueType::Int, default: None, is_list: false },
+    FieldSpec { field: "productCategoryDecorateType", code: "productCategoryDecorateType", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP51_FIELDS: [FieldSpec; 1] = [
-    FieldSpec { field: "productCategoryDecorateType", code: "productCategoryDecorateType", ty: ValueType::Int, default: None, is_list: false },
+    FieldSpec { field: "productCategoryDecorateType", code: "productCategoryDecorateType", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP52_FIELDS: [FieldSpec; 1] = [
-    FieldSpec { field: "productDetailStyleType", code: "productDetailStyleType", ty: ValueType::Int, default: None, is_list: false },
+    FieldSpec { field: "productDetailStyleType", code: "productDetailStyleType", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP53_FIELDS: [FieldSpec; 1] = [
-    FieldSpec { field: "productDetailStyleType", code: "productDetailStyleType", ty: ValueType::Int, default: None, is_list: false },
+    FieldSpec { field: "productDetailStyleType", code: "productDetailStyleType", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP54_FIELDS: [FieldSpec; 1] = [
-    FieldSpec { field: "searchStyleType", code: "searchStyleType", ty: ValueType::Int, default: None, is_list: false },
+    FieldSpec { field: "searchStyleType", code: "searchStyleType", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP55_FIELDS: [FieldSpec; 1] = [
-    FieldSpec { field: "searchStyleType", code: "searchStyleType", ty: ValueType::Int, default: None, is_list: false },
+    FieldSpec { field: "searchStyleType", code: "searchStyleType", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP56_FIELDS: [FieldSpec; 1] = [
-    FieldSpec { field: "mobileSearchStyleType", code: "mobileSearchStyleType", ty: ValueType::Int, default: Some("1"), is_list: false },
+    FieldSpec { field: "mobileSearchStyleType", code: "mobileSearchStyleType", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP57_FIELDS: [FieldSpec; 1] = [
-    FieldSpec { field: "mobileSearchStyleType", code: "mobileSearchStyleType", ty: ValueType::Int, default: Some("1"), is_list: false },
+    FieldSpec { field: "mobileSearchStyleType", code: "mobileSearchStyleType", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP58_FIELDS: [FieldSpec; 1] = [
-    FieldSpec { field: "useNewMemberCenter", code: "useNewMemberCenter", ty: ValueType::Int, default: Some("0"), is_list: false },
+    FieldSpec { field: "useNewMemberCenter", code: "useNewMemberCenter", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP59_FIELDS: [FieldSpec; 1] = [
-    FieldSpec { field: "useNewMemberCenter", code: "useNewMemberCenter", ty: ValueType::Int, default: Some("0"), is_list: false },
+    FieldSpec { field: "useNewMemberCenter", code: "useNewMemberCenter", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP60_FIELDS: [FieldSpec; 4] = [
-    FieldSpec { field: "shopProductNeedCheck", code: "shopProductNeedCheck", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "maxRecommendProductCount", code: "maxRecommendProductCount", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "maxSubAdministrator", code: "maxSubAdministrator", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "defaultShopName", code: "defaultShopName", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "shopProductNeedCheck", code: "shopProductNeedCheck", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "maxRecommendProductCount", code: "maxRecommendProductCount", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "maxSubAdministrator", code: "maxSubAdministrator", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "defaultShopName", code: "defaultShopName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP61_FIELDS: [FieldSpec; 4] = [
-    FieldSpec { field: "shopProductNeedCheck", code: "shopProductNeedCheck", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "maxRecommendProductCount", code: "maxRecommendProductCount", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "maxSubAdministrator", code: "maxSubAdministrator", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "defaultShopName", code: "defaultShopName", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "shopProductNeedCheck", code: "shopProductNeedCheck", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "maxRecommendProductCount", code: "maxRecommendProductCount", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "maxSubAdministrator", code: "maxSubAdministrator", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "defaultShopName", code: "defaultShopName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP62_FIELDS: [FieldSpec; 4] = [
-    FieldSpec { field: "buyerShowEnabled", code: "buyerShowEnabled", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "buyerShowMobileShowName", code: "buyerShowMobileShowName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "buyerShowGuidanceContent", code: "buyerShowGuidanceContent", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "buyerShowTemplateStyle", code: "buyerShowTemplateStyle", ty: ValueType::Int, default: None, is_list: false },
+    FieldSpec { field: "buyerShowEnabled", code: "buyerShowEnabled", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "buyerShowMobileShowName", code: "buyerShowMobileShowName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "buyerShowGuidanceContent", code: "buyerShowGuidanceContent", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "buyerShowTemplateStyle", code: "buyerShowTemplateStyle", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP63_FIELDS: [FieldSpec; 4] = [
-    FieldSpec { field: "buyerShowEnabled", code: "buyerShowEnabled", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "buyerShowMobileShowName", code: "buyerShowMobileShowName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "buyerShowGuidanceContent", code: "buyerShowGuidanceContent", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "buyerShowTemplateStyle", code: "buyerShowTemplateStyle", ty: ValueType::Int, default: None, is_list: false },
+    FieldSpec { field: "buyerShowEnabled", code: "buyerShowEnabled", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "buyerShowMobileShowName", code: "buyerShowMobileShowName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "buyerShowGuidanceContent", code: "buyerShowGuidanceContent", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "buyerShowTemplateStyle", code: "buyerShowTemplateStyle", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP64_FIELDS: [FieldSpec; 4] = [
-    FieldSpec { field: "personApplyEnabled", code: "personApplyEnabled", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "merchantApplyNeedCheck", code: "merchantApplyNeedCheck", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "maxShopCount", code: "maxShopCount", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "shopAgreement", code: "shopAgreement", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "personApplyEnabled", code: "personApplyEnabled", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "merchantApplyNeedCheck", code: "merchantApplyNeedCheck", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "maxShopCount", code: "maxShopCount", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopAgreement", code: "shopAgreement", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP65_FIELDS: [FieldSpec; 4] = [
-    FieldSpec { field: "personApplyEnabled", code: "personApplyEnabled", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "merchantApplyNeedCheck", code: "merchantApplyNeedCheck", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "maxShopCount", code: "maxShopCount", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "shopAgreement", code: "shopAgreement", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "personApplyEnabled", code: "personApplyEnabled", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "merchantApplyNeedCheck", code: "merchantApplyNeedCheck", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "maxShopCount", code: "maxShopCount", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopAgreement", code: "shopAgreement", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP66_FIELDS: [FieldSpec; 2] = [
-    FieldSpec { field: "shopLogo", code: "shopLogo", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "shopName", code: "shopName", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "shopLogo", code: "shopLogo", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopName", code: "shopName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP67_FIELDS: [FieldSpec; 38] = [
-    FieldSpec { field: "icoDefinedCss", code: "icoDefinedCss", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "dollarSign", code: "dollarSign", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "dollarSignCn", code: "dollarSignCn", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "storageType", code: "storageType", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "clientDefaultUse", code: "clientDefaultUse", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "pcDomain", code: "pcDomain", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "h5Domain", code: "h5Domain", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "uploadMaxSize", code: "uploadMaxSize", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "imageUploadMaxSize", code: "imageUploadMaxSize", ty: ValueType::Decimal, default: Some("20"), is_list: false },
-    FieldSpec { field: "shopCompany", code: "shopCompany", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "shopCompanyTxt", code: "shopCompanyTxt", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "poweredBy", code: "poweredBy", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "poweredByLogo", code: "poweredByLogo", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "poweredByStatus", code: "poweredByStatus", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "layout", code: "layout", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "navTheme", code: "navTheme", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "primaryColor", code: "primaryColor", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "adminLightLogo", code: "adminLightLogo", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "versionInfoHidden", code: "versionInfoHidden", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "defaultCopyright", code: "defaultCopyright", ty: ValueType::Str, default: Some("© 2018 江西佰商科技版权所有"), is_list: false },
-    FieldSpec { field: "defaultTechSupport", code: "defaultTechSupport", ty: ValueType::Str, default: Some("/static/mini/images/common/default_tech_support.png"), is_list: false },
-    FieldSpec { field: "isOpenShopMember", code: "shopMemberEnabled", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "shopMemberEnabled", code: "shopMemberEnabled", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "shopMemberDesensitize", code: "shopMemberDesensitize", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "shopMemberAllowAdd", code: "shopMemberAllowAdd", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "shopMemberAllowImport", code: "shopMemberAllowImport", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "shopTitle", code: "storeSelfOperatedName", ty: ValueType::Str, default: Some(""), is_list: false },
-    FieldSpec { field: "customProductNameLength", code: "customProductNameLength", ty: ValueType::Int, default: Some("200"), is_list: false },
-    FieldSpec { field: "productEditStockModify", code: "productEditStockModify", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "specImageMode", code: "specImageMode", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "withdrawalReceiptMethod", code: "withdrawalReceiptMethod", ty: ValueType::Json, default: Some("[1,2,3]"), is_list: false },
-    FieldSpec { field: "withdrawalEnabled", code: "withdrawalEnabled", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "minAmount", code: "minAmount", ty: ValueType::Decimal, default: Some("0"), is_list: false },
-    FieldSpec { field: "maxAmount", code: "maxAmount", ty: ValueType::Decimal, default: Some("0"), is_list: false },
-    FieldSpec { field: "withdrawalFrequencyUnit", code: "withdrawalFrequencyUnit", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "withdrawalFrequencyCount", code: "withdrawalFrequencyCount", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "withdrawalReviewMethod", code: "withdrawalReviewMethod", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "withdrawalDescription", code: "withdrawalDescription", ty: ValueType::Str, default: Some(""), is_list: false },
+    FieldSpec { field: "icoDefinedCss", code: "icoDefinedCss", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "dollarSign", code: "dollarSign", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "dollarSignCn", code: "dollarSignCn", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storageType", code: "storageType", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "clientDefaultUse", code: "clientDefaultUse", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "pcDomain", code: "pcDomain", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "h5Domain", code: "h5Domain", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "uploadMaxSize", code: "uploadMaxSize", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "imageUploadMaxSize", code: "imageUploadMaxSize", ty: ValueType::Decimal, default: Some("20"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopCompany", code: "shopCompany", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopCompanyTxt", code: "shopCompanyTxt", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "poweredBy", code: "poweredBy", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "poweredByLogo", code: "poweredByLogo", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "poweredByStatus", code: "poweredByStatus", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "layout", code: "layout", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "navTheme", code: "navTheme", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "primaryColor", code: "primaryColor", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "adminLightLogo", code: "adminLightLogo", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "versionInfoHidden", code: "versionInfoHidden", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "defaultCopyright", code: "defaultCopyright", ty: ValueType::Str, default: Some("© 2018 江西佰商科技版权所有"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "defaultTechSupport", code: "defaultTechSupport", ty: ValueType::Str, default: Some("/static/mini/images/common/default_tech_support.png"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "isOpenShopMember", code: "shopMemberEnabled", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopMemberEnabled", code: "shopMemberEnabled", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopMemberDesensitize", code: "shopMemberDesensitize", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopMemberAllowAdd", code: "shopMemberAllowAdd", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopMemberAllowImport", code: "shopMemberAllowImport", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopTitle", code: "storeSelfOperatedName", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "customProductNameLength", code: "customProductNameLength", ty: ValueType::Int, default: Some("200"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "productEditStockModify", code: "productEditStockModify", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "specImageMode", code: "specImageMode", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "withdrawalReceiptMethod", code: "withdrawalReceiptMethod", ty: ValueType::Json, default: Some("[1,2,3]"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "withdrawalEnabled", code: "withdrawalEnabled", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "minAmount", code: "minAmount", ty: ValueType::Decimal, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "maxAmount", code: "maxAmount", ty: ValueType::Decimal, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "withdrawalFrequencyUnit", code: "withdrawalFrequencyUnit", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "withdrawalFrequencyCount", code: "withdrawalFrequencyCount", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "withdrawalReviewMethod", code: "withdrawalReviewMethod", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "withdrawalDescription", code: "withdrawalDescription", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP67_NESTED: [NestedSpec; 1] = [
@@ -1021,299 +1143,299 @@ static EP67_NESTED: [NestedSpec; 1] = [
 ];
 
 static EP71_FIELDS: [FieldSpec; 4] = [
-    FieldSpec { field: "vendorProductNeedCheck", code: "vendorProductNeedCheck", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "vendorMaxSubAdministrator", code: "vendorMaxSubAdministrator", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "vendorSetPriceType", code: "vendorSetPriceType", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "vendorSetPriceAutoValue", code: "vendorSetPriceAutoValue", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "vendorProductNeedCheck", code: "vendorProductNeedCheck", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "vendorMaxSubAdministrator", code: "vendorMaxSubAdministrator", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "vendorSetPriceType", code: "vendorSetPriceType", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "vendorSetPriceAutoValue", code: "vendorSetPriceAutoValue", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP72_FIELDS: [FieldSpec; 4] = [
-    FieldSpec { field: "vendorProductNeedCheck", code: "vendorProductNeedCheck", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "vendorMaxSubAdministrator", code: "vendorMaxSubAdministrator", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "vendorSetPriceType", code: "vendorSetPriceType", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "vendorSetPriceAutoValue", code: "vendorSetPriceAutoValue", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "vendorProductNeedCheck", code: "vendorProductNeedCheck", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "vendorMaxSubAdministrator", code: "vendorMaxSubAdministrator", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "vendorSetPriceType", code: "vendorSetPriceType", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "vendorSetPriceAutoValue", code: "vendorSetPriceAutoValue", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP73_FIELDS: [FieldSpec; 3] = [
-    FieldSpec { field: "termsOfServiceShow", code: "termsOfServiceShow", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "privacyPolicyShow", code: "privacyPolicyShow", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "afterSalesServiceShow", code: "afterSalesServiceShow", ty: ValueType::Int, default: None, is_list: false },
+    FieldSpec { field: "termsOfServiceShow", code: "termsOfServiceShow", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "privacyPolicyShow", code: "privacyPolicyShow", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "afterSalesServiceShow", code: "afterSalesServiceShow", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP76_FIELDS: [FieldSpec; 17] = [
-    FieldSpec { field: "billingNode", code: "billingNode", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "collectionNode", code: "collectionNode", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "collectionTimeSetting", code: "collectionTimeSetting", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "collectionMethod", code: "collectionMethod", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "collectionAccountType", code: "collectionAccountType", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "profitSharingEnabled", code: "profitSharingEnabled", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "splitPaymentMethod", code: "splitPaymentMethod", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "profitSharingOnlineChannel", code: "profitSharingOnlineChannel", ty: ValueType::Str, default: Some("wechat"), is_list: false },
-    FieldSpec { field: "profitSharingCoolingDays", code: "profitSharingCoolingDays", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "autoProfitSharingEnabled", code: "autoProfitSharingEnabled", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "autoProfitSharingDays", code: "autoProfitSharingDays", ty: ValueType::Int, default: Some("7"), is_list: false },
-    FieldSpec { field: "storeGeneralServiceFeeRate", code: "storeGeneralServiceFeeRate", ty: ValueType::Decimal, default: Some("0"), is_list: false },
-    FieldSpec { field: "storeWithdrawalFeeRate", code: "storeWithdrawalFeeRate", ty: ValueType::Decimal, default: Some("0"), is_list: false },
-    FieldSpec { field: "storefrontGeneralServiceFeeRate", code: "storefrontGeneralServiceFeeRate", ty: ValueType::Decimal, default: Some("0"), is_list: false },
-    FieldSpec { field: "storefrontWithdrawalFeeRate", code: "storefrontWithdrawalFeeRate", ty: ValueType::Decimal, default: Some("0"), is_list: false },
-    FieldSpec { field: "supplierGeneralServiceFeeRate", code: "supplierGeneralServiceFeeRate", ty: ValueType::Decimal, default: Some("0"), is_list: false },
-    FieldSpec { field: "supplierWithdrawalFeeRate", code: "supplierWithdrawalFeeRate", ty: ValueType::Decimal, default: Some("0"), is_list: false },
+    FieldSpec { field: "billingNode", code: "billingNode", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "collectionNode", code: "collectionNode", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "collectionTimeSetting", code: "collectionTimeSetting", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "collectionMethod", code: "collectionMethod", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "collectionAccountType", code: "collectionAccountType", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "profitSharingEnabled", code: "profitSharingEnabled", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "splitPaymentMethod", code: "splitPaymentMethod", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "profitSharingOnlineChannel", code: "profitSharingOnlineChannel", ty: ValueType::Str, default: Some("wechat"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "profitSharingCoolingDays", code: "profitSharingCoolingDays", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "autoProfitSharingEnabled", code: "autoProfitSharingEnabled", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "autoProfitSharingDays", code: "autoProfitSharingDays", ty: ValueType::Int, default: Some("7"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeGeneralServiceFeeRate", code: "storeGeneralServiceFeeRate", ty: ValueType::Decimal, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeWithdrawalFeeRate", code: "storeWithdrawalFeeRate", ty: ValueType::Decimal, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storefrontGeneralServiceFeeRate", code: "storefrontGeneralServiceFeeRate", ty: ValueType::Decimal, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storefrontWithdrawalFeeRate", code: "storefrontWithdrawalFeeRate", ty: ValueType::Decimal, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "supplierGeneralServiceFeeRate", code: "supplierGeneralServiceFeeRate", ty: ValueType::Decimal, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "supplierWithdrawalFeeRate", code: "supplierWithdrawalFeeRate", ty: ValueType::Decimal, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP77_FIELDS: [FieldSpec; 17] = [
-    FieldSpec { field: "billingNode", code: "billingNode", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "collectionNode", code: "collectionNode", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "collectionTimeSetting", code: "collectionTimeSetting", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "collectionMethod", code: "collectionMethod", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "collectionAccountType", code: "collectionAccountType", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "profitSharingEnabled", code: "profitSharingEnabled", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "splitPaymentMethod", code: "splitPaymentMethod", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "profitSharingOnlineChannel", code: "profitSharingOnlineChannel", ty: ValueType::Str, default: Some("wechat"), is_list: false },
-    FieldSpec { field: "profitSharingCoolingDays", code: "profitSharingCoolingDays", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "autoProfitSharingEnabled", code: "autoProfitSharingEnabled", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "autoProfitSharingDays", code: "autoProfitSharingDays", ty: ValueType::Int, default: Some("7"), is_list: false },
-    FieldSpec { field: "storeGeneralServiceFeeRate", code: "storeGeneralServiceFeeRate", ty: ValueType::Decimal, default: Some("0"), is_list: false },
-    FieldSpec { field: "storeWithdrawalFeeRate", code: "storeWithdrawalFeeRate", ty: ValueType::Decimal, default: Some("0"), is_list: false },
-    FieldSpec { field: "storefrontGeneralServiceFeeRate", code: "storefrontGeneralServiceFeeRate", ty: ValueType::Decimal, default: Some("0"), is_list: false },
-    FieldSpec { field: "storefrontWithdrawalFeeRate", code: "storefrontWithdrawalFeeRate", ty: ValueType::Decimal, default: Some("0"), is_list: false },
-    FieldSpec { field: "supplierGeneralServiceFeeRate", code: "supplierGeneralServiceFeeRate", ty: ValueType::Decimal, default: Some("0"), is_list: false },
-    FieldSpec { field: "supplierWithdrawalFeeRate", code: "supplierWithdrawalFeeRate", ty: ValueType::Decimal, default: Some("0"), is_list: false },
+    FieldSpec { field: "billingNode", code: "billingNode", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "collectionNode", code: "collectionNode", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "collectionTimeSetting", code: "collectionTimeSetting", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "collectionMethod", code: "collectionMethod", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "collectionAccountType", code: "collectionAccountType", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "profitSharingEnabled", code: "profitSharingEnabled", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "splitPaymentMethod", code: "splitPaymentMethod", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "profitSharingOnlineChannel", code: "profitSharingOnlineChannel", ty: ValueType::Str, default: Some("wechat"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "profitSharingCoolingDays", code: "profitSharingCoolingDays", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "autoProfitSharingEnabled", code: "autoProfitSharingEnabled", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "autoProfitSharingDays", code: "autoProfitSharingDays", ty: ValueType::Int, default: Some("7"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeGeneralServiceFeeRate", code: "storeGeneralServiceFeeRate", ty: ValueType::Decimal, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeWithdrawalFeeRate", code: "storeWithdrawalFeeRate", ty: ValueType::Decimal, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storefrontGeneralServiceFeeRate", code: "storefrontGeneralServiceFeeRate", ty: ValueType::Decimal, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storefrontWithdrawalFeeRate", code: "storefrontWithdrawalFeeRate", ty: ValueType::Decimal, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "supplierGeneralServiceFeeRate", code: "supplierGeneralServiceFeeRate", ty: ValueType::Decimal, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "supplierWithdrawalFeeRate", code: "supplierWithdrawalFeeRate", ty: ValueType::Decimal, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP78_FIELDS: [FieldSpec; 16] = [
-    FieldSpec { field: "withdrawalReceiptMethod", code: "withdrawalReceiptMethod", ty: ValueType::Json, default: Some("[1,2,3]"), is_list: true },
-    FieldSpec { field: "withdrawalEnabled", code: "withdrawalEnabled", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "minAmount", code: "minAmount", ty: ValueType::Decimal, default: Some("0"), is_list: false },
-    FieldSpec { field: "maxAmount", code: "maxAmount", ty: ValueType::Decimal, default: Some("0"), is_list: false },
-    FieldSpec { field: "withdrawalFrequencyUnit", code: "withdrawalFrequencyUnit", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "withdrawalFrequencyCount", code: "withdrawalFrequencyCount", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "withdrawalReviewMethod", code: "withdrawalReviewMethod", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "withdrawalDescription", code: "withdrawalDescription", ty: ValueType::Str, default: Some(""), is_list: false },
-    FieldSpec { field: "onlineWithdrawEnabled", code: "onlineWithdrawEnabled", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "onlineMinAmount", code: "onlineMinAmount", ty: ValueType::Decimal, default: Some("0"), is_list: false },
-    FieldSpec { field: "onlineMaxAmount", code: "onlineMaxAmount", ty: ValueType::Decimal, default: Some("0"), is_list: false },
-    FieldSpec { field: "onlineWithdrawalFrequencyUnit", code: "onlineWithdrawalFrequencyUnit", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "onlineWithdrawalFrequencyCount", code: "onlineWithdrawalFrequencyCount", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "onlineWithdrawalReviewMethod", code: "onlineWithdrawalReviewMethod", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "onlineWithdrawalDescription", code: "onlineWithdrawalDescription", ty: ValueType::Str, default: Some(""), is_list: false },
-    FieldSpec { field: "onlineWithdrawChannels", code: "onlineWithdrawChannels", ty: ValueType::Json, default: Some("[\"WECHAT\"]"), is_list: true },
+    FieldSpec { field: "withdrawalReceiptMethod", code: "withdrawalReceiptMethod", ty: ValueType::Json, default: Some("[1,2,3]"), is_list: true, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "withdrawalEnabled", code: "withdrawalEnabled", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "minAmount", code: "minAmount", ty: ValueType::Decimal, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "maxAmount", code: "maxAmount", ty: ValueType::Decimal, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "withdrawalFrequencyUnit", code: "withdrawalFrequencyUnit", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "withdrawalFrequencyCount", code: "withdrawalFrequencyCount", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "withdrawalReviewMethod", code: "withdrawalReviewMethod", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "withdrawalDescription", code: "withdrawalDescription", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "onlineWithdrawEnabled", code: "onlineWithdrawEnabled", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "onlineMinAmount", code: "onlineMinAmount", ty: ValueType::Decimal, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "onlineMaxAmount", code: "onlineMaxAmount", ty: ValueType::Decimal, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "onlineWithdrawalFrequencyUnit", code: "onlineWithdrawalFrequencyUnit", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "onlineWithdrawalFrequencyCount", code: "onlineWithdrawalFrequencyCount", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "onlineWithdrawalReviewMethod", code: "onlineWithdrawalReviewMethod", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "onlineWithdrawalDescription", code: "onlineWithdrawalDescription", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "onlineWithdrawChannels", code: "onlineWithdrawChannels", ty: ValueType::Json, default: Some("[\"WECHAT\"]"), is_list: true, label: None, widget: None, required: None, group: None },
 ];
 
 static EP79_FIELDS: [FieldSpec; 16] = [
-    FieldSpec { field: "withdrawalReceiptMethod", code: "withdrawalReceiptMethod", ty: ValueType::Json, default: Some("[1,2,3]"), is_list: true },
-    FieldSpec { field: "withdrawalEnabled", code: "withdrawalEnabled", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "minAmount", code: "minAmount", ty: ValueType::Decimal, default: Some("0"), is_list: false },
-    FieldSpec { field: "maxAmount", code: "maxAmount", ty: ValueType::Decimal, default: Some("0"), is_list: false },
-    FieldSpec { field: "withdrawalFrequencyUnit", code: "withdrawalFrequencyUnit", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "withdrawalFrequencyCount", code: "withdrawalFrequencyCount", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "withdrawalReviewMethod", code: "withdrawalReviewMethod", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "withdrawalDescription", code: "withdrawalDescription", ty: ValueType::Str, default: Some(""), is_list: false },
-    FieldSpec { field: "onlineWithdrawEnabled", code: "onlineWithdrawEnabled", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "onlineMinAmount", code: "onlineMinAmount", ty: ValueType::Decimal, default: Some("0"), is_list: false },
-    FieldSpec { field: "onlineMaxAmount", code: "onlineMaxAmount", ty: ValueType::Decimal, default: Some("0"), is_list: false },
-    FieldSpec { field: "onlineWithdrawalFrequencyUnit", code: "onlineWithdrawalFrequencyUnit", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "onlineWithdrawalFrequencyCount", code: "onlineWithdrawalFrequencyCount", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "onlineWithdrawalReviewMethod", code: "onlineWithdrawalReviewMethod", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "onlineWithdrawalDescription", code: "onlineWithdrawalDescription", ty: ValueType::Str, default: Some(""), is_list: false },
-    FieldSpec { field: "onlineWithdrawChannels", code: "onlineWithdrawChannels", ty: ValueType::Json, default: Some("[\"WECHAT\"]"), is_list: true },
+    FieldSpec { field: "withdrawalReceiptMethod", code: "withdrawalReceiptMethod", ty: ValueType::Json, default: Some("[1,2,3]"), is_list: true, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "withdrawalEnabled", code: "withdrawalEnabled", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "minAmount", code: "minAmount", ty: ValueType::Decimal, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "maxAmount", code: "maxAmount", ty: ValueType::Decimal, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "withdrawalFrequencyUnit", code: "withdrawalFrequencyUnit", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "withdrawalFrequencyCount", code: "withdrawalFrequencyCount", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "withdrawalReviewMethod", code: "withdrawalReviewMethod", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "withdrawalDescription", code: "withdrawalDescription", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "onlineWithdrawEnabled", code: "onlineWithdrawEnabled", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "onlineMinAmount", code: "onlineMinAmount", ty: ValueType::Decimal, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "onlineMaxAmount", code: "onlineMaxAmount", ty: ValueType::Decimal, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "onlineWithdrawalFrequencyUnit", code: "onlineWithdrawalFrequencyUnit", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "onlineWithdrawalFrequencyCount", code: "onlineWithdrawalFrequencyCount", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "onlineWithdrawalReviewMethod", code: "onlineWithdrawalReviewMethod", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "onlineWithdrawalDescription", code: "onlineWithdrawalDescription", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "onlineWithdrawChannels", code: "onlineWithdrawChannels", ty: ValueType::Json, default: Some("[\"WECHAT\"]"), is_list: true, label: None, widget: None, required: None, group: None },
 ];
 
 static EP80_FIELDS: [FieldSpec; 3] = [
-    FieldSpec { field: "memberWithdrawalEnabled", code: "memberWithdrawalEnabled", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "memberWithdrawalReceiptMethod", code: "memberWithdrawalReceiptMethod", ty: ValueType::Json, default: Some("[1,2,3]"), is_list: true },
-    FieldSpec { field: "memberWithdrawalDescription", code: "memberWithdrawalDescription", ty: ValueType::Str, default: Some(""), is_list: false },
+    FieldSpec { field: "memberWithdrawalEnabled", code: "memberWithdrawalEnabled", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "memberWithdrawalReceiptMethod", code: "memberWithdrawalReceiptMethod", ty: ValueType::Json, default: Some("[1,2,3]"), is_list: true, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "memberWithdrawalDescription", code: "memberWithdrawalDescription", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP81_FIELDS: [FieldSpec; 3] = [
-    FieldSpec { field: "memberWithdrawalEnabled", code: "memberWithdrawalEnabled", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "memberWithdrawalReceiptMethod", code: "memberWithdrawalReceiptMethod", ty: ValueType::Json, default: Some("[1,2,3]"), is_list: true },
-    FieldSpec { field: "memberWithdrawalDescription", code: "memberWithdrawalDescription", ty: ValueType::Str, default: Some(""), is_list: false },
+    FieldSpec { field: "memberWithdrawalEnabled", code: "memberWithdrawalEnabled", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "memberWithdrawalReceiptMethod", code: "memberWithdrawalReceiptMethod", ty: ValueType::Json, default: Some("[1,2,3]"), is_list: true, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "memberWithdrawalDescription", code: "memberWithdrawalDescription", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP82_FIELDS: [FieldSpec; 3] = [
-    FieldSpec { field: "commissionWithdrawalEnabled", code: "commissionWithdrawalEnabled", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "commissionWithdrawalReceiptMethod", code: "commissionWithdrawalReceiptMethod", ty: ValueType::Json, default: Some("[1,2,3]"), is_list: true },
-    FieldSpec { field: "commissionWithdrawalDescription", code: "commissionWithdrawalDescription", ty: ValueType::Str, default: Some(""), is_list: false },
+    FieldSpec { field: "commissionWithdrawalEnabled", code: "commissionWithdrawalEnabled", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "commissionWithdrawalReceiptMethod", code: "commissionWithdrawalReceiptMethod", ty: ValueType::Json, default: Some("[1,2,3]"), is_list: true, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "commissionWithdrawalDescription", code: "commissionWithdrawalDescription", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP83_FIELDS: [FieldSpec; 3] = [
-    FieldSpec { field: "commissionWithdrawalEnabled", code: "commissionWithdrawalEnabled", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "commissionWithdrawalReceiptMethod", code: "commissionWithdrawalReceiptMethod", ty: ValueType::Json, default: Some("[1,2,3]"), is_list: true },
-    FieldSpec { field: "commissionWithdrawalDescription", code: "commissionWithdrawalDescription", ty: ValueType::Str, default: Some(""), is_list: false },
+    FieldSpec { field: "commissionWithdrawalEnabled", code: "commissionWithdrawalEnabled", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "commissionWithdrawalReceiptMethod", code: "commissionWithdrawalReceiptMethod", ty: ValueType::Json, default: Some("[1,2,3]"), is_list: true, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "commissionWithdrawalDescription", code: "commissionWithdrawalDescription", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP84_FIELDS: [FieldSpec; 18] = [
-    FieldSpec { field: "maxRecommendProductCount", code: "maxRecommendProductCount", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "maxSubAdministrator", code: "maxSubAdministrator", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "shopProductNeedCheck", code: "shopProductNeedCheck", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "storePostAllocationStatus", code: "storePostAllocationStatus", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "storeIndependentGoods", code: "storeIndependentGoods", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "storeAssignProductName", code: "storeAssignProductName", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "storeAssignProductPrice", code: "storeAssignProductPrice", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "storeAssignProductImage", code: "storeAssignProductImage", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "storeUseSoloProductStock", code: "storeUseSoloProductStock", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "storeUseTotalProductStock", code: "storeUseTotalProductStock", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "storeCustomSubmitShippingType", code: "storeCustomSubmitShippingType", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "storeShowOtherCityStore", code: "storeShowOtherCityStore", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "storeAssignDeliveryServiceFee", code: "storeAssignDeliveryServiceFee", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "deliveryServiceFeeEnabled", code: "deliveryServiceFeeEnabled", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "defaultDeliveryServiceFeeRate", code: "defaultDeliveryServiceFeeRate", ty: ValueType::Decimal, default: Some("0.00"), is_list: false },
-    FieldSpec { field: "storeAssignServerServiceFee", code: "storeAssignServerServiceFee", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "serverServiceFeeEnabled", code: "serverServiceFeeEnabled", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "defaultServerServiceFeeRate", code: "defaultServerServiceFeeRate", ty: ValueType::Decimal, default: Some("0.00"), is_list: false },
+    FieldSpec { field: "maxRecommendProductCount", code: "maxRecommendProductCount", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "maxSubAdministrator", code: "maxSubAdministrator", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopProductNeedCheck", code: "shopProductNeedCheck", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storePostAllocationStatus", code: "storePostAllocationStatus", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeIndependentGoods", code: "storeIndependentGoods", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeAssignProductName", code: "storeAssignProductName", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeAssignProductPrice", code: "storeAssignProductPrice", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeAssignProductImage", code: "storeAssignProductImage", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeUseSoloProductStock", code: "storeUseSoloProductStock", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeUseTotalProductStock", code: "storeUseTotalProductStock", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeCustomSubmitShippingType", code: "storeCustomSubmitShippingType", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeShowOtherCityStore", code: "storeShowOtherCityStore", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeAssignDeliveryServiceFee", code: "storeAssignDeliveryServiceFee", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "deliveryServiceFeeEnabled", code: "deliveryServiceFeeEnabled", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "defaultDeliveryServiceFeeRate", code: "defaultDeliveryServiceFeeRate", ty: ValueType::Decimal, default: Some("0.00"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeAssignServerServiceFee", code: "storeAssignServerServiceFee", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "serverServiceFeeEnabled", code: "serverServiceFeeEnabled", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "defaultServerServiceFeeRate", code: "defaultServerServiceFeeRate", ty: ValueType::Decimal, default: Some("0.00"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP85_FIELDS: [FieldSpec; 14] = [
-    FieldSpec { field: "maxRecommendProductCount", code: "maxRecommendProductCount", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "maxSubAdministrator", code: "maxSubAdministrator", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "shopProductNeedCheck", code: "shopProductNeedCheck", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "storePostAllocationStatus", code: "storePostAllocationStatus", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "storeIndependentGoods", code: "storeIndependentGoods", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "storeAssignProductName", code: "storeAssignProductName", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "storeAssignProductPrice", code: "storeAssignProductPrice", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "storeAssignProductImage", code: "storeAssignProductImage", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "storeUseSoloProductStock", code: "storeUseSoloProductStock", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "storeUseTotalProductStock", code: "storeUseTotalProductStock", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "storeCustomSubmitShippingType", code: "storeCustomSubmitShippingType", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "storeShowOtherCityStore", code: "storeShowOtherCityStore", ty: ValueType::Int, default: None, is_list: false },
-    FieldSpec { field: "storeAssignDeliveryServiceFee", code: "storeAssignDeliveryServiceFee", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "storeAssignServerServiceFee", code: "storeAssignServerServiceFee", ty: ValueType::Int, default: Some("0"), is_list: false },
+    FieldSpec { field: "maxRecommendProductCount", code: "maxRecommendProductCount", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "maxSubAdministrator", code: "maxSubAdministrator", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopProductNeedCheck", code: "shopProductNeedCheck", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storePostAllocationStatus", code: "storePostAllocationStatus", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeIndependentGoods", code: "storeIndependentGoods", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeAssignProductName", code: "storeAssignProductName", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeAssignProductPrice", code: "storeAssignProductPrice", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeAssignProductImage", code: "storeAssignProductImage", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeUseSoloProductStock", code: "storeUseSoloProductStock", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeUseTotalProductStock", code: "storeUseTotalProductStock", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeCustomSubmitShippingType", code: "storeCustomSubmitShippingType", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeShowOtherCityStore", code: "storeShowOtherCityStore", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeAssignDeliveryServiceFee", code: "storeAssignDeliveryServiceFee", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeAssignServerServiceFee", code: "storeAssignServerServiceFee", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP86_FIELDS: [FieldSpec; 6] = [
-    FieldSpec { field: "amapWebKey", code: "amapWebKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "amapWebSecret", code: "amapWebSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "amapJsKey", code: "amapWebJsKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "amapJsSecret", code: "amapWebJsSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "amapMiniKey", code: "amapWebMiniKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "amapMiniSecret", code: "amapWebMiniSecret", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "amapWebKey", code: "amapWebKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "amapWebSecret", code: "amapWebSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "amapJsKey", code: "amapWebJsKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "amapJsSecret", code: "amapWebJsSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "amapMiniKey", code: "amapWebMiniKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "amapMiniSecret", code: "amapWebMiniSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP87_FIELDS: [FieldSpec; 6] = [
-    FieldSpec { field: "amapWebKey", code: "amapWebKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "amapWebSecret", code: "amapWebSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "amapJsKey", code: "amapWebJsKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "amapJsSecret", code: "amapWebJsSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "amapMiniKey", code: "amapWebMiniKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "amapMiniSecret", code: "amapWebMiniSecret", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "amapWebKey", code: "amapWebKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "amapWebSecret", code: "amapWebSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "amapJsKey", code: "amapWebJsKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "amapJsSecret", code: "amapWebJsSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "amapMiniKey", code: "amapWebMiniKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "amapMiniSecret", code: "amapWebMiniSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP88_FIELDS: [FieldSpec; 9] = [
-    FieldSpec { field: "mapProvider", code: "mapProvider", ty: ValueType::Str, default: Some("amap"), is_list: false },
-    FieldSpec { field: "amapWebKey", code: "amapWebKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "amapWebSecret", code: "amapWebSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "amapJsKey", code: "amapWebJsKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "amapJsSecret", code: "amapWebJsSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "amapMiniKey", code: "amapWebMiniKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "amapMiniSecret", code: "amapWebMiniSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "tiandituWebTk", code: "tiandituWebTk", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "tiandituJsTk", code: "tiandituJsTk", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "mapProvider", code: "mapProvider", ty: ValueType::Str, default: Some("amap"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "amapWebKey", code: "amapWebKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "amapWebSecret", code: "amapWebSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "amapJsKey", code: "amapWebJsKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "amapJsSecret", code: "amapWebJsSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "amapMiniKey", code: "amapWebMiniKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "amapMiniSecret", code: "amapWebMiniSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "tiandituWebTk", code: "tiandituWebTk", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "tiandituJsTk", code: "tiandituJsTk", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP89_FIELDS: [FieldSpec; 9] = [
-    FieldSpec { field: "mapProvider", code: "mapProvider", ty: ValueType::Str, default: Some("amap"), is_list: false },
-    FieldSpec { field: "amapWebKey", code: "amapWebKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "amapWebSecret", code: "amapWebSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "amapJsKey", code: "amapWebJsKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "amapJsSecret", code: "amapWebJsSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "amapMiniKey", code: "amapWebMiniKey", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "amapMiniSecret", code: "amapWebMiniSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "tiandituWebTk", code: "tiandituWebTk", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "tiandituJsTk", code: "tiandituJsTk", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "mapProvider", code: "mapProvider", ty: ValueType::Str, default: Some("amap"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "amapWebKey", code: "amapWebKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "amapWebSecret", code: "amapWebSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "amapJsKey", code: "amapWebJsKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "amapJsSecret", code: "amapWebJsSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "amapMiniKey", code: "amapWebMiniKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "amapMiniSecret", code: "amapWebMiniSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "tiandituWebTk", code: "tiandituWebTk", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "tiandituJsTk", code: "tiandituJsTk", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP90_FIELDS: [FieldSpec; 5] = [
-    FieldSpec { field: "guestLikeGoodsName", code: "guestLikeGoodsName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "isGuestLikeGoods", code: "isGuestLikeGoods", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "defaultAvatar", code: "defaultAvatar", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "searchSelfStore", code: "searchSelfStore", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "indexSearchShop", code: "indexSearchShop", ty: ValueType::Int, default: Some("0"), is_list: false },
+    FieldSpec { field: "guestLikeGoodsName", code: "guestLikeGoodsName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "isGuestLikeGoods", code: "isGuestLikeGoods", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "defaultAvatar", code: "defaultAvatar", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "searchSelfStore", code: "searchSelfStore", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "indexSearchShop", code: "indexSearchShop", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP91_FIELDS: [FieldSpec; 5] = [
-    FieldSpec { field: "guestLikeGoodsName", code: "guestLikeGoodsName", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "isGuestLikeGoods", code: "isGuestLikeGoods", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "defaultAvatar", code: "defaultAvatar", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "searchSelfStore", code: "searchSelfStore", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "indexSearchShop", code: "indexSearchShop", ty: ValueType::Int, default: Some("0"), is_list: false },
+    FieldSpec { field: "guestLikeGoodsName", code: "guestLikeGoodsName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "isGuestLikeGoods", code: "isGuestLikeGoods", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "defaultAvatar", code: "defaultAvatar", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "searchSelfStore", code: "searchSelfStore", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "indexSearchShop", code: "indexSearchShop", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP92_FIELDS: [FieldSpec; 1] = [
-    FieldSpec { field: "selectSearchType", code: "selectSearchType", ty: ValueType::Str, default: Some("mysql"), is_list: false },
+    FieldSpec { field: "selectSearchType", code: "selectSearchType", ty: ValueType::Str, default: Some("mysql"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP93_FIELDS: [FieldSpec; 1] = [
-    FieldSpec { field: "selectSearchType", code: "selectSearchType", ty: ValueType::Str, default: Some("mysql"), is_list: false },
+    FieldSpec { field: "selectSearchType", code: "selectSearchType", ty: ValueType::Str, default: Some("mysql"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP94_FIELDS: [FieldSpec; 12] = [
-    FieldSpec { field: "storeSelfOperatedName", code: "storeSelfOperatedName", ty: ValueType::Str, default: Some(""), is_list: false },
-    FieldSpec { field: "storeSelfOperatedLogo", code: "storeSelfOperatedLogo", ty: ValueType::Str, default: Some(""), is_list: false },
-    FieldSpec { field: "storeSelfOperatedRegion", code: "storeSelfOperatedRegion", ty: ValueType::Str, default: Some(""), is_list: false },
-    FieldSpec { field: "storeSelfOperatedAddress", code: "storeSelfOperatedAddress", ty: ValueType::Str, default: Some(""), is_list: false },
-    FieldSpec { field: "storeSelfOperatedLongitude", code: "storeSelfOperatedLongitude", ty: ValueType::Str, default: Some(""), is_list: false },
-    FieldSpec { field: "storeSelfOperatedLatitude", code: "storeSelfOperatedLatitude", ty: ValueType::Str, default: Some(""), is_list: false },
-    FieldSpec { field: "storeSelfOperatedPhone", code: "storeSelfOperatedPhone", ty: ValueType::Str, default: Some(""), is_list: false },
-    FieldSpec { field: "storeSelfOperatedDescription", code: "storeSelfOperatedDescription", ty: ValueType::Str, default: Some(""), is_list: false },
-    FieldSpec { field: "storeSelfOperatedStatus", code: "storeSelfOperatedStatus", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "storeSelfOperatedContactJson", code: "storeSelfOperatedContactJson", ty: ValueType::Str, default: Some("[]"), is_list: false },
-    FieldSpec { field: "storeSelfOperatedOpenCloseJson", code: "storeSelfOperatedOpenCloseJson", ty: ValueType::Str, default: Some(""), is_list: false },
-    FieldSpec { field: "storeSelfOperatedTipsJson", code: "storeSelfOperatedTipsJson", ty: ValueType::Str, default: Some("[]"), is_list: false },
+    FieldSpec { field: "storeSelfOperatedName", code: "storeSelfOperatedName", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeSelfOperatedLogo", code: "storeSelfOperatedLogo", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeSelfOperatedRegion", code: "storeSelfOperatedRegion", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeSelfOperatedAddress", code: "storeSelfOperatedAddress", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeSelfOperatedLongitude", code: "storeSelfOperatedLongitude", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeSelfOperatedLatitude", code: "storeSelfOperatedLatitude", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeSelfOperatedPhone", code: "storeSelfOperatedPhone", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeSelfOperatedDescription", code: "storeSelfOperatedDescription", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeSelfOperatedStatus", code: "storeSelfOperatedStatus", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeSelfOperatedContactJson", code: "storeSelfOperatedContactJson", ty: ValueType::Str, default: Some("[]"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeSelfOperatedOpenCloseJson", code: "storeSelfOperatedOpenCloseJson", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeSelfOperatedTipsJson", code: "storeSelfOperatedTipsJson", ty: ValueType::Str, default: Some("[]"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP95_FIELDS: [FieldSpec; 12] = [
-    FieldSpec { field: "storeSelfOperatedName", code: "storeSelfOperatedName", ty: ValueType::Str, default: Some(""), is_list: false },
-    FieldSpec { field: "storeSelfOperatedLogo", code: "storeSelfOperatedLogo", ty: ValueType::Str, default: Some(""), is_list: false },
-    FieldSpec { field: "storeSelfOperatedRegion", code: "storeSelfOperatedRegion", ty: ValueType::Str, default: Some(""), is_list: false },
-    FieldSpec { field: "storeSelfOperatedAddress", code: "storeSelfOperatedAddress", ty: ValueType::Str, default: Some(""), is_list: false },
-    FieldSpec { field: "storeSelfOperatedLongitude", code: "storeSelfOperatedLongitude", ty: ValueType::Str, default: Some(""), is_list: false },
-    FieldSpec { field: "storeSelfOperatedLatitude", code: "storeSelfOperatedLatitude", ty: ValueType::Str, default: Some(""), is_list: false },
-    FieldSpec { field: "storeSelfOperatedPhone", code: "storeSelfOperatedPhone", ty: ValueType::Str, default: Some(""), is_list: false },
-    FieldSpec { field: "storeSelfOperatedDescription", code: "storeSelfOperatedDescription", ty: ValueType::Str, default: Some(""), is_list: false },
-    FieldSpec { field: "storeSelfOperatedStatus", code: "storeSelfOperatedStatus", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "storeSelfOperatedContactJson", code: "storeSelfOperatedContactJson", ty: ValueType::Str, default: Some("[]"), is_list: false },
-    FieldSpec { field: "storeSelfOperatedOpenCloseJson", code: "storeSelfOperatedOpenCloseJson", ty: ValueType::Str, default: Some(""), is_list: false },
-    FieldSpec { field: "storeSelfOperatedTipsJson", code: "storeSelfOperatedTipsJson", ty: ValueType::Str, default: Some("[]"), is_list: false },
+    FieldSpec { field: "storeSelfOperatedName", code: "storeSelfOperatedName", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeSelfOperatedLogo", code: "storeSelfOperatedLogo", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeSelfOperatedRegion", code: "storeSelfOperatedRegion", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeSelfOperatedAddress", code: "storeSelfOperatedAddress", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeSelfOperatedLongitude", code: "storeSelfOperatedLongitude", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeSelfOperatedLatitude", code: "storeSelfOperatedLatitude", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeSelfOperatedPhone", code: "storeSelfOperatedPhone", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeSelfOperatedDescription", code: "storeSelfOperatedDescription", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeSelfOperatedStatus", code: "storeSelfOperatedStatus", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeSelfOperatedContactJson", code: "storeSelfOperatedContactJson", ty: ValueType::Str, default: Some("[]"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeSelfOperatedOpenCloseJson", code: "storeSelfOperatedOpenCloseJson", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "storeSelfOperatedTipsJson", code: "storeSelfOperatedTipsJson", ty: ValueType::Str, default: Some("[]"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP96_FIELDS: [FieldSpec; 2] = [
-    FieldSpec { field: "dingAppSecret", code: "dingAppSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "dingTalkRobotToken", code: "dingTalkRobotToken", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "dingAppSecret", code: "dingAppSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "dingTalkRobotToken", code: "dingTalkRobotToken", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP97_FIELDS: [FieldSpec; 1] = [
-    FieldSpec { field: "wxworkWebhookUrl", code: "wxworkWebhookUrl", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "wxworkWebhookUrl", code: "wxworkWebhookUrl", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP98_FIELDS: [FieldSpec; 2] = [
-    FieldSpec { field: "dingAppSecret", code: "dingAppSecret", ty: ValueType::Str, default: None, is_list: false },
-    FieldSpec { field: "dingTalkRobotToken", code: "dingTalkRobotToken", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "dingAppSecret", code: "dingAppSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "dingTalkRobotToken", code: "dingTalkRobotToken", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP99_FIELDS: [FieldSpec; 1] = [
-    FieldSpec { field: "wxworkWebhookUrl", code: "wxworkWebhookUrl", ty: ValueType::Str, default: None, is_list: false },
+    FieldSpec { field: "wxworkWebhookUrl", code: "wxworkWebhookUrl", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP100_FIELDS: [FieldSpec; 8] = [
-    FieldSpec { field: "autoEraseZero", code: "autoEraseZero", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "autoDeductionPoints", code: "autoDeductionPoints", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "defaultCollectionMethod", code: "defaultCollectionMethod", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "autoAddCartAfterScan", code: "autoAddCartAfterScan", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "autoPrintOnlineOrder", code: "autoPrintOnlineOrder", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "autoPrintOfflineOrder", code: "autoPrintOfflineOrder", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "shopCommonRemarks", code: "shopCommonRemarks", ty: ValueType::JsonArray, default: Some("[]"), is_list: true },
-    FieldSpec { field: "posProductSource", code: "posProductSource", ty: ValueType::JsonArray, default: Some("[0]"), is_list: true },
+    FieldSpec { field: "autoEraseZero", code: "autoEraseZero", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "autoDeductionPoints", code: "autoDeductionPoints", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "defaultCollectionMethod", code: "defaultCollectionMethod", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "autoAddCartAfterScan", code: "autoAddCartAfterScan", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "autoPrintOnlineOrder", code: "autoPrintOnlineOrder", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "autoPrintOfflineOrder", code: "autoPrintOfflineOrder", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopCommonRemarks", code: "shopCommonRemarks", ty: ValueType::JsonArray, default: Some("[]"), is_list: true, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "posProductSource", code: "posProductSource", ty: ValueType::JsonArray, default: Some("[0]"), is_list: true, label: None, widget: None, required: None, group: None },
 ];
 
 static EP101_FIELDS: [FieldSpec; 8] = [
-    FieldSpec { field: "autoEraseZero", code: "autoEraseZero", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "autoDeductionPoints", code: "autoDeductionPoints", ty: ValueType::Int, default: Some("0"), is_list: false },
-    FieldSpec { field: "defaultCollectionMethod", code: "defaultCollectionMethod", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "autoAddCartAfterScan", code: "autoAddCartAfterScan", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "autoPrintOnlineOrder", code: "autoPrintOnlineOrder", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "autoPrintOfflineOrder", code: "autoPrintOfflineOrder", ty: ValueType::Int, default: Some("1"), is_list: false },
-    FieldSpec { field: "shopCommonRemarks", code: "shopCommonRemarks", ty: ValueType::JsonArray, default: Some("[]"), is_list: true },
-    FieldSpec { field: "posProductSource", code: "posProductSource", ty: ValueType::JsonArray, default: Some("[0]"), is_list: true },
+    FieldSpec { field: "autoEraseZero", code: "autoEraseZero", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "autoDeductionPoints", code: "autoDeductionPoints", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "defaultCollectionMethod", code: "defaultCollectionMethod", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "autoAddCartAfterScan", code: "autoAddCartAfterScan", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "autoPrintOnlineOrder", code: "autoPrintOnlineOrder", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "autoPrintOfflineOrder", code: "autoPrintOfflineOrder", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "shopCommonRemarks", code: "shopCommonRemarks", ty: ValueType::JsonArray, default: Some("[]"), is_list: true, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "posProductSource", code: "posProductSource", ty: ValueType::JsonArray, default: Some("[0]"), is_list: true, label: None, widget: None, required: None, group: None },
 ];
 
 /// 全部 102 个 `ConfigController` 管理端点（顺序 = Java 方法声明顺序）。
@@ -1438,6 +1560,109 @@ pub fn find_endpoint(path: &str) -> Option<&'static EndpointSpec> {
 #[must_use]
 pub fn default_raw(spec: &FieldSpec) -> &'static str {
     spec.default.unwrap_or("0")
+}
+
+// ————————————————————— Schema 导出（Schema-Driven 前端的数据源） —————————————————————
+
+/// 把 `ValueType` 映射为前端可读的类型名。
+#[must_use]
+pub const fn value_type_name(ty: ValueType) -> &'static str {
+    match ty {
+        ValueType::Str => "string",
+        ValueType::Int => "int",
+        ValueType::Long => "long",
+        ValueType::Bool => "bool",
+        ValueType::Decimal => "decimal",
+        ValueType::Json => "json",
+        ValueType::JsonArray => "jsonArray",
+        ValueType::JsonObject => "jsonObject",
+    }
+}
+
+/// 把控件类型映射为前端组件名（Element Plus）。
+#[must_use]
+pub const fn widget_name(w: FieldWidget) -> &'static str {
+    match w {
+        FieldWidget::Input => "input",
+        FieldWidget::Textarea => "textarea",
+        FieldWidget::Password => "password",
+        FieldWidget::Number => "number",
+        FieldWidget::Switch => "switch",
+        FieldWidget::Select => "select",
+        FieldWidget::Radio => "radio",
+        FieldWidget::Checkbox => "checkbox",
+        FieldWidget::Date => "date",
+        FieldWidget::DateTime => "datetime",
+        FieldWidget::Image => "image",
+        FieldWidget::Images => "images",
+        FieldWidget::File => "file",
+        FieldWidget::RichText => "richtext",
+        FieldWidget::Color => "color",
+        FieldWidget::Json => "json",
+    }
+}
+
+/// 导出一个端点的表单 Schema（JSON）。
+///
+/// 前端「Schema 引擎」据此直接渲染 Element Plus 表单，无需为每个配置页写 .vue。
+///
+/// 输出结构：
+/// ```json
+/// {
+///   "path": "/setting/config/basicSettings",
+///   "summary": "获取商城设置-基础信息",
+///   "fields": [
+///     { "field": "shopName", "label": "商城名称", "widget": "input",
+///       "type": "string", "required": false, "group": "基础", "default": null }
+///   ],
+///   "groups": ["基础", "SEO"]
+/// }
+/// ```
+#[must_use]
+pub fn endpoint_form_schema(spec: &EndpointSpec) -> Value {
+    let mut groups: Vec<&'static str> = Vec::new();
+    let fields: Vec<Value> = spec
+        .fields
+        .iter()
+        .map(|f| {
+            let label = f.label.unwrap_or(f.field);
+            let group = f.group.unwrap_or("默认");
+            if !groups.contains(&group) {
+                groups.push(group);
+            }
+            serde_json::json!({
+                "field": f.field,
+                "label": label,
+                "widget": widget_name(f.inferred_widget()),
+                "type": value_type_name(f.ty),
+                "required": f.required.unwrap_or(false),
+                "group": group,
+                "default": f.default,
+                "isList": f.is_list,
+            })
+        })
+        .collect();
+
+    serde_json::json!({
+        "path": spec.path,
+        "summary": spec.summary,
+        "fields": fields,
+        "groups": groups,
+    })
+}
+
+/// 导出全部配置端点的 Schema 列表。
+#[must_use]
+pub fn all_form_schemas() -> Value {
+    let list: Vec<Value> = ENDPOINTS
+        .iter()
+        .filter(|ep| ep.verb == Verb::Get && !ep.fields.is_empty())
+        .map(endpoint_form_schema)
+        .collect();
+    serde_json::json!({
+        "total": list.len(),
+        "schemas": list,
+    })
 }
 
 /// Java `SettingsHelper#parse` 的等价实现（含 `BUSINESS_LICENSE_ENABLED` 特例）。
@@ -1611,10 +1836,10 @@ mod tests {
     #[test]
     fn group_build_applies_enum_defaults_and_types() {
         let fields = [
-            FieldSpec { field: "shopName", code: "shopName", ty: ValueType::Str, default: None, is_list: false },
-            FieldSpec { field: "poweredBy", code: "poweredBy", ty: ValueType::Int, default: Some("1"), is_list: false },
-            FieldSpec { field: "businessLicenseEnabled", code: BUSINESS_LICENSE_ENABLED_CODE, ty: ValueType::Int, default: Some("1"), is_list: false },
-            FieldSpec { field: "businessLicenseType", code: "businessLicenseType", ty: ValueType::JsonArray, default: Some("[]"), is_list: true },
+            FieldSpec { field: "shopName", code: "shopName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+            FieldSpec { field: "poweredBy", code: "poweredBy", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+            FieldSpec { field: "businessLicenseEnabled", code: BUSINESS_LICENSE_ENABLED_CODE, ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+            FieldSpec { field: "businessLicenseType", code: "businessLicenseType", ty: ValueType::JsonArray, default: Some("[]"), is_list: true, label: None, widget: None, required: None, group: None },
         ];
         let empty = HashMap::new();
         let v = build_group(&fields, &[], &empty);
@@ -1639,17 +1864,17 @@ mod tests {
 
     #[test]
     fn parse_field_matches_settings_helper_semantics() {
-        let int = FieldSpec { field: "f", code: "f", ty: ValueType::Int, default: None, is_list: false };
+        let int = FieldSpec { field: "f", code: "f", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None };
         assert_eq!(parse_field(&int, ""), serde_json::json!(0));
         assert_eq!(parse_field(&int, "  "), serde_json::json!(0));
         assert_eq!(parse_field(&int, "42"), serde_json::json!(42));
         assert_eq!(parse_field(&int, "abc"), Value::Null);
-        let s = FieldSpec { field: "f", code: "f", ty: ValueType::Str, default: None, is_list: false };
+        let s = FieldSpec { field: "f", code: "f", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None };
         assert_eq!(parse_field(&s, ""), serde_json::json!(""));
-        let b = FieldSpec { field: "f", code: "f", ty: ValueType::Bool, default: None, is_list: false };
+        let b = FieldSpec { field: "f", code: "f", ty: ValueType::Bool, default: None, is_list: false, label: None, widget: None, required: None, group: None };
         assert_eq!(parse_field(&b, "TRUE"), serde_json::json!(true));
         assert_eq!(parse_field(&b, ""), serde_json::json!(false));
-        let j = FieldSpec { field: "f", code: "f", ty: ValueType::JsonArray, default: None, is_list: false };
+        let j = FieldSpec { field: "f", code: "f", ty: ValueType::JsonArray, default: None, is_list: false, label: None, widget: None, required: None, group: None };
         assert_eq!(parse_field(&j, "[1,2]"), serde_json::json!([1, 2]));
         assert_eq!(parse_field(&j, "oops"), Value::Null);
     }
@@ -1657,13 +1882,13 @@ mod tests {
     #[test]
     fn save_encoding_matches_extract_configs() {
         // 普通字符串原样（Java String.valueOf("x") == "x"，不 JSON 引号）
-        let s = FieldSpec { field: "shopName", code: "shopName", ty: ValueType::Str, default: None, is_list: false };
+        let s = FieldSpec { field: "shopName", code: "shopName", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None };
         assert_eq!(encode_save_value(&s, &serde_json::json!("TigShop")).as_deref(), Some("TigShop"));
         // 数字 → 文本
-        let i = FieldSpec { field: "poweredBy", code: "poweredBy", ty: ValueType::Int, default: None, is_list: false };
+        let i = FieldSpec { field: "poweredBy", code: "poweredBy", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None };
         assert_eq!(encode_save_value(&i, &serde_json::json!(0)).as_deref(), Some("0"));
         // List → JSON 文本（extractConfigs 对 List 走 JSONUtil.toJsonStr）
-        let l = FieldSpec { field: "businessLicenseType", code: "businessLicenseType", ty: ValueType::JsonArray, default: None, is_list: true };
+        let l = FieldSpec { field: "businessLicenseType", code: "businessLicenseType", ty: ValueType::JsonArray, default: None, is_list: true, label: None, widget: None, required: None, group: None };
         assert_eq!(
             encode_save_value(&l, &serde_json::json!(["icp", "edi"])).as_deref(),
             Some(r#"["icp","edi"]"#)
@@ -1671,7 +1896,7 @@ mod tests {
         // null → 不落库
         assert_eq!(encode_save_value(&s, &Value::Null), None);
         // BUSINESS_LICENSE_ENABLED 归一 0/1
-        let b = FieldSpec { field: "businessLicenseEnabled", code: BUSINESS_LICENSE_ENABLED_CODE, ty: ValueType::Int, default: None, is_list: false };
+        let b = FieldSpec { field: "businessLicenseEnabled", code: BUSINESS_LICENSE_ENABLED_CODE, ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None };
         assert_eq!(encode_save_value(&b, &serde_json::json!(0)).as_deref(), Some("0"));
         assert_eq!(encode_save_value(&b, &serde_json::json!(7)).as_deref(), Some("1"));
 
@@ -1708,6 +1933,137 @@ mod tests {
             if n > 0 {
                 assert_eq!(v.as_object().map(|o| o.len()), Some(ep.fields.len() + ep.nested.len()));
             }
+        }
+    }
+
+    // ————————————— Schema 导出（Schema-Driven 前端的数据源） —————————————
+
+    #[test]
+    fn form_schema_exports_expected_shape() {
+        let ep = find_endpoint("/setting/config/basicSettings").expect("basicSettings 端点应存在");
+        let schema = endpoint_form_schema(ep);
+
+        assert_eq!(schema["path"], "/setting/config/basicSettings");
+        assert!(schema["summary"].is_string());
+        let fields = schema["fields"].as_array().expect("fields 应为数组");
+        assert!(!fields.is_empty());
+
+        // 每个字段都必须含前端渲染所需的最小信息
+        for f in fields {
+            assert!(f["field"].is_string(), "缺少 field");
+            assert!(f["label"].is_string(), "缺少 label");
+            assert!(f["widget"].is_string(), "缺少 widget");
+            assert!(f["type"].is_string(), "缺少 type");
+            assert!(f["required"].is_boolean(), "缺少 required");
+            assert!(f["group"].is_string(), "缺少 group");
+        }
+    }
+
+    #[test]
+    fn form_schema_label_falls_back_to_field_name() {
+        // 当前 857 个字面量 label 均为 None → 回退显示字段名
+        let ep = find_endpoint("/setting/config/basicSettings").unwrap();
+        let schema = endpoint_form_schema(ep);
+        let first = &schema["fields"][0];
+        assert_eq!(first["label"], first["field"]);
+    }
+
+    #[test]
+    fn inferred_widget_matches_value_type() {
+        // 布尔 → switch，数字 → number，字符串 → input
+        assert_eq!(
+            FieldSpec::new("x", "x", ValueType::Bool, None, false).inferred_widget(),
+            FieldWidget::Switch
+        );
+        assert_eq!(
+            FieldSpec::new("x", "x", ValueType::Int, None, false).inferred_widget(),
+            FieldWidget::Number
+        );
+        assert_eq!(
+            FieldSpec::new("x", "x", ValueType::Str, None, false).inferred_widget(),
+            FieldWidget::Input
+        );
+    }
+
+    #[test]
+    fn with_ui_overrides_inference() {
+        let spec = FieldSpec::new("x", "x", ValueType::Str, None, false)
+            .with_ui("头像", FieldWidget::Image)
+            .required()
+            .in_group("基础");
+        assert_eq!(spec.label, Some("头像"));
+        assert_eq!(spec.inferred_widget(), FieldWidget::Image);
+        assert_eq!(spec.required, Some(true));
+        assert_eq!(spec.group, Some("基础"));
+
+        // `EndpointSpec.fields` 要求 `&'static`，因此用 static 持有字段数组
+        static FIELDS: [FieldSpec; 1] = [FieldSpec::new("x", "x", ValueType::Str, None, false)
+            .with_ui("头像", FieldWidget::Image)
+            .required()
+            .in_group("基础")];
+
+        let ep = EndpointSpec {
+            path: "/t",
+            verb: Verb::Get,
+            kind: EndpointKind::Group,
+            java_ref: "T.t",
+            summary: "t",
+            fields: &FIELDS,
+            nested: &[],
+        };
+        let s = endpoint_form_schema(&ep);
+        let f = &s["fields"][0];
+        assert_eq!(f["label"], "头像");
+        assert_eq!(f["widget"], "image");
+        assert_eq!(f["required"], true);
+        assert_eq!(f["group"], "基础");
+    }
+
+    #[test]
+    fn all_form_schemas_covers_get_endpoints_with_fields() {
+        let all = all_form_schemas();
+        let total = all["total"].as_u64().expect("total 应为数字");
+        assert!(total > 0, "至少导出一个 Schema");
+        let expected = ENDPOINTS
+            .iter()
+            .filter(|ep| ep.verb == Verb::Get && !ep.fields.is_empty())
+            .count();
+        assert_eq!(total as usize, expected);
+    }
+
+    #[test]
+    fn value_type_and_widget_names_are_non_empty() {
+        for ty in [
+            ValueType::Str,
+            ValueType::Int,
+            ValueType::Long,
+            ValueType::Bool,
+            ValueType::Decimal,
+            ValueType::Json,
+            ValueType::JsonArray,
+            ValueType::JsonObject,
+        ] {
+            assert!(!value_type_name(ty).is_empty());
+        }
+        for w in [
+            FieldWidget::Input,
+            FieldWidget::Textarea,
+            FieldWidget::Password,
+            FieldWidget::Number,
+            FieldWidget::Switch,
+            FieldWidget::Select,
+            FieldWidget::Radio,
+            FieldWidget::Checkbox,
+            FieldWidget::Date,
+            FieldWidget::DateTime,
+            FieldWidget::Image,
+            FieldWidget::Images,
+            FieldWidget::File,
+            FieldWidget::RichText,
+            FieldWidget::Color,
+            FieldWidget::Json,
+        ] {
+            assert!(!widget_name(w).is_empty());
         }
     }
 }

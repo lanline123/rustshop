@@ -141,15 +141,14 @@ pub fn router(state: PublicState) -> Router {
         .nest("/api", authorized.merge(public_api).merge(public_root))
         .merge(root_public)
         .merge(root_protected)
-        // 本地对象存储（上传文件）与 PC 商城静态资源托管（CSS / 图标 / 样式资源）
+        // 本地对象存储（上传文件）。
+        // 注：曾额外 fallback 到 `crates/pc-web/public` 托管 Leptos 版 PC 的 CSS/图标；
+        // 该 Leptos 实现已于 2026-10-20 下线，PC 前端改为独立 Vue SPA（仓库根 `pc-web/`），
+        // 其静态资源由 nginx / Vite 自行托管，不再经过本服务。
         .nest_service(
             "/static",
             ServeDir::new(
                 std::env::var("TIG_FILE__UPLOAD_DIR").unwrap_or_else(|_| "./uploads".to_string()),
-            )
-            .fallback(
-                ServeDir::new("rust/crates/pc-web/public")
-                    .fallback(ServeDir::new("crates/pc-web/public")),
             ),
         )
         .with_state(state)

@@ -179,7 +179,31 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
     router
         .route("/setting/config/uploadFile", post(upload_config_file))
         .route("/setting/config/sendTestEmail", post(send_test_email))
+        // —— Schema-Driven 前端的数据源 ——
+        // 导出全部配置端点的表单 Schema，前端据此渲染 Element Plus 表单，
+        // 无需为每个配置分组手写 .vue。详见 core::models::system::config_basic::endpoint_form_schema。
+        .route("/setting/config/schema", get(all_schemas))
+        .route("/setting/config/schema/detail", get(single_schema))
         .layer(middleware::from_fn(platform_only))
+}
+
+/// `GET /adminapi/setting/config/schema`：导出全部配置端点的表单 Schema。
+async fn all_schemas() -> ApiResult<serde_json::Value> {
+    ok(tigshop_core::models::system::config_basic::all_form_schemas())
+}
+
+/// `GET /adminapi/setting/config/schema/detail?path=`：导出单个端点的表单 Schema。
+async fn single_schema(
+    Query(q): Query<PathQuery>,
+) -> ApiResult<serde_json::Value> {
+    let spec = tigshop_core::models::system::config_basic::find_endpoint(&q.path)
+        .ok_or_else(|| AppError(tigshop_core::Error::biz(404, "端点不存在")))?;
+    ok(tigshop_core::models::system::config_basic::endpoint_form_schema(spec))
+}
+
+#[derive(Debug, Deserialize)]
+struct PathQuery {
+    path: String,
 }
 
 /// 匿名白名单 3 条路由（Java `URL_WHITELIST`，外层不套 `require_auth`）。
