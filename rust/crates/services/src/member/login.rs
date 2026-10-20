@@ -50,7 +50,7 @@
 use std::sync::Arc;
 
 use md5::{Digest, Md5};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use tigshop_common::utils::now_seconds;
 use tigshop_core::models::member::login::{
     authorize_type_from_client, auto_nickname, email_code_key, password_reset_key, quick_login_flags,
@@ -475,7 +475,11 @@ impl LoginService {
         client_type: Option<&str>,
         redirect_url: Option<&str>,
     ) -> Result<WechatLoginUrlVO> {
-        if !client_type.is_some_and(|c| c.eq_ignore_ascii_case("wechat")) {
+        let client_type = client_type.unwrap_or_default().trim().to_ascii_lowercase();
+        if client_type == "pc" {
+            return self.wechat_pc_qr_login().await;
+        }
+        if client_type != "wechat" {
             return Err(Error::biz(SERVICE_DATA_ERROR, WECHAT_NOT_MIGRATED));
         }
         let app_id = self
@@ -493,6 +497,47 @@ impl LoginService {
             "https://open.weixin.qq.com/connect/oauth2/authorize?appid={app_id}&redirect_uri={redirect}&response_type=code&scope=snsapi_userinfo&state={state}#wechat_redirect"
         );
         Ok(WechatLoginUrlVO { url, ticket: None })
+    }
+
+    /// PC 扫码登录：调用公众号 `qrcode/create` 生成临时二维码，返回 URL + ticket。
+    async fn wechat_pc_qr_login(&self) -> Result<WechatLoginUrlVO> {
+        let client = crate::content::wechat_client::WechatClient::from_repos(&self.repos).await?;
+        let mut token = client.access_token().await?;
+        let body = serde_json::json!({
+            "expire_seconds": 300,
+            "action_name": "QR_STR_SCENE",
+            "action_info": { "scene": { "scene_str": uuid::Uuid::new_v4().simple().to_string()[..12].to_string() } }
+        });
+        let make = |token: &str| {
+            let url = format!(
+                "https://api.weixin.qq.com/cgi-bin/qrcode/create?access_token={}",
+                crate::content::wechat_client::urlencode(token)
+            );
+            (url, body.clone())
+        };
+        let (url, body) = make(&token);
+        let mut raw = client.post_json(&url, &body).await?;
+        let mut value = crate::content::wechat_client::parse_wechat_response(&raw)?;
+        // token 失效：清缓存后重试一次（Java 对 40001/40014/42001 的处理）
+        if value.get("errcode").and_then(Value::as_i64).is_some() {
+            crate::content::wechat_client::invalidate_token(client.config().app_id.as_str());
+            token = client.access_token().await?;
+            let (url, body) = make(&token);
+            raw = client.post_json(&url, &body).await?;
+            value = crate::content::wechat_client::parse_wechat_response(&raw)?;
+        }
+        let ticket = value
+            .get("ticket")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "获取微信登录二维码失败：缺少 ticket"))?;
+        let qr_url = value
+            .get("url")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "获取微信登录二维码失败：缺少 url"))?;
+        Ok(WechatLoginUrlVO {
+            url: qr_url.to_string(),
+            ticket: Some(ticket.to_string()),
+        })
     }
 
     /// `GET|POST /api/user/login/wechatServer`：微信公众号服务器消息回调。
@@ -693,8 +738,98 @@ impl LoginService {
     ///
     /// # Errors
     /// 恒返回 1001 业务错误。
-    pub async fn get_mobile(&self, _dto: &CodeParamDTO) -> Result<String> {
-        Err(Error::biz(SERVICE_DATA_ERROR, WECHAT_NOT_MIGRATED))
+    pub async fn get_mobile(&self, dto: &CodeParamDTO) -> Result<String> {
+        let code = dto
+            .code
+            .as_deref()
+            .map(str::trim)
+            .filter(|c| !c.is_empty())
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "code不能为空"))?;
+        let app_id = self
+            .repo()
+            .config_value("wechatMiniProgramAppId")
+            .await?
+            .filter(|v| !v.trim().is_empty())
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "微信小程序 APPID 未配置"))?;
+        let app_secret = self
+            .repo()
+            .config_value("wechatMiniProgramSecret")
+            .await?
+            .filter(|v| !v.trim().is_empty())
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "微信小程序 Secret 未配置"))?;
+        let http = reqwest::Client::new();
+        let token_url = format!(
+            "https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid={}&secret={}",
+            crate::content::wechat_client::urlencode(&app_id),
+            crate::content::wechat_client::urlencode(&app_secret)
+        );
+        let token_text = http
+            .get(&token_url)
+            .timeout(std::time::Duration::from_secs(15))
+            .send()
+            .await
+            .map_err(|e| Error::Internal(format!("小程序 token 请求失败: {e}")))?
+            .text()
+            .await
+            .map_err(|e| Error::Internal(format!("小程序 token 响应读取失败: {e}")))?;
+        let token_json = crate::content::wechat_client::parse_wechat_response(&token_text)?;
+        let access_token = token_json
+            .get("access_token")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "获取小程序 access_token 失败"))?;
+        let url = format!(
+            "https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token={}",
+            crate::content::wechat_client::urlencode(access_token)
+        );
+        let body = serde_json::json!({ "code": code });
+        let text = http
+            .post(&url)
+            .json(&body)
+            .timeout(std::time::Duration::from_secs(15))
+            .send()
+            .await
+            .map_err(|e| Error::Internal(format!("小程序手机号请求失败: {e}")))?
+            .text()
+            .await
+            .map_err(|e| Error::Internal(format!("小程序手机号响应读取失败: {e}")))?;
+        let json = crate::content::wechat_client::parse_wechat_response(&text)?;
+        let phone_info = json
+            .get("phone_info")
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "小程序未返回手机号"))?;
+        let phone_number = phone_info
+            .get("phoneNumber")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        let pure = phone_info
+            .get("purePhoneNumber")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        let country = phone_info
+            .get("countryCode")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        let area_code_enabled = self
+            .repo()
+            .config_value("isOpenMobileAreaCode")
+            .await?
+            .and_then(|v| v.trim().parse::<i32>().ok())
+            == Some(1);
+        let mobile = if area_code_enabled {
+            if !country.is_empty() && !pure.is_empty() {
+                format!("{country}{pure}")
+            } else if !phone_number.is_empty() {
+                phone_number.to_string()
+            } else {
+                pure.to_string()
+            }
+        } else {
+            pure.to_string()
+        };
+        let mobile = mobile.trim_start_matches('+').to_string();
+        if mobile.is_empty() {
+            return Err(Error::biz(SERVICE_DATA_ERROR, "未获取到手机号"));
+        }
+        Ok(mobile)
     }
 
     /// `POST /api/user/login/updateUserOpenid`（需登录）：小程序 code2Session 绑定 openid。
@@ -754,8 +889,192 @@ impl LoginService {
     ///
     /// # Errors
     /// 恒返回 1001 业务错误。
-    pub async fn wx_login_info_by_code(&self, _code: Option<&str>) -> Result<WxLoginInfoByCodeVO> {
-        Err(Error::biz(SERVICE_DATA_ERROR, WECHAT_NOT_MIGRATED))
+    pub async fn wx_login_info_by_code(
+        &self,
+        code: Option<&str>,
+    ) -> Result<WxLoginInfoByCodeVO> {
+        let code = code
+            .map(str::trim)
+            .filter(|c| !c.is_empty())
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "code不能为空"))?;
+        let app_id = self
+            .repo()
+            .config_value("wechatAppId")
+            .await?
+            .filter(|v| !v.trim().is_empty())
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "微信 APPID 未配置"))?;
+        let app_secret = self
+            .repo()
+            .config_value("wechatAppSecret")
+            .await?
+            .filter(|v| !v.trim().is_empty())
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "微信 AppSecret 未配置"))?;
+        let http = reqwest::Client::new();
+        let token_url = format!(
+            "https://api.weixin.qq.com/sns/oauth2/access_token?appid={}&secret={}&code={}&grant_type=authorization_code",
+            crate::content::wechat_client::urlencode(&app_id),
+            crate::content::wechat_client::urlencode(&app_secret),
+            crate::content::wechat_client::urlencode(code)
+        );
+        let text = http
+            .get(&token_url)
+            .timeout(std::time::Duration::from_secs(15))
+            .send()
+            .await
+            .map_err(|e| Error::Internal(format!("微信 OAuth 请求失败: {e}")))?
+            .text()
+            .await
+            .map_err(|e| Error::Internal(format!("微信 OAuth 响应读取失败: {e}")))?;
+        let token_json = crate::content::wechat_client::parse_wechat_response(&text)?;
+        let openid = token_json
+            .get("openid")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "微信授权未返回 openid"))?
+            .to_string();
+        let unionid = token_json
+            .get("unionid")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let access_token = token_json
+            .get("access_token")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "微信授权未返回 access_token"))?
+            .to_string();
+        let userinfo_url = format!(
+            "https://api.weixin.qq.com/sns/userinfo?access_token={}&openid={}&lang=zh_CN",
+            crate::content::wechat_client::urlencode(&access_token),
+            crate::content::wechat_client::urlencode(&openid)
+        );
+        let user_text = http
+            .get(&userinfo_url)
+            .timeout(std::time::Duration::from_secs(15))
+            .send()
+            .await
+            .map_err(|e| Error::Internal(format!("微信用户信息请求失败: {e}")))?
+            .text()
+            .await
+            .map_err(|e| Error::Internal(format!("微信用户信息响应读取失败: {e}")))?;
+        let user_json = crate::content::wechat_client::parse_wechat_response(&user_text)?;
+        let nickname = user_json
+            .get("nickname")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let headimgurl = user_json
+            .get("headimgurl")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+
+        // 老用户：直接登录
+        if let Some((_, user_id)) = self.repo().find_authorize_by_open(&openid, 1).await? {
+            let user = self
+                .repos
+                .member
+                .user
+                .find_by_id(user_id)
+                .await?
+                .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "会员不存在"))?;
+            if user.status.unwrap_or(0) != USER_STATUS_OK {
+                return Err(Error::biz(SERVICE_DATA_ERROR, "账号已被停用"));
+            }
+            let token = self.issue_member_token(user.user_id, &user.username)?;
+            return Ok(WxLoginInfoByCodeVO {
+                r#type: 1,
+                token: Some(token),
+                open_data: None,
+            });
+        }
+
+        // 新用户：按 Java 开关决定「绑定手机号」或「自动注册」
+        let shop_reg_closed = self
+            .repo()
+            .config_value("shopRegClosed")
+            .await?
+            .and_then(|v| v.trim().parse::<i32>().ok())
+            .unwrap_or(0);
+        let wechat_oauth = self
+            .repo()
+            .config_value("openWechatOauth")
+            .await?
+            .and_then(|v| v.trim().parse::<i32>().ok())
+            .unwrap_or(0);
+        let wechat_register = self
+            .repo()
+            .config_value("openWechatRegister")
+            .await?
+            .and_then(|v| v.trim().parse::<i32>().ok())
+            .unwrap_or(0);
+        if shop_reg_closed != 0 {
+            return Err(Error::biz(SERVICE_DATA_ERROR, "商城已停止注册"));
+        }
+        if wechat_oauth != 1 {
+            return Err(Error::biz(SERVICE_DATA_ERROR, "公众号授权登录未开启"));
+        }
+        if wechat_register != 1 {
+            return Err(Error::biz(SERVICE_DATA_ERROR, "微信注册未开启"));
+        }
+        let need_bind_phone = self
+            .repo()
+            .config_value("wechatRegisterBindPhone")
+            .await?
+            .and_then(|v| v.trim().parse::<i32>().ok())
+            == Some(1);
+        if need_bind_phone {
+            let mut open_data = Map::new();
+            open_data.insert("openid".into(), Value::String(openid));
+            if let Some(unionid) = unionid {
+                open_data.insert("unionid".into(), Value::String(unionid));
+            }
+            open_data.insert("nickname".into(), Value::String(nickname));
+            open_data.insert("headimgurl".into(), Value::String(headimgurl));
+            open_data.insert("mockMode".into(), Value::Bool(false));
+            return Ok(WxLoginInfoByCodeVO {
+                r#type: 2,
+                token: None,
+                open_data: Some(open_data),
+            });
+        }
+
+        let username = self.generate_unique_username().await?;
+        let raw_password = format!("wx_{}", &uuid::Uuid::new_v4().simple().to_string()[..12]);
+        let password_hash = hash_password(&raw_password)?;
+        let now = i32::try_from(now_seconds()).unwrap_or(i32::MAX);
+        let nickname = if nickname.trim().is_empty() {
+            format!("user_{username}")
+        } else {
+            nickname
+        };
+        let user_id = self
+            .repo()
+            .insert_registered_user(
+                &username,
+                &nickname,
+                &headimgurl,
+                "",
+                &password_hash,
+                now,
+                0,
+            )
+            .await?;
+        self.repo()
+            .insert_authorize(
+                1,
+                user_id,
+                &openid,
+                Some("{}"),
+                &nickname,
+                &headimgurl,
+                unionid.as_deref(),
+                now,
+            )
+            .await?;
+        let token = self.issue_member_token(user_id, &username)?;
+        Ok(WxLoginInfoByCodeVO {
+            r#type: 1,
+            token: Some(token),
+            open_data: None,
+        })
     }
 
     /// `POST /api/user/login/bindWechat`（需登录）：公众号授权绑定。
