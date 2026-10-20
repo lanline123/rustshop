@@ -87,6 +87,26 @@ impl ConfigBasicRepository {
         Ok(row.and_then(|(v,)| v))
     }
 
+    /// 模糊读取配置原值（Java `ConfigServiceImpl#getConfigsByCode`：`like(bizCode, code)`）。
+    ///
+    /// # Errors
+    /// 数据库失败 → `Error::Database`。
+    pub async fn find_by_code_like(&self, pattern: &str) -> Result<Vec<(String, String)>> {
+        let sql = format!(
+            "SELECT biz_code, biz_val FROM config WHERE biz_code LIKE ? AND {ALIVE}"
+        );
+        let like = format!("%{pattern}%");
+        let rows = sqlx::query_as::<_, (String, Option<String>)>(&sql)
+            .bind(like)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|(code, val)| val.map(|v| (code, v)))
+            .collect())
+    }
+
     /// 「先删后插」写入一个配置项（Java `SettingsHelper#set`）。
     ///
     /// Java 侧每次 `set` 都是 `delete(eq(bizCode))` + `insert(ConfigPO)`；

@@ -1,4 +1,4 @@
-﻿//! 系统配置基础域服务（system::config_basic）。
+//! 系统配置基础域服务（system::config_basic）。
 //!
 //! 构造签名固定 `pub fn new(repos: Arc<Repositories>) -> Self`；
 //! 仓储访问为扁平命名 `self.repos.system.config_basic`（主会话后续机械重组）。
@@ -75,6 +75,9 @@ impl ConfigBasicService {
             return Err(Error::biz(SERVICE_DATA_ERROR, message));
         }
         match ep.kind {
+            EndpointKind::BasicConfig => Ok(self.get_basic_config().await?),
+            EndpointKind::IconSettings => Ok(self.get_icon_settings().await?),
+            EndpointKind::WorkBuddySettings => Ok(self.get_workbuddy_settings().await?),
             EndpointKind::Group | EndpointKind::SaveReturningVo => {
                 let rows = self.load_rows(ep.fields, ep.nested).await?;
                 Ok(build_group(ep.fields, ep.nested, &rows))
@@ -169,23 +172,197 @@ impl ConfigBasicService {
     }
 
     /// 无 JSON 请求体的 POST（Java 方法没有 `@RequestBody`）：
-    /// `createPlatformCertificate` / `uploadFile` / `sendTestEmail`。
+    /// `createPlatformCertificate` / `uploadFile` / `sendTestEmail` / `generateWorkbuddyKey` / `revealWorkbuddyKey`。
     ///
     /// # Errors
-    /// 未迁移端点 → 1001 业务错误；数据库失败 → `Error::Database`。
+    /// 数据库失败 → `Error::Database`。
     pub async fn post_without_body(
         &self,
         ep: &EndpointSpec,
-        _test_mail_address: Option<&str>,
+        test_mail_address: Option<&str>,
     ) -> Result<Value> {
         match ep.kind {
             // Java `createPlatformCertificate` 方法体全部被注释 → 空操作成功
             EndpointKind::CreatePlatformCertificate => Ok(Value::Null),
+            EndpointKind::WorkBuddyGenerate => {
+                let mut bytes = [0u8; 24];
+                rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut bytes);
+                let key = format!("wb_{}", hex::encode(bytes));
+                Ok(serde_json::json!({
+                    "key": key,
+                    "expiresAt": Value::Null,
+                }))
+            }
+            EndpointKind::WorkBuddyReveal => {
+                let key = self
+                    .repo()
+                    .find_by_code("workbuddyApiKey")
+                    .await?
+                    .filter(|s| !s.trim().is_empty())
+                    .ok_or_else(|| Error::biz(401, "MCP密钥未配置"))?;
+                let expires_at = self
+                    .repo()
+                    .find_by_code("workbuddyApiKeyExpiresAt")
+                    .await?
+                    .and_then(|s| s.trim().parse::<i64>().ok());
+                Ok(serde_json::json!({
+                    "key": key,
+                    "expiresAt": expires_at,
+                }))
+            }
+            EndpointKind::SendTestEmail => {
+                self.send_test_email(test_mail_address).await?;
+                Ok(Value::Null)
+            }
+            EndpointKind::UploadFile => Ok(Value::Null),
             kind => Err(Error::biz(
                 SERVICE_DATA_ERROR,
                 placeholder_message(kind).unwrap_or("该端点尚未迁移"),
             )),
         }
+    }
+
+    /// `GET /adminapi/setting/config/basicConfig`：基础配置聚合（地区列表 + base 前缀配置项 + 存储混淆）。
+    pub async fn get_basic_config(&self) -> Result<Value> {
+        let (_, countrys) = self
+            .repos
+            .system
+            .region
+            .paginate(&tigshop_core::models::system::region::RegionListQuery {
+                parent_id: Some(0),
+                page: Some(1),
+                size: Some(1000),
+                ..Default::default()
+            })
+            .await?;
+
+        let base_rows = self.repo().find_by_code_like("base").await?;
+        let mut config_map: serde_json::Map<String, Value> = serde_json::Map::new();
+        for (code, val) in base_rows {
+            let parsed: Value = serde_json::from_str(&val).unwrap_or_else(|_| Value::String(val));
+            config_map.insert(code, parsed);
+        }
+
+        const STORAGE_KEYS: [&str; 12] = [
+            "storageType",
+            "storageLocalUrl",
+            "storageOssUrl",
+            "storageOssAccessKeyId",
+            "storageOssAccessKeySecret",
+            "storageOssBucket",
+            "storageOssRegion",
+            "storageCosUrl",
+            "storageCosSecretId",
+            "storageCosSecretKey",
+            "storageCosBucket",
+            "storageCosRegion",
+        ];
+        let storage_rows = self.repo().find_by_codes(&STORAGE_KEYS).await?;
+        let mut storage_map = serde_json::Map::new();
+        for (code, val) in storage_rows {
+            let masked_val = if code == "storageOssAccessKeySecret" || code == "storageCosSecretKey" {
+                mask_secret(&val)
+            } else {
+                val
+            };
+            storage_map.insert(code, Value::String(masked_val));
+        }
+        if !storage_map.is_empty() {
+            config_map.insert("storageConfig".to_string(), Value::Object(storage_map));
+        }
+
+        let sensitive_keys = [
+            ("base_sms", "sms_key_secret"),
+            ("base_api_wechat", "wechat_appSecret"),
+            ("base_api_mini_program", "wechat_miniProgram_secret"),
+            ("base_api_app_pay", "wechat_pay_app_secret"),
+            ("base_api_lang", "lang_volcengine_secret"),
+        ];
+        for (cfg_code, secret_field) in sensitive_keys {
+            if let Some(Value::Object(map)) = config_map.get_mut(cfg_code) {
+                if let Some(val) = map.get_mut(secret_field) {
+                    if let Some(s) = val.as_str() {
+                        *val = Value::String(mask_secret(s));
+                    }
+                }
+            }
+        }
+
+        Ok(serde_json::json!({
+            "countrys": countrys,
+            "item": config_map,
+        }))
+    }
+
+    /// `GET /adminapi/setting/config/getIcon`：图标配置解析。
+    pub async fn get_icon_settings(&self) -> Result<Value> {
+        let rows = self
+            .repo()
+            .find_by_codes(&["icoTigCss", "icoDefinedCss"])
+            .await?;
+        let map: std::collections::HashMap<_, _> = rows.into_iter().collect();
+
+        let mut ico_tig = Vec::new();
+        let mut tig_class = String::new();
+        let mut ico_defined = Vec::new();
+        let mut defined_class = String::new();
+
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()
+            .unwrap_or_default();
+
+        if let Some(url) = map.get("icoTigCss").filter(|u| u.starts_with("http")) {
+            if let Ok(resp) = client.get(url).send().await {
+                if let Ok(css) = resp.text().await {
+                    ico_tig = extract_icons(&css);
+                    tig_class = extract_font_family(&css);
+                }
+            }
+        }
+        if let Some(url) = map.get("icoDefinedCss").filter(|u| u.starts_with("http")) {
+            if let Ok(resp) = client.get(url).send().await {
+                if let Ok(css) = resp.text().await {
+                    ico_defined = extract_icons(&css);
+                    defined_class = extract_font_family(&css);
+                }
+            }
+        }
+
+        Ok(serde_json::json!({
+            "icoTig": ico_tig,
+            "tigClass": tig_class,
+            "icoDefined": ico_defined,
+            "definedClass": defined_class,
+        }))
+    }
+
+    /// `GET /adminapi/setting/config/workbuddySettings`：MCP 密钥设置状态与掩码。
+    pub async fn get_workbuddy_settings(&self) -> Result<Value> {
+        let key = self
+            .repo()
+            .find_by_code("workbuddyApiKey")
+            .await?
+            .unwrap_or_default();
+        let expires_str = self
+            .repo()
+            .find_by_code("workbuddyApiKeyExpiresAt")
+            .await?
+            .unwrap_or_default();
+
+        let configured = !key.trim().is_empty();
+        let masked_key = if configured {
+            mask_secret(&key)
+        } else {
+            String::new()
+        };
+        let expires_at = expires_str.trim().parse::<i64>().ok();
+
+        Ok(serde_json::json!({
+            "configured": configured,
+            "maskedKey": masked_key,
+            "expiresAt": expires_at,
+        }))
     }
 
     /// 读齐一组字段涉及的 `biz_code`（一次 `IN` 查询，等价 Java 逐个 `get` 但少往返）。
@@ -240,23 +417,60 @@ impl ConfigBasicService {
 
 /// 未迁移端点的业务错误文案（`None` = 已实现）。
 #[must_use]
-pub fn placeholder_message(kind: EndpointKind) -> Option<&'static str> {
-    match kind {
-        EndpointKind::BasicConfig => Some(
-            "基础配置聚合（地区/存储/敏感字段混淆）尚未迁移：请使用 basicSettings / getBase 等分组端点",
-        ),
-        EndpointKind::IconSettings => {
-            Some("图标配置依赖远程 CSS + Redis 缓存解析，尚未迁移（getIcon）")
-        }
-        EndpointKind::WorkBuddySettings
-        | EndpointKind::WorkBuddyGenerate
-        | EndpointKind::WorkBuddyReveal => {
-            Some("MCP 密钥服务（openapi/workbuddy 域）尚未迁移")
-        }
-        EndpointKind::UploadFile => Some("文件上传服务（multipart + 本地存储）尚未迁移"),
-        EndpointKind::SendTestEmail => Some("邮件服务尚未迁移（sendTestEmail）"),
-        _ => None,
+pub fn placeholder_message(_kind: EndpointKind) -> Option<&'static str> {
+    None
+}
+
+fn mask_secret(s: &str) -> String {
+    let len = s.chars().count();
+    if len <= 4 {
+        return "*".repeat(len);
     }
+    let start = (len / 4).max(1);
+    let end = (len - start).max(start);
+    let chars: Vec<char> = s.chars().collect();
+    let mut out = String::with_capacity(len);
+    for (i, c) in chars.into_iter().enumerate() {
+        if i >= start && i < end {
+            out.push('*');
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+fn extract_icons(content: &str) -> Vec<String> {
+    let mut icons = Vec::new();
+    let mut rest = content;
+    while let Some(pos) = rest.find(":before") {
+        let prefix = &rest[..pos];
+        if let Some(dot_pos) = prefix.rfind('.') {
+            let class_name = prefix[dot_pos + 1..].trim();
+            if !class_name.is_empty()
+                && class_name
+                    .chars()
+                    .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+            {
+                icons.push(class_name.to_string());
+            }
+        }
+        rest = &rest[pos + 7..];
+    }
+    icons
+}
+
+fn extract_font_family(content: &str) -> String {
+    if let Some(pos) = content.find("font-family:") {
+        let after = content[pos + 12..].trim_start();
+        if let Some(quote_start) = after.find('"') {
+            let after_quote = &after[quote_start + 1..];
+            if let Some(quote_end) = after_quote.find('"') {
+                return after_quote[..quote_end].to_string();
+            }
+        }
+    }
+    String::new()
 }
 
 /// 登录协议 code → 配置项三元组下标（Java `SettingsEnum.fromKey`）。

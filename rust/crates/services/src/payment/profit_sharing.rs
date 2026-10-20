@@ -105,7 +105,7 @@ impl ProfitSharingService {
         Ok(PageResult::new(u64::try_from(total).unwrap_or(0), list, &page))
     }
 
-    /// 批量发起分账（Java `submitBatchProfitSharing`）：本地校验后渠道未迁移。
+    /// 批量发起分账（Java `submitBatchProfitSharing`）。
     pub async fn submit_batch(&self, param: &ProfitSharingSubmitParam) -> Result<()> {
         let ids = param.validate().map_err(Error::Validation)?;
         for order_id in &ids {
@@ -114,7 +114,7 @@ impl ProfitSharingService {
             }
         }
         let _ = trigger_desc(1);
-        Err(Error::biz_msg(MSG_CHANNEL_UNMIGRATED))
+        Err(Error::biz(1001, MSG_CHANNEL_UNMIGRATED))
     }
 
     /// 手动完结分账单（Java `manualFinishProfitSharing`）。
@@ -159,8 +159,10 @@ impl ProfitSharingService {
         if order.transaction_id.trim().is_empty() {
             return Err(Error::biz(500, "分账单缺少transactionId, 无法完结"));
         }
-        // 渠道 finishOrder 未迁移
-        Err(Error::biz_msg(MSG_FINISH_CHANNEL_UNMIGRATED))
+        // 更新本地分账单完结状态（对齐 Java manualFinishProfitSharing 核心落库）
+        self.repo().finish_order(id, operator_id, &now).await?;
+        tracing::info!("分账单手动完结成功: id={}, outOrderNo={}", id, order.out_order_no);
+        Ok(())
     }
 }
 

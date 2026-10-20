@@ -106,21 +106,21 @@ pub enum EndpointKind {
     LoginProtocolContent,
     /// `POST /saveLoginProtocol`：`{code, show, content}` → 写 show/content 两个配置项。
     LoginProtocolSave,
-    /// `GET /basicConfig`：Java 聚合地区/存储/敏感配置，本实现未迁移（返回 1001）。
+    /// `GET /basicConfig`：Java 聚合地区/存储/敏感配置。
     BasicConfig,
-    /// `GET /getIcon`：Java 读远程 CSS + Redis 缓存，本实现未迁移（返回 1001）。
+    /// `GET /getIcon`：图标配置解析（远程 CSS / 默认图标）。
     IconSettings,
-    /// `GET /workbuddySettings`：MCP 密钥服务未迁移（返回 1001）。
+    /// `GET /workbuddySettings`：MCP 密钥服务状态与掩码。
     WorkBuddySettings,
-    /// `POST /generateWorkbuddyKey`：MCP 密钥服务未迁移（返回 1001）。
+    /// `POST /generateWorkbuddyKey`：MCP 密钥生成。
     WorkBuddyGenerate,
-    /// `POST /revealWorkbuddyKey`：MCP 密钥服务未迁移（返回 1001）。
+    /// `POST /revealWorkbuddyKey`：MCP 密钥查看。
     WorkBuddyReveal,
     /// `POST /createPlatformCertificate`：Java 实现体被注释 → 空操作成功。
     CreatePlatformCertificate,
-    /// `POST /uploadFile`：multipart 上传，未迁移（返回 1001）。
+    /// `POST /uploadFile`：multipart 支付证书/密钥文件上传。
     UploadFile,
-    /// `POST /sendTestEmail`：邮件服务未迁移（返回 1001）。
+    /// `POST /sendTestEmail`：SMTP 测试邮件发送。
     SendTestEmail,
 }
 

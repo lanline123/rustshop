@@ -119,6 +119,27 @@ impl ProfitSharingRepository {
         Ok(res.rows_affected())
     }
 
+    /// 手动完结分账单（Java ProfitSharingOrderServiceImpl#manualFinishProfitSharing）。
+    pub async fn finish_order(
+        &self,
+        id: i64,
+        operator_id: i64,
+        now: &str,
+    ) -> Result<u64> {
+        let res = sqlx::query(
+            "UPDATE profit_sharing_order SET finish_status = ?, finish_time = ?, operator_id = ?, modify_time = ? WHERE id = ?",
+        )
+        .bind(FINISH_FINISHED)
+        .bind(now)
+        .bind(operator_id)
+        .bind(now)
+        .bind(id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(res.rows_affected())
+    }
+
     /// 店铺名批量。
     pub async fn find_shop_titles(&self, shop_ids: &[i64]) -> Result<HashMap<i64, String>> {
         let ids: Vec<i32> = shop_ids

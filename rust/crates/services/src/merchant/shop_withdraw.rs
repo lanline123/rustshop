@@ -346,11 +346,16 @@ impl ShopWithdrawService {
         } else {
             Decimal::ZERO
         };
+        let mut channel_statuses = std::collections::BTreeMap::new();
+        channel_statuses.insert("WECHAT".to_string(), "UNBOUND".to_string());
+        channel_statuses.insert("HUIFU".to_string(), "UNBOUND".to_string());
+        channel_statuses.insert("ALIPAY".to_string(), "UNAVAILABLE".to_string());
+
         Ok(DualBalanceVO {
             shop_money,
             profit_sharing_enabled: false,
             channel_balances: Default::default(),
-            channel_statuses: Default::default(),
+            channel_statuses,
             wechat_balance: None,
             online_balance: None,
             online_channel: None,

@@ -263,6 +263,18 @@ struct UploadFileQuery {
     file_type: Option<i32>,
 }
 
+fn pem_file_name(code: Option<i32>) -> Option<&'static str> {
+    match code {
+        Some(1) => Some("apiclient_cert.pem"),
+        Some(2) => Some("apiclient_key.pem"),
+        Some(3) => Some("public_key.pem"),
+        Some(4) => Some("apple_pay_merchant_id.pem"),
+        Some(5) => Some("apple_pay_merchant_id_key.pem"),
+        Some(6) => Some("apple_pay_payment_processing_key.pem"),
+        _ => None,
+    }
+}
+
 /// `POST /adminapi/setting/config/uploadFile`：支付证书/密钥文件上传（本地存储）。
 async fn upload_config_file(
     State(_state): State<AdminState>,
@@ -286,16 +298,20 @@ async fn upload_config_file(
         if bytes.is_empty() {
             return Err(AppError(tigshop_core::Error::Validation("文件不能为空".into())));
         }
-        let ext = std::path::Path::new(file_name.as_deref().unwrap_or("cert"))
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("pem");
-        let stored = format!(
-            "type{}_{}.{}",
-            q.file_type.unwrap_or(0),
-            tigshop_common::utils::now_millis(),
-            ext
-        );
+        let stored = if let Some(pem) = pem_file_name(q.file_type) {
+            pem.to_string()
+        } else {
+            let ext = std::path::Path::new(file_name.as_deref().unwrap_or("cert"))
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("pem");
+            format!(
+                "type{}_{}.{}",
+                q.file_type.unwrap_or(0),
+                tigshop_common::utils::now_millis(),
+                ext
+            )
+        };
         let url = tigshop_infrastructure::storage::save_local_upload("config", &stored, &bytes)
             .await
             .map_err(AppError)?;

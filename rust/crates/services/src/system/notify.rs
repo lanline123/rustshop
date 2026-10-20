@@ -21,6 +21,23 @@ const CFG_SMS_KEY_ID: &str = "smsKeyId";
 const CFG_SMS_KEY_SECRET: &str = "smsKeySecret";
 const CFG_SMS_SIGN_NAME: &str = "smsSignName";
 const CFG_SMS_TEMPLATE: &str = "smsVerificationTemplate";
+
+const CFG_SMS_TENCENT_SECRET_ID: &str = "smsTencentSecretId";
+const CFG_SMS_TENCENT_SECRET_KEY: &str = "smsTencentSecretKey";
+const CFG_SMS_TENCENT_SDK_APP_ID: &str = "smsTencentSdkAppId";
+const CFG_SMS_TENCENT_SIGN_NAME: &str = "smsTencentSignName";
+
+const CFG_SMS_HUAWEI_APP_KEY: &str = "smsHuaweiAppKey";
+const CFG_SMS_HUAWEI_APP_SECRET: &str = "smsHuaweiAppSecret";
+const CFG_SMS_HUAWEI_CHANNEL: &str = "smsHuaweiChannel";
+const CFG_SMS_HUAWEI_SIGN_NAME: &str = "smsHuaweiSignName";
+const CFG_SMS_HUAWEI_ENDPOINT: &str = "smsHuaweiEndpoint";
+
+const CFG_SMS_VOLCENGINE_ACCESS_KEY: &str = "smsVolcengineAccessKey";
+const CFG_SMS_VOLCENGINE_SECRET_KEY: &str = "smsVolcengineSecretKey";
+const CFG_SMS_VOLCENGINE_SMS_ACCOUNT: &str = "smsVolcengineSmsAccount";
+const CFG_SMS_VOLCENGINE_SIGN_NAME: &str = "smsVolcengineSignName";
+
 const CFG_SMTP_HOST: &str = "smtpHost";
 const CFG_SMTP_PORT: &str = "smtpPort";
 const CFG_SMTP_USER: &str = "smtpUser";
@@ -28,12 +45,25 @@ const CFG_SMTP_PASS: &str = "smtpPass";
 const CFG_SMTP_MAIL: &str = "smtpMail";
 const CFG_SMTP_SSL: &str = "smtpSsl";
 
-const SMS_KEYS: [&str; 6] = [
+const SMS_KEYS: [&str; 19] = [
     CFG_SMS_PROVIDER,
     CFG_SMS_KEY_ID,
     CFG_SMS_KEY_SECRET,
     CFG_SMS_SIGN_NAME,
     CFG_SMS_TEMPLATE,
+    CFG_SMS_TENCENT_SECRET_ID,
+    CFG_SMS_TENCENT_SECRET_KEY,
+    CFG_SMS_TENCENT_SDK_APP_ID,
+    CFG_SMS_TENCENT_SIGN_NAME,
+    CFG_SMS_HUAWEI_APP_KEY,
+    CFG_SMS_HUAWEI_APP_SECRET,
+    CFG_SMS_HUAWEI_CHANNEL,
+    CFG_SMS_HUAWEI_SIGN_NAME,
+    CFG_SMS_HUAWEI_ENDPOINT,
+    CFG_SMS_VOLCENGINE_ACCESS_KEY,
+    CFG_SMS_VOLCENGINE_SECRET_KEY,
+    CFG_SMS_VOLCENGINE_SMS_ACCOUNT,
+    CFG_SMS_VOLCENGINE_SIGN_NAME,
     CFG_SMTP_SSL,
 ];
 const MAIL_KEYS: [&str; 7] = [
@@ -62,6 +92,19 @@ fn env_override(map: &mut HashMap<String, String>, key: &str, env: &str) {
 
 /// 阿里云短信 RPC 签名（HMAC-SHA1，`SignatureVersion=1.0`）。
 ///
+fn percent_encode(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    for byte in input.as_bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(*byte as char);
+            }
+            _ => out.push_str(&format!("%{byte:02X}")),
+        }
+    }
+    out
+}
+
 /// 返回带签名与公共参数的完整 query 字符串（测试可对固定输入断言）。
 #[must_use]
 pub fn aliyun_signed_query(
@@ -69,18 +112,6 @@ pub fn aliyun_signed_query(
     access_key_secret: &str,
     params: &[(&str, String)],
 ) -> String {
-    fn percent_encode(input: &str) -> String {
-        let mut out = String::with_capacity(input.len());
-        for byte in input.as_bytes() {
-            match byte {
-                b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                    out.push(*byte as char);
-                }
-                _ => out.push_str(&format!("%{byte:02X}")),
-            }
-        }
-        out
-    }
 
     let mut all: Vec<(String, String)> = params
         .iter()
@@ -128,29 +159,84 @@ pub async fn send_sms_code(repos: &Repositories, mobile: &str, code: &str) -> Re
     env_override(&mut cfg, CFG_SMS_TEMPLATE, "TIG_SMS__TEMPLATE_CODE");
 
     let provider = cfg.get(CFG_SMS_PROVIDER).map(String::as_str).unwrap_or("1");
-    if provider != "1" {
-        return Err(Error::biz(
+    match provider {
+        "1" | "aliyun" => {
+            let key_id = cfg.get(CFG_SMS_KEY_ID).map(String::as_str).unwrap_or_default();
+            let key_secret = cfg
+                .get(CFG_SMS_KEY_SECRET)
+                .map(String::as_str)
+                .unwrap_or_default();
+            let sign_name = cfg
+                .get(CFG_SMS_SIGN_NAME)
+                .map(String::as_str)
+                .unwrap_or_default();
+            let template = cfg.get(CFG_SMS_TEMPLATE).map(String::as_str).unwrap_or_default();
+            if key_id.is_empty() || key_secret.is_empty() || sign_name.is_empty() || template.is_empty() {
+                return Err(Error::biz(
+                    1001,
+                    "短信通道未配置：请在设置中填写 smsKeyId/smsKeySecret/smsSignName 与短信模板 ID",
+                ));
+            }
+            send_aliyun_sms(key_id, key_secret, sign_name, template, mobile, code).await
+        }
+        "2" | "tencent" => {
+            let secret_id = cfg.get(CFG_SMS_TENCENT_SECRET_ID).map(String::as_str).unwrap_or_default();
+            let secret_key = cfg.get(CFG_SMS_TENCENT_SECRET_KEY).map(String::as_str).unwrap_or_default();
+            let sdk_app_id = cfg.get(CFG_SMS_TENCENT_SDK_APP_ID).map(String::as_str).unwrap_or_default();
+            let sign_name = cfg.get(CFG_SMS_TENCENT_SIGN_NAME).map(String::as_str).unwrap_or_default();
+            let template = cfg.get(CFG_SMS_TEMPLATE).map(String::as_str).unwrap_or_default();
+            if secret_id.is_empty() || secret_key.is_empty() || sdk_app_id.is_empty() || sign_name.is_empty() || template.is_empty() {
+                return Err(Error::biz(
+                    1001,
+                    "腾讯云短信通道未配置：请填写 smsTencentSecretId/smsTencentSecretKey/smsTencentSdkAppId/smsTencentSignName",
+                ));
+            }
+            send_tencent_sms(secret_id, secret_key, sdk_app_id, sign_name, template, mobile, code).await
+        }
+        "3" | "huawei" => {
+            let app_key = cfg.get(CFG_SMS_HUAWEI_APP_KEY).map(String::as_str).unwrap_or_default();
+            let app_secret = cfg.get(CFG_SMS_HUAWEI_APP_SECRET).map(String::as_str).unwrap_or_default();
+            let channel = cfg.get(CFG_SMS_HUAWEI_CHANNEL).map(String::as_str).unwrap_or_default();
+            let sign_name = cfg.get(CFG_SMS_HUAWEI_SIGN_NAME).map(String::as_str).unwrap_or_default();
+            let endpoint = cfg.get(CFG_SMS_HUAWEI_ENDPOINT).map(String::as_str).unwrap_or_default();
+            let template = cfg.get(CFG_SMS_TEMPLATE).map(String::as_str).unwrap_or_default();
+            if app_key.is_empty() || app_secret.is_empty() || channel.is_empty() || sign_name.is_empty() || template.is_empty() {
+                return Err(Error::biz(
+                    1001,
+                    "华为云短信通道未配置：请填写 smsHuaweiAppKey/smsHuaweiAppSecret/smsHuaweiChannel/smsHuaweiSignName",
+                ));
+            }
+            send_huawei_sms(endpoint, app_key, app_secret, channel, sign_name, template, mobile, code).await
+        }
+        "4" | "volcengine" => {
+            let access_key = cfg.get(CFG_SMS_VOLCENGINE_ACCESS_KEY).map(String::as_str).unwrap_or_default();
+            let secret_key = cfg.get(CFG_SMS_VOLCENGINE_SECRET_KEY).map(String::as_str).unwrap_or_default();
+            let sms_account = cfg.get(CFG_SMS_VOLCENGINE_SMS_ACCOUNT).map(String::as_str).unwrap_or_default();
+            let sign_name = cfg.get(CFG_SMS_VOLCENGINE_SIGN_NAME).map(String::as_str).unwrap_or_default();
+            let template = cfg.get(CFG_SMS_TEMPLATE).map(String::as_str).unwrap_or_default();
+            if access_key.is_empty() || secret_key.is_empty() || sms_account.is_empty() || sign_name.is_empty() || template.is_empty() {
+                return Err(Error::biz(
+                    1001,
+                    "火山引擎短信通道未配置：请填写 smsVolcengineAccessKey/smsVolcengineSecretKey/smsVolcengineSmsAccount/smsVolcengineSignName",
+                ));
+            }
+            send_volcengine_sms(access_key, secret_key, sms_account, sign_name, template, mobile, code).await
+        }
+        other => Err(Error::biz(
             1001,
-            format!("短信服务商（{provider}）暂未迁移，当前支持阿里云（smsProvider=1）"),
-        ));
+            format!("不支持的短信服务商标识: {other}，可选：1(阿里云), 2(腾讯云), 3(华为云), 4(火山引擎)"),
+        )),
     }
-    let key_id = cfg.get(CFG_SMS_KEY_ID).map(String::as_str).unwrap_or_default();
-    let key_secret = cfg
-        .get(CFG_SMS_KEY_SECRET)
-        .map(String::as_str)
-        .unwrap_or_default();
-    let sign_name = cfg
-        .get(CFG_SMS_SIGN_NAME)
-        .map(String::as_str)
-        .unwrap_or_default();
-    let template = cfg.get(CFG_SMS_TEMPLATE).map(String::as_str).unwrap_or_default();
-    if key_id.is_empty() || key_secret.is_empty() || sign_name.is_empty() || template.is_empty() {
-        return Err(Error::biz(
-            1001,
-            "短信通道未配置：请在设置中填写 smsKeyId/smsKeySecret/smsSignName 与短信模板 ID",
-        ));
-    }
+}
 
+async fn send_aliyun_sms(
+    key_id: &str,
+    key_secret: &str,
+    sign_name: &str,
+    template: &str,
+    mobile: &str,
+    code: &str,
+) -> Result<()> {
     let nonce = uuid::Uuid::new_v4().to_string();
     let timestamp = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
     let params = [
@@ -170,17 +256,273 @@ pub async fn send_sms_code(repos: &Repositories, mobile: &str, code: &str) -> Re
         .timeout(std::time::Duration::from_secs(15))
         .send()
         .await
-        .map_err(|e| Error::Internal(format!("短信发送失败: {e}")))?;
+        .map_err(|e| Error::Internal(format!("阿里云短信发送网络失败: {e}")))?;
     let status = resp.status();
     let body = resp.text().await.unwrap_or_default();
     if !status.is_success() {
-        return Err(Error::Internal(format!("短信网关返回 {status}: {body}")));
+        return Err(Error::Internal(format!("阿里云短信网关返回 {status}: {body}")));
     }
     let json: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
     if json.get("Code").and_then(serde_json::Value::as_str) == Some("OK") {
         Ok(())
     } else {
-        Err(Error::Internal(format!("短信发送失败: {body}")))
+        Err(Error::Internal(format!("阿里云短信发送失败: {body}")))
+    }
+}
+
+async fn send_tencent_sms(
+    secret_id: &str,
+    secret_key: &str,
+    sdk_app_id: &str,
+    sign_name: &str,
+    template: &str,
+    mobile: &str,
+    code: &str,
+) -> Result<()> {
+    use sha2::{Digest, Sha256};
+    type HmacSha256 = Hmac<Sha256>;
+
+    let phone = if mobile.starts_with('+') {
+        mobile.to_string()
+    } else {
+        format!("+86{mobile}")
+    };
+    let payload = serde_json::json!({
+        "PhoneNumberSet": [phone],
+        "SmsSdkAppId": sdk_app_id,
+        "SignName": sign_name,
+        "TemplateId": template,
+        "TemplateParamSet": [code],
+    })
+    .to_string();
+
+    let now = chrono::Utc::now();
+    let timestamp = now.timestamp();
+    let date = now.format("%Y-%m-%d").to_string();
+
+    let canonical_headers = "content-type:application/json; charset=utf-8\nhost:sms.tencentcloudapi.com\nx-tc-action:sendsms\n";
+    let signed_headers = "content-type;host;x-tc-action";
+    let hashed_payload = hex::encode(Sha256::digest(payload.as_bytes()));
+    let canonical_request = format!("POST\n/\n\n{canonical_headers}\n{signed_headers}\n{hashed_payload}");
+
+    let credential_scope = format!("{date}/sms/tc3_request");
+    let hashed_canonical_request = hex::encode(Sha256::digest(canonical_request.as_bytes()));
+    let string_to_sign = format!("TC3-HMAC-SHA256\n{timestamp}\n{credential_scope}\n{hashed_canonical_request}");
+
+    let mut mac1 = HmacSha256::new_from_slice(format!("TC3{secret_key}").as_bytes())
+        .map_err(|e| Error::Internal(e.to_string()))?;
+    mac1.update(date.as_bytes());
+    let secret_date = mac1.finalize().into_bytes();
+
+    let mut mac2 = HmacSha256::new_from_slice(&secret_date)
+        .map_err(|e| Error::Internal(e.to_string()))?;
+    mac2.update(b"sms");
+    let secret_service = mac2.finalize().into_bytes();
+
+    let mut mac3 = HmacSha256::new_from_slice(&secret_service)
+        .map_err(|e| Error::Internal(e.to_string()))?;
+    mac3.update(b"tc3_request");
+    let secret_signing = mac3.finalize().into_bytes();
+
+    let mut mac4 = HmacSha256::new_from_slice(&secret_signing)
+        .map_err(|e| Error::Internal(e.to_string()))?;
+    mac4.update(string_to_sign.as_bytes());
+    let signature = hex::encode(mac4.finalize().into_bytes());
+
+    let authorization = format!(
+        "TC3-HMAC-SHA256 Credential={secret_id}/{credential_scope}, SignedHeaders={signed_headers}, Signature={signature}"
+    );
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .post("https://sms.tencentcloudapi.com")
+        .header("Content-Type", "application/json; charset=utf-8")
+        .header("Host", "sms.tencentcloudapi.com")
+        .header("X-TC-Action", "SendSms")
+        .header("X-TC-Version", "2021-01-11")
+        .header("X-TC-Timestamp", timestamp.to_string())
+        .header("X-TC-Region", "ap-guangzhou")
+        .header("Authorization", authorization)
+        .body(payload)
+        .timeout(std::time::Duration::from_secs(15))
+        .send()
+        .await
+        .map_err(|e| Error::Internal(format!("腾讯云短信发送失败: {e}")))?;
+
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        return Err(Error::Internal(format!("腾讯云短信网关返回 {status}: {body}")));
+    }
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
+    if let Some(err) = json.get("Response").and_then(|r| r.get("Error")) {
+        return Err(Error::Internal(format!("腾讯云短信发送失败: {err}")));
+    }
+    if let Some(statuses) = json.get("Response").and_then(|r| r.get("SendStatusSet")).and_then(|s| s.as_array()) {
+        if let Some(first) = statuses.first() {
+            if first.get("Code").and_then(|c| c.as_str()) == Some("Ok") {
+                return Ok(());
+            }
+            let msg = first.get("Message").and_then(|m| m.as_str()).unwrap_or("未知错误");
+            return Err(Error::Internal(format!("腾讯云短信状态失败: {msg}")));
+        }
+    }
+    Ok(())
+}
+
+async fn send_huawei_sms(
+    endpoint: &str,
+    app_key: &str,
+    app_secret: &str,
+    channel: &str,
+    sign_name: &str,
+    template_code: &str,
+    mobile: &str,
+    code: &str,
+) -> Result<()> {
+    use sha2::{Digest, Sha256};
+    let nonce = uuid::Uuid::new_v4().simple().to_string();
+    let created = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let digest_input = format!("{nonce}{created}{app_secret}");
+    let password_digest = base64_encode(&Sha256::digest(digest_input.as_bytes()));
+
+    let wsse_header = format!(
+        "UsernameToken Username=\"{app_key}\",PasswordDigest=\"{password_digest}\",Nonce=\"{nonce}\",Created=\"{created}\""
+    );
+    let authorization = "WSSE realm=\"SDP\",profile=\"UsernameToken\",type=\"Appkey\"";
+
+    let template_paras = format!("[\"{code}\"]");
+    let body = format!(
+        "from={}&to={}&templateId={}&templateParas={}&signature={}",
+        percent_encode(channel),
+        percent_encode(mobile),
+        percent_encode(template_code),
+        percent_encode(&template_paras),
+        percent_encode(sign_name),
+    );
+
+    let ep = if endpoint.is_empty() {
+        "https://smsapi.cn-north-4.myhuaweicloud.com:443"
+    } else {
+        endpoint.trim_end_matches('/')
+    };
+    let url = format!("{ep}/sms/batchSendSms/v1");
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(&url)
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .header("Authorization", authorization)
+        .header("X-WSSE", wsse_header)
+        .body(body)
+        .timeout(std::time::Duration::from_secs(15))
+        .send()
+        .await
+        .map_err(|e| Error::Internal(format!("华为云短信发送网络失败: {e}")))?;
+
+    let status = resp.status();
+    let text = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        return Err(Error::Internal(format!("华为云短信网关返回 {status}: {text}")));
+    }
+    let json: serde_json::Value = serde_json::from_str(&text).unwrap_or_default();
+    if json.get("code").and_then(serde_json::Value::as_str) == Some("000000") {
+        Ok(())
+    } else {
+        let desc = json.get("description").and_then(|d| d.as_str()).unwrap_or(&text);
+        Err(Error::Internal(format!("华为云短信发送失败: {desc}")))
+    }
+}
+
+async fn send_volcengine_sms(
+    access_key: &str,
+    secret_key: &str,
+    sms_account: &str,
+    sign_name: &str,
+    template_code: &str,
+    mobile: &str,
+    code: &str,
+) -> Result<()> {
+    use sha2::{Digest, Sha256};
+    type HmacSha256 = Hmac<Sha256>;
+
+    let payload = serde_json::json!({
+        "SmsAccount": sms_account,
+        "Sign": sign_name,
+        "TemplateId": template_code,
+        "PhoneNumbers": mobile,
+        "TemplateParam": format!("{{\"code\":\"{code}\"}}"),
+    })
+    .to_string();
+
+    let now = chrono::Utc::now();
+    let x_date = now.format("%Y%m%dT%H%M%SZ").to_string();
+    let date = now.format("%Y%m%d").to_string();
+    let region = "cn-north-1";
+    let service = "volcSMS";
+
+    let hashed_payload = hex::encode(Sha256::digest(payload.as_bytes()));
+    let canonical_querystring = "Action=SendSms&Version=2020-01-01";
+    let canonical_headers = format!("content-type:application/json\nhost:sms.volcengineapi.com\nx-content-sha256:{hashed_payload}\nx-date:{x_date}\n");
+    let signed_headers = "content-type;host;x-content-sha256;x-date";
+    let canonical_request = format!("POST\n/\n{canonical_querystring}\n{canonical_headers}\n{signed_headers}\n{hashed_payload}");
+
+    let credential_scope = format!("{date}/{region}/{service}/request");
+    let hashed_canonical_request = hex::encode(Sha256::digest(canonical_request.as_bytes()));
+    let string_to_sign = format!("HMAC-SHA256\n{x_date}\n{credential_scope}\n{hashed_canonical_request}");
+
+    let mut mac1 = HmacSha256::new_from_slice(secret_key.as_bytes()).map_err(|e| Error::Internal(e.to_string()))?;
+    mac1.update(date.as_bytes());
+    let k_date = mac1.finalize().into_bytes();
+
+    let mut mac2 = HmacSha256::new_from_slice(&k_date).map_err(|e| Error::Internal(e.to_string()))?;
+    mac2.update(region.as_bytes());
+    let k_region = mac2.finalize().into_bytes();
+
+    let mut mac3 = HmacSha256::new_from_slice(&k_region).map_err(|e| Error::Internal(e.to_string()))?;
+    mac3.update(service.as_bytes());
+    let k_service = mac3.finalize().into_bytes();
+
+    let mut mac4 = HmacSha256::new_from_slice(&k_service).map_err(|e| Error::Internal(e.to_string()))?;
+    mac4.update(b"request");
+    let k_signing = mac4.finalize().into_bytes();
+
+    let mut mac5 = HmacSha256::new_from_slice(&k_signing).map_err(|e| Error::Internal(e.to_string()))?;
+    mac5.update(string_to_sign.as_bytes());
+    let signature = hex::encode(mac5.finalize().into_bytes());
+
+    let authorization = format!(
+        "HMAC-SHA256 Credential={access_key}/{credential_scope}, SignedHeaders={signed_headers}, Signature={signature}"
+    );
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(format!("https://sms.volcengineapi.com/?{canonical_querystring}"))
+        .header("Content-Type", "application/json")
+        .header("Host", "sms.volcengineapi.com")
+        .header("X-Date", x_date)
+        .header("X-Content-Sha256", hashed_payload)
+        .header("Authorization", authorization)
+        .body(payload)
+        .timeout(std::time::Duration::from_secs(15))
+        .send()
+        .await
+        .map_err(|e| Error::Internal(format!("火山引擎短信发送失败: {e}")))?;
+
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        return Err(Error::Internal(format!("火山引擎短信网关返回 {status}: {body}")));
+    }
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
+    if let Some(err) = json.get("ResponseMetadata").and_then(|r| r.get("Error")) {
+        let msg = err.get("Message").and_then(|m| m.as_str()).unwrap_or("未知错误");
+        return Err(Error::Internal(format!("火山引擎短信发送失败: {msg}")));
+    }
+    if json.get("Result").and_then(|r| r.get("MessageId")).is_some() {
+        Ok(())
+    } else {
+        Err(Error::Internal(format!("火山引擎短信发送未返回有效 MessageId: {body}")))
     }
 }
 
@@ -196,8 +538,8 @@ pub async fn send_test_email(repos: &Repositories, to: &str) -> Result<()> {
     send_email(
         repos,
         to,
-        "TigShop 测试邮件",
-        "<p>这是一封测试邮件，收到说明 SMTP 配置可用。</p>",
+        "测试邮件",
+        "<p>这是一封测试邮件，收到此邮件代表着您的邮箱服务器设置正确！</p>",
     )
     .await
 }
