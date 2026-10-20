@@ -52,6 +52,14 @@ mod tests {
     }
 
     #[test]
+    fn java_2y_bcrypt() {
+        // Java `BCryptPasswordEncoder` 生成的历史密码使用 `$2y$` 前缀。
+        let hash = "$2y$10$KW/snmOoevmgubZFY9eOFeW3zsxQcJMnDmWEuDboVLm3.5VkG5BL6";
+        assert!(verify_password("admin123", hash).unwrap());
+        assert!(!verify_password("wrong", hash).unwrap());
+    }
+
+    #[test]
     fn argon2_roundtrip() {
         let h = hash_password_argon2("secret123").unwrap();
         assert!(h.starts_with("$argon2"));

@@ -102,7 +102,21 @@ fn scope_from_tenant(tenant: &TenantContext, requested_shop: Option<i32>) -> Msg
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct MsgCountQuery {
+    #[serde(default, deserialize_with = "empty_string_as_none")]
     start_time: Option<i64>,
+}
+
+/// 原版 `MsgCount.vue` 首次连接时 `startTime=` 为空字符串；
+/// 标准 `Option<i64>` 会报 `cannot parse integer from empty string`，这里把空串当 None。
+fn empty_string_as_none<'de, D>(deserializer: D) -> std::result::Result<Option<i64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<String>::deserialize(deserializer)?;
+    match value.as_deref().map(str::trim) {
+        None | Some("") => Ok(None),
+        Some(raw) => raw.parse::<i64>().map(Some).map_err(serde::de::Error::custom),
+    }
 }
 
 async fn msg_count(

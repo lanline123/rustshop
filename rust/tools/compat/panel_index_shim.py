@@ -11,14 +11,19 @@ import urllib.error
 import urllib.request
 
 BACKEND = "http://127.0.0.1:8080"
-PATH = "/adminapi/panel/panel/index"
+PANEL_PATH = "/adminapi/panel/panel/index"
+LOGISTICS_PATHS = {
+    "/adminapi/setting/logisticsCompany/list",
+    "/adminapi/setting/logisticsCompanyConfig/list",
+}
 
 
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     def do_GET(self):
-        if self.path.split("?", 1)[0] != PATH:
+        path = self.path.split("?", 1)[0]
+        if path != PANEL_PATH and path not in LOGISTICS_PATHS:
             self.send_response(404)
             self.send_header("Content-Length", "0")
             self.end_headers()
@@ -52,7 +57,35 @@ class Handler(BaseHTTPRequestHandler):
         try:
             obj = json.loads(body)
             data = obj.get("data") if isinstance(obj, dict) else None
-            if isinstance(data, dict):
+            if path in LOGISTICS_PATHS and isinstance(data, list):
+                records = []
+                for item in data:
+                    if not isinstance(item, dict):
+                        continue
+                    records.append({
+                        "logisticsId": item.get("logisticsId", item.get("companyId", 0)),
+                        "logisticsCode": item.get("logisticsCode", ""),
+                        "logisticsName": item.get("logisticsName", item.get("companyName", "")),
+                        "logisticsDesc": item.get("logisticsDesc", ""),
+                        "sortOrder": item.get("sortOrder", 0),
+                        "isShow": item.get("isShow", 1),
+                        "isEnabled": item.get("isEnabled", 1),
+                        "isBound": item.get("isBound", 0),
+                    })
+                total = len(records)
+                obj["data"] = {
+                    "records": records,
+                    "list": records,
+                    "total": total,
+                    "size": total or 20,
+                    "current": 1,
+                    "pages": 1 if total else 0,
+                    "totalPage": 1 if total else 0,
+                    "pageSize": total or 20,
+                    "page": 1,
+                }
+                body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+            elif isinstance(data, dict):
                 def pick(name, default=0):
                     value = data.get(name, default)
                     return value if value is not None else default

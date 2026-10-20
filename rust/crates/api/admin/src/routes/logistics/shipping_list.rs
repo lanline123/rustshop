@@ -13,8 +13,9 @@ use axum::{
     routing::get,
     Router,
 };
+use serde::Deserialize;
 use tigshop_core::models::{ShippingTplListQuery, ShippingTplVO};
-use tigshop_core::types::PageResult;
+use tigshop_core::types::{PageQuery, PageResult};
 use tigshop_security::web::{ok, ApiResult, AuthUser};
 
 use crate::AdminState;
@@ -59,23 +60,75 @@ async fn tpl_list(
     ok(PageResult::new(page.total, list, &page_query))
 }
 
-/// `GET /adminapi/setting/logisticsCompany/list`：物流公司列表。
+/// `GET /adminapi/setting/logisticsCompany/list`：物流公司分页。
+///
+/// 原版 `LogisticsCompanyController.list` 返回 MyBatis-Plus `Page`，
+/// 前端按 `records/total` 读取；字段为 `logisticsId/logisticsName` 等。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LogisticsCompanyListQuery {
+    #[serde(default)]
+    page: Option<u64>,
+    #[serde(default, alias = "pageSize")]
+    size: Option<u64>,
+    #[serde(default)]
+    keyword: Option<String>,
+    #[serde(default)]
+    is_enabled: Option<i32>,
+    #[serde(default)]
+    provider_type: Option<i32>,
+}
+
 async fn company_list(
     State(state): State<AdminState>,
-) -> ApiResult<Vec<serde_json::Value>> {
-    let list = state.logistics.shipping_list.companies().await?;
-    let list: Vec<serde_json::Value> = list
-        .iter()
+    Query(q): Query<LogisticsCompanyListQuery>,
+) -> ApiResult<PageResult<serde_json::Value>> {
+    let page = q.page.unwrap_or(1).max(1);
+    let size = q.size.unwrap_or(20).clamp(1, 200);
+    let keyword = q.keyword.unwrap_or_default().trim().to_lowercase();
+    let mut list = state.logistics.shipping_list.companies().await?;
+    list.retain(|c| {
+        (keyword.is_empty()
+            || c.logistics_name.to_lowercase().contains(&keyword)
+            || c.logistics_code.to_lowercase().contains(&keyword))
+            && q.is_enabled.map_or(true, |v| c.is_enabled == v)
+            && q.provider_type.map_or(true, |v| {
+                // provider=2（快递100）时优先看 kuaidi100_code 是否配置；
+                // 其余按快递鸟处理，保持历史数据可用。
+                if v == 2 {
+                    !c.kuaidi100_code.is_empty()
+                } else {
+                    c.kuaidi100_code.is_empty()
+                }
+            })
+    });
+    let total = list.len() as u64;
+    let start = ((page - 1) * size) as usize;
+    let items: Vec<serde_json::Value> = list
+        .into_iter()
+        .skip(start)
+        .take(size as usize)
         .map(|c| {
-            // 库列名为 logistics_id / logistics_name（非 company_id / company_name）；
-            // 对外 JSON 沿用原前端字段名。
             serde_json::json!({
-                "companyId": c.logistics_id,
-                "companyName": c.logistics_name,
+                "logisticsId": c.logistics_id,
+                "logisticsCode": c.logistics_code,
+                "logisticsName": c.logistics_name,
+                "logisticsDesc": c.logistics_desc,
+                "sortOrder": c.sort_order,
                 "isShow": c.is_show,
+                "apiLogisticsCode": c.api_logistics_code,
+                "kuaidi100Code": c.kuaidi100_code,
                 "isEnabled": c.is_enabled,
+                "isBound": 0,
             })
         })
         .collect();
-    ok(list)
+    ok(PageResult::new(
+        total,
+        items,
+        &PageQuery {
+            page,
+            page_size: size,
+        },
+    ))
 }
