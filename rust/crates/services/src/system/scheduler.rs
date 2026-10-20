@@ -351,6 +351,38 @@ pub async fn run_groupon_expire(repos: &Repositories) -> Result<usize> {
         .await?;
     let mut count = 0;
     for record in records {
+        let mut completed = false;
+        if let Some(item) = repos
+            .marketing
+            .groupon_promotion_item
+            .find_item(record.groupon_promotion_item_id)
+            .await?
+        {
+            let members = repos
+                .marketing
+                .groupon_promotion_record
+                .count_members(record.groupon_promotion_record_id)
+                .await?;
+            if item.is_auto_group == 1 && members >= i64::from(item.min_group_num) {
+                let fill = (i64::from(record.min_group_num) - members).max(0);
+                repos
+                    .marketing
+                    .groupon_promotion_record
+                    .auto_complete_group(&record, usize::try_from(fill).unwrap_or(0), now)
+                    .await?;
+                completed = true;
+                count += 1;
+                tracing::info!(
+                    "拼团到期自动成团: open_record={}, 真实成员={}, 补虚拟={}",
+                    record.groupon_promotion_record_id,
+                    members,
+                    fill
+                );
+            }
+        }
+        if completed {
+            continue;
+        }
         let affected = repos
             .marketing
             .groupon_promotion_record

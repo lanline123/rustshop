@@ -307,6 +307,23 @@ impl GrouponPromotionRecordRepository {
         Ok(self_res.rows_affected())
     }
 
+    /// 到期自动成团：标记成功并补齐虚拟团员（单事务）。
+    pub async fn auto_complete_group(
+        &self,
+        base: &GrouponPromotionRecord,
+        fill_count: usize,
+        now: i64,
+    ) -> Result<()> {
+        let mut tx = self.pool.begin().await.map_err(map_err)?;
+        self.mark_success_in_tx(&mut tx, base.groupon_promotion_record_id)
+            .await?;
+        for index in 0..fill_count {
+            self.insert_virtual_in_tx(&mut tx, base, index, now).await?;
+        }
+        tx.commit().await.map_err(map_err)?;
+        Ok(())
+    }
+
     /// 插入虚拟团员（Java `getVirtualUser` 依赖配置；本实现用「虚拟用户N」）。
     pub async fn insert_virtual_in_tx(
         &self,
