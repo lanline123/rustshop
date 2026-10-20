@@ -13,7 +13,6 @@ use std::sync::Arc;
 use tigshop_core::models::system::recommend::{
     GuessLikeQuery, RecommendProductVO, DEFAULT_ID_COUNT,
 };
-use tigshop_core::types::PageResult;
 use tigshop_core::Result;
 use tigshop_infrastructure::db::repo::system::recommend::RecommendRepository;
 use tigshop_infrastructure::db::Repositories;
@@ -37,16 +36,11 @@ impl RecommendService {
     }
 
     /// 猜你喜欢（Java `RecommendController.getProductList`）。
-    pub async fn guess_like(
-        &self,
-        q: &GuessLikeQuery,
-    ) -> Result<PageResult<RecommendProductVO>> {
-        let page = q.page_query();
-        let (total, rows) = self.repo().guess_like(q).await?;
-        if rows.is_empty() {
-            return Ok(PageResult::empty(&page));
-        }
-        let list = rows
+    ///
+    /// 原版前端按数组直接 `.filter()`，Java 返回 `List`，这里不包 `PageResult`。
+    pub async fn guess_like(&self, q: &GuessLikeQuery) -> Result<Vec<RecommendProductVO>> {
+        let (_total, rows) = self.repo().guess_like(q).await?;
+        Ok(rows
             .into_iter()
             .map(|r| RecommendProductVO {
                 product_id: r.product_id,
@@ -59,8 +53,7 @@ impl RecommendService {
                 product_type: r.product_type,
                 virtual_sales: r.virtual_sales.unwrap_or(0),
             })
-            .collect();
-        Ok(PageResult::new(total, list, &page))
+            .collect())
     }
 
     /// 推荐商品 ID 串（Java `RecommendController.getProductIds`，逗号分隔）。

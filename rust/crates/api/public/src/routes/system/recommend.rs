@@ -19,7 +19,6 @@ use axum::{
     Router,
 };
 use tigshop_core::models::system::recommend::{GuessLikeQuery, RecommendProductVO};
-use tigshop_core::types::PageResult;
 use tigshop_core::Error;
 use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 use tigshop_security::JwtService;
@@ -52,7 +51,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 async fn guess_like(
     State(state): State<PublicState>,
     Query(q): Query<GuessLikeQuery>,
-) -> ApiResult<PageResult<RecommendProductVO>> {
+) -> ApiResult<Vec<RecommendProductVO>> {
     ok(state.system.recommend.guess_like(&q).await?)
 }
 
