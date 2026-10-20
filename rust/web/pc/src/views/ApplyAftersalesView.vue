@@ -1,104 +1,130 @@
 <template>
-  <div class="tig-apply-aftersales-page container">
-    <div class="page-head flex-between">
-      <h1 class="page-title">申请售后</h1>
-      <router-link to="/member/aftersales" class="back-link">返回售后服务</router-link>
-    </div>
+  <div class="tig-apply-aftersales-page">
+    <div class="container member-layout">
+      <MemberNav />
 
-    <div v-loading="loading" class="apply-body">
-      <el-empty v-if="!loading && !applyData" description="未找到可申请售后的订单">
-        <el-button type="primary" @click="$router.push('/member/orders')">返回我的订单</el-button>
-      </el-empty>
-
-      <template v-else-if="applyData">
-        <!-- 订单信息 -->
-        <section class="panel">
-          <div class="panel-head"><h2>订单信息</h2></div>
-          <div class="order-line">
-            <span>订单号：{{ applyData.order.orderSn }}</span>
-            <span>实付金额：<strong class="amount">¥{{ formatPrice(applyData.order.paidAmount || applyData.order.totalAmount) }}</strong></span>
-          </div>
-        </section>
-
-        <!-- 选择售后商品 -->
-        <section class="panel">
-          <div class="panel-head"><h2>选择售后商品</h2></div>
-          <el-empty v-if="applyData.list.length === 0" description="该订单暂无可申请售后的商品" :image-size="80" />
-          <div v-for="item in applyData.list" :key="item.itemId" class="item-row">
-            <el-checkbox v-model="selected[item.itemId]" :label="item.itemId" class="item-check">
-              <div class="item-content">
-                <img :src="imageUrl(item.picThumb)" :alt="item.productName" class="thumb" />
-                <div class="item-meta">
-                  <div class="name">{{ item.productName }}</div>
-                  <div class="meta">
-                    ¥{{ formatPrice(item.price) }} × {{ item.quantity }}
-                    <span class="apply-tip">可申请 {{ item.canApplyQuantity }} 件</span>
-                  </div>
-                </div>
-              </div>
-            </el-checkbox>
-            <div v-if="selected[item.itemId]" class="qty-control">
-              <span class="qty-label">数量</span>
-              <el-input-number v-model="quantities[item.itemId]" :min="1" :max="item.canApplyQuantity" size="small" />
-            </div>
-          </div>
-        </section>
-
-        <!-- 售后信息 -->
-        <section class="panel">
-          <div class="panel-head"><h2>售后信息</h2></div>
-          <div class="form-row">
-            <span class="form-label">售后类型</span>
-            <el-radio-group v-model="aftersaleType">
-              <el-radio v-for="(name, code) in config?.aftersaleType ?? {}" :key="code" :value="Number(code)">
-                {{ name }}
-              </el-radio>
-            </el-radio-group>
-          </div>
-          <div class="form-row">
-            <span class="form-label">售后原因</span>
-            <el-select v-model="aftersaleReason" placeholder="请选择售后原因" style="width: 320px">
-              <el-option v-for="reason in config?.aftersaleReason ?? []" :key="reason" :label="reason" :value="reason" />
-            </el-select>
-          </div>
-          <div class="form-row">
-            <span class="form-label">问题描述</span>
-            <el-input
-              v-model="description"
-              type="textarea"
-              :rows="3"
-              maxlength="300"
-              show-word-limit
-              placeholder="请描述遇到的问题，便于商家处理"
-            />
-          </div>
-          <div class="form-row">
-            <span class="form-label">退款金额</span>
-            <span class="refund-amount">¥{{ formatPrice(refundAmount) }}</span>
-          </div>
-        </section>
-
-        <div class="submit-bar flex-between">
-          <span class="tip">提交后商家将在 48 小时内处理</span>
-          <div class="actions">
-            <el-button size="large" @click="$router.back()">取消</el-button>
-            <el-button type="primary" size="large" :loading="submitting" :disabled="!canSubmit" @click="submit">
-              提交申请
-            </el-button>
-          </div>
+      <div class="info-row">
+        <!-- 顶部切换 -->
+        <div class="member-top-tabs">
+          <router-link to="/member/aftersales" class="top-tab">售后申请</router-link>
+          <router-link :to="{ path: '/member/aftersales/apply', query: route.query }" class="top-tab active">申请记录</router-link>
         </div>
-      </template>
+
+        <div v-loading="loading" class="apply-card">
+          <template v-if="!loading && !applyData">
+            <el-empty description="未找到可申请售后的订单">
+              <el-button type="primary" @click="$router.push('/member/orders')">返回我的订单</el-button>
+            </el-empty>
+          </template>
+
+          <template v-else-if="applyData">
+            <!-- 商品表格 -->
+            <div class="info-card">
+              <table>
+                <thead class="table-header">
+                  <tr>
+                    <th class="header-cell">商品名称</th>
+                    <th class="header-cell" style="width: 90px">商品价格</th>
+                    <th class="header-cell" style="width: 90px">购买数量</th>
+                    <th class="header-cell" style="width: 90px">小计</th>
+                    <th class="header-cell" style="width: 100px">可售后数量</th>
+                    <th class="header-cell" style="width: 110px">售后数量</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item in applyData.list" :key="item.itemId">
+                    <td>
+                      <router-link :to="`/product/${item.productId}`" class="goods-cell">
+                        <img :src="imageUrl(item.picThumb)" :alt="item.productName || ''" class="pro-pic" />
+                        <div class="text-ellipsis">
+                          <ul>
+                            <li>货号：{{ item.productSn }}</li>
+                            <li>{{ item.productName }}</li>
+                            <li>
+                              <span v-for="(sku, index) in skuPairs(item)" :key="index">
+                                <span class="sku-name">{{ sku.name }}：</span>{{ sku.value }}<span v-if="index < skuPairs(item).length - 1">；</span>
+                              </span>
+                            </li>
+                          </ul>
+                        </div>
+                      </router-link>
+                    </td>
+                    <td class="price-cell">¥{{ formatPrice(item.price) }}</td>
+                    <td>{{ item.quantity }}</td>
+                    <td class="price-cell">¥{{ formatPrice(item.subtotal) }}</td>
+                    <td>{{ item.canApplyQuantity }}</td>
+                    <td>
+                      <el-input-number
+                        v-model.number="item.number"
+                        :max="item.canApplyQuantity"
+                        :min="0"
+                        :disabled="item.isGift === 1"
+                        placeholder="请输入数量"
+                        size="small"
+                      />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <div v-if="!applyData.list.length" class="muted">该订单暂无可申请售后的商品</div>
+            </div>
+
+            <!-- 表单 -->
+            <div class="file-card">
+              <el-form ref="formRef" label-width="auto" :model="formState" class="form-body" label-suffix="：">
+                <el-form-item label="服务类型" prop="aftersaleType" :rules="[{ required: true, message: '请选择服务类型' }]">
+                  <el-radio-group v-model="formState.aftersaleType">
+                    <el-radio v-for="(name, code) in aftersaleType" :key="code" :value="Number(code)">{{ name }}</el-radio>
+                  </el-radio-group>
+                </el-form-item>
+                <el-form-item
+                  v-if="afterSalesReasonEnabled"
+                  label="售后原因"
+                  prop="aftersaleReason"
+                  :rules="[{ required: true, message: '请选择售后原因' }]"
+                >
+                  <el-select v-model="formState.aftersaleReason" placeholder="请选择" style="width: 500px">
+                    <el-option v-for="reason in aftersaleReason" :key="reason" :label="reason" :value="reason" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="预计退款金额" prop="refundAmount">
+                  <el-input disabled :model-value="formatPrice(formState.refundAmount)" placeholder="请输入申请金额" />
+                </el-form-item>
+                <el-form-item label="问题描述" prop="description" :rules="[{ required: true, message: '问题描述不能为空' }]">
+                  <el-input v-model="formState.description" type="textarea" :rows="4" placeholder="请输入问题描述" />
+                </el-form-item>
+                <el-form-item label="上传文件">
+                  <UploadImage v-model:upload-list="formState.pics" :limit="5" />
+                </el-form-item>
+                <el-form-item label="">
+                  <el-button type="primary" size="large" :loading="submitting" @click="onSubmit">提交</el-button>
+                  <el-button size="large" @click="$router.back()">取消</el-button>
+                </el-form-item>
+              </el-form>
+            </div>
+          </template>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+/**
+ * 申请售后（对齐原版 `pages/member/return/Info.vue`）。
+ *
+ * 商品表格（可售后数量/售后数量输入）→ 服务类型 → 售后原因（开关控制）→
+ * 预计退款金额（自动计算）→ 问题描述 → 上传凭证（`POST /api/user/user/uploadImg`）→ 提交。
+ * 后端：`GET /user/aftersales/applyData`、`GET /user/aftersales/config`、`POST /user/aftersales/create`。
+ */
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
+import type { FormInstance } from 'element-plus';
 import { aftersaleApi } from '@/api';
-import type { AftersalesApplyData, AftersalesConfig } from '@/api/types';
-import { applySeo } from '@/composables/useSeo';
+import type { AftersalesApplyData, AftersalesConfig, UploadedPicture } from '@/api/types';
+import MemberNav from '@/components/MemberNav.vue';
+import UploadImage from '@/components/UploadImage.vue';
 import { formatPrice, imageUrl } from '@/utils/format';
 
 const route = useRoute();
@@ -108,28 +134,44 @@ const loading = ref(true);
 const submitting = ref(false);
 const applyData = ref<AftersalesApplyData | null>(null);
 const config = ref<AftersalesConfig | null>(null);
+const formRef = ref<FormInstance>();
 
-const selected = reactive<Record<number, boolean>>({});
-const quantities = reactive<Record<number, number>>({});
-const aftersaleType = ref<number>(1);
-const aftersaleReason = ref('');
-const description = ref('');
+const aftersaleType = computed<Record<string, string>>(() => config.value?.aftersaleType ?? {});
+const aftersaleReason = computed<string[]>(() => config.value?.aftersaleReason ?? []);
+const afterSalesReasonEnabled = computed(() => Number(config.value?.afterSalesReasonEnabled) === 1);
+
+const formState = reactive({
+  orderId: 0,
+  aftersaleType: 1,
+  aftersaleReason: '',
+  description: '',
+  refundAmount: 0,
+  pics: [] as UploadedPicture[],
+});
 
 const orderId = computed(() => Number(route.query.orderId) || 0);
 
-const selectedItems = computed(() =>
-  (applyData.value?.list ?? []).filter((item) => selected[item.itemId]),
-);
+function skuPairs(item: Record<string, any>): Array<{ name: string; value: string }> {
+  const raw = item.skuData;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((sku: any) => ({ name: String(sku?.name ?? ''), value: String(sku?.value ?? '') }))
+    .filter((sku) => sku.name || sku.value);
+}
 
-const refundAmount = computed(() =>
-  selectedItems.value.reduce(
-    (sum, item) => sum + Number(item.price ?? 0) * (quantities[item.itemId] ?? 1),
-    0,
-  ),
-);
-
-const canSubmit = computed(
-  () => selectedItems.value.length > 0 && Boolean(aftersaleReason.value) && !submitting.value,
+/** 退款金额：按售后数量 × 商品实际价格，受订单实付比例约束。 */
+watch(
+  () => applyData.value?.list,
+  (list) => {
+    if (!list) return;
+    let selectedAmount = 0;
+    for (const item of list) {
+      const unit = Number(item.attrPrice ?? 0) + Number(item.price ?? 0);
+      selectedAmount += Number(item.number ?? 0) * unit;
+    }
+    formState.refundAmount = Number(selectedAmount.toFixed(2));
+  },
+  { deep: true },
 );
 
 async function load() {
@@ -145,35 +187,45 @@ async function load() {
     ]);
     applyData.value = data;
     config.value = cfg;
+    formState.orderId = orderId.value;
+    data.list.forEach((item) => {
+      // 默认售后数量：赠品默认全部、其余默认 0（对齐原版）
+      item.number = item.isGift === 1 ? item.canApplyQuantity : 0;
+    });
     const firstType = Object.keys(cfg?.aftersaleType ?? {})[0];
-    if (firstType) aftersaleType.value = Number(firstType);
-    for (const item of data.list ?? []) {
-      selected[item.itemId] = false;
-      quantities[item.itemId] = Math.max(1, Math.min(item.canApplyQuantity, 1));
-    }
-  } catch {
+    if (firstType) formState.aftersaleType = Number(firstType);
+  } catch (err: any) {
     applyData.value = null;
+    ElMessage.error(err?.message || '获取售后信息失败');
   } finally {
     loading.value = false;
   }
 }
 
-async function submit() {
-  const items = selectedItems.value.map((item) => ({
-    orderItemId: item.itemId,
-    number: quantities[item.itemId] ?? 1,
-  }));
+async function onSubmit() {
+  if (!formRef.value) return;
+  const valid = await formRef.value.validate().catch(() => false);
+  if (!valid) return;
+  const items = (applyData.value?.list ?? [])
+    .filter((item) => Number(item.number) > 0)
+    .map((item) => ({ orderItemId: item.itemId, number: Number(item.number) }));
+  if (!items.length) {
+    ElMessage.error('请填写售后数量');
+    return;
+  }
   submitting.value = true;
   try {
     await aftersaleApi.create({
       orderId: orderId.value,
-      aftersaleType: aftersaleType.value,
-      aftersaleReason: aftersaleReason.value,
-      description: description.value || undefined,
-      refundAmount: refundAmount.value,
+      aftersaleType: formState.aftersaleType,
+      aftersaleReason: afterSalesReasonEnabled.value ? formState.aftersaleReason : undefined,
+      description: formState.description,
+      refundAmount: formState.refundAmount,
       items,
-    });
-    ElMessage.success('售后申请已提交');
+      // 凭证图片字段随请求提交（后端 CreateAftersalesParam.pics）
+      ...(formState.pics.length ? { pics: formState.pics as any } : {}),
+    } as any);
+    ElMessage.success('提交成功');
     router.replace('/member/aftersales');
   } finally {
     submitting.value = false;
@@ -181,92 +233,102 @@ async function submit() {
 }
 
 onMounted(load);
-applySeo({ title: '申请售后', noindex: true });
 </script>
 
 <style scoped lang="less">
 .tig-apply-aftersales-page {
+  background: #f5f6fa;
   padding: 20px 0 50px;
 }
 
-.page-head {
-  margin-bottom: 14px;
-  .page-title { font-size: 22px; font-weight: 700; }
-  .back-link { color: #888; font-size: 13px; &:hover { color: var(--tig-red); } }
-}
-
-.apply-body { min-height: 240px; }
-
-.panel {
-  background: #fff;
-  border: 1px solid var(--tig-border-color);
-  border-radius: 8px;
-  padding: 16px 18px;
-  margin-bottom: 14px;
-
-  .panel-head {
-    margin-bottom: 12px;
-    h2 { font-size: 16px; font-weight: 700; }
-  }
-}
-
-.order-line {
+.member-layout {
   display: flex;
-  gap: 30px;
-  font-size: 13px;
-  color: #666;
-  .amount { color: var(--tig-red); font-weight: 700; }
-}
-
-.item-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: flex-start;
   gap: 16px;
-  padding: 10px 0;
-  border-bottom: 1px solid #f7f7f7;
-  &:last-child { border-bottom: none; }
+}
 
-  .item-check {
-    flex: 1;
-    height: auto;
-    align-items: flex-start;
-    :deep(.el-checkbox__label) { width: 100%; }
+.info-row { flex: 1; min-width: 0; }
+
+.member-top-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+
+  .top-tab {
+    padding: 9px 22px;
+    background: #fff;
+    border-radius: 6px 6px 0 0;
+    font-size: 14px;
+    color: #555;
+
+    &.active { color: var(--tig-red); font-weight: 700; background: #fff; border-bottom: 2px solid var(--tig-red); }
+  }
+}
+
+.apply-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  min-height: 340px;
+}
+
+.info-card {
+  margin-bottom: 24px;
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid #ddd;
   }
 
-  .item-content {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+  .table-header { background: #f5f5f5; }
 
-    .thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 4px; border: 1px solid #f0f0f0; }
-    .item-meta {
-      .name { font-size: 13px; }
-      .meta { color: #888; font-size: 12px; margin-top: 4px; }
-      .apply-tip { color: var(--tig-red); margin-left: 10px; }
+  .header-cell {
+    border: 1px solid #ddd;
+    padding: 10px;
+    font-size: 13px;
+    color: #666;
+    font-weight: 600;
+    text-align: center;
+  }
+
+  td {
+    border: 1px solid #e8e8e8;
+    padding: 10px;
+    text-align: center;
+    font-size: 13px;
+    color: #555;
+  }
+
+  .goods-cell {
+    display: flex;
+    gap: 10px;
+    text-align: left;
+
+    .pro-pic {
+      width: 44px;
+      height: 44px;
+      object-fit: cover;
+      border: 1px solid #f0f0f0;
+    }
+
+    .text-ellipsis {
+      line-height: 1.8;
+      font-size: 12px;
+      color: #666;
+      overflow: hidden;
+      .sku-name { font-weight: 600; }
     }
   }
 
-  .qty-control { display: flex; align-items: center; gap: 8px; .qty-label { color: #888; font-size: 13px; } }
+  .price-cell { color: var(--tig-red) !important; }
 }
 
-.form-row {
-  display: flex;
-  gap: 14px;
-  padding: 10px 0;
-  border-bottom: 1px dashed #f5f5f5;
-  &:last-child { border-bottom: none; }
+.file-card {
+  padding: 0 10px;
 
-  .form-label { flex: 0 0 74px; color: #888; font-size: 13px; padding-top: 4px; }
-  .refund-amount { color: var(--tig-red); font-size: 20px; font-weight: 800; }
+  .form-body { width: 680px; max-width: 100%; }
 }
 
-.submit-bar {
-  background: #fff;
-  border: 1px solid var(--tig-border-color);
-  border-radius: 8px;
-  padding: 14px 18px;
-  .tip { color: #888; font-size: 13px; }
-  .actions { display: flex; gap: 12px; }
-}
+.muted { color: #999; font-size: 13px; text-align: center; padding: 10px 0; }
 </style>

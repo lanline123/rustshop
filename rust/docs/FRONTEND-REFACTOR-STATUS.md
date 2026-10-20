@@ -28,7 +28,9 @@
   行内 switch 值统一转字符串。
 - 图片上传修正到真实契约
   `/adminapi/setting/galleryPic/uploadImg`，按 `GalleryPicUploadVO.picUrl` 解析。
-- 新增业务页：
+- 新增业务页（售后/退款/代客下单/账期）：
+  - AfterSalesListView、RefundApplyListView、ProxyShoppingView、CreditUserListView、CreditOrderListView、CreditSettlementView。
+- 商品/订单/会员/优惠券：
   - `ProductListView`：列表 + 新增/编辑（分类树/品牌/价格/库存/主图/推荐位）。
   - `OrderListView`：列表 + 详情抽屉 + 发货 + 改价 + 物流时间线。
   - `MemberListView`：列表 + 详情抽屉。
@@ -73,8 +75,8 @@ tigshop-admin-api 590/0          ✅
 | 指标 | Admin | PC |
 |---|---:|---:|
 | `.vue` 文件 | 13 | 16 |
-| 路由 name | 16 | 16 |
-| 契约调用 | 41/41 命中 | 52/52 命中 |
+| 路由 name | 22 | 20 |
+| 契约调用 | 78/78 命中 | 67/67 命中 |
 
 > 原版 admin 1329 `.vue`、PC 430 `.vue`；当前仍是核心链路，不是 1:1 复刻。
 
@@ -82,11 +84,9 @@ tigshop-admin-api 590/0          ✅
 
 ### P0
 
-1. **Admin 订单完整操作**：售后审核、退款、代客下单、账期、导出、
-   拆单/改收货人/确认收货。
-2. **PC 支付渠道页**：微信/支付宝/汇付等跳转与回调结果页（依赖支付后端）。
-3. **PC 结算深化**：发票增票资质、配送方式切换、按店铺拆券、
-   部分余额/积分自定义。
+1. **Admin 订单剩余操作**：导出、拆单/改收货人/确认收货、售后标记/订单详情联动。
+2. **PC 支付渠道**：页面与轮询已完成；微信/支付宝等后端渠道未迁移，需支付域补齐。
+3. **PC 结算深化**：发票增票资质持久化、按店铺拆券、部分余额/积分自定义、预售/O2O 自提 UI。
 4. **前端运行时联调**：启动 Rust 后端 + MySQL，逐页验证列表/详情/提交。
 
 ### P1

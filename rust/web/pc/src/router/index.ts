@@ -57,6 +57,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '支付结果', requiresAuth: true },
       },
       {
+        path: 'pay/channel',
+        name: 'PayChannel',
+        component: () => import('@/views/PayChannelView.vue'),
+        meta: { title: '支付收银台', requiresAuth: true },
+      },
+      {
         path: 'member',
         name: 'Member',
         component: () => import('@/views/ProfileView.vue'),
@@ -109,6 +115,24 @@ const routes: RouteRecordRaw[] = [
         name: 'ApplyAftersales',
         component: () => import('@/views/ApplyAftersalesView.vue'),
         meta: { title: '申请售后', requiresAuth: true },
+      },
+      {
+        path: 'member/comments',
+        name: 'MemberComments',
+        component: () => import('@/views/CommentView.vue'),
+        meta: { title: '评价晒单', requiresAuth: true },
+      },
+      {
+        path: 'member/messages',
+        name: 'MemberMessages',
+        component: () => import('@/views/MessageView.vue'),
+        meta: { title: '站内信', requiresAuth: true },
+      },
+      {
+        path: 'member/sign',
+        name: 'MemberSign',
+        component: () => import('@/views/SignView.vue'),
+        meta: { title: '每日签到', requiresAuth: true },
       },
     ],
   },

@@ -184,17 +184,28 @@ export interface OrderCheckParam {
 
 /** 结算页数据（`OrderCheckVO` 的常用子集，其余字段透传）。 */
 export interface OrderCheckVO {
+  item?: Record<string, any>;
   cartList?: Array<{
     shopId: number;
     shopTitle: string;
+    noShipping: number;
+    minOrderAmountDiff?: string;
+    isNotReachMinOrderAmount?: boolean;
     carts: Array<Record<string, any>>;
     total?: Record<string, any>;
+    gift?: any[];
   }>;
   total?: Record<string, any>;
   couponList?: { enableCoupons?: CheckCoupon[]; disableCoupons?: any[] };
   availablePoints?: number;
   message?: string | null;
   hasChangePrice?: boolean;
+  useCouponIds?: number[];
+  selectUserCouponIds?: number[];
+  creditPaymentInfo?: CreditPaymentInfo | null;
+  productPresale?: any;
+  couponExcludeAmount?: string;
+  pointsExcludeAmount?: string;
   [key: string]: any;
 }
 
@@ -247,6 +258,18 @@ export interface OrderVO {
   mobile: string;
   addTime: number;
   itemCount: number;
+}
+
+/** 订单数量角标（`OrderNumVO`）。 */
+export interface OrderNum {
+  awaitPay: number;
+  awaitShipping: number;
+  awaitReceived: number;
+  awaitComment: number;
+  orderCompleted: number;
+  productCollect: number;
+  shopCollect: number;
+  awaitAftersalesCollect: number;
 }
 
 /** 订单明细行（`OrderItemVO`）。 */
@@ -574,4 +597,115 @@ export interface AftersalesCreateParam {
   description?: string;
   refundAmount?: number | string;
   items?: Array<{ orderItemId?: number; number?: number }>;
+}
+
+// ————————————————————— 第三轮：配送 / 支付 / 会员核心 —————————————————————
+
+/** 店铺配送方式（`ShippingTypeVO`）。 */
+export interface ShippingType {
+  shippingTypeId: number;
+  shippingTypeName?: string | null;
+  shippingDefaultId?: number | null;
+  shippingTypeDesc?: string | null;
+  shippingTimeDesc?: string | null;
+  isSupportCod?: number | null;
+  shopId?: number | null;
+  [key: string]: any;
+}
+
+/** `GET /order/check/getStoreShippingType`：店铺 ID → 配送方式列表。 */
+export type ShippingTypeMap = Record<string, ShippingType[]>;
+
+/** 结算页选中的配送方式（对齐原版 `formState.shippingType` 结构）。 */
+export interface SelectedShippingType {
+  typeId: number;
+  shopId: number;
+  typeName: string;
+}
+
+/** 账期支付信息（`creditPaymentInfo`）。 */
+export interface CreditPaymentInfo {
+  canUseCredit: boolean;
+  availableAmount: number | string;
+  creditPaymentStatus: number;
+  [key: string]: any;
+}
+
+/** 会员站内信（`UserMessageVO`）。 */
+export interface UserMessage {
+  messageId: number;
+  title: string;
+  messageLogId: number;
+  userId: number;
+  userRank: number;
+  isRead: number;
+  content: string;
+  link?: any;
+  addTime: string;
+  addTimeDate: string;
+  addTimeHms: string;
+  orderInfo?: any;
+}
+
+/** 未读消息统计（`UnreadMessageCountVO`）。 */
+export interface UnreadMessageCount {
+  userMessageCount: number;
+  orderMessageCount: number;
+  imMessageCount: number;
+}
+
+/** 签到设置项（`SignInSettingVO`）。 */
+export interface SignInSetting {
+  id: number;
+  name?: string | null;
+  points?: number | null;
+  dayNum?: number | null;
+  sortOrder: number;
+  createTime: number;
+}
+
+/** 签到页信息（`UserSignInfoVO`）。 */
+export interface UserSignInfo {
+  days: SignInSetting[];
+  record: number;
+  isSign: number;
+  signPoints: number;
+  recommendGoods: any[];
+}
+
+/** 评价统计（`CommentSubNumVO`）。 */
+export interface CommentSubNum {
+  awaitComment: number;
+  showPics: number;
+  commented: number;
+}
+
+/** 评价行（`CommentVO` 子集）。 */
+export interface CommentItem {
+  commentId?: number | null;
+  productId?: number | null;
+  productName?: string | null;
+  productSn?: string | null;
+  picThumb?: string | null;
+  content?: string | null;
+  commentRank?: number | null;
+  addTime?: string | null;
+  isAnonymous?: number | null;
+  showPics?: any[];
+  skuData?: any[];
+  replies?: any[];
+  [key: string]: any;
+}
+
+/** 图片上传结果（`GalleryPicUploadVO`）。 */
+export interface UploadedPicture {
+  picThumb: string;
+  picUrl: string;
+  picName: string;
+  picId: number;
+  picWidth?: number;
+  picHeight?: number;
+  picSize?: number;
+  galleryId?: number;
+  fileType?: string;
 }

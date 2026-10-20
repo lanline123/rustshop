@@ -1,101 +1,135 @@
 <template>
-  <div class="tig-profile-page container">
-    <div v-loading="user.loading" class="profile-body">
-      <!-- 会员信息卡 -->
-      <section class="member-card">
-        <div class="avatar-wrap">
-          <el-avatar :size="72" :src="imageUrl(user.avatar)">
+  <div class="tig-member-page">
+    <div v-loading="user.loading" class="container">
+      <!-- 用户信息 -->
+      <div class="infout">
+        <div class="user-info">
+          <el-avatar :size="80" :src="avatar" class="avatar">
             {{ (user.displayName || 'U').slice(0, 1) }}
           </el-avatar>
-        </div>
-        <div class="member-info">
-          <div class="member-name">
-            {{ user.displayName || '未设置昵称' }}
-            <el-tag v-if="center?.rankName" size="small" type="warning">{{ center.rankName }}</el-tag>
+          <div class="user-col">
+            <div class="username">
+              <span class="nickname">{{ user.displayName || '未设置昵称' }}</span>
+              <el-tag v-if="center?.rankName" size="small" type="warning">{{ center.rankName }}</el-tag>
+            </div>
+            <div class="user-title">
+              <router-link to="/member/orders" class="title-link">我的订单 ›</router-link>
+              <router-link to="/member/address" class="title-link">我的地址 ›</router-link>
+              <router-link to="/member/messages" class="title-link">站内信 ›</router-link>
+              <router-link to="/member/sign" class="title-link">每日签到 ›</router-link>
+            </div>
           </div>
-          <div class="member-account">账号：{{ center?.username || user.username }}</div>
-          <div class="member-level">会员等级：{{ center?.rankName || '-' }}</div>
-        </div>
-        <div class="member-stats">
-          <div class="stat-item">
-            <div class="stat-value">{{ formatPrice(center?.balance) }}</div>
-            <div class="stat-label">账户余额</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value">{{ center?.points ?? 0 }}</div>
-            <div class="stat-label">可用积分</div>
+          <div class="user-stats">
+            <div class="stat-item">
+              <div class="stat-value">{{ formatPrice(center?.balance) }}</div>
+              <div class="stat-label">账户余额</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value">{{ center?.points ?? 0 }}</div>
+              <div class="stat-label">可用积分</div>
+            </div>
           </div>
         </div>
-      </section>
+      </div>
 
-      <!-- 订单角标 -->
-      <section class="order-panel">
-        <div class="panel-head flex-between">
-          <h2>我的订单</h2>
-          <router-link to="/member/orders" class="more-link">查看全部订单 ›</router-link>
-        </div>
-        <div class="order-shortcuts">
-          <router-link
-            v-for="entry in orderEntries"
-            :key="entry.status"
-            :to="{ path: '/member/orders', query: { status: String(entry.status) } }"
-            class="shortcut-item"
-          >
-            <el-badge :value="entry.count" :hidden="!entry.count" :max="99">
-              <el-icon class="shortcut-icon"><component :is="entry.icon" /></el-icon>
-            </el-badge>
-            <span>{{ entry.label }}</span>
-          </router-link>
-        </div>
-      </section>
+      <!-- 订单状态角标 -->
+      <div class="user-totu">
+        <router-link to="/member/orders" class="totu-entry">
+          <span class="entry-icon"><el-icon><List /></el-icon></span>
+          <span class="entry-text">我的订单</span>
+          <span class="entry-arrow">›</span>
+        </router-link>
+        <router-link :to="{ path: '/member/orders', query: { status: '0' } }" class="totu-item">
+          <span class="totu-number">{{ countValue(orderNum?.awaitPay) }}</span>
+          <span class="totu-text">待付款</span>
+        </router-link>
+        <router-link :to="{ path: '/member/orders', query: { status: '2' } }" class="totu-item">
+          <span class="totu-number">{{ countValue(orderNum?.awaitReceived) }}</span>
+          <span class="totu-text">待收货</span>
+        </router-link>
+        <router-link to="/member/comments" class="totu-item">
+          <span class="totu-number">{{ countValue(orderNum?.awaitComment) }}</span>
+          <span class="totu-text">评论</span>
+        </router-link>
+        <router-link to="/member/aftersales" class="totu-item">
+          <span class="totu-number">{{ countValue(orderNum?.awaitAftersalesCollect) }}</span>
+          <span class="totu-text">售后</span>
+        </router-link>
+      </div>
 
-      <!-- 常用入口 -->
-      <section class="tools-panel">
-        <div class="panel-head"><h2>账户工具</h2></div>
-        <div class="tool-links">
-          <router-link to="/member/orders" class="tool-card">
-            <el-icon><List /></el-icon>
-            <span>我的订单</span>
-          </router-link>
-          <router-link to="/member/address" class="tool-card">
-            <el-icon><Location /></el-icon>
-            <span>收货地址</span>
-          </router-link>
-          <router-link to="/member/coupons" class="tool-card">
+      <!-- 快捷卡片 -->
+      <div class="user-bottom">
+        <router-link to="/member/coupons" class="bottom-card">
+          <div class="bottom-card-title">
             <el-icon><Ticket /></el-icon>
-            <span>我的优惠券</span>
-          </router-link>
-          <router-link to="/member/favorites" class="tool-card">
+            <span>优惠券</span>
+            <span class="bottom-count">{{ countValue(center?.awaitCoupon) }}</span>
+          </div>
+          <div class="bottom-card-desc">查看我的优惠券</div>
+        </router-link>
+        <router-link to="/member/favorites" class="bottom-card">
+          <div class="bottom-card-title">
             <el-icon><Star /></el-icon>
-            <span>我的收藏</span>
-          </router-link>
-          <router-link to="/member/history" class="tool-card">
+            <span>心愿单</span>
+          </div>
+          <div class="bottom-card-desc">查看我的收藏</div>
+        </router-link>
+        <router-link to="/member/history" class="bottom-card">
+          <div class="bottom-card-title">
             <el-icon><Clock /></el-icon>
-            <span>浏览历史</span>
-          </router-link>
-          <router-link to="/member/aftersales" class="tool-card">
-            <el-icon><RefreshLeft /></el-icon>
-            <span>售后服务</span>
-          </router-link>
-          <router-link to="/cart" class="tool-card">
-            <el-icon><ShoppingCart /></el-icon>
-            <span>我的购物车</span>
-          </router-link>
-          <a class="tool-card" href="javascript:;" @click="handleLogout">
-            <el-icon><SwitchButton /></el-icon>
-            <span>退出登录</span>
-          </a>
+            <span>浏览记录</span>
+          </div>
+          <div class="bottom-card-desc">查看浏览记录</div>
+        </router-link>
+      </div>
+
+      <!-- 全部功能 -->
+      <div class="member-tools">
+        <div class="tools-title">全部功能</div>
+        <div class="tool-links">
+          <router-link to="/member/orders" class="tool-card"><el-icon><List /></el-icon><span>我的订单</span></router-link>
+          <router-link to="/member/comments" class="tool-card"><el-icon><ChatDotSquare /></el-icon><span>评价晒单</span></router-link>
+          <router-link to="/member/aftersales" class="tool-card"><el-icon><RefreshLeft /></el-icon><span>售后服务</span></router-link>
+          <router-link to="/member/coupons" class="tool-card"><el-icon><Ticket /></el-icon><span>我的优惠券</span></router-link>
+          <router-link to="/member/favorites" class="tool-card"><el-icon><Star /></el-icon><span>我的收藏</span></router-link>
+          <router-link to="/member/history" class="tool-card"><el-icon><Clock /></el-icon><span>浏览历史</span></router-link>
+          <router-link to="/member/address" class="tool-card"><el-icon><Location /></el-icon><span>收货地址</span></router-link>
+          <router-link to="/member/messages" class="tool-card"><el-icon><Bell /></el-icon><span>站内信</span></router-link>
+          <router-link to="/member/sign" class="tool-card"><el-icon><Calendar /></el-icon><span>每日签到</span></router-link>
+          <router-link to="/cart" class="tool-card"><el-icon><ShoppingCart /></el-icon><span>我的购物车</span></router-link>
+          <a class="tool-card" href="javascript:;" @click="handleLogout"><el-icon><SwitchButton /></el-icon><span>退出登录</span></a>
         </div>
-      </section>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+/**
+ * 会员中心首页（对齐原版 `pages/member/index.vue`）。
+ *
+ * 结构：用户信息（头像/昵称/等级/余额/积分）→ 订单状态角标（我的订单/待付款/
+ * 待收货/评论/售后）→ 快捷卡片（优惠券/心愿单/浏览记录）→ 全部功能入口。
+ * 数据源：`GET /user/user/memberCenter`、`GET /user/order/orderNum`。
+ */
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { List, Location, ShoppingCart, SwitchButton, Wallet, Van, Box, ChatDotSquare, Ticket, Star, Clock, RefreshLeft } from '@element-plus/icons-vue';
+import {
+  List,
+  Ticket,
+  Star,
+  Clock,
+  ChatDotSquare,
+  RefreshLeft,
+  Location,
+  Bell,
+  Calendar,
+  ShoppingCart,
+  SwitchButton,
+} from '@element-plus/icons-vue';
+import { orderApi } from '@/api';
+import type { OrderNum } from '@/api/types';
 import { applySeo } from '@/composables/useSeo';
 import { useUserStore } from '@/stores/user';
 import { useCartStore } from '@/stores/cart';
@@ -105,14 +139,13 @@ const router = useRouter();
 const user = useUserStore();
 const cart = useCartStore();
 
+const orderNum = ref<OrderNum | null>(null);
 const center = computed(() => user.memberCenter);
+const avatar = computed(() => imageUrl(user.avatar));
 
-const orderEntries = computed(() => [
-  { label: '待付款', status: 0, count: center.value?.awaitPay ?? 0, icon: Wallet },
-  { label: '待发货', status: 1, count: center.value?.awaitShipping ?? 0, icon: Box },
-  { label: '待收货', status: 2, count: center.value?.awaitReceived ?? 0, icon: Van },
-  { label: '待评价', status: 3, count: center.value?.awaitComment ?? 0, icon: ChatDotSquare },
-]);
+function countValue(value: number | undefined | null): string {
+  return value && Number(value) > 0 ? String(value) : '-';
+}
 
 function handleLogout() {
   user.logout();
@@ -121,96 +154,153 @@ function handleLogout() {
   router.push('/');
 }
 
+async function loadOrderNum() {
+  try {
+    orderNum.value = await orderApi.orderNum();
+  } catch {
+    orderNum.value = null;
+  }
+}
+
 onMounted(async () => {
-  applySeo({ title: '个人中心', noindex: true });
-  await user.loadCenter();
+  applySeo({ title: '会员中心', noindex: true });
+  await Promise.all([user.loadCenter(), loadOrderNum()]);
 });
 </script>
 
 <style scoped lang="less">
-.tig-profile-page {
-  padding: 26px 0 60px;
+.tig-member-page {
+  background: #f5f6fa;
+  padding: 24px 0 50px;
+  min-height: 70vh;
 }
 
-.profile-body { min-height: 260px; }
-
-.member-card {
-  background: linear-gradient(120deg, #fff7f6, #ffffff 60%);
-  border: 1px solid #ffdcdc;
-  border-radius: 10px;
-  padding: 22px 26px;
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  margin-bottom: 18px;
-  flex-wrap: wrap;
-
-  .member-info {
-    flex: 1;
-    min-width: 240px;
-
-    .member-name {
-      font-size: 20px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 6px;
-    }
-    .member-account,
-    .member-level { color: #888; font-size: 13px; margin-top: 3px; }
-  }
-
-  .member-stats {
-    display: flex;
-    gap: 28px;
-    .stat-item {
-      text-align: center;
-      .stat-value { font-size: 22px; font-weight: 800; color: var(--tig-red); }
-      .stat-label { color: #888; font-size: 12px; margin-top: 4px; }
-    }
-  }
-}
-
-.order-panel,
-.tools-panel {
+.infout {
   background: #fff;
-  border: 1px solid var(--tig-border-color);
-  border-radius: 10px;
-  padding: 16px 20px;
-  margin-bottom: 18px;
+  border-radius: 8px;
+  padding: 22px 26px;
+  margin-bottom: 14px;
 
-  .panel-head {
-    margin-bottom: 14px;
-    h2 { font-size: 16px; font-weight: 700; }
-    .more-link { color: #888; font-size: 13px; &:hover { color: var(--tig-red); } }
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+
+    .avatar { border: 1px solid #f0f0f0; }
+
+    .user-col {
+      flex: 1;
+      min-width: 240px;
+
+      .username {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+        .nickname { font-size: 20px; font-weight: 700; }
+      }
+
+      .user-title {
+        display: flex;
+        gap: 18px;
+        flex-wrap: wrap;
+
+        .title-link { color: #888; font-size: 13px; &:hover { color: var(--tig-red); } }
+      }
+    }
+
+    .user-stats {
+      display: flex;
+      gap: 32px;
+      .stat-item {
+        text-align: center;
+        .stat-value { font-size: 22px; font-weight: 800; color: var(--tig-red); }
+        .stat-label { color: #888; font-size: 12px; margin-top: 4px; }
+      }
+    }
   }
 }
 
-.order-shortcuts {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+.user-totu {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  background: #fff;
+  border-radius: 8px;
+  margin-bottom: 14px;
+  overflow: hidden;
 
-  .shortcut-item {
+  .totu-entry {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 20px 24px;
+    background: #fff7f6;
+    color: var(--tig-red);
+    font-weight: 700;
+    min-width: 170px;
+    .entry-icon { font-size: 20px; }
+    .entry-arrow { margin-left: auto; }
+  }
+
+  .totu-item {
+    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-    padding: 14px 0;
-    border-radius: 8px;
-    color: #555;
-    font-size: 13px;
+    justify-content: center;
+    padding: 16px 0;
+    color: #666;
+    border-left: 1px solid #f5f5f5;
     transition: background 0.2s;
-    &:hover { background: #fff7f6; color: var(--tig-red); }
 
-    .shortcut-icon { font-size: 26px; }
+    &:hover { background: #fffafa; color: var(--tig-red); }
+    .totu-number { font-size: 22px; font-weight: 800; color: #333; }
+    .totu-text { color: #888; font-size: 12px; margin-top: 4px; }
   }
+}
+
+.user-bottom {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 14px;
+
+  .bottom-card {
+    background: #fff;
+    border-radius: 8px;
+    padding: 18px 20px;
+    transition: box-shadow 0.2s;
+
+    &:hover { box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06); }
+
+    .bottom-card-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 700;
+      color: #333;
+
+      .bottom-count { margin-left: auto; color: var(--tig-red); }
+    }
+
+    .bottom-card-desc { color: #999; font-size: 12px; margin-top: 8px; }
+  }
+}
+
+.member-tools {
+  background: #fff;
+  border-radius: 8px;
+  padding: 18px 20px;
+
+  .tools-title { font-size: 15px; font-weight: 700; margin-bottom: 14px; }
 }
 
 .tool-links {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 12px;
 
   .tool-card {
@@ -228,5 +318,9 @@ onMounted(async () => {
     .el-icon { font-size: 24px; }
     &:hover { border-color: #ffdcdc; color: var(--tig-red); background: #fff7f6; }
   }
+}
+
+@media (max-width: 1280px) {
+  .tool-links { grid-template-columns: repeat(4, 1fr); }
 }
 </style>

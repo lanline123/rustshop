@@ -1,72 +1,139 @@
 <template>
-  <div class="tig-aftersales-page container">
-    <div class="page-head flex-between">
-      <h1 class="page-title">售后服务</h1>
-      <router-link to="/member" class="back-link">返回个人中心</router-link>
-    </div>
+  <div class="tig-aftersales-page">
+    <div class="container member-layout">
+      <MemberNav />
 
-    <div class="tip-bar">
-      如需申请售后，请在「我的订单」中选择需要售后的订单并点击「申请售后」。
-    </div>
-
-    <div v-loading="loading" class="aftersales-body">
-      <el-empty v-if="!records.length && !loading" description="暂无售后记录">
-        <el-button type="primary" @click="$router.push('/member/orders')">查看我的订单</el-button>
-      </el-empty>
-
-      <div v-for="record in records" :key="record.orderId" class="order-card">
-        <div class="order-head flex-between">
-          <div class="head-left">
-            <span class="order-sn">订单号：{{ record.orderSn }}</span>
-            <span v-if="record.shippingTime" class="shipping-time">发货时间：{{ record.shippingTime }}</span>
-          </div>
-          <el-button link type="primary" @click="$router.push(`/member/orders/${record.orderId}`)">订单详情</el-button>
+      <div class="info-row">
+        <!-- 顶部切换：售后申请 / 申请记录 -->
+        <div class="member-top-tabs">
+          <router-link to="/member/aftersales" class="top-tab" :class="{ active: activeTab === 'apply' }" @click="switchTab('apply')">
+            售后申请
+          </router-link>
+          <router-link to="/member/aftersales" class="top-tab" :class="{ active: activeTab === 'record' }" @click="switchTab('record')">
+            申请记录
+          </router-link>
         </div>
 
-        <div class="order-items">
-          <div v-for="(item, idx) in record.items" :key="item.itemId ?? idx" class="item-row flex-between">
-            <div class="item-left">
-              <img :src="imageUrl(item.picThumb || item.productPicThumb)" :alt="item.productName" class="thumb" />
-              <div class="item-meta">
-                <div class="name">{{ item.productName }}</div>
-                <div class="sku">{{ skuText(item) }}</div>
-              </div>
+        <!-- 售后申请（可申请退换货的订单） -->
+        <div v-if="activeTab === 'apply'" v-loading="loadingApply" class="content-card">
+          <template v-if="applyList.length">
+            <table class="custom-table">
+              <thead class="table-header">
+                <tr>
+                  <th class="header-cell" style="width: 200px">订单编号</th>
+                  <th class="header-cell">订单商品</th>
+                  <th class="header-cell" style="width: 140px">发货时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="record in applyList" :key="record.orderId">
+                  <td class="order-sn-cell">{{ record.orderSn }}</td>
+                  <td>
+                    <div class="product-list">
+                      <div v-for="(item, index) in record.items" :key="item.itemId ?? index" class="product-line">
+                        <img :src="imageUrl(item.productPicThumb || item.picThumb)" :alt="item.productName || ''" class="img" />
+                        <div class="product-meta">
+                          <div class="name">{{ item.productName }}</div>
+                          <div v-if="item.aftersalesItem?.aftersalesSn" class="sn">
+                            售后单号：{{ item.aftersalesItem.aftersalesSn }}
+                          </div>
+                        </div>
+                        <div class="product-actions">
+                          <el-button
+                            v-if="item.toAftersalses"
+                            type="primary"
+                            size="small"
+                            @click="goApply(record.orderId, item.itemId)"
+                          >
+                            申请
+                          </el-button>
+                          <el-button
+                            v-if="item.aftersaleFlag !== 1 && item.aftersalesItem?.aftersaleId"
+                            size="small"
+                            @click="openDetail(item.aftersalesItem.aftersaleId)"
+                          >
+                            详情
+                          </el-button>
+                          <el-tag v-if="!item.toAftersalses && !item.aftersalesItem?.aftersaleId" size="small" type="info">
+                            不可申请
+                          </el-tag>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>{{ record.shippingTime || '未发货' }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div v-if="applyTotal > pageSize" class="pagination-wrap">
+              <el-pagination
+                :current-page="applyPage"
+                :page-size="pageSize"
+                :total="applyTotal"
+                layout="prev, pager, next"
+                background
+                @current-change="onApplyPageChange"
+              />
             </div>
-            <div class="item-right">
-              <span class="price">¥{{ formatPrice(item.price) }} × {{ item.quantity }}</span>
-              <el-button
-                v-if="aftersalesIdOf(item)"
-                size="small"
-                @click="openDetail(aftersalesIdOf(item)!)"
-              >
-                查看售后
-              </el-button>
-              <el-tag v-else size="small" type="info">未申请售后</el-tag>
-            </div>
-          </div>
+          </template>
+          <el-empty v-else-if="!loadingApply" description="暂无可申请退换货订单" />
         </div>
-      </div>
 
-      <div v-if="total > pageSize" class="pagination-wrap">
-        <el-pagination
-          :current-page="page"
-          :page-size="pageSize"
-          :total="total"
-          layout="prev, pager, next"
-          background
-          @current-change="onPageChange"
-        />
+        <!-- 申请记录 -->
+        <div v-else v-loading="loadingRecord" class="content-card">
+          <template v-if="recordList.length">
+            <table class="custom-table">
+              <thead class="table-header">
+                <tr>
+                  <th class="header-cell" style="width: 180px">售后单号</th>
+                  <th class="header-cell" style="width: 180px">订单编号</th>
+                  <th class="header-cell" style="width: 110px">售后类型</th>
+                  <th class="header-cell" style="width: 110px">售后状态</th>
+                  <th class="header-cell" style="width: 120px">退款金额</th>
+                  <th class="header-cell" style="width: 160px">申请时间</th>
+                  <th class="header-cell" style="width: 100px">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="record in recordList" :key="record.aftersaleId">
+                  <td>{{ record.aftersalesSn || record.aftersaleId }}</td>
+                  <td>{{ record.orderSn || record.orderId || '-' }}</td>
+                  <td>{{ aftersaleTypeText(record.aftersaleType) }}</td>
+                  <td>
+                    <el-tag size="small">{{ aftersaleStatusText(record.status) }}</el-tag>
+                  </td>
+                  <td class="price-cell">¥{{ formatPrice(record.refundAmount) }}</td>
+                  <td>{{ formatTime(record.addTime) }}</td>
+                  <td>
+                    <el-button link type="primary" @click="openDetail(record.aftersaleId)">查看详情</el-button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div v-if="recordTotal > pageSize" class="pagination-wrap">
+              <el-pagination
+                :current-page="recordPage"
+                :page-size="pageSize"
+                :total="recordTotal"
+                layout="prev, pager, next"
+                background
+                @current-change="onRecordPageChange"
+              />
+            </div>
+          </template>
+          <el-empty v-else-if="!loadingRecord" description="暂无售后申请记录" />
+        </div>
       </div>
     </div>
 
     <!-- 售后详情 -->
-    <el-dialog v-model="detailVisible" title="售后详情" width="640px">
+    <el-dialog v-model="detailVisible" title="售后详情" width="680px">
       <div v-loading="detailLoading">
         <template v-if="detail">
           <el-descriptions :column="2" border>
             <el-descriptions-item label="售后单号">{{ detail.aftersalesSn || '-' }}</el-descriptions-item>
             <el-descriptions-item label="售后状态">
-              <el-tag>{{ detail.statusName || detail.status }}</el-tag>
+              <el-tag>{{ detail.statusName || aftersaleStatusText(detail.status) }}</el-tag>
             </el-descriptions-item>
             <el-descriptions-item label="售后类型">{{ detail.aftersalesTypeName || '-' }}</el-descriptions-item>
             <el-descriptions-item label="申请时间">{{ detail.addTime || '-' }}</el-descriptions-item>
@@ -84,13 +151,11 @@
 
           <div v-if="detail.aftersalesItems?.length" class="detail-block">
             <h3>售后商品</h3>
-            <div v-for="(item, idx) in detail.aftersalesItems" :key="idx" class="item-row flex-between">
-              <div class="item-left">
-                <img :src="imageUrl(item.picThumb)" :alt="item.productName" class="thumb" />
-                <div class="item-meta">
-                  <div class="name">{{ item.productName }}</div>
-                  <div class="sku">{{ item.skuValue || '' }}</div>
-                </div>
+            <div v-for="(item, idx) in detail.aftersalesItems" :key="idx" class="detail-item">
+              <img :src="imageUrl(item.picThumb)" :alt="item.productName" />
+              <div class="item-meta">
+                <div class="name">{{ item.productName }}</div>
+                <div class="sku">{{ item.skuValue || '' }}</div>
               </div>
               <span class="price">¥{{ formatPrice(item.price) }} × {{ item.quantity }}</span>
             </div>
@@ -112,51 +177,113 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 售后服务（对齐原版 `pages/member/return/List.vue` + `Log.vue`）。
+ *
+ * - 售后申请：`GET /api/user/aftersales/list`（按订单聚合的可售后商品，含申请/详情入口）
+ * - 申请记录：`GET /api/user/aftersales/getRecord`（售后单分页）
+ * - 售后详情：`GET /api/user/aftersales/detail?id=`
+ */
 import { onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { aftersaleApi } from '@/api';
 import { pageItems } from '@/api/types';
 import type { AftersaleDetail, AftersaleOrder } from '@/api/types';
+import MemberNav from '@/components/MemberNav.vue';
 import { applySeo } from '@/composables/useSeo';
-import { formatPrice, imageUrl } from '@/utils/format';
+import { formatPrice, formatTime, imageUrl } from '@/utils/format';
 
-const loading = ref(false);
-const records = ref<AftersaleOrder[]>([]);
-const total = ref(0);
-const page = ref(1);
+const router = useRouter();
+
+const activeTab = ref<'apply' | 'record'>('apply');
+const loadingApply = ref(false);
+const loadingRecord = ref(false);
 const pageSize = ref(10);
+
+const applyList = ref<AftersaleOrder[]>([]);
+const applyPage = ref(1);
+const applyTotal = ref(0);
+
+const recordList = ref<any[]>([]);
+const recordPage = ref(1);
+const recordTotal = ref(0);
 
 const detailVisible = ref(false);
 const detailLoading = ref(false);
 const detail = ref<AftersaleDetail | null>(null);
 
-function skuText(item: Record<string, any>): string {
-  return item.skuValue || item.skuData || '';
+const AFTERSALE_TYPE_TEXT: Record<number, string> = {
+  1: '仅退款',
+  2: '退货退款',
+  3: '换货',
+};
+
+const AFTERSALE_STATUS_TEXT: Record<number, string> = {
+  1: '审核处理中',
+  2: '审核通过',
+  3: '审核未通过',
+  4: '待用户回寄',
+  5: '待商家收货',
+  6: '已完成',
+  7: '已取消',
+  21: '待供应商审核',
+  22: '待供应商收货',
+};
+
+function aftersaleTypeText(type: number): string {
+  return AFTERSALE_TYPE_TEXT[Number(type)] ?? `类型${type}`;
 }
 
-/** 列表项 → 售后单 ID（`aftersalesItem.aftersaleId`）。 */
-function aftersalesIdOf(item: Record<string, any>): number | null {
-  const aftersalesItem = item.aftersalesItem;
-  const id = aftersalesItem?.aftersaleId ?? aftersalesItem?.aftersale_id;
-  return typeof id === 'number' && id > 0 ? id : null;
+function aftersaleStatusText(status: number): string {
+  return AFTERSALE_STATUS_TEXT[Number(status)] ?? `状态${status}`;
 }
 
-async function load() {
-  loading.value = true;
+function switchTab(tab: 'apply' | 'record') {
+  activeTab.value = tab;
+  if (tab === 'apply') loadApply();
+  else loadRecord();
+}
+
+function goApply(orderId: number, itemId: number) {
+  router.push({ path: '/member/aftersales/apply', query: { orderId: String(orderId), itemId: String(itemId) } });
+}
+
+async function loadApply() {
+  loadingApply.value = true;
   try {
-    const result = await aftersaleApi.list({ page: page.value, size: pageSize.value });
-    records.value = pageItems(result);
-    total.value = Number(result?.total ?? 0) || 0;
+    const result = await aftersaleApi.list({ page: applyPage.value, size: pageSize.value });
+    applyList.value = pageItems(result);
+    applyTotal.value = Number(result?.total ?? 0) || 0;
   } catch {
-    records.value = [];
-    total.value = 0;
+    applyList.value = [];
+    applyTotal.value = 0;
   } finally {
-    loading.value = false;
+    loadingApply.value = false;
   }
 }
 
-function onPageChange(next: number) {
-  page.value = next;
-  load();
+async function loadRecord() {
+  loadingRecord.value = true;
+  try {
+    const result = await aftersaleApi.getRecord({ page: recordPage.value, size: pageSize.value });
+    recordList.value = pageItems(result);
+    recordTotal.value = Number(result?.total ?? 0) || 0;
+  } catch {
+    recordList.value = [];
+    recordTotal.value = 0;
+  } finally {
+    loadingRecord.value = false;
+  }
+}
+
+function onApplyPageChange(next: number) {
+  applyPage.value = next;
+  loadApply();
+}
+
+function onRecordPageChange(next: number) {
+  recordPage.value = next;
+  loadRecord();
 }
 
 async function openDetail(id: number) {
@@ -174,85 +301,113 @@ async function openDetail(id: number) {
 
 onMounted(() => {
   applySeo({ title: '售后服务', noindex: true });
-  load();
+  loadApply();
 });
 </script>
 
 <style scoped lang="less">
 .tig-aftersales-page {
+  background: #f5f6fa;
   padding: 20px 0 50px;
 }
 
-.page-head {
+.member-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.info-row { flex: 1; min-width: 0; }
+
+.member-top-tabs {
+  display: flex;
+  gap: 8px;
   margin-bottom: 12px;
-  .page-title { font-size: 22px; font-weight: 700; }
-  .back-link { color: #888; font-size: 13px; &:hover { color: var(--tig-red); } }
+
+  .top-tab {
+    padding: 9px 22px;
+    background: #fff;
+    border-radius: 6px 6px 0 0;
+    font-size: 14px;
+    color: #555;
+
+    &.active { color: var(--tig-red); font-weight: 700; border-bottom: 2px solid var(--tig-red); }
+  }
 }
 
-.tip-bar {
-  background: #fdf6ec;
-  border: 1px solid #f5e1bf;
-  color: #a06b13;
-  border-radius: 6px;
-  padding: 10px 14px;
-  font-size: 13px;
-  margin-bottom: 14px;
-}
-
-.aftersales-body { min-height: 240px; }
-
-.order-card {
+.content-card {
   background: #fff;
-  border: 1px solid var(--tig-border-color);
   border-radius: 8px;
-  margin-bottom: 14px;
-  overflow: hidden;
+  padding: 16px;
+  min-height: 320px;
+}
 
-  .order-head {
-    background: #fafafa;
-    padding: 10px 16px;
-    border-bottom: 1px solid #f0f0f0;
+.custom-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #ddd;
+
+  .table-header { background: #f5f5f5; }
+
+  .header-cell {
+    border: 1px solid #ddd;
+    padding: 10px;
     font-size: 13px;
     color: #666;
-
-    .head-left { display: flex; gap: 18px; }
-    .shipping-time { color: #999; }
+    font-weight: 600;
   }
+
+  td {
+    border: 1px solid #e8e8e8;
+    padding: 10px;
+    text-align: center;
+    font-size: 13px;
+    color: #555;
+    vertical-align: top;
+  }
+
+  .order-sn-cell { color: #333; }
+  .price-cell { color: var(--tig-red); }
 }
 
-.order-items { padding: 4px 16px; }
+.product-list { display: flex; flex-direction: column; gap: 10px; }
 
-.item-row {
-  padding: 10px 0;
-  border-bottom: 1px solid #f7f7f7;
-  &:last-child { border-bottom: none; }
+.product-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
 
-  .item-left {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+  .img { width: 50px; height: 50px; object-fit: cover; border-radius: 4px; border: 1px solid #f0f0f0; }
+  .product-meta {
+    flex: 1;
     min-width: 0;
-
-    .thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 4px; border: 1px solid #f0f0f0; }
-    .item-meta {
-      .name { font-size: 13px; }
-      .sku { color: #999; font-size: 12px; margin-top: 3px; }
-    }
+    .name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sn { color: #999; font-size: 12px; margin-top: 3px; }
   }
-
-  .item-right { display: flex; align-items: center; gap: 14px; }
-  .price { font-size: 13px; color: #666; }
+  .product-actions { display: flex; gap: 6px; align-items: center; }
 }
+
+.pagination-wrap { display: flex; justify-content: center; margin-top: 16px; }
 
 .detail-block {
   margin-top: 18px;
-
   h3 { font-size: 14px; font-weight: 700; margin-bottom: 10px; }
 }
 
-.pagination-wrap {
+.detail-item {
   display: flex;
-  justify-content: center;
-  margin-top: 20px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f7f7f7;
+
+  img { width: 48px; height: 48px; object-fit: cover; border-radius: 4px; border: 1px solid #f0f0f0; }
+  .item-meta {
+    flex: 1;
+    .name { font-size: 13px; }
+    .sku { color: #999; font-size: 12px; margin-top: 3px; }
+  }
+  .price { color: #666; font-size: 13px; }
 }
 </style>

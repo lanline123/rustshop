@@ -19,6 +19,8 @@ import type {
   CheckCoupon,
   ClaimableCoupon,
   CollectProduct,
+  CommentItem,
+  CommentSubNum,
   DecorateIndex,
   HistoryProduct,
   LoginVO,
@@ -29,6 +31,7 @@ import type {
   OrderCreateVO,
   OrderDetail,
   OrderInvoice,
+  OrderNum,
   OrderVO,
   PageResult,
   PayCreate,
@@ -39,8 +42,13 @@ import type {
   ProductListParams,
   ProductVO,
   Region,
+  ShippingTypeMap,
   SiteConfig,
+  UnreadMessageCount,
+  UploadedPicture,
   UserCoupon,
+  UserMessage,
+  UserSignInfo,
 } from './types';
 
 // ————————————————————— 首页 / 分类 —————————————————————
@@ -175,7 +183,7 @@ export const orderApi = {
   },
   /** `GET /api/order/check/getStoreShippingType`：店铺配送方式。 */
   storeShippingType(params: { shopId?: number; addressId?: number; payTypeId?: number; flowType?: number }) {
-    return request<Record<string, any[]>>({
+    return request<ShippingTypeMap>({
       url: '/order/check/getStoreShippingType',
       method: 'get',
       params,
@@ -188,6 +196,10 @@ export const orderApi = {
       method: 'post',
       data: param,
     });
+  },
+  /** `GET /api/user/order/orderNum`：订单数量角标（待付款/待收货/评论/售后等）。 */
+  orderNum() {
+    return request<OrderNum>({ url: '/user/order/orderNum', method: 'get' });
   },
   /** `GET /api/user/order/list`：我的订单分页。 */
   list(params: { orderStatus?: number; page?: number; pageSize?: number }) {
@@ -297,6 +309,97 @@ export const userApi = {
   /** `GET /api/user/user/memberCenter`：用户中心概览（含订单角标）。 */
   memberCenter() {
     return request<MemberCenter>({ url: '/user/user/memberCenter', method: 'get' });
+  },
+  /** `POST /api/user/user/uploadImg`：上传凭证图片（multipart `file`）。 */
+  uploadImage(file: File) {
+    const form = new FormData();
+    form.append('file', file);
+    return request<UploadedPicture>({
+      url: '/user/user/uploadImg',
+      method: 'post',
+      data: form,
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  /** `GET /api/user/user/creditDetail`：账期支付信息。 */
+  creditDetail() {
+    return request<Record<string, any> | null>({
+      url: '/user/user/creditDetail',
+      method: 'get',
+    });
+  },
+};
+
+export const messageApi = {
+  /** `GET /api/user/message/list`：站内信分页。 */
+  list(params: { page?: number; size?: number; unread?: number } = {}) {
+    return request<PageResult<UserMessage>>({
+      url: '/user/message/list',
+      method: 'get',
+      params,
+    });
+  },
+  /** `GET /api/user/message/unreadCount`：未读消息统计。 */
+  unreadCount() {
+    return request<UnreadMessageCount>({ url: '/user/message/unreadCount', method: 'get' });
+  },
+  /** `POST /api/user/message/updateMessageRead`：单条已读。 */
+  updateRead(id: number) {
+    return request<boolean>({
+      url: '/user/message/updateMessageRead',
+      method: 'post',
+      data: { id },
+    });
+  },
+  /** `POST /api/user/message/updateAllRead`：全部已读。 */
+  updateAllRead() {
+    return request<void>({ url: '/user/message/updateAllRead', method: 'post' });
+  },
+  /** `POST /api/user/message/updateOrderMessageRead`：订单消息已读。 */
+  updateOrderRead() {
+    return request<void>({ url: '/user/message/updateOrderMessageRead', method: 'post' });
+  },
+  /** `POST /api/user/message/del`：删除消息。 */
+  remove(id: number) {
+    return request<void>({
+      url: '/user/message/del',
+      method: 'post',
+      data: { id },
+    });
+  },
+};
+
+export const commentApi = {
+  /** `GET /api/user/comment/subNum`：评价数量统计。 */
+  subNum() {
+    return request<CommentSubNum>({ url: '/user/comment/subNum', method: 'get' });
+  },
+  /** `GET /api/user/comment/list`：已评价列表。 */
+  list(params: { page?: number; pageSize?: number } = {}) {
+    return request<PageResult<CommentItem>>({
+      url: '/user/comment/list',
+      method: 'get',
+      params,
+    });
+  },
+  /** `GET /api/user/comment/showedList`：待晒单列表（返回订单分页）。 */
+  showedList(params: { page?: number; size?: number } = {}) {
+    return request<PageResult<any>>({
+      url: '/user/comment/showedList',
+      method: 'get',
+      params,
+    });
+  },
+};
+
+export const signApi = {
+  /** `GET /api/user/sign/index`：签到页信息。 */
+  index() {
+    return request<UserSignInfo>({ url: '/user/sign/index', method: 'get' });
+  },
+  /** `GET /api/user/sign/sign`：执行签到。 */
+  sign() {
+    return request<void>({ url: '/user/sign/sign', method: 'get' });
   },
 };
 
@@ -456,6 +559,14 @@ export const aftersaleApi = {
       url: '/user/aftersales/create',
       method: 'post',
       data: param,
+    });
+  },
+  /** `GET /api/user/aftersales/getRecord`：申请记录分页（`AftersalesVO`）。 */
+  getRecord(params: { page?: number; size?: number; status?: number } = {}) {
+    return request<PageResult<any>>({
+      url: '/user/aftersales/getRecord',
+      method: 'get',
+      params,
     });
   },
 };

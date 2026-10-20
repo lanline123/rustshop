@@ -1,5 +1,8 @@
 <template>
-  <div class="tig-address-page container">
+  <div class="tig-address-page">
+    <div class="container member-layout">
+      <MemberNav />
+      <div class="info-row">
     <div class="page-head flex-between">
       <h1 class="page-title">收货地址</h1>
       <div class="head-actions">
@@ -79,6 +82,8 @@
         <el-button type="primary" :loading="saving" @click="save">保存</el-button>
       </template>
     </el-dialog>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -91,6 +96,7 @@ import { pageItems } from '@/api/types';
 import type { AddressPayload, AddressVO, Region } from '@/api/types';
 import { applySeo } from '@/composables/useSeo';
 import { useUserStore } from '@/stores/user';
+import MemberNav from '@/components/MemberNav.vue';
 
 const user = useUserStore();
 
@@ -347,5 +353,16 @@ onMounted(async () => {
 
 @media (max-width: 1280px) {
   .address-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.member-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.info-row {
+  flex: 1;
+  min-width: 0;
 }
 </style>

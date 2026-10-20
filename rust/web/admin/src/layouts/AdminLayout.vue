@@ -37,6 +37,20 @@
               <span>订单管理</span>
             </template>
             <el-menu-item index="/order/list">订单列表</el-menu-item>
+            <el-menu-item index="/order/aftersales">售后管理</el-menu-item>
+            <el-menu-item index="/order/proxy-shopping">代客下单</el-menu-item>
+          </el-sub-menu>
+
+          <!-- 财务中心（退款申请 / 账期管理，对应原版 finance + termPay） -->
+          <el-sub-menu index="/finance">
+            <template #title>
+              <el-icon><Wallet /></el-icon>
+              <span>财务中心</span>
+            </template>
+            <el-menu-item index="/finance/refund-apply">退款申请</el-menu-item>
+            <el-menu-item index="/finance/credit-user">账期会员</el-menu-item>
+            <el-menu-item index="/finance/credit-order">账期订单</el-menu-item>
+            <el-menu-item index="/finance/credit-settlement">账期结算</el-menu-item>
           </el-sub-menu>
 
           <!-- 会员管理 -->

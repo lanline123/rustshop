@@ -1,5 +1,8 @@
 <template>
-  <div class="tig-orders-page container">
+  <div class="tig-orders-page">
+    <div class="container member-layout">
+      <MemberNav />
+      <div class="info-row">
     <div class="page-head flex-between">
       <h1 class="page-title">我的订单</h1>
       <router-link to="/member" class="back-link">返回个人中心</router-link>
@@ -72,6 +75,8 @@
         />
       </div>
     </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -84,6 +89,7 @@ import { pageItems } from '@/api/types';
 import type { OrderVO } from '@/api/types';
 import { applySeo } from '@/composables/useSeo';
 import { formatPrice, formatTime, orderStatusTagType, orderStatusText } from '@/utils/format';
+import MemberNav from '@/components/MemberNav.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -261,5 +267,16 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   margin-top: 20px;
+}
+
+.member-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.info-row {
+  flex: 1;
+  min-width: 0;
 }
 </style>

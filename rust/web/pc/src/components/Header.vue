@@ -18,6 +18,9 @@
                 <el-dropdown-item command="coupons">我的优惠券</el-dropdown-item>
                 <el-dropdown-item command="favorites">我的收藏</el-dropdown-item>
                 <el-dropdown-item command="aftersales">售后服务</el-dropdown-item>
+                <el-dropdown-item command="comments">评价晒单</el-dropdown-item>
+                <el-dropdown-item command="messages">站内信</el-dropdown-item>
+                <el-dropdown-item command="sign">每日签到</el-dropdown-item>
                 <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -169,6 +172,9 @@ const USER_MENU_ROUTES: Record<string, string> = {
   coupons: '/member/coupons',
   favorites: '/member/favorites',
   aftersales: '/member/aftersales',
+  comments: '/member/comments',
+  messages: '/member/messages',
+  sign: '/member/sign',
 };
 
 function handleUserCommand(command: string) {

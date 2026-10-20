@@ -8,6 +8,12 @@ import ProductListView from '@/views/business/ProductListView.vue';
 import OrderListView from '@/views/business/OrderListView.vue';
 import MemberListView from '@/views/business/MemberListView.vue';
 import CouponListView from '@/views/business/CouponListView.vue';
+import AfterSalesListView from '@/views/business/AfterSalesListView.vue';
+import RefundApplyListView from '@/views/business/RefundApplyListView.vue';
+import ProxyShoppingView from '@/views/business/ProxyShoppingView.vue';
+import CreditUserListView from '@/views/business/CreditUserListView.vue';
+import CreditOrderListView from '@/views/business/CreditOrderListView.vue';
+import CreditSettlementView from '@/views/business/CreditSettlementView.vue';
 
 // Schemas
 import { basicSettingSchema } from '@/schemas/setting/basic';
@@ -66,6 +72,43 @@ const routes: RouteRecordRaw[] = [
         name: 'OrderList',
         component: OrderListView,
         meta: { title: '订单列表' }
+      },
+      {
+        path: 'order/aftersales',
+        name: 'OrderAftersales',
+        component: AfterSalesListView,
+        meta: { title: '售后管理' }
+      },
+      {
+        path: 'order/proxy-shopping',
+        name: 'OrderProxyShopping',
+        component: ProxyShoppingView,
+        meta: { title: '代客下单' }
+      },
+      // 财务中心
+      {
+        path: 'finance/refund-apply',
+        name: 'FinanceRefundApply',
+        component: RefundApplyListView,
+        meta: { title: '退款申请' }
+      },
+      {
+        path: 'finance/credit-user',
+        name: 'FinanceCreditUser',
+        component: CreditUserListView,
+        meta: { title: '账期会员' }
+      },
+      {
+        path: 'finance/credit-order',
+        name: 'FinanceCreditOrder',
+        component: CreditOrderListView,
+        meta: { title: '账期订单' }
+      },
+      {
+        path: 'finance/credit-settlement',
+        name: 'FinanceCreditSettlement',
+        component: CreditSettlementView,
+        meta: { title: '账期结算' }
       },
       // 会员管理
       {

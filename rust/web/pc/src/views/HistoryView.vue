@@ -1,5 +1,8 @@
 <template>
-  <div class="tig-history-page container">
+  <div class="tig-history-page">
+    <div class="container member-layout">
+      <MemberNav />
+      <div class="info-row">
     <div class="page-head flex-between">
       <h1 class="page-title">浏览历史</h1>
       <router-link to="/member" class="back-link">返回个人中心</router-link>
@@ -29,6 +32,8 @@
         </div>
       </div>
     </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -39,6 +44,7 @@ import { historyApi } from '@/api';
 import type { HistoryProduct } from '@/api/types';
 import { applySeo } from '@/composables/useSeo';
 import { imageUrl, priceDecimal, priceInteger } from '@/utils/format';
+import MemberNav from '@/components/MemberNav.vue';
 
 const router = useRouter();
 
@@ -128,5 +134,16 @@ onMounted(() => {
       .stock-text { font-size: 12px; color: #999; }
     }
   }
+}
+
+.member-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.info-row {
+  flex: 1;
+  min-width: 0;
 }
 </style>

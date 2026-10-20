@@ -1,73 +1,72 @@
 <template>
-  <div class="tig-pay-result-page container">
-    <div v-loading="loading" class="pay-card">
+  <div class="tig-pay-result-page">
+    <div v-loading="loading" class="container">
       <template v-if="order">
-        <!-- 结果状态 -->
-        <div class="status-block" :class="paid ? 'is-paid' : 'is-unpaid'">
-          <el-icon class="status-icon"><component :is="paid ? CircleCheckFilled : WarningFilled" /></el-icon>
-          <div class="status-text">
-            <h1>{{ paid ? '支付成功' : '订单待支付' }}</h1>
-            <p v-if="paid">支付已完成，感谢您的购买，订单将尽快为您安排发货。</p>
-            <p v-else>
-              请在 <strong class="countdown">{{ remainText }}</strong> 内完成支付，超时订单将自动关闭。
-            </p>
+        <!-- 订单已提交提示 -->
+        <div class="success-txt">您的订单已成功提交，请付款！</div>
+
+        <!-- 金额 / 订单号 -->
+        <div class="price-box">
+          <div class="num-box">
+            <div class="tit">需支付：</div>
+            <div class="price">¥{{ formatPrice(order.unpaidAmount ?? order.totalAmount) }}</div>
+          </div>
+          <div class="order-num">
+            <div class="tit">订单号：</div>
+            <router-link :to="`/member/orders/${order.orderId}`" class="num">{{ order.orderSn }}</router-link>
           </div>
         </div>
 
-        <!-- 订单信息 -->
-        <el-descriptions :column="2" border class="order-desc">
-          <el-descriptions-item label="订单号">{{ order.orderSn }}</el-descriptions-item>
-          <el-descriptions-item label="下单时间">{{ formatTime(order.addTime) }}</el-descriptions-item>
-          <el-descriptions-item label="订单金额">¥{{ formatPrice(order.totalAmount) }}</el-descriptions-item>
-          <el-descriptions-item label="待付金额">
-            <span class="amount">¥{{ formatPrice(order.unpaidAmount ?? order.totalAmount) }}</span>
-          </el-descriptions-item>
-        </el-descriptions>
+        <!-- 已支付 -->
+        <div v-if="paid" class="paid-box">
+          <el-icon class="paid-icon"><CircleCheckFilled /></el-icon>
+          <div class="paid-text">
+            <h2>订单支付成功</h2>
+            <p>支付已完成，订单将尽快为您安排发货。</p>
+          </div>
+          <div class="paid-actions">
+            <el-button type="primary" @click="$router.push(`/member/orders/${order.orderId}`)">查看订单</el-button>
+            <el-button @click="$router.push('/search')">继续购物</el-button>
+          </div>
+        </div>
 
-        <!-- 支付方式（未支付时展示） -->
-        <template v-if="!paid">
-          <div class="pay-section">
-            <h2 class="section-title">选择支付方式</h2>
-            <div v-if="payList.length === 0" class="muted">当前订单没有可用的线上支付渠道，请联系客服线下处理。</div>
-            <div v-else class="pay-list">
-              <button
-                v-for="code in payList"
-                :key="code"
-                class="pay-item"
-                :class="{ active: selectedPayType === code }"
-                @click="selectedPayType = code"
-              >
-                {{ payLabel(code) }}
-              </button>
+        <template v-else>
+          <!-- 线上支付方式 -->
+          <div v-if="Number(order.payTypeId) < 3" class="pay-type-box">
+            <div v-if="paymentMethods.length" class="payment-section">
+              <div class="tit-row">
+                <h3>平台支付</h3>
+                <p>支持所有银行卡或信用卡，更迅速、安全</p>
+              </div>
+              <el-radio-group v-model="payType" class="type-tab">
+                <el-radio v-for="item in paymentMethods" :key="item" class="tab" :value="item">
+                  <span class="pay-label">{{ payLabel(item) }}</span>
+                </el-radio>
+              </el-radio-group>
             </div>
           </div>
 
-          <div class="pay-actions">
-            <el-button
-              type="primary"
-              size="large"
-              :loading="paying"
-              :disabled="!selectedPayType"
-              @click="createPayment"
-            >
-              立即支付
+          <!-- 线下支付说明 -->
+          <div v-if="Number(order.payTypeId) >= 3 && offlineKeys.length" class="pay-type-box">
+            <el-tabs type="border-card" v-model="activeOfflineTab">
+              <el-tab-pane v-for="key in offlineKeys" :key="key" :label="offlineLabel(key)" :name="key">
+                <div class="offline-content" v-html="offlinePaymentList[key]"></div>
+              </el-tab-pane>
+            </el-tabs>
+          </div>
+
+          <!-- 去付款 -->
+          <div v-if="Number(order.payTypeId) < 3" class="btn-box">
+            <el-button type="primary" size="large" class="pay-btn" :disabled="!payType" @click="goPay">
+              去付款 <el-icon><Right /></el-icon>
             </el-button>
-            <el-button size="large" @click="refreshStatus">刷新支付状态</el-button>
-            <el-button size="large" @click="$router.push('/member/orders')">查看我的订单</el-button>
           </div>
 
           <div v-if="payHint" class="pay-hint">{{ payHint }}</div>
         </template>
-
-        <template v-else>
-          <div class="pay-actions">
-            <el-button type="primary" size="large" @click="$router.push(`/member/orders/${order.orderId}`)">查看订单详情</el-button>
-            <el-button size="large" @click="$router.push('/search')">继续购物</el-button>
-          </div>
-        </template>
       </template>
 
-      <el-empty v-else-if="!loading" description="未找到支付订单">
+      <el-empty v-else-if="!loading" description="未找到待支付订单">
         <el-button type="primary" @click="$router.push('/member/orders')">查看我的订单</el-button>
       </el-empty>
     </div>
@@ -75,124 +74,83 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+/**
+ * 支付方式选择页（对齐原版 `pages/order/pay.vue`）。
+ *
+ * 结构：订单提交成功提示 → 需支付金额/订单号 → 平台支付渠道选择 →
+ * 线下汇款说明 tabs → 去付款（跳转渠道收银台）。
+ * 渠道收银台见 `PayChannelView`（`/pay/channel?type=&id=`）。
+ */
+import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { CircleCheckFilled, WarningFilled } from '@element-plus/icons-vue';
+import { CircleCheckFilled, Right } from '@element-plus/icons-vue';
 import { payApi } from '@/api';
 import type { PayIndex } from '@/api/types';
 import { applySeo } from '@/composables/useSeo';
-import { formatPrice, formatTime } from '@/utils/format';
+import { formatPrice } from '@/utils/format';
 
 const route = useRoute();
 const router = useRouter();
 
 const loading = ref(true);
-const paying = ref(false);
 const paid = ref(false);
 const order = ref<Record<string, any> | null>(null);
 const payIndex = ref<PayIndex | null>(null);
-const selectedPayType = ref<string>('');
+const payType = ref('');
+const activeOfflineTab = ref('');
 const payHint = ref('');
 
-let pollTimer: number | null = null;
-let pollCount = 0;
-const MAX_POLL = 30;
-
-const payList = computed<string[]>(() => payIndex.value?.paymentList ?? []);
 const orderId = computed(() => Number(route.query.orderId) || 0);
+const paymentList = computed<string[]>(() => payIndex.value?.paymentList ?? []);
+const offlinePaymentList = computed<Record<string, string>>(() => payIndex.value?.offlinePaymentList ?? {});
+const offlineKeys = computed(() => Object.keys(offlinePaymentList.value));
 
-/** 渠道编码 → 中文名（与后端支付渠道编码对齐；未知编码原样展示）。 */
+/** 可用渠道（过滤线下/余额类，与原版一致）。 */
+const paymentMethods = computed(() =>
+  paymentList.value.filter((code) => !['offline', 'balance', 'cash', 'transfer'].includes(code.toLowerCase())),
+);
+
 const PAY_LABELS: Record<string, string> = {
   wechat: '微信支付',
-  wechatpay: '微信支付',
   alipay: '支付宝',
-  balance: '余额支付',
-  huifu: '汇付支付',
-  lakala: '拉卡拉支付',
-  yeepay: '易宝支付',
-  yunpay: '云支付',
   paypal: 'PayPal',
-  yabanpay: '亚版支付',
-  offline: '线下支付',
+  yunpayWechat: '云支付-微信',
+  yunpayAlipay: '云支付-支付宝',
+  yunpayYunshanfu: '云支付-云闪付',
+  yabanpayWechat: '亚版支付-微信',
+  yabanpayAlipay: '亚版支付-支付宝',
+  huifuWechat: '汇付-微信',
+  huifuAlipay: '汇付-支付宝',
+  lakalaWechat: '拉卡拉-微信',
+  lakalaAlipay: '拉卡拉-支付宝',
+  yeepayWechat: '易宝-微信',
+  yeepayAlipay: '易宝-支付宝',
+  applepay: 'Apple Pay',
+};
+
+const OFFLINE_LABELS: Record<string, string> = {
+  thirdPartyPaymentTransfer: '第三方支付转账',
+  offlinePayBank: '银行汇款',
+  offlinePayCompany: '企业汇款',
+  otherPaymentRemittance: '其他汇款方式',
 };
 
 function payLabel(code: string): string {
-  return PAY_LABELS[code.toLowerCase()] ?? code;
+  return PAY_LABELS[code] ?? code;
 }
 
-const remainText = computed(() => {
-  if (!order.value) return '--';
-  const addTime = Number(order.value.addTime ?? 0);
-  const end = addTime > 0 ? addTime + 30 * 60 : 0;
-  const now = Math.floor(Date.now() / 1000);
-  const remain = Math.max(0, end - now);
-  const minutes = Math.floor(remain / 60);
-  const seconds = remain % 60;
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-});
-
-function stopPolling() {
-  if (pollTimer !== null) {
-    window.clearInterval(pollTimer);
-    pollTimer = null;
-  }
+function offlineLabel(key: string): string {
+  return OFFLINE_LABELS[key] ?? key;
 }
 
-async function refreshStatus(): Promise<boolean> {
-  if (!orderId.value) return false;
-  try {
-    const status = await payApi.checkStatus(orderId.value);
-    if (Number(status) === 1) {
-      paid.value = true;
-      if (order.value) order.value.payStatus = 2;
-      stopPolling();
-      return true;
-    }
-  } catch {
-    // 轮询失败静默，用户可手动刷新
-  }
-  return false;
-}
-
-function startPolling() {
-  stopPolling();
-  pollCount = 0;
-  pollTimer = window.setInterval(async () => {
-    pollCount += 1;
-    if (paid.value || pollCount > MAX_POLL) {
-      stopPolling();
-      return;
-    }
-    await refreshStatus();
-  }, 2000);
-}
-
-async function createPayment() {
-  if (!selectedPayType.value) {
+function goPay() {
+  if (!payType.value) {
     ElMessage.warning('请选择支付方式');
     return;
   }
-  paying.value = true;
-  payHint.value = '';
-  try {
-    const result = await payApi.create(orderId.value, selectedPayType.value);
-    if (result?.payInfo || result?.code) {
-      // 渠道返回的支付参数由后续渠道页处理（当前渠道实现未迁移时不会走到这里）
-      payHint.value = '已获取支付参数，请按渠道提示完成支付后点击「刷新支付状态」。';
-      ElMessage.success('已创建支付单');
-    } else {
-      payHint.value = '支付单已创建，请完成支付后点击「刷新支付状态」。';
-    }
-    await refreshStatus();
-    if (!paid.value) startPolling();
-  } catch (err: any) {
-    // 后端对未迁移渠道返回明确业务错误，这里如实展示，不伪造成功
-    payHint.value = err?.message || '支付渠道创建失败，请稍后重试或联系客服';
-    ElMessage.error(payHint.value);
-  } finally {
-    paying.value = false;
-  }
+  // 渠道页面按真实契约调用 /order/pay/create 与 /order/pay/checkStatus
+  router.push({ path: '/pay/channel', query: { id: String(orderId.value), type: payType.value } });
 }
 
 async function load() {
@@ -205,14 +163,12 @@ async function load() {
     payIndex.value = await payApi.index(orderId.value);
     order.value = (payIndex.value?.order as Record<string, any>) ?? null;
     if (order.value) {
-      paid.value = Number(order.value.payStatus) === 2 || Number(order.value.payStatus) === 1;
+      paid.value = Number(order.value.payStatus) === 2;
     }
-    if (payList.value.length) {
-      selectedPayType.value = payList.value[0];
-    }
+    if (paymentMethods.value.length) payType.value = paymentMethods.value[0];
+    if (offlineKeys.value.length) activeOfflineTab.value = offlineKeys.value[0];
     await refreshStatus();
-    if (!paid.value) startPolling();
-    applySeo({ title: '支付结果', noindex: true });
+    applySeo({ title: '支付订单', noindex: true });
   } catch (err: any) {
     order.value = null;
     ElMessage.error(err?.message || '获取支付信息失败');
@@ -221,95 +177,129 @@ async function load() {
   }
 }
 
+async function refreshStatus() {
+  if (!orderId.value || paid.value) return;
+  try {
+    const status = await payApi.checkStatus(orderId.value);
+    if (Number(status) === 1) {
+      paid.value = true;
+    }
+  } catch {
+    // 支付状态查询失败时保留页面，用户可继续支付或稍后刷新
+  }
+}
+
 onMounted(load);
-onBeforeUnmount(stopPolling);
 </script>
 
 <style scoped lang="less">
 .tig-pay-result-page {
+  background: #f5f6fa;
+  min-height: 70vh;
   padding: 30px 0 60px;
 }
 
-.pay-card {
-  background: #fff;
-  border: 1px solid var(--tig-border-color);
-  border-radius: 10px;
-  padding: 26px 30px;
-  min-height: 320px;
+.success-txt {
+  font-size: 20px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 16px;
 }
 
-.status-block {
+.price-box {
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px 22px;
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 18px 22px;
-  border-radius: 8px;
-  margin-bottom: 22px;
+  gap: 60px;
+  margin-bottom: 16px;
 
-  &.is-paid {
-    background: #f0f9eb;
-    .status-icon { color: #67c23a; }
+  .num-box {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    .tit { color: #666; font-size: 14px; }
+    .price { color: var(--tig-red); font-size: 26px; font-weight: 800; }
   }
 
-  &.is-unpaid {
-    background: #fdf6ec;
-    .status-icon { color: #e6a23c; }
-  }
-
-  .status-icon { font-size: 46px; }
-
-  .status-text {
-    h1 { font-size: 22px; margin-bottom: 6px; }
-    p { color: #666; font-size: 13px; }
-    .countdown { color: var(--tig-red); }
+  .order-num {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 14px;
+    .tit { color: #666; }
+    .num { color: #333; &:hover { color: var(--tig-red); } }
   }
 }
 
-.order-desc {
-  margin-bottom: 22px;
-  .amount { color: var(--tig-red); font-weight: 700; }
-}
-
-.section-title { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
-
-.pay-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.pay-item {
-  min-width: 140px;
-  padding: 12px 16px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
+.pay-type-box {
   background: #fff;
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.2s;
+  border-radius: 8px;
+  padding: 16px 22px;
+  margin-bottom: 16px;
+}
 
-  &.active {
-    border-color: var(--tig-red);
-    color: var(--tig-red);
-    background: #fff7f6;
-    font-weight: 700;
+.payment-section {
+  .tit-row {
+    margin-bottom: 12px;
+    h3 { font-size: 16px; font-weight: 700; }
+    p { color: #999; font-size: 12px; margin-top: 4px; }
   }
 }
 
-.pay-actions {
+.type-tab {
   display: flex;
   gap: 12px;
-  margin-top: 22px;
+  flex-wrap: wrap;
+
+  .tab {
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 10px 24px;
+    height: auto;
+    margin-right: 0;
+
+    :deep(.el-radio__label) { padding-left: 6px; }
+    &.is-checked { border-color: var(--tig-red); }
+  }
+
+  .pay-label { font-size: 14px; color: #333; }
+}
+
+.btn-box {
+  display: flex;
+  justify-content: center;
+  margin: 20px 0;
+
+  .pay-btn { min-width: 220px; font-weight: 700; }
+}
+
+.offline-content {
+  line-height: 1.8;
+  font-size: 13px;
+  color: #555;
 }
 
 .pay-hint {
-  margin-top: 14px;
+  text-align: center;
   color: #888;
   font-size: 13px;
 }
 
-.muted {
-  color: #999;
-  font-size: 13px;
+.paid-box {
+  background: #fff;
+  border-radius: 8px;
+  padding: 26px 30px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+
+  .paid-icon { font-size: 48px; color: #67c23a; }
+  .paid-text {
+    h2 { font-size: 20px; margin-bottom: 6px; }
+    p { color: #888; font-size: 13px; }
+  }
+  .paid-actions { margin-left: auto; display: flex; gap: 12px; }
 }
 </style>

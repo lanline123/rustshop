@@ -1,5 +1,8 @@
 <template>
-  <div class="tig-coupons-page container">
+  <div class="tig-coupons-page">
+    <div class="container member-layout">
+      <MemberNav />
+      <div class="info-row">
     <div class="page-head flex-between">
       <h1 class="page-title">我的优惠券</h1>
       <router-link to="/member" class="back-link">返回个人中心</router-link>
@@ -96,6 +99,8 @@
         </div>
       </template>
     </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -108,6 +113,7 @@ import type { ClaimableCoupon, UserCoupon } from '@/api/types';
 import { applySeo } from '@/composables/useSeo';
 import { formatPrice } from '@/utils/format';
 import dayjs from 'dayjs';
+import MemberNav from '@/components/MemberNav.vue';
 
 const activeTab = ref('mine');
 const loading = ref(false);
@@ -251,5 +257,16 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   margin-top: 20px;
+}
+
+.member-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.info-row {
+  flex: 1;
+  min-width: 0;
 }
 </style>
