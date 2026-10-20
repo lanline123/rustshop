@@ -47,6 +47,7 @@
 | 代客下单可用性：门店价/库存、会员折扣、距离 | ✅ | `b5cadd65`、`bf50fb17` |
 | 礼品卡平台店铺名/logo 读取 `shopName`/`shopLogo` | ✅ | `03b30ed2` |
 | H5 默认导航模板兜底 | ✅ 已有 | `DEFAULT_NAV_H5_DECORATE_DATA` |
+| SMTP 邮件（163 SSL/465） | ✅ 已实测 | 配置入库；Rust `sendTestEmail` 返回成功 |
 
 ---
 
@@ -143,22 +144,15 @@
 - 分账/进件按渠道能力补齐；
 - 商户证书从安全路径加载，不写入 git。
 
-### 2.5 SMTP 邮件
+### 2.5 SMTP 邮件 ✅
 
-**现状**：
+已使用 `lanline123@163.com` + 163 客户端授权码完成：
+- `smtp.163.com:465` SSL 登录成功；
+- 自测邮件发送成功；
+- Rust `sendTestEmail` 返回 200。
 
-- 邮箱：`lanline123@163.com`；
-- `smtp.163.com:465` 连接成功，支持 AUTH；
-- 用该邮箱 + 提供的密码登录返回 `535 authentication failed`；
-- 尚未完成真实发信验证。
-
-**需要确认**：
-
-- 提供的 `VJc...` 是否为 **163 客户端授权码**（不是网页登录密码）；
-- 163 邮箱是否已开启 SMTP 服务；
-- 测试收件邮箱（用于端到端发信）；
-- 配置项：`smtpHost=smtp.163.com`、`smtpPort=465`、`smtpSsl=1`、
-  `smtpUser=lanline123@163.com`、`smtpMail=lanline123@163.com`。
+配置项：`smtpHost=smtp.163.com`、`smtpPort=465`、`smtpSsl=1`、
+`smtpUser=lanline123@163.com`、`smtpMail=lanline123@163.com`、`smtpPass=<授权码>`。
 
 ### 2.6 快递鸟
 
@@ -232,7 +226,7 @@
 | 微信支付 | mchid / APIv2 key / APIv3 key / 商户证书 / 微信支付公钥 | 证书已有；公钥缺失 |
 | 阿里云 OSS | AK/SK / bucket / endpoint | ✅ 已验证 |
 | 火山翻译 | AccessKey / SecretKey / 已开通翻译服务 | ❌ 一个无效、一个欠费 |
-| SMTP | 163 邮箱用户名 / 授权码 / 发件人 / 收件测试地址 | 邮箱已有；AUTH 失败，需授权码/开通 SMTP |
+| SMTP | 163 邮箱用户名 / 授权码 / 发件人 | ✅ 已验证 |
 | 快递鸟 | EBusinessID / API Key / IP 白名单 | ❌ 接口拒绝 |
 | ES | URL / 账号密码 / 索引名 / 分词器 | 缺失 |
 
@@ -275,7 +269,7 @@ python ../tools/check_frontend.py contract --strict
 3. **拿小程序凭据 + IP 白名单**，完成微信直播/公众号真实联调；
 4. **拿微信支付公钥**，实现 Rust 在线支付/退款/回调；
 5. **拿有效火山 AK**，验证 SEO 翻译；
-6. **SMTP / 快递鸟凭据修正**；
+6. **快递鸟凭据修正**；
 7. **ES 全量同步**；
 8. 最后做 Docker/MySQL E2E、CI、文档清理。
 
