@@ -52,6 +52,7 @@ impl PromotionRepository {
     pub async fn paginate(
         &self,
         keyword: Option<&str>,
+        shop_id: Option<i32>,
         types: Option<&[i32]>,
         time_type: Option<i32>,
         now: i64,
@@ -76,6 +77,7 @@ impl PromotionRepository {
         push_filters(
             &mut count_qb,
             like.as_deref(),
+            shop_id,
             types,
             time_type,
             now,
@@ -89,7 +91,7 @@ impl PromotionRepository {
         let mut qb: QueryBuilder<'_, MySql> = QueryBuilder::new(format!(
             "SELECT {PROMOTION_COLUMNS} FROM promotion WHERE 1 = 1"
         ));
-        push_filters(&mut qb, like.as_deref(), types, time_type, now);
+        push_filters(&mut qb, like.as_deref(), shop_id, types, time_type, now);
         qb.push(format!(" ORDER BY {column} {dir} LIMIT "));
         qb.push_bind(limit.max(1));
         qb.push(" OFFSET ");
@@ -192,6 +194,7 @@ impl PromotionRepository {
 fn push_filters(
     qb: &mut QueryBuilder<'_, MySql>,
     like: Option<&str>,
+    shop_id: Option<i32>,
     types: Option<&[i32]>,
     time_type: Option<i32>,
     now: i64,
@@ -199,6 +202,11 @@ fn push_filters(
     if let Some(k) = like {
         qb.push(" AND promotion_name LIKE ");
         qb.push_bind(k.to_string());
+    }
+    // 多租户：店铺账号强制 `WHERE shop_id = ?`；平台账号不过滤
+    if let Some(id) = shop_id {
+        qb.push(" AND shop_id = ");
+        qb.push_bind(id);
     }
     if let Some(types) = types.filter(|t| !t.is_empty()) {
         qb.push(" AND type IN (");

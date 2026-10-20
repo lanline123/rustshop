@@ -145,6 +145,9 @@ pub struct PromotionCountVO {
 #[serde(rename_all = "camelCase", default)]
 pub struct PromotionCreateDTO {
     pub promotion_name: Option<String>,
+    /// 平台账号创建时指定归属店铺；店铺账号只能落本店（多租户，见
+    /// `infrastructure::db::repo::marketing::tenant::TenantScope`）。
+    pub shop_id: Option<i32>,
     pub start_time: Option<i32>,
     pub end_time: Option<i32>,
     #[serde(rename = "type")]

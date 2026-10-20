@@ -31,6 +31,7 @@ use tigshop_core::models::marketing::promotion::{
 use tigshop_core::types::{PageQuery, PageResult};
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::marketing::promotion::PromotionRepository;
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 /// 营销活动服务（挂载于 `AdminState.marketing.promotion`）。
@@ -65,6 +66,7 @@ impl PromotionService {
             .repo()
             .paginate(
                 q.keyword.as_deref(),
+                TenantScope::current_list_filter(),
                 types.as_deref(),
                 q.time_type,
                 now,
@@ -108,7 +110,8 @@ impl PromotionService {
             start_time: dto.start_time.unwrap_or(0),
             end_time: dto.end_time.unwrap_or(0),
             r#type: dto.r#type.unwrap_or(0),
-            shop_id: 0,
+            // 多租户：店铺账号强制落本店；平台账号落平台级（0）
+            shop_id: TenantScope::current().write_shop_id(dto.shop_id)?,
             relation_id: dto.relation_id,
             range: dto.range,
             range_data: value_to_text(dto.range_data.as_ref()),
@@ -136,6 +139,8 @@ impl PromotionService {
                 tigshop_core::models::marketing::promotion::MSG_PROMOTION_NOT_FOUND,
             ));
         };
+        // 多租户：写操作必须校验活动归属
+        TenantScope::current_ensure_access(entity.shop_id)?;
         if let Some(name) = dto.promotion_name.as_deref() {
             if name.trim().is_empty() {
                 return Err(Error::Validation(MSG_NAME_REQUIRED.into()));
