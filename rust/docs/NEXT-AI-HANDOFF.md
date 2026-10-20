@@ -37,7 +37,7 @@
   2. 微信小程序 AppID/Secret + 公众号 IP 白名单（真实扫码/access_token）；
   3. 微信支付公钥、ES 实例、微信直播权限；
   4. 前端迁移（PC 构建、页面/店铺/i18n）；
-  5. 定金预售、售后自动退款、代客下单 orderCheck submit、
+  5. 定金预售、售后渠道退款、代客下单结算页 `getOrderCheckData`、
      多租户 public/平台列表语义、文档全量清理。
 
 ---

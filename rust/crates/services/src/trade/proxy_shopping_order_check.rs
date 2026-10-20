@@ -67,14 +67,19 @@
 //! - 入参校验失败（未选用户 / 减价额大于应付额）→ 与 Java **完全一致**的错误；
 //! - 校验通过 → 明确报「结算接口未迁移」，而不是返回错误金额。
 //!
-//! ## 4. **未迁移**：`OrderCheckService#submit`
+//! ## 4. `OrderCheckService#submit`：**已实现**
 //!
-//! `OrderCheckServiceImpl#submit`（`OrderCheckServiceImpl.java:757` 起，
-//! 约 2000 行）涵盖拆单、库存原子扣减、订单/订单商品/订单地址落库、
-//! 优惠券核销、积分与余额扣减、礼品卡核销、支付单创建、发票、佣金、
-//! 消息通知等。本切片**不伪造**下单结果（伪造会直接产生脏订单与超卖），
-//! 控制器自身的校验（收货地址必填）与赋值先按 Java 同序执行，然后返回
-//! 明确的业务错误 [`MSG_SUBMIT_UNMIGRATED`]。
+//! 控制器校验（`flowType=15`、非自提必须传地址、`posUserId`、`isCartList`、
+//! `orderSource`、`cashAmount`、`shopId`、`fillUsePointAndBalance`）后，
+//! 复用 `trade::order::OrderService::create` 完成下单，并回写
+//! `order_source/pos_user_id`、改价差额和管理操作日志。
+//! 拆单/库存/优惠券/积分余额/支付单等由既有下单服务负责。
+//!
+//! ## 5. `getOrderCheckData` 仍未迁移
+//!
+//! `index` / `update` / `updateCoupon` / `changePrice` / `changePriceShow`
+//! 依赖的整页结算 VO 与促销引擎仍未迁移，校验通过后返回明确的
+//! [`MSG_ORDER_CHECK_UNMIGRATED`]；带改价/优惠券的预校验无法完整返回。
 //!
 //! # 与 Java 的其它差异
 //!
