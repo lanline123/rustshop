@@ -32,7 +32,6 @@
 
 use axum::{
     extract::{Query, State},
-    http::HeaderMap,
     routing::{get, post},
     Json, Router,
 };
@@ -103,14 +102,12 @@ struct IdQuery {
 /// 对应 Java `SalesmanContentController#list(SalesmanContentPageQuery)`。
 async fn list(
     State(state): State<AdminState>,
-    headers: HeaderMap,
     Query(q): Query<SalesmanContentPageQuery>,
 ) -> ApiResult<PageResult<SalesmanContentVO>> {
-    let shop_id = shop_id_from_headers(&headers);
     ok(state
         .marketing
         .salesman_content
-        .list_admin(shop_id, &q)
+        .list_admin(&q)
         .await?)
 }
 
@@ -184,7 +181,8 @@ async fn batch(State(state): State<AdminState>, Json(dto): Json<BatchDTO>) -> Ap
     ok(state.marketing.salesman_content.batch(&dto).await?)
 }
 
-fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
+#[cfg(test)]
+fn header_str(headers: &axum::http::HeaderMap, name: &str) -> Option<String> {
     headers
         .get(name)
         .and_then(|v| v.to_str().ok())
@@ -203,7 +201,8 @@ fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
 /// 与 Java 的差异：脏 `x-shop-id`（如 `abc`）在 Java 会抛 `NumberFormatException`，
 /// 这里回落 `None`（不过滤 → 实际也是空列表，因为 `shop_id = NULL`）。
 #[must_use]
-pub fn shop_id_from_headers(headers: &HeaderMap) -> Option<i32> {
+#[cfg(test)]
+pub fn shop_id_from_headers(headers: &axum::http::HeaderMap) -> Option<i32> {
     match header_str(headers, "x-admin-type").as_deref() {
         Some("admin") => Some(0),
         Some("shop" | "pos") => header_str(headers, "x-shop-id")
@@ -217,8 +216,9 @@ mod tests {
     use super::*;
     use axum::http::HeaderValue;
 
-    fn headers(pairs: &[(&str, &str)]) -> HeaderMap {
-        let mut h = HeaderMap::new();
+    #[cfg(test)]
+fn headers(pairs: &[(&str, &str)]) -> axum::http::HeaderMap {
+        let mut h = axum::http::HeaderMap::new();
         for (k, v) in pairs {
             h.insert(
                 axum::http::HeaderName::from_bytes(k.as_bytes()).unwrap(),
@@ -332,7 +332,7 @@ mod tests {
     /// 未知账号类型 / 无请求头 → `None`（Java `getShopId()` 返回 null → 空列表）。
     #[test]
     fn unknown_or_missing_admin_type_is_unscoped() {
-        assert_eq!(shop_id_from_headers(&HeaderMap::new()), None);
+        assert_eq!(shop_id_from_headers(&axum::http::HeaderMap::new()), None);
         assert_eq!(
             shop_id_from_headers(&headers(&[("x-admin-type", "vendor"), ("x-shop-id", "5")])),
             None

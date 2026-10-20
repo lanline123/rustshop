@@ -47,6 +47,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 }
 
 /// Java `HeaderUtils.getShopId()`：admin→0、shop/pos→`X-Shop-Id`、其它→None。
+#[cfg(test)]
 fn current_shop_id(headers: &axum::http::HeaderMap) -> Option<i32> {
     let admin_type = headers
         .get("x-admin-type")
@@ -72,50 +73,46 @@ struct GiftIdQuery {
 
 async fn list(
     State(state): State<AdminState>,
-    headers: axum::http::HeaderMap,
     Query(q): Query<ProductGiftListQuery>,
 ) -> ApiResult<PageResult<ProductGiftVO>> {
     ok(state
         .marketing
         .product_gift
-        .list(&q, current_shop_id(&headers))
+        .list(&q)
         .await?)
 }
 
 async fn detail(
     State(state): State<AdminState>,
-    headers: axum::http::HeaderMap,
     Query(q): Query<GiftIdQuery>,
 ) -> ApiResult<ProductGiftVO> {
     ok(state
         .marketing
         .product_gift
-        .detail(q.gift_id, current_shop_id(&headers))
+        .detail(q.gift_id)
         .await?)
 }
 
 async fn create(
     State(state): State<AdminState>,
-    headers: axum::http::HeaderMap,
     Json(dto): Json<ProductGiftCreateDTO>,
 ) -> ApiResult<()> {
     let _id = state
         .marketing
         .product_gift
-        .create(&dto, current_shop_id(&headers))
+        .create(&dto)
         .await?;
     ok(())
 }
 
 async fn update(
     State(state): State<AdminState>,
-    headers: axum::http::HeaderMap,
     Json(dto): Json<ProductGiftUpdateDTO>,
 ) -> ApiResult<()> {
     state
         .marketing
         .product_gift
-        .update(&dto, current_shop_id(&headers))
+        .update(&dto)
         .await?;
     ok(())
 }

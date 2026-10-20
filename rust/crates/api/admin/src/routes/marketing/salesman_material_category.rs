@@ -109,11 +109,9 @@ async fn detail(
 /// 权限矩阵未实现，见模块头说明）。
 async fn create(
     State(state): State<AdminState>,
-    headers: HeaderMap,
     Json(param): Json<SalesmanMaterialCategorySaveParam>,
 ) -> ApiResult<i32> {
-    let shop_id = shop_id_from_headers(&headers);
-    ok(state.marketing.salesman_material_category.create(&param, shop_id).await?)
+    ok(state.marketing.salesman_material_category.create(&param).await?)
 }
 
 /// `POST /adminapi/salesman/category/update`：更新素材分类。
@@ -161,7 +159,8 @@ async fn batch(State(state): State<AdminState>, Json(dto): Json<BatchDTO>) -> Ap
     ok(state.marketing.salesman_material_category.batch(&dto).await?)
 }
 
-fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
+#[cfg(test)]
+fn header_str(headers: &axum::http::HeaderMap, name: &str) -> Option<String> {
     headers
         .get(name)
         .and_then(|v| v.to_str().ok())
@@ -179,7 +178,8 @@ fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
 /// `HeaderUtils.getShopId()` 并不完全等价（Java 对脏 `x-shop-id` 会抛
 /// `NumberFormatException`，这里回落到 0）。
 #[must_use]
-pub fn shop_id_from_headers(headers: &HeaderMap) -> i32 {
+#[cfg(test)]
+pub fn shop_id_from_headers(headers: &axum::http::HeaderMap) -> i32 {
     match header_str(headers, "x-admin-type").as_deref() {
         Some("admin") => 0,
         Some("shop" | "pos") => header_str(headers, "x-shop-id")

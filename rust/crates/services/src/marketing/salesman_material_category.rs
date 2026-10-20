@@ -54,6 +54,7 @@ use tigshop_core::models::marketing::salesman_material_category::{
 };
 use tigshop_core::types::PageResult;
 use tigshop_core::{Error, Result};
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 /// 素材分类服务。
@@ -84,7 +85,10 @@ impl SalesmanMaterialCategoryService {
         q: &SalesmanMaterialCategoryPageQuery,
     ) -> Result<PageResult<SalesmanMaterialCategoryVO>> {
         let page = q.page_query();
-        let (total, rows) = self.repo().paginate(q).await?;
+        let (total, rows) = self
+            .repo()
+            .paginate(q, TenantScope::current_list_filter())
+            .await?;
 
         // Java：`BeanUtils.copyProperties` + `addTime` 格式化为字符串
         let list = rows.iter().map(to_vo_with_time).collect();
@@ -104,6 +108,8 @@ impl SalesmanMaterialCategoryService {
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::NotFound("素材分类不存在".into()))?;
+        // 多租户：店铺账号只能查看本店分类
+        TenantScope::current_ensure_access(row.shop_id.unwrap_or(0))?;
         Ok(to_vo_plain(&row))
     }
 
@@ -117,8 +123,9 @@ impl SalesmanMaterialCategoryService {
     pub async fn create(
         &self,
         param: &SalesmanMaterialCategorySaveParam,
-        shop_id: i32,
     ) -> Result<i32> {
+        // 多租户：店铺账号强制本店；平台账号落平台级（0）
+        let shop_id = TenantScope::current().write_shop_id(None)?;
         let name = validate_category_name(param.category_name.as_deref())
             .map_err(Error::Validation)?;
 
@@ -161,6 +168,8 @@ impl SalesmanMaterialCategoryService {
             .find_by_id(category_id)
             .await?
             .ok_or_else(|| Error::NotFound("素材分类不存在".into()))?;
+        // 多租户：更新前校验归属
+        TenantScope::current_ensure_access(existing.shop_id.unwrap_or(0))?;
 
         let shop_id = existing.shop_id.unwrap_or(0);
         if self
@@ -196,6 +205,13 @@ impl SalesmanMaterialCategoryService {
     pub async fn delete(&self, dto: &OperateDTO) -> Result<()> {
         let id = dto.id.ok_or_else(|| Error::Validation(ERR_ID_REQUIRED.into()))?;
 
+        // 多租户：删除前校验归属
+        let existing = self
+            .repo()
+            .find_by_id(id)
+            .await?
+            .ok_or_else(|| Error::NotFound("素材分类不存在".into()))?;
+        TenantScope::current_ensure_access(existing.shop_id.unwrap_or(0))?;
         let count = self.repo().count_materials(id).await?;
         if count > 0 {
             return Err(Error::biz(400, ERR_CATEGORY_HAS_MATERIAL));
@@ -239,6 +255,10 @@ impl SalesmanMaterialCategoryService {
             return Err(Error::Validation(ERR_INVALID_FIELD_VALUE.into()));
         }
 
+        // 多租户：字段更新前校验归属
+        if let Some(existing) = self.repo().find_by_id(id).await? {
+            TenantScope::current_ensure_access(existing.shop_id.unwrap_or(0))?;
+        }
         let affected = self.repo().update_field(id, column, val).await?;
         if affected == 0 {
             return Err(Error::NotFound("素材分类不存在".into()));
@@ -268,6 +288,12 @@ impl SalesmanMaterialCategoryService {
             // Java：`return false;`（无副作用）
             tracing::debug!("素材分类 batch 非 del 类型，忽略: {:?}", dto.r#type);
             return Ok(false);
+        }
+        // 多租户：批量删除前逐条校验归属
+        for id in &dto.ids {
+            if let Some(existing) = self.repo().find_by_id(*id).await? {
+                TenantScope::current_ensure_access(existing.shop_id.unwrap_or(0))?;
+            }
         }
         let affected = self.repo().delete_many(&dto.ids).await?;
         tracing::info!("批量删除素材分类: {} 条", affected);
@@ -312,6 +338,30 @@ mod tests {
             shop_id: Some(2),
             sort_order: Some(5),
         }
+    }
+
+    #[tokio::test]
+    async fn tenant_scope_scopes_list_and_blocks_cross_shop_category() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::{
+            with_tenant_scope, TenantScope,
+        };
+        let shop = TenantScope::for_shop(8);
+        let (filter, write_shop, blocked) = with_tenant_scope(shop, async {
+            (
+                TenantScope::current_list_filter(),
+                TenantScope::current().write_shop_id(None).unwrap_or(-1),
+                TenantScope::current_ensure_access(9).is_err(),
+            )
+        })
+        .await;
+        assert_eq!(filter, Some(8));
+        assert_eq!(write_shop, 8);
+        assert!(blocked);
+        let filter = with_tenant_scope(TenantScope::platform(), async {
+            TenantScope::current_list_filter()
+        })
+        .await;
+        assert_eq!(filter, None);
     }
 
     #[test]

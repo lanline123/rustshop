@@ -14,11 +14,11 @@
 //! | `POST /promotion/giftCardGroups/delete` | `deleteGiftCardGroups` | jwt+perm |
 //! | `POST /promotion/giftCardGroups/giftCardGroupProductsUpdate` | `giftCardGroupProductsUpdate` | jwt+perm |
 //!
-//! > **店铺头**：`list/create/delete` 读 Java `HeaderUtils.getShopId()`
-//! > （`x-admin-type` / `x-shop-id`），见 [`shop_id_from_headers`]。
+//! > **多租户**：`list/create/delete` 的店铺范围由 `marketing::tenant_layer` 注入的
+//! > `TenantScope` 在 Service 层读取（不再解析请求头）。
 //! > 权限矩阵未迁移（只校验登录态）。
 
-use axum::{extract::Query, extract::State, http::HeaderMap, routing::{get, post}, Json, Router};
+use axum::{extract::Query, extract::State, routing::{get, post}, Json, Router};
 use serde::Deserialize;
 use tigshop_core::models::marketing::gift_card_groups::{
     GiftCardGroupIdParam, GiftCardGroupsCreateParam, GiftCardGroupsListQuery,
@@ -121,11 +121,9 @@ struct GroupsByTypeQuery {
 
 async fn list(
     State(state): State<AdminState>,
-    headers: HeaderMap,
     Query(q): Query<GiftCardGroupsListQuery>,
 ) -> ApiResult<PageResult<GiftCardGroupsVO>> {
-    let shop_id = shop_id_from_headers(&headers);
-    ok(state.marketing.gift_card_groups.list(&q, shop_id).await?)
+    ok(state.marketing.gift_card_groups.list(&q).await?)
 }
 
 async fn update_status(
@@ -138,11 +136,9 @@ async fn update_status(
 
 async fn create(
     State(state): State<AdminState>,
-    headers: HeaderMap,
     Json(param): Json<GiftCardGroupsCreateParam>,
 ) -> ApiResult<()> {
-    let shop_id = shop_id_from_headers(&headers);
-    state.marketing.gift_card_groups.create(&param, shop_id).await?;
+    state.marketing.gift_card_groups.create(&param).await?;
     ok(())
 }
 
@@ -163,24 +159,20 @@ async fn detail(
 
 async fn get_gift_card_groups(
     State(state): State<AdminState>,
-    headers: HeaderMap,
     Query(q): Query<GroupsByTypeQuery>,
 ) -> ApiResult<Vec<GiftCardGroupsVO>> {
-    let shop_id = shop_id_from_headers(&headers);
     ok(state
         .marketing
         .gift_card_groups
-        .get_gift_card_groups(q.card_type, q.gift_card_groups_id, shop_id)
+        .get_gift_card_groups(q.card_type, q.gift_card_groups_id)
         .await?)
 }
 
 async fn delete(
     State(state): State<AdminState>,
-    headers: HeaderMap,
     Json(param): Json<GiftCardGroupIdParam>,
 ) -> ApiResult<()> {
-    let shop_id = shop_id_from_headers(&headers);
-    state.marketing.gift_card_groups.delete(&param, shop_id).await?;
+    state.marketing.gift_card_groups.delete(&param).await?;
     ok(())
 }
 
@@ -198,7 +190,8 @@ async fn products_update(
 
 /// 解析 Java `HeaderUtils.getShopId()` 的可用分支（缺失 ⇒ `0` 平台）。
 #[must_use]
-fn shop_id_from_headers(headers: &HeaderMap) -> i32 {
+#[cfg(test)]
+fn shop_id_from_headers(headers: &axum::http::HeaderMap) -> i32 {
     let admin_type = header_str(headers, "x-admin-type");
     match admin_type.as_deref() {
         Some("admin") => 0,
@@ -209,7 +202,8 @@ fn shop_id_from_headers(headers: &HeaderMap) -> i32 {
     }
 }
 
-fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
+#[cfg(test)]
+fn header_str(headers: &axum::http::HeaderMap, name: &str) -> Option<String> {
     headers
         .get(name)
         .and_then(|v| v.to_str().ok())

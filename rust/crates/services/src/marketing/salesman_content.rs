@@ -48,6 +48,7 @@ use tigshop_core::models::marketing::salesman_content::{
 };
 use tigshop_core::types::PageResult;
 use tigshop_core::{Error, Result};
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 /// 分销内容不存在（Java 无对应常量，此文案仅用于 `Error::NotFound`）。
@@ -85,10 +86,11 @@ impl SalesmanContentService {
     /// 数据库失败 → `Error::Database`。
     pub async fn list_admin(
         &self,
-        shop_id: Option<i32>,
         q: &SalesmanContentPageQuery,
     ) -> Result<PageResult<SalesmanContentVO>> {
         let now = now_seconds() as i32;
+        // 多租户：店铺账号强制本店；平台账号按平台级（0）——Java `getShopId()` 同义
+        let tenant_shop = TenantScope::current().shop_id().unwrap_or(0);
         // Java 服务按 `from == "user"` 分流；后台令牌下 `getCurrentUserId()` 取不到
         // 会员 ID（返回 0），故命中 C 端分支时解析结果必为「非分销员」→ -1。
         let (from_user, shop_id) = if q.is_client() {
@@ -98,7 +100,7 @@ impl SalesmanContentService {
             };
             (true, resolved)
         } else {
-            (false, shop_id)
+            (false, Some(tenant_shop))
         };
         let filter = build_filter(q, shop_id, from_user, now);
         self.paginate(&filter, q).await
@@ -171,6 +173,8 @@ impl SalesmanContentService {
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::NotFound(MSG_CONTENT_NOT_FOUND.into()))?;
+        // 多租户：店铺账号只能查看本店内容
+        TenantScope::current_ensure_access(row.shop_id)?;
         Ok(Some(to_vo(&row, None)))
     }
 
@@ -181,7 +185,9 @@ impl SalesmanContentService {
     /// - 数据库失败 → `Error::Database`
     pub async fn create(&self, dto: &SalesmanContentSaveDTO) -> Result<i32> {
         validate_save(dto).map_err(Error::Validation)?;
-        let entity = build_create_entity(dto);
+        let mut entity = build_create_entity(dto);
+        // 多租户：店铺账号强制本店；平台账号落平台级（0）
+        entity.shop_id = TenantScope::current().write_shop_id(None)?;
         let id = self.repo().insert(&entity).await?;
         tracing::info!("创建分销内容成功: id={id}");
         Ok(id)
@@ -205,8 +211,14 @@ impl SalesmanContentService {
             // Java：`updateById` 主键不存在 → 0 行，不报错
             None => return Ok(()),
         };
+        // 多租户：更新前校验归属
+        TenantScope::current_ensure_access(existing.shop_id)?;
+        let existing_shop = existing.shop_id;
         let now = now_seconds() as i32;
-        let merged = merge_update(existing, dto, now);
+        let mut merged = merge_update(existing, dto, now);
+        // 多租户：店铺账号强制本店；平台账号可指定/保留原店
+        merged.shop_id =
+            TenantScope::current().write_shop_id(dto.shop_id.or(Some(existing_shop)))?;
         self.repo().update(&merged).await?;
         tracing::info!("更新分销内容成功: id={id}");
         Ok(())
@@ -221,6 +233,10 @@ impl SalesmanContentService {
         let id = dto
             .id
             .ok_or_else(|| Error::Validation(MSG_ID_REQUIRED.into()))?;
+        // 多租户：删除前校验归属
+        if let Some(row) = self.repo().find_by_id(id).await? {
+            TenantScope::current_ensure_access(row.shop_id)?;
+        }
         self.repo().delete(id).await?;
         tracing::info!("删除分销内容: id={id}");
         Ok(())
@@ -238,6 +254,10 @@ impl SalesmanContentService {
     /// - 数据库失败 → `Error::Database`
     pub async fn update_field(&self, dto: &UpdateFieldDTO) -> Result<()> {
         let (id, column, raw_field, val) = resolve_update_field(dto)?;
+        // 多租户：字段更新前校验归属
+        if let Some(row) = self.repo().find_by_id(id).await? {
+            TenantScope::current_ensure_access(row.shop_id)?;
+        }
         self.repo()
             .update_field(id, column, Some(val.as_str()))
             .await?;
@@ -263,6 +283,12 @@ impl SalesmanContentService {
         if !is_delete_batch(dto) {
             tracing::debug!("分销内容 batch 非 del 类型或空 ids，忽略: {:?}", dto.r#type);
             return Ok(false);
+        }
+        // 多租户：批量删除前逐条校验归属
+        for id in &dto.ids {
+            if let Some(row) = self.repo().find_by_id(*id).await? {
+                TenantScope::current_ensure_access(row.shop_id)?;
+            }
         }
         let affected = self.repo().delete_many(&dto.ids).await?;
         tracing::info!("批量删除分销内容: {} 条", affected);
@@ -677,6 +703,30 @@ mod tests {
         assert_eq!(f.start_time, Some(1_700_000_000));
         assert!(f.from_user);
         assert_eq!(f.shop_id, Some(-1));
+    }
+
+    #[tokio::test]
+    async fn tenant_scope_scopes_list_and_blocks_cross_shop_content() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::{
+            with_tenant_scope, TenantScope,
+        };
+        let shop = TenantScope::for_shop(8);
+        let (scope, write_shop, blocked) = with_tenant_scope(shop, async {
+            (
+                TenantScope::current().shop_id().unwrap_or(0),
+                TenantScope::current().write_shop_id(None).unwrap_or(-1),
+                TenantScope::current_ensure_access(9).is_err(),
+            )
+        })
+        .await;
+        assert_eq!(scope, 8);
+        assert_eq!(write_shop, 8);
+        assert!(blocked);
+        let scope = with_tenant_scope(TenantScope::platform(), async {
+            TenantScope::current().shop_id().unwrap_or(0)
+        })
+        .await;
+        assert_eq!(scope, 0);
     }
 
     #[test]

@@ -27,6 +27,7 @@ use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::marketing::product_gift::{
     GiftProductRow, GiftSkuRow, ProductGiftRepository,
 };
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 /// 活动赠品域服务。
@@ -45,15 +46,10 @@ impl ProductGiftService {
     }
 
     /// 列表（Java `list`）。
-    pub async fn list(
-        &self,
-        q: &ProductGiftListQuery,
-        shop_id: Option<i32>,
-    ) -> Result<PageResult<ProductGiftVO>> {
+    pub async fn list(&self, q: &ProductGiftListQuery) -> Result<PageResult<ProductGiftVO>> {
+        // 多租户：店铺账号强制本店；平台账号按平台级（0）
+        let shop_id = scope_shop_id();
         let page = to_page_query(q.page, q.size);
-        let Some(shop_id) = shop_id else {
-            return Ok(PageResult::empty(&page));
-        };
         let (limit, offset) = q.limit_offset();
         let (total, rows) = self.repo().paginate(q, shop_id, limit, offset).await?;
         if rows.is_empty() {
@@ -71,15 +67,14 @@ impl ProductGiftService {
     }
 
     /// 详情（Java `detail`）。
-    pub async fn detail(&self, id: i32, shop_id: Option<i32>) -> Result<ProductGiftVO> {
-        let Some(shop_id) = shop_id else {
-            return Err(Error::biz(500, MSG_NOT_EXISTS));
-        };
+    pub async fn detail(&self, id: i32) -> Result<ProductGiftVO> {
         let entity = self
             .repo()
-            .find_by_id_and_shop(id, shop_id)
+            .find_by_id(id)
             .await?
             .ok_or_else(|| Error::biz(500, MSG_NOT_EXISTS))?;
+        // 多租户：店铺账号只能查看本店赠品
+        TenantScope::current_ensure_access(entity.shop_id)?;
         let products = self.repo().find_products(&[entity.product_id]).await?;
         let skus = self
             .repo()
@@ -89,7 +84,7 @@ impl ProductGiftService {
     }
 
     /// 创建（Java `create`）。
-    pub async fn create(&self, dto: &ProductGiftCreateDTO, shop_id: Option<i32>) -> Result<i32> {
+    pub async fn create(&self, dto: &ProductGiftCreateDTO) -> Result<i32> {
         let input = dto.validate().map_err(Error::Validation)?;
         if self.repo().count_by_product(input.product_id, 0).await? > 0 {
             return Err(Error::biz(500, MSG_PRODUCT_EXISTS));
@@ -102,7 +97,8 @@ impl ProductGiftService {
             gift_stock: input.gift_stock,
             product_id: input.product_id,
             sku_id: input.sku_id.unwrap_or(0),
-            shop_id: shop_id.unwrap_or(0),
+            // 多租户：店铺账号强制本店；平台账号落 0
+            shop_id: TenantScope::current().write_shop_id(None)?,
         };
         let id = self.repo().insert(&entity).await?;
         tracing::info!("创建活动赠品: id={id}");
@@ -110,13 +106,16 @@ impl ProductGiftService {
     }
 
     /// 更新（Java `update`）。
-    pub async fn update(&self, dto: &ProductGiftUpdateDTO, shop_id: Option<i32>) -> Result<()> {
+    pub async fn update(&self, dto: &ProductGiftUpdateDTO) -> Result<()> {
         let input = dto.validate().map_err(Error::Validation)?;
         let existing = self
             .repo()
             .find_by_id(input.gift_id)
             .await?
             .ok_or_else(|| Error::biz(500, MSG_NOT_EXISTS))?;
+        // 多租户：更新前校验归属
+        TenantScope::current_ensure_access(existing.shop_id)?;
+        let existing_shop = existing.shop_id;
         let product_id = input.product_id.unwrap_or(existing.product_id);
         let sku_id = input.sku_id.unwrap_or(existing.sku_id);
         let gift_stock = input.gift_stock.unwrap_or(existing.gift_stock);
@@ -137,9 +136,8 @@ impl ProductGiftService {
         if let Some(name) = input.gift_name {
             entity.gift_name = name;
         }
-        if let Some(shop) = shop_id {
-            entity.shop_id = shop;
-        }
+        // 多租户：店铺账号强制本店；平台账号保留原店
+        entity.shop_id = TenantScope::current().write_shop_id(Some(existing_shop))?;
         self.repo().update(&entity).await?;
         Ok(())
     }
@@ -147,6 +145,10 @@ impl ProductGiftService {
     /// 删除（Java `del`）。
     pub async fn delete(&self, dto: &OperateDTO) -> Result<()> {
         let id = dto.validate_id().map_err(Error::Validation)?;
+        // 多租户：删除前校验归属
+        if let Some(entity) = self.repo().find_by_id(id).await? {
+            TenantScope::current_ensure_access(entity.shop_id)?;
+        }
         let _ = self.repo().delete(id).await?;
         Ok(())
     }
@@ -160,10 +162,14 @@ impl ProductGiftService {
     /// 批量操作（仅 del）。
     pub async fn batch(&self, dto: &BatchDTO) -> Result<bool> {
         if dto.r#type.as_deref() == Some("del") {
-            let n = self
-                .repo()
-                .delete_batch(dto.ids.as_deref().unwrap_or_default())
-                .await?;
+            let ids = dto.ids.as_deref().unwrap_or_default();
+            // 多租户：批量删除前逐条校验归属（越权直接 403）
+            for id in ids {
+                if let Some(entity) = self.repo().find_by_id(*id).await? {
+                    TenantScope::current_ensure_access(entity.shop_id)?;
+                }
+            }
+            let n = self.repo().delete_batch(ids).await?;
             return Ok(n > 0);
         }
         Ok(false)
@@ -264,6 +270,11 @@ fn to_page_query(page: Option<i64>, size: Option<i64>) -> tigshop_core::types::P
     }
 }
 
+/// 当前请求的店铺 ID：店铺账号=本店，平台账号=0（Java HeaderUtils.getShopId() 同义）。
+fn scope_shop_id() -> i32 {
+    TenantScope::current().shop_id().unwrap_or(0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -292,5 +303,26 @@ mod tests {
         let p = to_page_query(Some(2), Some(10));
         assert_eq!((p.page, p.page_size), (2, 10));
         assert_eq!(distinct([2, 1, 2].into_iter()), vec![2, 1]);
+    }
+
+    #[tokio::test]
+    async fn tenant_scope_selects_shop_or_platform_scope_for_product_gift() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::{
+            with_tenant_scope, TenantScope,
+        };
+        let shop = TenantScope::for_shop(8);
+        let (scope, write_shop, blocked) = with_tenant_scope(shop, async {
+            (
+                scope_shop_id(),
+                TenantScope::current().write_shop_id(None).unwrap_or(-1),
+                TenantScope::current_ensure_access(9).is_err(),
+            )
+        })
+        .await;
+        assert_eq!(scope, 8);
+        assert_eq!(write_shop, 8);
+        assert!(blocked);
+        let scope = with_tenant_scope(TenantScope::platform(), async { scope_shop_id() }).await;
+        assert_eq!(scope, 0);
     }
 }

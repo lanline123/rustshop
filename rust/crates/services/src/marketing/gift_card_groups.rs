@@ -37,6 +37,7 @@ use tigshop_core::models::marketing::gift_card::{
 use tigshop_core::types::{PageQuery, PageResult};
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::marketing::gift_card_groups::GiftCardGroupsRepository;
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 /// 礼品卡分组域服务。
@@ -59,11 +60,9 @@ impl GiftCardGroupsService {
     // ————————————————————— 查询 —————————————————————
 
     /// 卡组分页列表（Java `list`）。
-    pub async fn list(
-        &self,
-        q: &GiftCardGroupsListQuery,
-        shop_id: i32,
-    ) -> Result<PageResult<GiftCardGroupsVO>> {
+    pub async fn list(&self, q: &GiftCardGroupsListQuery) -> Result<PageResult<GiftCardGroupsVO>> {
+        // 多租户：店铺账号强制本店；平台账号按平台级（0）——与 Java `getShopId()` 同义
+        let shop_id = scope_shop_id();
         let page = to_page_query(q.page, q.size);
         let (limit, offset) = q.limit_offset();
         let (total, rows) = self.repo().paginate(q, shop_id, limit, offset).await?;
@@ -98,6 +97,8 @@ impl GiftCardGroupsService {
             .find_by_id(card_groups_id)
             .await?
             .ok_or_else(|| Error::biz(500, MSG_GROUP_NOT_EXISTS))?;
+        // 多租户：店铺账号只能查看本店卡组
+        TenantScope::current_ensure_access(group.shop_id.unwrap_or(0))?;
         let products = if group.group_type == GROUP_TYPE_EXCHANGE {
             self.repo().find_product_vos(card_groups_id).await?
         } else {
@@ -113,8 +114,8 @@ impl GiftCardGroupsService {
         &self,
         card_type: Option<i32>,
         gift_card_groups_id: Option<i32>,
-        shop_id: i32,
     ) -> Result<Vec<GiftCardGroupsVO>> {
+        let shop_id = scope_shop_id();
         let Some(card_type) = card_type else {
             return Ok(Vec::new());
         };
@@ -142,6 +143,13 @@ impl GiftCardGroupsService {
         if status != 0 && status != 1 {
             return Err(Error::biz(500, MSG_GROUP_STATUS_INVALID));
         }
+        // 多租户：启停前校验归属
+        let group = self
+            .repo()
+            .find_by_id(card_groups_id)
+            .await?
+            .ok_or_else(|| Error::biz(500, MSG_GROUP_NOT_EXISTS))?;
+        TenantScope::current_ensure_access(group.shop_id.unwrap_or(0))?;
         self.repo()
             .update_status(card_groups_id, status, now_seconds_i32())
             .await?;
@@ -149,7 +157,7 @@ impl GiftCardGroupsService {
     }
 
     /// 创建卡组（Java `createGiftCardGroups`）。
-    pub async fn create(&self, param: &GiftCardGroupsCreateParam, shop_id: i32) -> Result<()> {
+    pub async fn create(&self, param: &GiftCardGroupsCreateParam) -> Result<()> {
         param.validate().map_err(Error::biz_msg)?;
         let validity_type = param.validity_type.unwrap_or_default();
         validate_validity_type(validity_type).map_err(Error::biz_msg)?;
@@ -176,7 +184,8 @@ impl GiftCardGroupsService {
             add_time: Some(now),
             update_time: None,
             remark: param.remark.clone(),
-            shop_id: Some(param.shop_id.unwrap_or(shop_id)),
+            // 多租户：店铺账号强制本店；平台账号可指定/落 0
+            shop_id: Some(TenantScope::current().write_shop_id(param.shop_id)?),
             availability_stock: Some(0),
         };
         let group_id = self.repo().insert(&entity).await?;
@@ -198,6 +207,8 @@ impl GiftCardGroupsService {
             .find_by_id(card_groups_id)
             .await?
             .ok_or_else(|| Error::biz(500, MSG_GROUP_NOT_EXISTS))?;
+        // 多租户：更新前校验归属
+        TenantScope::current_ensure_access(db.shop_id.unwrap_or(0))?;
         param.validate(db.group_type).map_err(Error::biz_msg)?;
 
         let mut entity = db.clone();
@@ -244,13 +255,20 @@ impl GiftCardGroupsService {
     }
 
     /// 删除卡组（Java `deleteGiftCardGroups`：被有效商品绑定则拒绝）。
-    pub async fn delete(&self, param: &GiftCardGroupIdParam, shop_id: i32) -> Result<()> {
+    pub async fn delete(&self, param: &GiftCardGroupIdParam) -> Result<()> {
         let card_groups_id = param
             .gift_card_groups_id
             .ok_or_else(|| Error::biz(500, MSG_GROUP_NOT_EXISTS))?;
+        // 多租户：删除前校验归属
+        let group = self
+            .repo()
+            .find_by_id(card_groups_id)
+            .await?
+            .ok_or_else(|| Error::biz(500, MSG_GROUP_NOT_EXISTS))?;
+        TenantScope::current_ensure_access(group.shop_id.unwrap_or(0))?;
         let bound = self
             .repo()
-            .bound_product_count(card_groups_id, shop_id)
+            .bound_product_count(card_groups_id, scope_shop_id())
             .await?;
         if bound > 0 {
             return Err(Error::biz(500, MSG_GROUP_BOUND_CANNOT_DELETE));
@@ -272,6 +290,8 @@ impl GiftCardGroupsService {
             .find_by_id(card_groups_id)
             .await?
             .ok_or_else(|| Error::biz(500, MSG_GROUP_NOT_EXISTS))?;
+        // 多租户：商品绑定前校验归属
+        TenantScope::current_ensure_access(db.shop_id.unwrap_or(0))?;
         if db.group_type != GROUP_TYPE_EXCHANGE {
             return Ok(());
         }
@@ -361,6 +381,11 @@ fn to_page_query(page: Option<i64>, size: Option<i64>) -> PageQuery {
         })
         .unwrap_or(15),
     }
+}
+
+/// 当前请求的店铺 ID：店铺账号=本店，平台账号=0（与 Java HeaderUtils.getShopId() 同义）。
+fn scope_shop_id() -> i32 {
+    TenantScope::current().shop_id().unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -455,5 +480,26 @@ mod tests {
         assert_eq!((p.page, p.page_size), (1, 15));
         let p = to_page_query(Some(2), Some(500));
         assert_eq!((p.page, p.page_size), (2, 100));
+    }
+
+    #[tokio::test]
+    async fn tenant_scope_selects_shop_or_platform_scope_for_gift_card_groups() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::{
+            with_tenant_scope, TenantScope,
+        };
+        let shop = TenantScope::for_shop(8);
+        let (scope, write_shop, blocked) = with_tenant_scope(shop, async {
+            (
+                scope_shop_id(),
+                TenantScope::current().write_shop_id(None).unwrap_or(-1),
+                TenantScope::current_ensure_access(9).is_err(),
+            )
+        })
+        .await;
+        assert_eq!(scope, 8);
+        assert_eq!(write_shop, 8);
+        assert!(blocked);
+        let scope = with_tenant_scope(TenantScope::platform(), async { scope_shop_id() }).await;
+        assert_eq!(scope, 0);
     }
 }

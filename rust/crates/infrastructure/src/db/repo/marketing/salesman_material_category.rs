@@ -98,6 +98,7 @@ impl SalesmanMaterialCategoryRepository {
     pub async fn paginate(
         &self,
         q: &SalesmanMaterialCategoryPageQuery,
+        shop_id: Option<i32>,
     ) -> Result<(u64, Vec<SalesmanMaterialCategory>)> {
         let like = q
             .category_name
@@ -112,10 +113,13 @@ impl SalesmanMaterialCategoryRepository {
 
         let total: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM salesman_material_category
-             WHERE (? IS NULL OR category_name LIKE ?)",
+             WHERE (? IS NULL OR category_name LIKE ?)
+               AND (? IS NULL OR shop_id = ?)",
         )
         .bind(&like)
         .bind(&like)
+        .bind(shop_id)
+        .bind(shop_id)
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
@@ -125,12 +129,15 @@ impl SalesmanMaterialCategoryRepository {
         let sql = format!(
             "SELECT * FROM salesman_material_category
              WHERE (? IS NULL OR category_name LIKE ?)
+               AND (? IS NULL OR shop_id = ?)
              ORDER BY {column} {direction}
              LIMIT ? OFFSET ?"
         );
         let rows = sqlx::query_as::<_, SalesmanMaterialCategory>(&sql)
             .bind(&like)
             .bind(&like)
+            .bind(shop_id)
+            .bind(shop_id)
             .bind(limit)
             .bind(offset)
             .fetch_all(&self.pool)
