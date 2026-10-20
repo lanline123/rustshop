@@ -1,0 +1,19 @@
+{
+  "name": "tigshop-web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "TigShop 前端 workspace（admin 管理端 / pc 商城端 / shared 共享包）",
+  "scripts": {
+    "dev:admin": "pnpm --filter @tigshop/admin dev",
+    "dev:pc": "pnpm --filter @tigshop/pc dev",
+    "build:admin": "pnpm --filter @tigshop/admin build",
+    "build:pc": "pnpm --filter @tigshop/pc build",
+    "build": "pnpm -r build",
+    "check:contract": "python ../tools/check_frontend.py contract --strict",
+    "check:doc": "python ../tools/verify_frontend_doc.py"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,195 @@
+import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
+import AdminLayout from '@/layouts/AdminLayout.vue';
+import LoginView from '@/views/login/LoginView.vue';
+import Dashboard from '@/views/panel/Dashboard.vue';
+import SchemaPageView from '@/views/schema/SchemaPageView.vue';
+import DecorateEditor from '@/views/decorate/DecorateEditor.vue';
+
+// Schemas
+import { basicSettingSchema } from '@/schemas/setting/basic';
+import { productSettingSchema } from '@/schemas/setting/product';
+import { shoppingSettingSchema } from '@/schemas/setting/shopping';
+import { paymentSettingSchema } from '@/schemas/setting/payment';
+import { categoryTableSchema } from '@/schemas/product/category';
+import { adminUserTableSchema } from '@/schemas/authority/adminUser';
+import { orderListTableSchema } from '@/schemas/order/orderList';
+import { userListTableSchema } from '@/schemas/member/userList';
+import { couponTableSchema } from '@/schemas/marketing/coupon';
+import { articleTableSchema } from '@/schemas/content/article';
+import { shopListTableSchema } from '@/schemas/merchant/shopList';
+
+const routes: RouteRecordRaw[] = [
+  {
+    path: '/login',
+    name: 'Login',
+    component: LoginView,
+    meta: { title: '管理员登录' }
+  },
+  {
+    path: '/decorate/mobile',
+    name: 'MobileDecorate',
+    component: DecorateEditor,
+    meta: { title: '移动端可视化装修' }
+  },
+  {
+    path: '/',
+    component: AdminLayout,
+    redirect: '/dashboard',
+    children: [
+      {
+        path: 'dashboard',
+        name: 'Dashboard',
+        component: Dashboard,
+        meta: { title: '控制台概况' }
+      },
+      // 商品管理
+      {
+        path: 'product/category',
+        name: 'ProductCategory',
+        component: SchemaPageView,
+        meta: {
+          title: '商品分类',
+          schemaType: 'table',
+          schema: categoryTableSchema
+        }
+      },
+      // 订单管理
+      {
+        path: 'order/list',
+        name: 'OrderList',
+        component: SchemaPageView,
+        meta: {
+          title: '订单列表',
+          schemaType: 'table',
+          schema: orderListTableSchema
+        }
+      },
+      // 会员管理
+      {
+        path: 'member/users',
+        name: 'MemberUsers',
+        component: SchemaPageView,
+        meta: {
+          title: '会员用户列表',
+          schemaType: 'table',
+          schema: userListTableSchema
+        }
+      },
+      // 营销中心
+      {
+        path: 'promotion/coupon',
+        name: 'PromotionCoupon',
+        component: SchemaPageView,
+        meta: {
+          title: '优惠券管理',
+          schemaType: 'table',
+          schema: couponTableSchema
+        }
+      },
+      // 店铺装修
+      {
+        path: 'decorate/pc',
+        name: 'PcDecorate',
+        component: DecorateEditor,
+        meta: { title: 'PC 端装修' }
+      },
+      // 内容管理
+      {
+        path: 'content/article',
+        name: 'ContentArticle',
+        component: SchemaPageView,
+        meta: {
+          title: '文章资讯与帮助',
+          schemaType: 'table',
+          schema: articleTableSchema
+        }
+      },
+      // 商户管理
+      {
+        path: 'merchant/shops',
+        name: 'MerchantShops',
+        component: SchemaPageView,
+        meta: {
+          title: '入驻店铺列表',
+          schemaType: 'table',
+          schema: shopListTableSchema
+        }
+      },
+      // 系统设置
+      {
+        path: 'setting/basic',
+        name: 'SettingBasic',
+        component: SchemaPageView,
+        meta: {
+          title: '商城基础设置',
+          schemaType: 'form',
+          schema: basicSettingSchema
+        }
+      },
+      {
+        path: 'setting/product',
+        name: 'SettingProduct',
+        component: SchemaPageView,
+        meta: {
+          title: '商品全局设置',
+          schemaType: 'form',
+          schema: productSettingSchema
+        }
+      },
+      {
+        path: 'setting/shopping',
+        name: 'SettingShopping',
+        component: SchemaPageView,
+        meta: {
+          title: '交易履约设置',
+          schemaType: 'form',
+          schema: shoppingSettingSchema
+        }
+      },
+      {
+        path: 'setting/payment',
+        name: 'SettingPayment',
+        component: SchemaPageView,
+        meta: {
+          title: '支付通道配置',
+          schemaType: 'form',
+          schema: paymentSettingSchema
+        }
+      },
+      // 权限管理
+      {
+        path: 'authority/admin-user',
+        name: 'AuthorityAdminUser',
+        component: SchemaPageView,
+        meta: {
+          title: '管理员账号',
+          schemaType: 'table',
+          schema: adminUserTableSchema
+        }
+      }
+    ]
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/dashboard'
+  }
+];
+
+const router = createRouter({
+  history: createWebHistory(),
+  routes
+});
+
+router.beforeEach((to, from, next) => {
+  const token = localStorage.getItem('tig_token');
+  if (to.meta.title) {
+    document.title = `${to.meta.title} - TigShop 运营后台`;
+  }
+  if (!token && to.path !== '/login') {
+    next('/login');
+  } else {
+    next();
+  }
+});
+
+export default router;

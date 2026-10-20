@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """TigShop Rust v2 结构门禁（ARCHITECTURE.md §2/§3/§7）。
 
@@ -87,7 +87,8 @@ ALLOWED_DEPS = {
     "api/admin": {"core", "common", "infrastructure", "security", "services", "api/openapi"},
     "api/public": {"core", "common", "infrastructure", "security", "services", "api/openapi"},
     "api/openapi": set(),
-    "pc-web": {"core", "common", "infrastructure", "services"},
+    # 注：`pc-web`（Leptos SSR）已于 2026-10-20 下线，不再是 workspace member。
+    # PC 前端改为 `rust/web/pc` 的 Vue SPA（不属 Rust workspace）。
     "bin": {
         "core",
         "common",
@@ -97,7 +98,6 @@ ALLOWED_DEPS = {
         "api/admin",
         "api/public",
         "api/openapi",
-        "pc-web",
     },
 }
 

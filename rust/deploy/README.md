@@ -21,11 +21,26 @@ docker compose up -d --build
 
 - `deploy/nginx.conf` 是参考反代配置：`/adminapi`、`/im`、`/static`、
   `/adminws` → 8080；`/api`、`/ws` → 8181；`/metrics` → 8080。
-- 前端 dist 需自行构建：
-  - 管理端：`java/view/admin` → `dist` → `/usr/share/nginx/html/admin`
-  - PC 商城：`java/view/Tigshop-Pc` → `/usr/share/nginx/html/pc`
-  - uniapp 走各自小程序/H5 构建流程。
+- **后端 8181 只提供 `/api` JSON，不返回任何 HTML**。PC 前端是独立 SPA，必须由 nginx 静态托管。
+  （历史上的 Leptos SSR fallback 已于 2026-10-20 下线，见 `rust/crates/bin/src/main.rs` 注释。）
+
+### 前端 dist 构建（重写路线，2026-10-20 起）
+
+| 端 | 源码 | 构建 | 部署到 |
+|---|---|---|---|
+| 管理端 | `admin-web/` | `pnpm install && pnpm build` | `/usr/share/nginx/html/admin` |
+| PC 商城 | `pc-web/` | `pnpm install && pnpm build` | `/usr/share/nginx/html/pc` |
+| uniapp | `java/view/uniapp` | 各自小程序/H5 流程 | — |
+
+> ⚠️ 原版前端 `java/view/{admin,Tigshop-Pc}` **不再是部署来源**，仅作为重写时的对照基准
+> （详见 `docs/FRONTEND-MIGRATION-TASKS.md`）。
+>
+> ⚠️ `pc-web` 的 `vite.config.ts` 未设 `base`，默认按站点根 `/` 访问；若要挂 `/pc/` 子路径，
+> 需 `vite build --base=/pc/` 并同步 `createWebHistory('/pc/')`。推荐给 PC 独立域名。
+
 - 本地开发也可用 `nginx -c /path/to/deploy/nginx.conf` 验证路由。
+- 开发期两端各起 Vite dev server：admin `:3000`（代理 `/adminapi`→8080）、
+  pc `:3001`（代理 `/api`→8181）。
 
 ## 3. 环境变量（关键）
 

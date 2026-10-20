@@ -19,6 +19,8 @@
 | `check_structure.py` | v2 结构门禁（本文 §1） | `python tools/check_structure.py --strict` | — |
 | `coverage_by_domain.py` | 按 ctx/feature 的覆盖率 | `python tools/coverage_by_domain.py` | `docs/coverage-by-domain.json` |
 | `plan_domains.py` | 分域实施批次计划 | `python tools/plan_domains.py --out docs/domain-plan.json` | 指定 `--out` |
+| `check_frontend.py` | **前端**接口契约校验 / 规模统计 / 装修类型覆盖 | `python tools/check_frontend.py contract --strict`<br>`python tools/check_frontend.py scale`<br>`python tools/check_frontend.py decorate` | — |
+| `verify_frontend_doc.py` | 校验 `FRONTEND-MIGRATION-TASKS.md` 数字与实测一致 | `python tools/verify_frontend_doc.py` | — |
 
 合并前必跑（ARCHITECTURE §7）：`cargo check --workspace --all-targets`、
 `cargo test --workspace`，以及上表中 `check_api_coverage.py`（不低于基线且只增不减）、
@@ -169,6 +171,9 @@ python tools/plan_domains.py --coverage docs/coverage-by-domain.json --out x.jso
 | `check_structure.py` | 通过 | `--strict` 且有违规 | 扫描根不存在/无源文件 |
 | `coverage_by_domain.py` | 成功 | `--strict` 且仍有未实现接口 | 契约缺失/不可解析/写入失败 |
 | `plan_domains.py` | 成功 | — | 缺 domain-map/契约不可读/写入失败 |
+| `check_frontend.py contract` | 全部命中契约 | `--strict` 且有未命中路径 | 契约缺失/不可解析 |
+| `check_frontend.py scale` / `decorate` | 成功 | — | 契约缺失/不可解析 |
+| `verify_frontend_doc.py` | 数字一致 | 有数字不一致 | 文档不存在 |
 
 ## 6. Windows / 编码注意事项
 
