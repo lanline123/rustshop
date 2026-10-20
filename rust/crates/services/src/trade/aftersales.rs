@@ -22,12 +22,10 @@
 //! - `record`：写协商记录；状态为 4（待回寄）且登录管理员有效时回写物流信息与处理时间。
 //! - `create`：**裸插入**（忠实复刻 Java 该端点的语义，详见方法注释）。
 //!
-//! **未迁移（本切片明确不做，已在 `uncertain_points` 中列明）**：
-//! - **财务退款链路**：`createRefundApply` / `autoAuditRefundApply` /
-//!   `RefundApplyService.audit` / 退款结算单（`statementOutput`）/
-//!   RabbitMQ `REFUND_SETTLEMENT_ROUTING_KEY`。仅退款的 `update`（审核通过）与全部
-//!   `receive` 在 Java 中都会走到这里；Rust 侧停在「售后主单状态已流转 + 协商记录已写」，
-//!   退款申请需由财务域接口另行创建。
+//! **仍未迁移（本切片明确不做，已在 `uncertain_points` 中列明）**：
+//! - **财务退款执行**：退款申请与 `refund_log` 已创建；`financialReview != 1`
+//!   时自动把申请置为处理中。实际渠道退款执行（微信/支付宝/线下）仍由支付域
+//!   负责；退款结算单/RabbitMQ 退款结算路由未迁移。
 //! - **整单售后退回优惠券**（`restoreOrderCouponUsageIfFullAftersales`）。
 //! - **供应商审核环节**：`vendor.after_sales_review` 开关与
 //!   `VendorMapper.selectOnboardedById` 未迁移，且当前部署 `tigshop.is-vendor: 0`
@@ -1063,6 +1061,38 @@ impl AftersalesService {
                 }
             }
             let log_info = format!("更新退换货:{aftersale_id}");
+            // 供应商售后消息（Java `notifyVendorAftersale`，type=32）。
+            if let Some(vendor_id) = vendor_id.filter(|v| *v > 0) {
+                if matches!(
+                    target_status,
+                    aftersales_status::WAIT_FOR_SUPPLIER_AUDIT
+                        | aftersales_status::SEND_BACK
+                        | aftersales_status::WAIT_FOR_SUPPLIER_RECEIPT
+                ) {
+                    let order_sn = order.as_ref().map(|o| o.order_sn.as_str()).unwrap_or("");
+                    let related = serde_json::json!({
+                        "aftersaleId": aftersales.aftersale_id,
+                        "aftersalesSn": aftersales.aftersales_sn,
+                    })
+                    .to_string();
+                    let _ = self
+                        .repos
+                        .system
+                        .admin_msg
+                        .create_vendor_message(
+                            32,
+                            vendor_id,
+                            aftersales.shop_id,
+                            aftersales.order_id.unwrap_or(0),
+                            "售后申请通知",
+                            &format!(
+                                "您的订单【{order_sn}】发起售后申请，请及时处理。"
+                            ),
+                            &related,
+                        )
+                        .await;
+                }
+            }
             let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
             if let Err(e) = admin_log.record_current_log(if aftersales.shop_id > 0 { "shop" } else { "admin" }, aftersales.shop_id, &log_info).await {
                 tracing::warn!("写管理操作日志失败（售后）: {e}");
