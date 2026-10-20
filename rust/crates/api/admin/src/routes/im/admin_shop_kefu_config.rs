@@ -23,9 +23,9 @@ use axum::{
     Json, Router,
 };
 use tigshop_core::models::im::admin_shop_kefu_config::{
-    KefuAccessConfigQuery, KefuAccessConfigSaveDTO, KefuAccessConfigVO, MSG_SHOP_REQUIRED,
+    KefuAccessConfigQuery, KefuAccessConfigSaveDTO, KefuAccessConfigVO,
 };
-use tigshop_core::Error;
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_security::web::{ok, ApiResult, AppError};
 
 use crate::AdminState;
@@ -63,16 +63,14 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
         .collect()
 }
 
-/// 解析当前店铺 ID（Java `resolveShopId`）。
-fn resolve_shop_id(headers: &HeaderMap, requested: Option<i32>) -> Result<i32, AppError> {
-    let admin_type = header_str(headers, "x-admin-type");
-    if admin_type == Some("admin") {
-        return Ok(requested.unwrap_or(0));
-    }
-    header_str(headers, "x-shop-id")
-        .and_then(|v| v.parse::<i32>().ok())
-        .filter(|v| *v > 0)
-        .ok_or_else(|| AppError(Error::Validation(MSG_SHOP_REQUIRED.into())))
+/// 解析当前店铺 ID（多租户：**身份只信任认证中间件**）。
+///
+/// - 店铺账号：强制自己的 `shop_id`（请求值不同 → 403）；
+/// - 平台账号：请求值优先，缺省落平台（`0`）。
+///
+/// 忽略客户端可伪造的 `x-admin-type` / `x-shop-id` 请求头。
+fn resolve_shop_id(_headers: &HeaderMap, requested: Option<i32>) -> Result<i32, AppError> {
+    Ok(TenantScope::current().write_shop_id(requested)?)
 }
 
 /// 读取请求头字符串。
@@ -104,7 +102,8 @@ async fn save(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::http::{HeaderMap, HeaderValue};
+    use axum::http::HeaderMap;
+    use tigshop_infrastructure::db::repo::marketing::tenant::with_tenant_scope;
 
     #[test]
     fn route_table_matches_contract_literally() {
@@ -116,20 +115,23 @@ mod tests {
         assert_eq!(docs[1].method, "POST");
     }
 
-    #[test]
-    fn admin_type_admin_uses_requested_shop_id() {
-        let mut h = HeaderMap::new();
-        h.insert("x-admin-type", HeaderValue::from_static("admin"));
-        assert_eq!(resolve_shop_id(&h, Some(7)).unwrap(), 7);
-        assert_eq!(resolve_shop_id(&h, None).unwrap(), 0);
-    }
-
-    #[test]
-    fn shop_account_requires_valid_shop_header() {
-        let mut h = HeaderMap::new();
-        h.insert("x-admin-type", HeaderValue::from_static("shop"));
-        assert!(resolve_shop_id(&h, Some(3)).is_err());
-        h.insert("x-shop-id", HeaderValue::from_static("5"));
-        assert_eq!(resolve_shop_id(&h, Some(3)).unwrap(), 5);
+    #[tokio::test]
+    async fn resolve_shop_id_trusts_identity_not_headers() {
+        // 无 task-local = 平台语义：请求值优先，缺省 0
+        assert_eq!(resolve_shop_id(&HeaderMap::new(), Some(7)).unwrap(), 7);
+        assert_eq!(resolve_shop_id(&HeaderMap::new(), None).unwrap(), 0);
+        // 店铺身份：强制本店；跨店写 → 403（请求头被忽略）
+        let shop = TenantScope::for_shop(5);
+        let (same, cross_forbidden, missing) = with_tenant_scope(shop, async {
+            (
+                resolve_shop_id(&HeaderMap::new(), Some(5)).unwrap(),
+                resolve_shop_id(&HeaderMap::new(), Some(3)).is_err(),
+                resolve_shop_id(&HeaderMap::new(), None).unwrap(),
+            )
+        })
+        .await;
+        assert_eq!(same, 5);
+        assert!(cross_forbidden, "店铺账号跨店写必须 403");
+        assert_eq!(missing, 5, "缺省 shopId 落本店");
     }
 }

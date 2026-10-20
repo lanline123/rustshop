@@ -44,6 +44,7 @@ use tigshop_core::models::im::im_conversation::{
     UpdateFieldDTO, WaitServantListQuery, WaitServantListVO,
 };
 use tigshop_core::types::PageResult;
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_security::web::{ok, ApiResult, AuthUser};
 
 use crate::AdminState;
@@ -288,28 +289,17 @@ async fn batch(
 // 请求头 → 店铺 ID（替代 Java `HeaderUtils.getShopId()`）
 // ——————————————————————————————————————————————
 
-/// 读取请求头文本值（缺失 / 非 UTF-8 / 全空白 → `None`）。
-fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
-    headers
-        .get(name)
-        .and_then(|v| v.to_str().ok())
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(ToString::to_string)
-}
-
-/// 复刻 Java `HeaderUtils.getShopId()` 的三态：
-/// `admin` → `Some(0)`；`shop`/`pos` → `x-shop-id`；其它 → `None`。
+/// 当前请求的店铺范围（多租户：**身份只信任认证中间件**）。
 ///
-/// `x-admin-type` 缺失时回退 JWT 的 `admin_type`（与 im::im_message 同口径）。
+/// - 平台账号 → `Some(0)`（保留既有平台语义）；
+/// - 店铺账号 → `Some(本店)`（task-local，忽略可伪造的 `x-shop-id`）。
 #[must_use]
-fn resolve_shop_id(headers: &HeaderMap, auth: &AuthUser) -> Option<i32> {
-    let admin_type = header_str(headers, "x-admin-type").or_else(|| auth.admin_type.clone());
-    let shop_id = header_str(headers, "x-shop-id").and_then(|v| v.parse::<i32>().ok());
-    match admin_type.as_deref() {
-        Some("admin") => Some(0),
-        Some("shop" | "pos") => shop_id,
-        _ => None,
+fn resolve_shop_id(_headers: &HeaderMap, _auth: &AuthUser) -> Option<i32> {
+    let scope = TenantScope::current();
+    if scope.is_platform() {
+        Some(0)
+    } else {
+        scope.shop_id()
     }
 }
 
@@ -387,43 +377,24 @@ mod tests {
         assert_eq!(docs.iter().filter(|d| d.method == "POST").count(), 6);
     }
 
-    /// 请求头店铺三态（与 Java `HeaderUtils.getShopId()` 一致）。
-    #[test]
-    fn resolve_shop_id_three_states() {
-        // admin 头 → 0（优先于 x-shop-id）
-        assert_eq!(
-            resolve_shop_id(
-                &headers(&[("x-admin-type", "admin"), ("x-shop-id", "9")]),
-                &auth(None)
-            ),
-            Some(0)
-        );
-        // shop/pos 头 → x-shop-id
+    /// 店铺范围：只信任认证身份（task-local），忽略伪造请求头。
+    #[tokio::test]
+    async fn resolve_shop_id_uses_trusted_identity() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::with_tenant_scope;
+        // 无 task-local = 平台语义 → Some(0)；伪造 x-shop-id 无效
         assert_eq!(
             resolve_shop_id(
                 &headers(&[("x-admin-type", "shop"), ("x-shop-id", "9")]),
                 &auth(None)
             ),
-            Some(9)
+            Some(0)
         );
-        assert_eq!(
-            resolve_shop_id(
-                &headers(&[("x-admin-type", "pos"), ("x-shop-id", "3")]),
-                &auth(None)
-            ),
-            Some(3)
-        );
-        // 缺失/非法 → None（Java 返回 null）
-        assert_eq!(
-            resolve_shop_id(&headers(&[("x-admin-type", "shop")]), &auth(None)),
-            None
-        );
-        assert_eq!(resolve_shop_id(&headers(&[]), &auth(None)), None);
-        // 头缺失时回退 JWT admin_type
-        assert_eq!(resolve_shop_id(&headers(&[]), &auth(Some("admin"))), Some(0));
-        assert_eq!(
-            resolve_shop_id(&headers(&[("x-shop-id", "5")]), &auth(Some("shop"))),
-            Some(5)
-        );
+        // 店铺身份 → 本店
+        let shop = TenantScope::for_shop(5);
+        let seen = with_tenant_scope(shop, async {
+            resolve_shop_id(&headers(&[("x-shop-id", "3")]), &auth(None))
+        })
+        .await;
+        assert_eq!(seen, Some(5));
     }
 }

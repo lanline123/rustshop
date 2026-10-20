@@ -42,6 +42,7 @@ use tigshop_core::models::im::im_message::{
 };
 use tigshop_core::types::PageResult;
 use tigshop_core::Error;
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 
 use crate::AdminState;
@@ -137,24 +138,16 @@ async fn set_read(
     ok(state.im.im_message.set_read_as_admin(&dto, shop_id).await?)
 }
 
-/// 读取请求头文本值（缺失 / 非 UTF-8 / 全空白 → `None`）。
-fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
-    headers
-        .get(name)
-        .and_then(|v| v.to_str().ok())
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(ToString::to_string)
-}
-
-/// 复刻 Java `HeaderUtils.getShopId()` 的三态（`admin`→0 / `shop`,`pos`→`x-shop-id` / 其它→null）。
-fn resolve_shop_id(headers: &HeaderMap, auth: &AuthUser) -> Option<i32> {
-    let admin_type = header_str(headers, "x-admin-type").or_else(|| auth.admin_type.clone());
-    let shop_id = header_str(headers, "x-shop-id").and_then(|v| v.parse::<i32>().ok());
-    match admin_type.as_deref() {
-        Some("admin") => Some(0),
-        Some("shop" | "pos") => shop_id,
-        _ => None,
+/// 当前请求的店铺范围（多租户：**身份只信任认证中间件**）。
+///
+/// - 平台账号 → `Some(0)`（保留既有平台语义）；
+/// - 店铺账号 → `Some(本店)`（task-local，忽略可伪造的 `x-shop-id`）。
+fn resolve_shop_id(_headers: &HeaderMap, _auth: &AuthUser) -> Option<i32> {
+    let scope = TenantScope::current();
+    if scope.is_platform() {
+        Some(0)
+    } else {
+        scope.shop_id()
     }
 }
 
@@ -178,4 +171,51 @@ async fn read_upload_file(multipart: &mut Multipart) -> Result<(Option<String>, 
         }
     }
     Ok((file_name, bytes))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn headers(pairs: &[(&str, &str)]) -> HeaderMap {
+        let mut h = HeaderMap::new();
+        for (k, v) in pairs {
+            h.insert(
+                axum::http::HeaderName::from_bytes(k.as_bytes()).unwrap(),
+                axum::http::HeaderValue::from_str(v).unwrap(),
+            );
+        }
+        h
+    }
+
+    fn auth() -> AuthUser {
+        AuthUser {
+            id: 7,
+            username: "kefu".into(),
+            role_id: None,
+            admin_type: None,
+            shop_id: None,
+        }
+    }
+
+    /// 店铺范围只信任认证身份（task-local），忽略伪造请求头。
+    #[tokio::test]
+    async fn resolve_shop_id_uses_trusted_identity() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::with_tenant_scope;
+        // 平台语义（无 task-local）→ Some(0)；伪造 shop 头无效
+        assert_eq!(
+            resolve_shop_id(
+                &headers(&[("x-admin-type", "shop"), ("x-shop-id", "9")]),
+                &auth()
+            ),
+            Some(0)
+        );
+        // 店铺身份 → 本店
+        let shop = TenantScope::for_shop(5);
+        let seen = with_tenant_scope(shop, async {
+            resolve_shop_id(&headers(&[("x-shop-id", "3")]), &auth())
+        })
+        .await;
+        assert_eq!(seen, Some(5));
+    }
 }

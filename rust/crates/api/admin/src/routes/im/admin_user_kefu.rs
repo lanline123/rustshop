@@ -34,6 +34,7 @@ use tigshop_core::models::im::admin_user_kefu::{
 };
 use tigshop_core::types::PageResult;
 use tigshop_core::Error;
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 
 use crate::AdminState;
@@ -77,13 +78,13 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
         .collect()
 }
 
-/// `x-shop-id` → 当前店铺 ID（Java `HeaderUtils.getShopId()`）。
-fn current_shop_id(headers: &HeaderMap) -> Result<i32, AppError> {
-    headers
-        .get("x-shop-id")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.parse::<i32>().ok())
-        .filter(|v| *v > 0)
+/// 当前店铺 ID（多租户：**身份只信任认证中间件**，忽略可伪造的 `x-shop-id`）。
+///
+/// 平台账号没有店铺上下文的端点（本域全部端点按 Java 语义要求店铺账号）→ 400。
+fn current_shop_id(_headers: &HeaderMap) -> Result<i32, AppError> {
+    TenantScope::current()
+        .shop_id()
+        .filter(|id| *id > 0)
         .ok_or_else(|| AppError(Error::Validation("无法获取当前店铺信息".into())))
 }
 
@@ -194,7 +195,6 @@ async fn update_field(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::http::HeaderValue;
 
     #[test]
     fn route_table_has_all_nine_contract_paths() {
@@ -214,13 +214,15 @@ mod tests {
         assert_eq!(ROUTE_TABLE.len() - gets, 5);
     }
 
-    #[test]
-    fn shop_id_header_is_required_and_positive() {
-        let mut h = HeaderMap::new();
-        assert!(current_shop_id(&h).is_err());
-        h.insert("x-shop-id", HeaderValue::from_static("0"));
-        assert!(current_shop_id(&h).is_err());
-        h.insert("x-shop-id", HeaderValue::from_static("6"));
-        assert_eq!(current_shop_id(&h).unwrap(), 6);
+    #[tokio::test]
+    async fn shop_id_comes_from_trusted_identity_not_headers() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::with_tenant_scope;
+        // 无关登录态 / 伪造 x-shop-id → 400（不再信任请求头）
+        assert!(current_shop_id(&HeaderMap::new()).is_err());
+        // 店铺身份 → 本店（HeaderMap 内容被忽略）
+        let shop = TenantScope::for_shop(6);
+        let id = with_tenant_scope(shop, async { current_shop_id(&HeaderMap::new()).unwrap() })
+            .await;
+        assert_eq!(id, 6);
     }
 }

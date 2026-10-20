@@ -35,6 +35,7 @@ use axum::{
 };
 use tigshop_core::models::im::im_servant::{ImServantListQuery, ImServantScope, ImServantVO, ServantModifyStatusDTO};
 use tigshop_core::types::PageResult;
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_security::web::{ok, ApiResult, AuthUser};
 
 use crate::AdminState;
@@ -117,30 +118,17 @@ async fn get_status(
     ok(state.im.im_servant.get_status(auth.id, scope).await?)
 }
 
-/// 读取请求头文本值（缺失 / 非 UTF-8 / 全空白时返回 `None`）。
-fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
-    headers
-        .get(name)
-        .and_then(|v| v.to_str().ok())
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(ToString::to_string)
-}
-
-/// 当前请求的店铺范围（对应 Java `HeaderUtils.getShopId()` 的三态返回）。
+/// 当前请求的店铺范围（多租户：**身份只信任认证中间件**）。
 ///
-/// - `x-admin-type == "admin"` → `Shop(0)`（平台，先于 `x-shop-id` 判定）；
-/// - `x-admin-type == "shop"` / `"pos"` → `x-shop-id`（缺省 / 非法 → `Unscoped`）；
-/// - 其它（含缺失）→ `Unscoped`（Java 返回 `null`）。
-///
-/// `x-admin-type` 缺失时回退 JWT 的 `admin_type`（与 im_config 口径一致）。
-fn resolve_scope(headers: &HeaderMap, auth: &AuthUser) -> ImServantScope {
-    let admin_type = header_str(headers, "x-admin-type").or_else(|| auth.admin_type.clone());
-    let shop_id = header_str(headers, "x-shop-id").and_then(|v| v.parse::<i32>().ok());
-    match admin_type.as_deref() {
-        Some("admin") => ImServantScope::Shop(0),
-        Some("shop" | "pos") => ImServantScope::from_optional(shop_id),
-        _ => ImServantScope::Unscoped,
+/// - 平台账号 → `Shop(0)`（保留既有平台语义）；
+/// - 店铺账号 → `Shop(本店)`（task-local，忽略可伪造的 `x-shop-id`）；
+/// - 其它 → `Unscoped`。
+fn resolve_scope(_headers: &HeaderMap, _auth: &AuthUser) -> ImServantScope {
+    let scope = TenantScope::current();
+    if scope.is_platform() {
+        ImServantScope::Shop(0)
+    } else {
+        ImServantScope::from_optional(scope.shop_id())
     }
 }
 
@@ -170,77 +158,27 @@ mod tests {
         }
     }
 
-    #[test]
-    fn platform_admin_is_forced_to_shop_id_zero() {
-        assert_eq!(
-            resolve_scope(
-                &headers(&[("x-admin-type", "admin"), ("x-shop-id", "9")]),
-                &auth_without_type()
-            ),
-            ImServantScope::Shop(0)
-        );
-    }
-
-    #[test]
-    fn shop_and_pos_admins_use_x_shop_id() {
+    #[tokio::test]
+    async fn scope_uses_trusted_identity_not_headers() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::with_tenant_scope;
+        // 无 task-local = 平台语义 → Shop(0)（伪造 x-shop-id 无效）
         assert_eq!(
             resolve_scope(
                 &headers(&[("x-admin-type", "shop"), ("x-shop-id", "9")]),
                 &auth_without_type()
             ),
-            ImServantScope::Shop(9)
-        );
-        assert_eq!(
-            resolve_scope(
-                &headers(&[("x-admin-type", "pos"), ("x-shop-id", "3")]),
-                &auth_without_type()
-            ),
-            ImServantScope::Shop(3)
-        );
-    }
-
-    #[test]
-    fn missing_or_invalid_shop_id_is_unscoped() {
-        assert_eq!(
-            resolve_scope(&headers(&[("x-admin-type", "shop")]), &auth_without_type()),
-            ImServantScope::Unscoped
-        );
-        assert_eq!(
-            resolve_scope(
-                &headers(&[("x-admin-type", "shop"), ("x-shop-id", "abc")]),
-                &auth_without_type()
-            ),
-            ImServantScope::Unscoped
-        );
-    }
-
-    #[test]
-    fn other_or_missing_admin_type_is_unscoped() {
-        assert_eq!(
-            resolve_scope(&headers(&[("x-admin-type", "vendor")]), &auth_without_type()),
-            ImServantScope::Unscoped
-        );
-        assert_eq!(resolve_scope(&headers(&[]), &auth_without_type()), ImServantScope::Unscoped);
-    }
-
-    #[test]
-    fn jwt_admin_type_is_used_when_header_missing() {
-        let auth = AuthUser {
-            admin_type: Some("shop".into()),
-            ..auth_without_type()
-        };
-        assert_eq!(
-            resolve_scope(&headers(&[("x-shop-id", "5")]), &auth),
-            ImServantScope::Shop(5)
-        );
-        // 请求头优先于 JWT
-        assert_eq!(
-            resolve_scope(
-                &headers(&[("x-admin-type", "admin"), ("x-shop-id", "5")]),
-                &auth
-            ),
             ImServantScope::Shop(0)
         );
+        // 店铺身份 → Shop(本店)，请求头被忽略
+        let shop = TenantScope::for_shop(9);
+        let scope = with_tenant_scope(shop, async {
+            resolve_scope(
+                &headers(&[("x-admin-type", "admin"), ("x-shop-id", "3")]),
+                &auth_without_type(),
+            )
+        })
+        .await;
+        assert_eq!(scope, ImServantScope::Shop(9));
     }
 
     #[test]
