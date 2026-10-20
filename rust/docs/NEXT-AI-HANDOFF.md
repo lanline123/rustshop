@@ -45,19 +45,20 @@
 
 | 项 | 值 / 状态 |
 |---|---|
-| git HEAD | `6ca6fe36`（19:00 快照为 559b6685；见 §0.1） |
+| git HEAD | `d6c2a948`（2026-10-20 21:xx；见 §0.1） |
 | git 根目录 | `D:/tigshop/java-b2b2b-pro-v5.8.57`（Rust 在 `rust/` 子目录，提交路径带 `rust/` 前缀） |
-| 未提交改动 | **0（工作树干净）**；原 82 个改动已提交（见 §0.1） |
-| 编译 | `cargo check -p tigshop-server` / `cargo test --workspace` 通过（2026-10-19 21:20 实测） |
-| 测试 | `cargo test --workspace` 通过（同上） |
-| 门禁 | `check_api_coverage` 100%（未实现 0）、路由冲突 0、SQL 列 PASS、结构 PASS |
+| 未提交改动 | **约 285 个路径**（前端 `rust/web` 迁移 + `config_basic` 在途改动，见 §0.1） |
+| 编译 | `cargo check --workspace` 通过（2026-10-20 实测） |
+| 测试 | `tigshop-services` 1570 passed / 1 failed（未提交 `config_basic` 旧占位测试）；`tigshop-admin-api` 590 passed |
+| 门禁 | `check_api_coverage` 100%、路由冲突 0、SQL 未知表/列 0、结构 PASS |
 | 服务 | 未运行；二进制 `rust/crates/target/debug/tigshop.exe` 存在 |
-| MySQL | 服务 `MySQL84` 停止；数据目录实际为 `D:/tigshop-mysql/data`（注意：旧 `HANDOVER.md` 写成 `D:/igshop-mysql/data`，是错的） |
-| 磁盘 | D 盘约 23.8GB 可用；`crates/target` 约 73.7GB（大量 build 日志在 `rust/` 根目录，已被 gitignore） |
+| MySQL | 本地 `tigshop-java` 可连接（root/root，127.0.0.1:3306） |
+| 前端 | **重写中的 `rust/web` 未提交**；PC 构建仍有 TS 错误 |
 
 > **口径提醒**：`check_api_coverage` 的 100% 是「路由/方法存在」口径，不代表行为等价。
 > 行为缺口以 `docs/CAPABILITY-MATRIX.md` + 代码中的 `NOT_MIGRATED` 分支为准。
-> 当前 `services/src` 里仍有 **96 处 `NOT_MIGRATED` 常量**，集中在 20 个 feature 文件（见 §5 Wave4）。
+> 当前 `services/src` 里仍有 **23 处 `NOT_MIGRATED` 引用**（含常量定义/注释），
+> 主要剩余：微信直播、ES 全量同步、部分支付/售后/结算与代客下单结算页。
 
 ---
 
