@@ -212,10 +212,14 @@
 
 ### 2.10 其他业务小项
 
-- 订单/售后/代客下单的部分边界场景（按最新代码复核后仅剩少量未覆盖）；
+- 订单/售后/代客下单剩余边界：部分发货拆单、定金预售、取消返还积分/余额/优惠券、
+  售后仅退款自动退款与退款申请创建等，仍需逐条对照 Java 补；
 - 微信公众号/小程序真实扫码登录全链路（等 IP 白名单 + 小程序凭据）；
-- 多租户剩余边界：`catalog/product_manage_client` 6 端点、`groupon_promotion` public 端点、`admin_msg.msgCount`（已改为 SSE 后需复核）、平台列表语义；
-- 文档过期描述清理（大量模块头仍写「JWT 无 shop_id」「Excel 未迁移」「WebSocket 未迁移」，与实际不符）。
+- 多租户：`catalog/product_manage_client` 6 端点已加店铺范围校验（`d1f48658`）；
+  `admin_msg.msgCount` 已是 SSE + TenantContext；`groupon_promotion` public
+  端点已存在，剩余平台列表语义/少量 public 查询需复核；
+- 文档过期描述清理：已清理 admin_user / WebSocket / SMTP / gift-card / KDN 等高价值
+  模块头；其余大量注释仍是旧描述，需持续清理。
 
 ---
 
