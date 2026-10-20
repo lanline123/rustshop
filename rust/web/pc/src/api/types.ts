@@ -191,7 +191,7 @@ export interface OrderCheckVO {
     total?: Record<string, any>;
   }>;
   total?: Record<string, any>;
-  couponList?: { enableCoupons?: any[]; disableCoupons?: any[] };
+  couponList?: { enableCoupons?: CheckCoupon[]; disableCoupons?: any[] };
   availablePoints?: number;
   message?: string | null;
   hasChangePrice?: boolean;
@@ -219,6 +219,7 @@ export interface OrderCreateParam {
   buyerNote?: string;
   payTypeId?: number;
   useCouponIds?: number[];
+  invoiceData?: InvoiceData;
 }
 
 /** 提交订单结果（`OrderCreateVO`）。 */
@@ -385,4 +386,192 @@ export interface SiteConfig {
   shopIcpNoUrl?: string;
   shopName?: string;
   [key: string]: any;
+}
+
+// ————————————————————— 结算增强：优惠券 / 发票 —————————————————————
+
+/** 结算页可用优惠券（`CheckCouponVO`）。 */
+export interface CheckCoupon {
+  id: number;
+  couponId: number;
+  couponName: string;
+  couponType: number;
+  couponMoney: number | string;
+  minOrderAmount: number | string;
+  couponDesc: string;
+  isGlobal: boolean;
+  couponDiscount: number | string;
+  shopId: number;
+  endDate: string;
+  userCouponId: number;
+  selected: boolean;
+}
+
+/** 结算页发票信息（`GET /api/order/check/getInvoice` 返回的 `OrderInvoiceVO` 子集）。 */
+export interface OrderInvoice {
+  id: number;
+  orderId: number;
+  invoiceType: number;
+  invoiceTypeName: string;
+  status: number;
+  statusName: string;
+  titleType: number;
+  companyName: string;
+  companyCode: string;
+  invoiceContent: string;
+  amount: number | string;
+  email: string;
+  mobile: string;
+  [key: string]: any;
+}
+
+/** 提交订单时的发票数据（`InvoiceDataDTO`）。 */
+export interface InvoiceData {
+  invoiceType?: number;
+  titleType?: number;
+  title?: string;
+  taxNo?: string;
+  content?: string;
+  taxPhone?: string;
+  companyName?: string;
+  email?: string;
+  mobile?: string;
+}
+
+// ————————————————————— 我的优惠券 —————————————————————
+
+/** 我已领取的优惠券（`UserCouponVO`）。 */
+export interface UserCoupon {
+  id: number;
+  couponId: number;
+  couponSn: string;
+  couponName: string;
+  couponMoney: number | string;
+  couponDiscount: number | string;
+  couponDesc: string;
+  couponType: number;
+  minOrderAmount: number | string;
+  sendRange: number;
+  sendRangeData: number[];
+  startDate: number;
+  endDate: number;
+  usedTime: number;
+  orderId: number;
+  status: number;
+  statusName: string;
+}
+
+/** 领券中心可领取优惠券（`CouponClientVO`）。 */
+export interface ClaimableCoupon {
+  couponId: number;
+  couponName: string;
+  couponMoney: number | string;
+  couponDiscount: number | string;
+  couponDesc: string;
+  couponType: number;
+  minOrderAmount: number | string;
+  useStartDate: number;
+  useEndDate: number;
+  isReceive: number;
+  enabledClickGet: number;
+  limitNum: number;
+  receiveNum: number;
+  [key: string]: any;
+}
+
+// ————————————————————— 收藏 / 浏览历史 —————————————————————
+
+/** 商品收藏（`CollectProductVO`）。 */
+export interface CollectProduct {
+  collectId: number;
+  productId: number;
+  shopId: number;
+  addTime: number;
+  productName?: string | null;
+  picThumb?: string | null;
+}
+
+/** 浏览历史（`HistoryProductVO` 子集）。 */
+export interface HistoryProduct {
+  productId: number;
+  productName: string;
+  productSn: string;
+  productPrice: number | string;
+  marketPrice: number | string;
+  picUrl: string;
+  picThumb: string;
+  productStock: number;
+  productStatus: number;
+  virtualSales: number;
+  [key: string]: any;
+}
+
+// ————————————————————— 售后 —————————————————————
+
+/** 售后列表行（`GET /api/user/aftersales/list` 的 `AfterSalesClientVO`）。 */
+export interface AftersaleOrder {
+  orderId: number;
+  orderSn: string;
+  shippingTime: string;
+  items: Array<Record<string, any>>;
+}
+
+/** 售后详情（`AfterSalesClientDetailVO` 子集）。 */
+export interface AftersaleDetail {
+  aftersaleId: number;
+  status: number;
+  statusName?: string | null;
+  statusDesc?: string | null;
+  addTime: string;
+  aftersaleReason?: string | null;
+  aftersaleType: number;
+  aftersalesSn?: string | null;
+  aftersalesTypeName: string;
+  description: string;
+  refundAmount: string;
+  reply: string;
+  pics: any[];
+  logisticsName: string;
+  trackingNo: string;
+  returnAddress?: string | null;
+  orderId?: number | null;
+  aftersalesItems: Array<Record<string, any>>;
+  aftersalesLog: Array<Record<string, any>>;
+  canCancel?: boolean;
+  [key: string]: any;
+}
+
+/** 售后申请页数据（`GET /api/user/aftersales/applyData?orderId=` 的 `AfterSalesApplyDataVO`）。 */
+export interface AftersalesApplyData {
+  list: Array<{
+    itemId: number;
+    picThumb: string;
+    productSn: string;
+    productId: number;
+    productName: string;
+    price: number | string;
+    quantity: number;
+    subtotal: number | string;
+    canApplyQuantity: number;
+    skuData?: Array<Record<string, any>>;
+    [key: string]: any;
+  }>;
+  order: OrderVO;
+}
+
+/** 售后配置（`GET /api/user/aftersales/config` 的 `AftersalesConfigVO`）。 */
+export interface AftersalesConfig {
+  aftersaleType: Record<string, string>;
+  aftersaleReason: string[];
+  afterSalesReasonEnabled: number;
+}
+
+/** 售后申请入参（`CreateAftersalesParam`）。 */
+export interface AftersalesCreateParam {
+  orderId?: number;
+  aftersaleType?: number;
+  aftersaleReason?: string;
+  description?: string;
+  refundAmount?: number | string;
+  items?: Array<{ orderItemId?: number; number?: number }>;
 }

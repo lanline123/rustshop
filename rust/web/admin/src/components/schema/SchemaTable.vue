@@ -44,12 +44,12 @@
         <div class="table-title">{{ schema.title }}</div>
         <div class="toolbar-actions flex-align-center">
           <el-button
-            v-if="schema.formSchema"
+            v-if="schema.formSchema || schema.onCreate"
             type="primary"
             :icon="Plus"
-            @click="handleCreate"
+            @click="handleToolbarCreate"
           >
-            新增
+            {{ schema.createLabel || '新增' }}
           </el-button>
 
           <el-button
@@ -361,6 +361,15 @@ function handleCreate() {
   isEdit.value = false;
   currentEditRow.value = null;
   dialogVisible.value = true;
+}
+
+/** 工具栏「新增」：优先自定义回调（专用编辑抽屉），否则打开内置 SchemaForm 弹窗。 */
+function handleToolbarCreate() {
+  if (props.schema.onCreate) {
+    props.schema.onCreate();
+    return;
+  }
+  handleCreate();
 }
 
 function handleEdit(row: any) {

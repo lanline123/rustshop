@@ -46,6 +46,14 @@
             <el-button v-if="[3, 4, 5, 6].includes(order.orderStatus)" size="small" @click="buyAgain(order)">
               再次购买
             </el-button>
+            <el-button
+              v-if="[1, 2, 3, 4].includes(order.orderStatus)"
+              size="small"
+              @click="goApplyAftersales(order)"
+            >
+              申请售后
+            </el-button>
+            <el-button size="small" @click="$router.push('/member/aftersales')">售后记录</el-button>
             <el-button v-if="[4, 5, 6].includes(order.orderStatus)" size="small" type="danger" plain @click="removeOrder(order)">
               删除
             </el-button>
@@ -69,7 +77,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { orderApi } from '@/api';
 import { pageItems } from '@/api/types';
@@ -77,6 +85,7 @@ import type { OrderVO } from '@/api/types';
 import { applySeo } from '@/composables/useSeo';
 import { formatPrice, formatTime, orderStatusTagType, orderStatusText } from '@/utils/format';
 
+const route = useRoute();
 const router = useRouter();
 
 const tabs = [
@@ -118,7 +127,13 @@ async function loadOrders() {
 
 function onTabChange() {
   page.value = 1;
+  const status = activeStatus.value === 'all' ? undefined : activeStatus.value;
+  router.replace({ path: '/member/orders', query: status ? { status } : {} });
   loadOrders();
+}
+
+function goApplyAftersales(order: OrderVO) {
+  router.push({ path: '/member/aftersales/apply', query: { orderId: String(order.orderId) } });
 }
 
 function onPageChange(next: number) {
@@ -174,6 +189,10 @@ async function removeOrder(order: OrderVO) {
 }
 
 onMounted(() => {
+  const status = route.query.status;
+  if (typeof status === 'string' && tabs.some((t) => t.name === status)) {
+    activeStatus.value = status;
+  }
   applySeo({ title: '我的订单', noindex: true });
   loadOrders();
 });

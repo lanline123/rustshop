@@ -110,6 +110,9 @@ export interface TableSchema {
   searchFields?: TableSearchField[];
   columns: TableColumnSchema[];
   actions?: TableAction[];
+  /** 自定义「新增」按钮回调（不配 formSchema 时用于打开专用编辑抽屉）。 */
+  onCreate?: () => void;
+  createLabel?: string;
   batchActions?: TableBatchAction[];
   formSchema?: FormSchema;// 新增/编辑弹窗用的 Schema
   exportable?: boolean;   // 是否支持导出

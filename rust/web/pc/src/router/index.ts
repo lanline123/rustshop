@@ -80,6 +80,36 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/AddressView.vue'),
         meta: { title: '收货地址', requiresAuth: true },
       },
+      {
+        path: 'member/coupons',
+        name: 'MemberCoupons',
+        component: () => import('@/views/CouponsView.vue'),
+        meta: { title: '我的优惠券', requiresAuth: true },
+      },
+      {
+        path: 'member/favorites',
+        name: 'MemberFavorites',
+        component: () => import('@/views/FavoritesView.vue'),
+        meta: { title: '我的收藏', requiresAuth: true },
+      },
+      {
+        path: 'member/history',
+        name: 'MemberHistory',
+        component: () => import('@/views/HistoryView.vue'),
+        meta: { title: '浏览历史', requiresAuth: true },
+      },
+      {
+        path: 'member/aftersales',
+        name: 'MemberAftersales',
+        component: () => import('@/views/AftersalesView.vue'),
+        meta: { title: '售后服务', requiresAuth: true },
+      },
+      {
+        path: 'member/aftersales/apply',
+        name: 'ApplyAftersales',
+        component: () => import('@/views/ApplyAftersalesView.vue'),
+        meta: { title: '申请售后', requiresAuth: true },
+      },
     ],
   },
   {

@@ -24,6 +24,8 @@
           <el-button v-if="order.orderStatus === 0" @click="cancelOrder">取消订单</el-button>
           <el-button v-if="order.orderStatus === 2" type="primary" @click="confirmReceipt">确认收货</el-button>
           <el-button v-if="[3, 4, 5, 6].includes(order.orderStatus)" @click="buyAgain">再次购买</el-button>
+          <el-button v-if="[1, 2, 3, 4].includes(order.orderStatus)" @click="goApplyAftersales">申请售后</el-button>
+          <el-button @click="$router.push('/member/aftersales')">售后记录</el-button>
         </div>
       </section>
 
@@ -115,6 +117,10 @@ async function load() {
 
 function goPay() {
   router.push({ path: '/pay/result', query: { orderId: String(order.value.orderId) } });
+}
+
+function goApplyAftersales() {
+  router.push({ path: '/member/aftersales/apply', query: { orderId: String(order.value.orderId) } });
 }
 
 async function cancelOrder() {

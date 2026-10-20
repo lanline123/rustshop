@@ -9,9 +9,18 @@ import request from '@/utils/request';
 import type {
   AddressPayload,
   AddressVO,
+  AftersaleDetail,
+  AftersaleOrder,
+  AftersalesApplyData,
+  AftersalesConfig,
+  AftersalesCreateParam,
   CartSummary,
   CategoryNode,
+  CheckCoupon,
+  ClaimableCoupon,
+  CollectProduct,
   DecorateIndex,
+  HistoryProduct,
   LoginVO,
   MemberCenter,
   OrderCheckParam,
@@ -19,6 +28,7 @@ import type {
   OrderCreateParam,
   OrderCreateVO,
   OrderDetail,
+  OrderInvoice,
   OrderVO,
   PageResult,
   PayCreate,
@@ -30,6 +40,7 @@ import type {
   ProductVO,
   Region,
   SiteConfig,
+  UserCoupon,
 } from './types';
 
 // ————————————————————— 首页 / 分类 —————————————————————
@@ -136,6 +147,22 @@ export const orderApi = {
       url: '/order/check/update',
       method: 'post',
       data: param,
+    });
+  },
+  /** `POST /api/order/check/updateCoupon`：优惠券变化后重算。 */
+  updateCoupon(param: OrderCheckParam) {
+    return request<OrderCheckVO>({
+      url: '/order/check/updateCoupon',
+      method: 'post',
+      data: param,
+    });
+  },
+  /** `GET /api/order/check/getInvoice`：获得上次订单发票信息（含标题/税号等）。 */
+  getInvoice(params: { invoiceType?: number; titleType?: number }) {
+    return request<OrderInvoice | null>({
+      url: '/order/check/getInvoice',
+      method: 'get',
+      params,
     });
   },
   /** `GET /api/order/check/getAvailablePaymentType`：可用支付方式。 */
@@ -327,6 +354,108 @@ export const regionApi = {
       url: '/sys/region/getRegionListByRegionId',
       method: 'get',
       params: { regionId },
+    });
+  },
+};
+
+// ————————————————————— 会员中心扩展 —————————————————————
+
+export const couponApi = {
+  /** `GET /api/user/coupon/list`：我领取的优惠券（分页）。 */
+  myCoupons(params: { page?: number; pageSize?: number } = {}) {
+    return request<PageResult<UserCoupon>>({
+      url: '/user/coupon/list',
+      method: 'get',
+      params,
+    });
+  },
+  /** `GET /api/user/coupon/getList`：领券中心（可领取优惠券）。 */
+  claimable(params: { page?: number; pageSize?: number } = {}) {
+    return request<PageResult<ClaimableCoupon>>({
+      url: '/user/coupon/getList',
+      method: 'get',
+      params,
+    });
+  },
+  /** `POST /api/user/coupon/claim`：领取优惠券（请求体 `{ couponId }`）。 */
+  claim(couponId: number) {
+    return request<number>({
+      url: '/user/coupon/claim',
+      method: 'post',
+      data: { couponId },
+    });
+  },
+};
+
+export const favoriteApi = {
+  /** `GET /api/user/collectProduct/list`：商品收藏分页。 */
+  list(params: { page?: number; size?: number } = {}) {
+    return request<PageResult<CollectProduct>>({
+      url: '/user/collectProduct/list',
+      method: 'get',
+      params,
+    });
+  },
+  /** `POST /api/user/collectProduct/cancel`：取消收藏（请求体 `{ productId }`）。 */
+  cancel(productId: number) {
+    return request<void>({
+      url: '/user/collectProduct/cancel',
+      method: 'post',
+      data: { productId },
+    });
+  },
+  /** `POST /api/user/collectProduct/save`：收藏商品（请求体 `{ productId }`）。 */
+  save(productId: number) {
+    return request<number>({
+      url: '/user/collectProduct/save',
+      method: 'post',
+      data: { productId },
+    });
+  },
+};
+
+export const historyApi = {
+  /** `GET /api/user/user/historyProduct`：最近浏览商品。 */
+  list() {
+    return request<HistoryProduct[]>({ url: '/user/user/historyProduct', method: 'get' });
+  },
+};
+
+export const aftersaleApi = {
+  /** `GET /api/user/aftersales/list`：售后记录（按订单分页）。 */
+  list(params: { page?: number; size?: number } = {}) {
+    return request<PageResult<AftersaleOrder>>({
+      url: '/user/aftersales/list',
+      method: 'get',
+      params,
+    });
+  },
+  /** `GET /api/user/aftersales/detail?id=`：售后详情。 */
+  detail(id: number) {
+    return request<AftersaleDetail>({
+      url: '/user/aftersales/detail',
+      method: 'get',
+      params: { id },
+    });
+  },
+  /** `GET /api/user/aftersales/applyData?orderId=`：售后申请页数据（可售后商品 + 订单）。 */
+  applyData(orderId: number) {
+    return request<AftersalesApplyData>({
+      url: '/user/aftersales/applyData',
+      method: 'get',
+      params: { orderId },
+    });
+  },
+  /** `GET /api/user/aftersales/config`：售后类型与原因配置。 */
+  config() {
+    return request<AftersalesConfig>({ url: '/user/aftersales/config', method: 'get' });
+  },
+  /** `POST /api/user/aftersales/create`：提交售后申请。 */
+  create(param: AftersalesCreateParam) {
+    return request<Record<string, any>>({
+      url: '/user/aftersales/create',
+      method: 'post',
+      data: param,
     });
   },
 };

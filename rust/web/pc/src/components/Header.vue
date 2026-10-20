@@ -5,11 +5,24 @@
       <div class="container flex-between">
         <div class="shortcut-left flex-align-center">
           <span v-if="!user.isLoggedIn">您好，欢迎来到 TigShop 官方商城！</span>
-          <span v-else>欢迎您，<strong>{{ user.displayName || user.username }}</strong></span>
+          <el-dropdown v-else trigger="hover" @command="handleUserCommand">
+            <span class="user-menu-trigger">
+              欢迎您，<strong>{{ user.displayName || user.username }}</strong>
+              <el-icon><ArrowDown /></el-icon>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="profile">个人中心</el-dropdown-item>
+                <el-dropdown-item command="orders">我的订单</el-dropdown-item>
+                <el-dropdown-item command="address">收货地址</el-dropdown-item>
+                <el-dropdown-item command="coupons">我的优惠券</el-dropdown-item>
+                <el-dropdown-item command="favorites">我的收藏</el-dropdown-item>
+                <el-dropdown-item command="aftersales">售后服务</el-dropdown-item>
+                <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
           <router-link v-if="!user.isLoggedIn" to="/login" class="login-link">请登录</router-link>
-          <template v-else>
-            <a href="javascript:;" class="logout-link" @click="handleLogout">退出</a>
-          </template>
         </div>
         <div class="shortcut-right flex-align-center">
           <router-link to="/member/orders">我的订单</router-link>
@@ -94,7 +107,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Search, ShoppingCart, Menu } from '@element-plus/icons-vue';
+import { Search, ShoppingCart, Menu, ArrowDown } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { homeApi } from '@/api';
 import type { CategoryNode } from '@/api/types';
@@ -148,6 +161,25 @@ function handleLogout() {
   router.push('/');
 }
 
+/** 用户下拉菜单路由映射。 */
+const USER_MENU_ROUTES: Record<string, string> = {
+  profile: '/member',
+  orders: '/member/orders',
+  address: '/member/address',
+  coupons: '/member/coupons',
+  favorites: '/member/favorites',
+  aftersales: '/member/aftersales',
+};
+
+function handleUserCommand(command: string) {
+  if (command === 'logout') {
+    handleLogout();
+    return;
+  }
+  const path = USER_MENU_ROUTES[command];
+  if (path) router.push(path);
+}
+
 function showMobileTip() {
   ElMessage.info('移动端请使用浏览器访问同一商城域名');
 }
@@ -178,6 +210,15 @@ onMounted(() => {
     strong { color: var(--tig-red); }
     .login-link { color: var(--tig-red); font-weight: bold; }
     .logout-link { color: #999; &:hover { color: var(--tig-red); } }
+    .user-menu-trigger {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      color: #666;
+      outline: none;
+      &:hover { color: var(--tig-red); }
+    }
   }
 
   .shortcut-right {

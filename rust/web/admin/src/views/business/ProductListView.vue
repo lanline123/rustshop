@@ -1,73 +1,28 @@
 <template>
   <div class="business-page">
-    <SchemaTable :schema="schema" />
+    <SchemaTable :key="tableKey" :schema="schema" />
+    <ProductEditDrawer
+      v-model="drawerVisible"
+      :product-id="editingId"
+      @saved="handleSaved"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 /**
- * 商品管理：列表 + 新增/编辑弹窗。
+ * 商品管理：列表 + 专用编辑抽屉（多规格 SKU / 规格属性 / 相册 / 描述 / 视频）。
  *
  * 接口（以 `docs/api-contract.json` / Rust 路由为准）：
- * - 列表：`GET /adminapi/product/product/list`（PageResult）
- * - 分类：`GET /adminapi/product/category/list`；品牌：`GET /adminapi/product/brand/list`
- * - 详情：`GET /adminapi/product/product/detail?id=`
- * - 新增：`POST /adminapi/product/product/create`
- * - 编辑：`POST /adminapi/product/product/update`
- * - 删除：`POST /adminapi/product/product/batch`（BatchDTO { ids, type: 'del' }）
+ * - 列表：`GET /adminapi/product/product/list`
+ * - 分类/品牌下拉：`GET /adminapi/product/category/list`、`GET /adminapi/product/brand/list`
+ * - 详情/新增/编辑：`/product/product/detail|create|update`（见 ProductEditDrawer）
+ * - 删除/批量删除：`POST /adminapi/product/product/batch`（BatchDTO { ids, type: 'del' }）
  */
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import SchemaTable from '@/components/schema/SchemaTable.vue';
-import request from '@/utils/request';
-import type { FormOption, TableSchema } from '@/components/schema/types';
-
-interface CategoryOption {
-  categoryId: number;
-  categoryName: string;
-  parentId: number;
-}
-
-interface BrandOption {
-  brandId: number;
-  brandName: string;
-}
-
-/** 后端返回扁平分类列表（含 parentId），这里组装成 el-cascader 需要的树。 */
-async function loadCategoryTree(): Promise<FormOption[]> {
-  const res = await request<any>({
-    url: '/product/category/list',
-    method: 'get',
-    params: { page: 1, size: 100 }
-  });
-  const cats: CategoryOption[] = res?.list ?? [];
-  const nodes = new Map<number, FormOption>();
-  for (const c of cats) {
-    nodes.set(c.categoryId, { label: c.categoryName, value: c.categoryId, children: [] });
-  }
-  const roots: FormOption[] = [];
-  for (const c of cats) {
-    const node = nodes.get(c.categoryId);
-    if (!node) continue;
-    const parent = c.parentId ? nodes.get(c.parentId) : undefined;
-    if (parent) {
-      parent.children = parent.children || [];
-      parent.children.push(node);
-    } else {
-      roots.push(node);
-    }
-  }
-  return roots;
-}
-
-async function loadBrandOptions(): Promise<FormOption[]> {
-  const res = await request<any>({
-    url: '/product/brand/list',
-    method: 'get',
-    params: { page: 1, size: 100 }
-  });
-  const brands: BrandOption[] = res?.list ?? [];
-  return brands.map((b) => ({ label: b.brandName, value: b.brandId }));
-}
+import ProductEditDrawer from '@/components/business/ProductEditDrawer.vue';
+import type { TableSchema } from '@/components/schema/types';
 
 type TagKind = 'success' | 'warning' | 'danger' | 'info' | 'primary';
 
@@ -82,12 +37,33 @@ const CHECK_STATUS_TAG: Record<number, { text: string; type: TagKind }> = {
   2: { text: '已拒绝', type: 'danger' }
 };
 
+const tableKey = ref(0);
+const drawerVisible = ref(false);
+const editingId = ref<number | null>(null);
+
+function openCreate() {
+  editingId.value = null;
+  drawerVisible.value = true;
+}
+
+function openEdit(row: any) {
+  editingId.value = Number(row.productId);
+  drawerVisible.value = true;
+}
+
+function handleSaved() {
+  // SchemaTable 内部维护分页/查询状态，用 key 强制重挂载即刷新列表
+  tableKey.value += 1;
+}
+
 const schema = computed<TableSchema>(() => ({
   title: '商品列表',
   apiList: '/product/product/list',
   apiDelete: '/product/product/batch',
-  primaryKey: 'productId',
   apiBatchDelete: '/product/product/batch',
+  primaryKey: 'productId',
+  createLabel: '新增商品',
+  onCreate: openCreate,
   searchFields: [
     {
       prop: 'keyword',
@@ -139,91 +115,7 @@ const schema = computed<TableSchema>(() => ({
     },
     { prop: 'sortOrder', label: '排序', width: 80, align: 'center' }
   ],
-  formSchema: {
-    title: '商品',
-    primaryKey: 'productId',
-    apiCreate: '/product/product/create',
-    apiUpdate: '/product/product/update',
-    apiDetail: '/product/product/detail',
-    labelWidth: '130px',
-    sections: [
-      {
-        title: '基础信息',
-        fields: [
-          {
-            prop: 'productName',
-            label: '商品名称',
-            type: 'input',
-            rules: [{ required: true, message: '请输入商品名称', trigger: 'blur' }]
-          },
-          { prop: 'productSn', label: '商品货号', type: 'input', placeholder: '不填则系统自动生成' },
-          {
-            prop: 'categoryId',
-            label: '商品分类',
-            type: 'cascader',
-            cascaderProps: { emitPath: false, checkStrictly: true },
-            optionsLoader: loadCategoryTree,
-            rules: [{ required: true, message: '请选择商品分类', trigger: 'change' }]
-          },
-          {
-            prop: 'brandId',
-            label: '品牌',
-            type: 'select',
-            optionsLoader: loadBrandOptions
-          },
-          {
-            prop: 'productBrief',
-            label: '商品卖点',
-            type: 'textarea',
-            placeholder: '简要描述商品卖点（列表/详情展示）'
-          },
-          {
-            prop: 'picUrl',
-            label: '商品主图',
-            type: 'image',
-            extra: '支持 jpg/png，建议 800x800'
-          }
-        ]
-      },
-      {
-        title: '价格与库存',
-        fields: [
-          {
-            prop: 'productPrice',
-            label: '销售价(元)',
-            type: 'number',
-            min: 0,
-            step: 0.01,
-            rules: [{ required: true, message: '请输入销售价', trigger: 'blur' }]
-          },
-          { prop: 'marketPrice', label: '市场价(元)', type: 'number', min: 0, step: 0.01 },
-          {
-            prop: 'productStock',
-            label: '库存',
-            type: 'number',
-            min: 0,
-            defaultValue: 0
-          },
-          { prop: 'sortOrder', label: '排序权重', type: 'number', min: 0, defaultValue: 50 },
-          { prop: 'productStatus', label: '上架销售', type: 'switch', defaultValue: 1 },
-          { prop: 'isBest', label: '推荐商品', type: 'switch', defaultValue: 0 },
-          { prop: 'isNew', label: '新品', type: 'switch', defaultValue: 0 },
-          { prop: 'isHot', label: '热销', type: 'switch', defaultValue: 0 }
-        ]
-      },
-      {
-        title: '',
-        fields: [
-          // 后端 `ProductSaveDTO` 的必填/默认业务字段：普通商品 + 物流配送 + 非包邮
-          { prop: 'productType', label: '', type: 'number', defaultValue: 1, hidden: () => true },
-          { prop: 'saleMode', label: '', type: 'number', defaultValue: 0, hidden: () => true },
-          { prop: 'deliveryMode', label: '', type: 'number', defaultValue: 1, hidden: () => true },
-          { prop: 'freeShipping', label: '', type: 'number', defaultValue: 0, hidden: () => true },
-          { prop: 'noShipping', label: '', type: 'number', defaultValue: 0, hidden: () => true }
-        ]
-      }
-    ]
-  }
+  actions: [{ label: '编辑', type: 'primary', onClick: openEdit }]
 }));
 </script>
 

@@ -38,7 +38,7 @@
           <router-link
             v-for="entry in orderEntries"
             :key="entry.status"
-            :to="{ path: '/member/orders' }"
+            :to="{ path: '/member/orders', query: { status: String(entry.status) } }"
             class="shortcut-item"
           >
             <el-badge :value="entry.count" :hidden="!entry.count" :max="99">
@@ -61,6 +61,22 @@
             <el-icon><Location /></el-icon>
             <span>收货地址</span>
           </router-link>
+          <router-link to="/member/coupons" class="tool-card">
+            <el-icon><Ticket /></el-icon>
+            <span>我的优惠券</span>
+          </router-link>
+          <router-link to="/member/favorites" class="tool-card">
+            <el-icon><Star /></el-icon>
+            <span>我的收藏</span>
+          </router-link>
+          <router-link to="/member/history" class="tool-card">
+            <el-icon><Clock /></el-icon>
+            <span>浏览历史</span>
+          </router-link>
+          <router-link to="/member/aftersales" class="tool-card">
+            <el-icon><RefreshLeft /></el-icon>
+            <span>售后服务</span>
+          </router-link>
           <router-link to="/cart" class="tool-card">
             <el-icon><ShoppingCart /></el-icon>
             <span>我的购物车</span>
@@ -79,7 +95,7 @@
 import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { List, Location, ShoppingCart, SwitchButton, Wallet, Van, Box, ChatDotSquare } from '@element-plus/icons-vue';
+import { List, Location, ShoppingCart, SwitchButton, Wallet, Van, Box, ChatDotSquare, Ticket, Star, Clock, RefreshLeft } from '@element-plus/icons-vue';
 import { applySeo } from '@/composables/useSeo';
 import { useUserStore } from '@/stores/user';
 import { useCartStore } from '@/stores/cart';
