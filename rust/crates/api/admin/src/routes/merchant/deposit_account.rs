@@ -16,7 +16,7 @@ use tigshop_core::models::merchant::deposit_account::{
     DepositAdjustLogVO, DepositDeductDTO, DepositLogVO, DepositSendWarningDTO,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult, AuthUser};
+use tigshop_security::web::{ok, ApiResult, AppError, AuthUser, TenantContext};
 
 use crate::AdminState;
 
@@ -86,17 +86,30 @@ impl OwnerQuery {
     }
 }
 
+/// 保证金账户/流水/规则/设置/收款账户均为**平台级**数据：
+/// 店铺/门店/POS/供应商账号一律 403（不信任任何请求头/查询参数里的店铺标识）。
+fn require_platform(tenant: &TenantContext) -> Result<(), AppError> {
+    if tenant.is_shop_account() || tenant.is_vendor_account() {
+        return Err(tigshop_core::Error::Forbidden("平台账号才可访问保证金管理".into()).into());
+    }
+    Ok(())
+}
+
 async fn list(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<DepositAccountListQuery>,
 ) -> ApiResult<PageResult<DepositAccountVO>> {
+    require_platform(&tenant)?;
     ok(state.merchant.deposit_account.list(&q).await?)
 }
 
 async fn detail(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<OwnerQuery>,
 ) -> ApiResult<DepositAccountDetailVO> {
+    require_platform(&tenant)?;
     ok(state
         .merchant
         .deposit_account
@@ -106,8 +119,10 @@ async fn detail(
 
 async fn log_list(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<OwnerQuery>,
 ) -> ApiResult<PageResult<DepositLogVO>> {
+    require_platform(&tenant)?;
     ok(state
         .merchant
         .deposit_account
@@ -117,8 +132,10 @@ async fn log_list(
 
 async fn adjust_log_list(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<OwnerQuery>,
 ) -> ApiResult<PageResult<DepositAdjustLogVO>> {
+    require_platform(&tenant)?;
     ok(state
         .merchant
         .deposit_account
@@ -129,8 +146,10 @@ async fn adjust_log_list(
 async fn adjust(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
+    Extension(tenant): Extension<TenantContext>,
     Json(dto): Json<DepositAdjustDTO>,
 ) -> ApiResult<()> {
+    require_platform(&tenant)?;
     state.merchant.deposit_account.adjust(&dto, auth.id).await?;
     ok(())
 }
@@ -138,21 +157,29 @@ async fn adjust(
 async fn deduct(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
+    Extension(tenant): Extension<TenantContext>,
     Json(dto): Json<DepositDeductDTO>,
 ) -> ApiResult<()> {
+    require_platform(&tenant)?;
     state.merchant.deposit_account.deduct(&dto, auth.id).await?;
     ok(())
 }
 
 async fn send_warning(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Json(dto): Json<DepositSendWarningDTO>,
 ) -> ApiResult<()> {
+    require_platform(&tenant)?;
     state.merchant.deposit_account.send_warning(&dto)?;
     ok(())
 }
 
-async fn run_due_check(State(state): State<AdminState>) -> ApiResult<()> {
+async fn run_due_check(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+) -> ApiResult<()> {
+    require_platform(&tenant)?;
     state.merchant.deposit_account.run_due_check().await?;
     ok(())
 }
@@ -160,6 +187,28 @@ async fn run_due_check(State(state): State<AdminState>) -> ApiResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn tenant_platform() -> TenantContext {
+        TenantContext::new(Some("admin".into()), None, None)
+    }
+
+    fn tenant_shop(shop_id: i32) -> TenantContext {
+        TenantContext::new(Some("shop".into()), Some(shop_id), None)
+    }
+
+    fn tenant_vendor(vendor_id: i32) -> TenantContext {
+        TenantContext::new(Some("vendor".into()), None, Some(vendor_id))
+    }
+
+    /// 平台账号放行；店铺/供应商账号被 403 拒绝。
+    #[test]
+    fn platform_only_guard() {
+        assert!(require_platform(&tenant_platform()).is_ok());
+        for t in [tenant_shop(9), tenant_vendor(3)] {
+            let err = require_platform(&t).expect_err("非平台账号应被拒绝");
+            assert_eq!(err.0.business_code(), 403);
+        }
+    }
 
     #[test]
     fn implemented_routes_match_contract_exactly() {

@@ -18,7 +18,7 @@
 use axum::{
     extract::{Query, State},
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use serde::Deserialize;
 use tigshop_core::models::merchant::deposit_rule::{
@@ -27,7 +27,7 @@ use tigshop_core::models::merchant::deposit_rule::{
 use tigshop_core::models::merchant::shop_manage::OperateDTO;
 use tigshop_core::types::PageResult;
 use tigshop_openapi::RouteDoc;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AppError, TenantContext};
 
 use crate::AdminState;
 
@@ -73,36 +73,64 @@ struct IdQuery {
     id: Option<i32>,
 }
 
+/// 保证金账户/流水/规则/设置/收款账户均为**平台级**数据：
+/// 店铺/门店/POS/供应商账号一律 403（不信任任何请求头/查询参数里的店铺标识）。
+fn require_platform(tenant: &TenantContext) -> Result<(), AppError> {
+    if tenant.is_shop_account() || tenant.is_vendor_account() {
+        return Err(tigshop_core::Error::Forbidden("平台账号才可访问保证金管理".into()).into());
+    }
+    Ok(())
+}
+
 /// `GET /adminapi/deposit/rule/list`：规则分页。
 async fn list(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<DepositRuleListQuery>,
 ) -> ApiResult<PageResult<DepositRuleVO>> {
+    require_platform(&tenant)?;
     ok(state.merchant.deposit_rule.list(&q).await?)
 }
 
 /// `GET /adminapi/deposit/rule/detail?id=`：规则详情。
 async fn detail(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<DepositRuleVO> {
+    require_platform(&tenant)?;
     ok(state.merchant.deposit_rule.detail(q.id).await?)
 }
 
 /// `POST /adminapi/deposit/rule/create`：创建规则。
-async fn create(State(state): State<AdminState>, Json(dto): Json<DepositRuleDTO>) -> ApiResult<()> {
+async fn create(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(dto): Json<DepositRuleDTO>,
+) -> ApiResult<()> {
+    require_platform(&tenant)?;
     state.merchant.deposit_rule.create(&dto).await?;
     ok(())
 }
 
 /// `POST /adminapi/deposit/rule/update`：更新规则。
-async fn update(State(state): State<AdminState>, Json(dto): Json<DepositRuleDTO>) -> ApiResult<()> {
+async fn update(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(dto): Json<DepositRuleDTO>,
+) -> ApiResult<()> {
+    require_platform(&tenant)?;
     state.merchant.deposit_rule.update(&dto).await?;
     ok(())
 }
 
 /// `POST /adminapi/deposit/rule/del`：软删除规则。
-async fn del(State(state): State<AdminState>, Json(dto): Json<OperateDTO>) -> ApiResult<()> {
+async fn del(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(dto): Json<OperateDTO>,
+) -> ApiResult<()> {
+    require_platform(&tenant)?;
     state.merchant.deposit_rule.del(dto.id).await?;
     ok(())
 }
@@ -110,8 +138,10 @@ async fn del(State(state): State<AdminState>, Json(dto): Json<OperateDTO>) -> Ap
 /// `POST /adminapi/deposit/rule/status`：启用/停用规则。
 async fn change_status(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Json(dto): Json<DepositRuleStatusDTO>,
 ) -> ApiResult<()> {
+    require_platform(&tenant)?;
     state.merchant.deposit_rule.change_status(&dto).await?;
     ok(())
 }
@@ -119,6 +149,28 @@ async fn change_status(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn tenant_platform() -> TenantContext {
+        TenantContext::new(Some("admin".into()), None, None)
+    }
+
+    fn tenant_shop(shop_id: i32) -> TenantContext {
+        TenantContext::new(Some("shop".into()), Some(shop_id), None)
+    }
+
+    fn tenant_vendor(vendor_id: i32) -> TenantContext {
+        TenantContext::new(Some("vendor".into()), None, Some(vendor_id))
+    }
+
+    /// 平台账号放行；店铺/供应商账号被 403 拒绝。
+    #[test]
+    fn platform_only_guard() {
+        assert!(require_platform(&tenant_platform()).is_ok());
+        for t in [tenant_shop(9), tenant_vendor(3)] {
+            let err = require_platform(&t).expect_err("非平台账号应被拒绝");
+            assert_eq!(err.0.business_code(), 403);
+        }
+    }
 
     #[test]
     fn implemented_routes_match_contract_exactly() {

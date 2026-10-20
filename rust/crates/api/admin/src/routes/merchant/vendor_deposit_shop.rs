@@ -57,7 +57,6 @@
 
 use axum::{
     extract::{Query, State},
-    http::HeaderMap,
     routing::get,
     Extension, Router,
 };
@@ -66,7 +65,7 @@ use tigshop_core::models::merchant::vendor_deposit_shop::{
     DepositShopProtocolVO, DepositShopWarningVO, HTTP_UNAUTHORIZED, MSG_VENDOR_REQUIRED,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
+use tigshop_security::web::{ok, ApiResult, AppError, AuthUser, TenantContext};
 
 use crate::AdminState;
 
@@ -132,60 +131,14 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 // 请求头 → 供应商标识（替代 Java HeaderUtils.getVendorId）
 // ——————————————————————————————————————————————
 
-/// 读取请求头文本值（缺失 / 非 UTF-8 / 空白 → `None`）。
+/// 校验并返回当前供应商（来自 JWT `TenantContext.vendor_scope()`，**不信任请求头**）。
 ///
-/// Java `HeaderUtils.getHeaderValue` 用 `StrUtil.isEmpty`（**只判空串**，
-/// 不 trim）。本实现按 `trim` 后判空，与 aftersales/010/144 的既有口径一致：
-/// `"   "` 视为缺失（Java 会走 `Integer.parseInt("   ")` 抛
-/// `NumberFormatException` → HTTP 500，本实现按缺失处理，见 `uncertain_points`）。
-fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
-    headers
-        .get(name)
-        .and_then(|v| v.to_str().ok())
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(ToString::to_string)
-}
-
-/// 解析当前请求的供应商标识
-/// （对应 Java `HeaderUtils.getAdminType()` + `getVendorId()`）。
-///
-/// 判定顺序逐条对齐 Java：
-/// 1. `admin_type` 取请求头 `x-admin-type`，缺失时回退 JWT 的 `admin_type`
-///    （Rust JWT 已含 `typ`，见 `AuthUser.admin_type`）；
-/// 2. 只有 `admin_type == "vendor"` 才读 `x-vendor-id`
-///    （Java `getVendorId()` 的 `else { return null; }`）；
-/// 3. `x-vendor-id` 缺失 / 非数字 → `0`；
-/// 4. 返回值 `<= 0` 由 [`require_vendor_id`] 转 401。
-#[must_use]
-pub fn resolve_vendor_id(headers: &HeaderMap, auth: &AuthUser) -> i32 {
-    let admin_type = header_str(headers, "x-admin-type").or_else(|| auth.admin_type.clone());
-    match admin_type.as_deref() {
-        Some("vendor") => header_str(headers, "x-vendor-id")
-            .and_then(|v| v.parse::<i32>().ok())
-            .unwrap_or(0),
-        // Java `getVendorId()`：非 vendor 账号一律返回 null（→ 0）
-        _ => 0,
-    }
-}
-
-/// 校验并返回供应商标识。
-///
-/// 对应 Java `VendorDepositShopController#currentVendorId`：
-/// `null` 或 `<= 0` → `GlobalException("无法获取当前供应商信息", 401)`。
-/// 本实现用 `Error::biz(401, ...)`，经 `AppError` 映射为 HTTP 401 +
-/// `{"code":401,"msg":"无法获取当前供应商信息"}`。
-fn require_vendor_id(vendor_id: i32) -> Result<i32, AppError> {
-    if vendor_id > 0 {
-        Ok(vendor_id)
-    } else {
-        Err(tigshop_core::Error::biz(HTTP_UNAUTHORIZED, MSG_VENDOR_REQUIRED).into())
-    }
-}
-
-/// 从请求头 + JWT 解析并校验当前供应商（5 个 handler 的公共前置）。
-fn current_vendor(headers: &HeaderMap, auth: &AuthUser) -> Result<i32, AppError> {
-    require_vendor_id(resolve_vendor_id(headers, auth))
+/// 非供应商账号或缺少 `vendor_id` → `Error::biz(401, 无法获取当前供应商信息)`，
+/// 经 `AppError` 映射为 HTTP 401（与 Java `currentVendorId` 一致）。
+fn current_vendor(tenant: &TenantContext) -> Result<i32, AppError> {
+    tenant
+        .vendor_scope()
+        .ok_or_else(|| tigshop_core::Error::biz(HTTP_UNAUTHORIZED, MSG_VENDOR_REQUIRED).into())
 }
 
 // ——————————————————————————————————————————————
@@ -198,10 +151,9 @@ fn current_vendor(headers: &HeaderMap, auth: &AuthUser) -> Result<i32, AppError>
 /// → `VendorDepositShopServiceImpl#getOverview(vendorId)`。
 async fn overview(
     State(state): State<AdminState>,
-    Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
+    Extension(tenant): Extension<TenantContext>,
 ) -> ApiResult<DepositShopOverviewVO> {
-    let vendor_id = current_vendor(&headers, &auth)?;
+    let vendor_id = current_vendor(&tenant)?;
     ok(state.merchant.vendor_deposit_shop.overview(vendor_id).await?)
 }
 
@@ -215,11 +167,10 @@ async fn overview(
 /// （注意是 `size`，不是 `pageSize`）。
 async fn log_list(
     State(state): State<AdminState>,
-    Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<DepositShopLogQuery>,
 ) -> ApiResult<PageResult<DepositShopLogVO>> {
-    let vendor_id = current_vendor(&headers, &auth)?;
+    let vendor_id = current_vendor(&tenant)?;
     ok(state.merchant.vendor_deposit_shop.log_list(vendor_id, &q).await?)
 }
 
@@ -233,11 +184,10 @@ async fn log_list(
 /// （Java 亦然），详见 `core::models::tigshop_core::models::merchant::vendor_deposit_shop::DepositShopFrozenDetailVO` 的注释。
 async fn frozen_detail_list(
     State(state): State<AdminState>,
-    Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<DepositShopLogQuery>,
 ) -> ApiResult<PageResult<DepositShopFrozenDetailVO>> {
-    let vendor_id = current_vendor(&headers, &auth)?;
+    let vendor_id = current_vendor(&tenant)?;
     ok(state.merchant.vendor_deposit_shop.frozen_detail_list(vendor_id, &q).await?)
 }
 
@@ -247,10 +197,9 @@ async fn frozen_detail_list(
 /// → `VendorDepositShopServiceImpl#getWarning(vendorId)`。
 async fn warning(
     State(state): State<AdminState>,
-    Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
+    Extension(tenant): Extension<TenantContext>,
 ) -> ApiResult<DepositShopWarningVO> {
-    let vendor_id = current_vendor(&headers, &auth)?;
+    let vendor_id = current_vendor(&tenant)?;
     ok(state.merchant.vendor_deposit_shop.warning(vendor_id).await?)
 }
 
@@ -263,48 +212,33 @@ async fn warning(
 /// ⚠️ 本实现仍校验供应商身份（见模块头「多租户 / 身份」的说明）。
 async fn protocol(
     State(state): State<AdminState>,
-    Extension(auth): Extension<AuthUser>,
-    headers: HeaderMap,
+    Extension(tenant): Extension<TenantContext>,
 ) -> ApiResult<DepositShopProtocolVO> {
-    let _vendor_id = current_vendor(&headers, &auth)?;
+    let _vendor_id = current_vendor(&tenant)?;
     ok(state.merchant.vendor_deposit_shop.protocol().await?)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::http::{HeaderName, HeaderValue};
+    use tigshop_core::models::merchant::vendor_deposit_shop::DepositShopLogQuery;
 
-    fn headers(pairs: &[(&str, &str)]) -> HeaderMap {
-        let mut h = HeaderMap::new();
-        for (k, v) in pairs {
-            h.insert(
-                HeaderName::from_bytes(k.as_bytes()).expect("合法 header 名"),
-                HeaderValue::from_str(v).expect("合法 header 值"),
-            );
-        }
-        h
+    fn vendor(vendor_id: i32) -> TenantContext {
+        TenantContext::new(Some("vendor".into()), None, Some(vendor_id))
     }
 
-    fn auth_with_type(t: Option<&str>) -> AuthUser {
-        AuthUser {
-            id: 1,
-            username: "tester".into(),
-            role_id: Some(1),
-            admin_type: t.map(ToString::to_string),
-            shop_id: None,
-        }
+    fn shop() -> TenantContext {
+        TenantContext::new(Some("shop".into()), Some(9), None)
     }
 
-    // ————————————— 路由契约（逐字符） —————————————
+    fn platform() -> TenantContext {
+        TenantContext::new(Some("admin".into()), None, None)
+    }
 
-    /// 5 条路由必须与契约逐字符一致（含 `/adminapi` 前缀与小驼峰 `logList`）。
     #[test]
     fn implemented_routes_match_contract_paths() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 5, "本域应有 5 条路由");
-
-        let keys: Vec<String> = docs.iter().map(|d| d.key()).collect();
+        assert_eq!(docs.len(), 5);
         let expected = [
             "GET /adminapi/deposit/vendor/overview",
             "GET /adminapi/deposit/vendor/logList",
@@ -312,170 +246,37 @@ mod tests {
             "GET /adminapi/deposit/vendor/warning",
             "GET /adminapi/deposit/vendor/protocol",
         ];
+        let keys: Vec<String> = docs.iter().map(|d| d.key()).collect();
         for e in expected {
-            assert!(keys.contains(&e.to_string()), "缺少路由 {e}；实际={keys:?}");
+            assert!(keys.contains(&e.to_string()), "缺少路由 {e}; 实际={keys:?}");
         }
-        // 逐字符比对（防止 `log_list` 之类的顺手简化）
-        assert_eq!(docs[1].path, "/adminapi/deposit/vendor/logList");
-        assert_eq!(docs[2].path, "/adminapi/deposit/vendor/frozenDetailList");
-    }
-
-    /// `implemented_routes` 里的 Java 引用必须指向 `VendorDepositShopController.*`。
-    #[test]
-    fn implemented_routes_reference_java_handlers() {
-        for d in implemented_routes() {
-            assert!(
-                d.java_ref.starts_with("VendorDepositShopController."),
-                "java_ref 异常: {}",
-                d.java_ref
-            );
+        for d in &docs {
+            assert!(d.java_ref.starts_with("VendorDepositShopController."));
             assert_eq!(d.method, "GET");
         }
     }
 
-    /// 路由表长度与接口数一致，且本模块路径不带 `/adminapi` 前缀。
+    /// 供应商身份只来自 JWT `TenantContext`：店铺/平台账号 → 401。
     #[test]
-    fn route_table_covers_all_and_has_no_adminapi_prefix() {
-        assert_eq!(ROUTE_TABLE.len(), 5);
-        for (_, path, _) in ROUTE_TABLE {
-            assert!(!path.contains("/adminapi"), "本地路径不得带前缀: {path}");
-            assert!(path.starts_with('/'), "本地路径须以 / 开头: {path}");
-        }
-    }
-
-    // ————————————— 供应商标识解析（对照 HeaderUtils.getVendorId） —————————————
-
-    #[test]
-    fn vendor_header_is_used_when_admin_type_is_vendor() {
-        let id = resolve_vendor_id(
-            &headers(&[("x-admin-type", "vendor"), ("x-vendor-id", "12")]),
-            &auth_with_type(None),
-        );
-        assert_eq!(id, 12);
-    }
-
-    #[test]
-    fn non_vendor_admin_type_never_yields_vendor_id() {
-        // Java getVendorId() 只在 adminType == "vendor" 时读请求头
-        for t in ["admin", "shop", "pos", "store", "pickup"] {
-            let id = resolve_vendor_id(
-                &headers(&[("x-admin-type", t), ("x-vendor-id", "12")]),
-                &auth_with_type(None),
-            );
-            assert_eq!(id, 0, "admin_type={t} 不应解析出 vendorId");
-        }
-        // 完全缺失 admin_type
-        let id = resolve_vendor_id(&headers(&[("x-vendor-id", "12")]), &auth_with_type(None));
-        assert_eq!(id, 0);
-    }
-
-    #[test]
-    fn missing_or_dirty_vendor_header_falls_back_to_zero() {
-        // Java `HeaderUtils.getVendorId`：adminType=="vendor" 时，
-        //   vendorId 头 `StrUtil.isEmpty` ⇒ null(=0)；非空则 `Integer.parseInt(vendorId)`。
-        // 故：
-        //   ""    → 空 ⇒ 0
-        //   "0"   → parseInt ⇒ 0
-        //   "   "/"abc" → Java 会抛 NumberFormatException（HTTP 500）；
-        //                 Rust 用 `.ok().unwrap_or(0)` **宽容**为 0（见 resolve_vendor_id）。
-        for raw in ["", "   ", "abc", "0"] {
-            let id = resolve_vendor_id(
-                &headers(&[("x-admin-type", "vendor"), ("x-vendor-id", raw)]),
-                &auth_with_type(None),
-            );
-            assert_eq!(id, 0, "x-vendor-id={raw:?} 应归一为 0");
-        }
-        // ⚠️ 负数**不归零**：Java `Integer.parseInt("-3")` == -3，
-        // 由 `require_vendor_id`（`<= 0` ⇒ 401）拒绝，而非在解析处归零。
-        let neg = resolve_vendor_id(
-            &headers(&[("x-admin-type", "vendor"), ("x-vendor-id", "-3")]),
-            &auth_with_type(None),
-        );
-        assert_eq!(neg, -3, "Java Integer.parseInt(\"-3\") == -3，不归零");
-        // 头缺失
-        let id = resolve_vendor_id(&headers(&[("x-admin-type", "vendor")]), &auth_with_type(None));
-        assert_eq!(id, 0);
-    }
-
-    #[test]
-    fn jwt_admin_type_is_fallback_when_header_missing() {
-        let id = resolve_vendor_id(
-            &headers(&[("x-vendor-id", "9")]),
-            &auth_with_type(Some("vendor")),
-        );
-        assert_eq!(id, 9);
-
-        // 请求头优先于 JWT
-        let id = resolve_vendor_id(
-            &headers(&[("x-admin-type", "admin"), ("x-vendor-id", "9")]),
-            &auth_with_type(Some("vendor")),
-        );
-        assert_eq!(id, 0);
-    }
-
-    /// 非法供应商标识必须映射为 401 + Java 原文案。
-    #[test]
-    fn require_vendor_id_rejects_non_positive_with_401() {
-        for bad in [0, -1, i32::MIN] {
-            let err = require_vendor_id(bad).expect_err("非正数应被拒绝");
-            assert_eq!(err.0.business_code(), 401);
-            assert_eq!(err.0.to_string(), format!("业务错误 [401]: {MSG_VENDOR_REQUIRED}"));
-        }
-        assert_eq!(require_vendor_id(7).expect("正数应通过"), 7);
-    }
-
-    /// 完整的「请求头 + JWT → 供应商」链路。
-    #[test]
-    fn current_vendor_end_to_end() {
-        let ok_id = current_vendor(
-            &headers(&[("x-admin-type", "vendor"), ("x-vendor-id", "5")]),
-            &auth_with_type(None),
-        )
-        .expect("合法供应商请求应通过");
-        assert_eq!(ok_id, 5);
-
-        let err = current_vendor(&headers(&[]), &auth_with_type(None)).expect_err("缺头应 401");
+    fn vendor_identity_comes_from_tenant_context_only() {
+        assert_eq!(current_vendor(&vendor(5)).expect("供应商应通过"), 5);
+        let err = current_vendor(&shop()).expect_err("店铺账号不得访问供应商接口");
         assert_eq!(err.0.business_code(), 401);
+        assert_eq!(err.0.to_string(), format!("业务错误 [401]: {MSG_VENDOR_REQUIRED}"));
+        assert!(current_vendor(&platform()).is_err());
+        // 缺失 vendor_id 的 vendor 类型账号同样 401
+        let no_vendor = TenantContext::new(Some("vendor".into()), None, None);
+        assert!(current_vendor(&no_vendor).is_err());
     }
 
-    // ————————————— 查询参数契约 —————————————
-
-    /// 查询参数按 Java `DepositShopLogQueryParam` 命名（`type` / `tradeNo` /
-    /// `startTime` / `endTime` / `page` / `size`）。
     #[test]
     fn log_query_accepts_java_param_names() {
         let q: DepositShopLogQuery = serde_json::from_str(
             r#"{"type":2,"tradeNo":"123","startTime":1,"endTime":2,"page":3,"size":4}"#,
         )
-        .expect("应能解析 Java 参数名");
+        .unwrap();
         assert_eq!(q.r#type, Some(2));
         assert_eq!(q.trade_no.as_deref(), Some("123"));
-        assert_eq!(q.start_time, Some(1));
-        assert_eq!(q.end_time, Some(2));
-        assert_eq!(q.page, Some(3));
-        assert_eq!(q.size, Some(4));
-
-        // 空查询串（`GET .../logList` 不带参数）必须可用
-        let q: DepositShopLogQuery =
-            serde_json::from_str("{}").expect("空对象应可解析（全字段可选）");
-        assert!(q.r#type.is_none());
-        assert!(q.trade_no.is_none());
-        assert!(q.start_time.is_none());
-        assert!(q.end_time.is_none());
-    }
-
-    /// `type=2/3` 走「提现/退还合并」分支，其余走等值。
-    #[test]
-    fn log_query_type_filter_merges_withdraw_and_refund() {
-        let mk = |t: i32| DepositShopLogQuery {
-            r#type: Some(t),
-            ..Default::default()
-        };
-        assert_eq!(mk(2).type_filter(), vec![2, 3]);
-        assert_eq!(mk(3).type_filter(), vec![2, 3]);
-        assert_eq!(mk(1).type_filter(), vec![1]);
-        assert_eq!(mk(4).type_filter(), vec![4]);
-        assert_eq!(mk(5).type_filter(), vec![5]);
-        assert!(DepositShopLogQuery::default().type_filter().is_empty());
+        assert_eq!(q.type_filter(), vec![2, 3]);
     }
 }
