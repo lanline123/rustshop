@@ -154,9 +154,7 @@ impl UserOrderService {
         .await?;
 
         // 1. 积分赠送（已完成节点 Node 3）
-        let product_svc = crate::catalog::product::ProductService::new(self.repos.clone(), None);
-        let cart_svc = crate::trade::cart::CartService::new(self.repos.clone(), product_svc.clone());
-        let order_service = crate::trade::order::OrderService::new(self.repos.clone(), product_svc, cart_svc);
+        let order_service = crate::trade::order::OrderService::from_repos(self.repos.clone());
         if let Ok(Some(full_order)) = self.repos.trade.order.find_by_id(order.order_id).await {
             let _ = order_service.order_success_point(&full_order, 3).await;
 
@@ -189,6 +187,19 @@ impl UserOrderService {
                 .execute(&self.repo().pool_clone())
                 .await;
             }
+
+            // 5. 后台管理员与店铺订单完成消息通知（对齐 Java AdminMsgTypeEnum.ORDER_COMPLETED = 13）
+            let msg_title = format!("订单已完成通知：{},金额：{}", full_order.order_sn, full_order.total_amount);
+            let msg_content = format!("您有订单【{}】已完成，请注意查看。", full_order.order_sn);
+            let related_data = serde_json::json!({ "orderId": full_order.order_id }).to_string();
+            let _ = self.repos.system.admin_msg.create_message(
+                13, // ORDER_COMPLETED
+                full_order.shop_id,
+                full_order.order_id,
+                &msg_title,
+                &msg_content,
+                &related_data,
+            ).await;
         }
 
         // 3. 对账单结算状态更新（real_settlement = 1）

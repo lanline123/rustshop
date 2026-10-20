@@ -906,6 +906,22 @@ impl OrderAdminService {
         if !updated {
             return Err(Error::Conflict("订单状态已变更，请刷新后重试".into()));
         }
+
+        // 发货后置动作：赠送积分（发货节点 Node 2）及向用户发送发货站内信通知
+        let order_svc = crate::trade::order::OrderService::from_repos(self.repos.clone());
+        if let Ok(Some(full_order)) = self.repos.trade.order.find_by_id(order_id).await {
+            let _ = order_svc.order_success_point(&full_order, 2).await;
+            if full_order.user_id > 0 {
+                let _ = self.repos.member.user_message.insert_user_message(
+                    full_order.user_id,
+                    "订单发货提醒",
+                    &format!("您的订单【{}】已发货，快递单号：{}，请注意查收。", full_order.order_sn, tracking_no),
+                    1,
+                    Some(&format!("/order/detail?id={}", full_order.order_id)),
+                ).await;
+            }
+        }
+
         tracing::info!(
             "订单发货成功: order_id={order_id}, method={method}, tracking_no={tracking_no}, items={}",
             plan.deliver.len()
@@ -921,8 +937,8 @@ impl OrderAdminService {
     /// 语义与原 Java 一致：**不直接改订单状态**，而是按整单创建一张
     /// 「仅退款」售后申请（状态=审核处理中），由售后审核流程完成退款/关单。
     ///
-    /// **未迁移**：Java 随后按配置项 `afterSalesReview` 决定是否自动审核通过
-    /// （并触发退款、回滚库存等）。本实现停在「申请已创建」，需要人工审核。
+    /// 对齐 Java：随后按配置项 `afterSalesReview` 判定，若关闭人工审核（!= "1"），
+    /// 则自动审核通过并触发财务退款、回滚库存以及取消订单。
     ///
     /// 返回新建的 `aftersale_id`。
     pub async fn cancel_order_by_admin(
@@ -1478,16 +1494,22 @@ impl OrderAdminService {
             }
         }
         let now = utils::now_seconds() as i32;
+        let offline = order.pay_type_id == pay_type::OFFLINE;
+        let paid = if offline {
+            order.balance + order.unpaid_amount
+        } else {
+            order.total_amount
+        };
+
+        // 触发订单支付后置流程（积分赠送 Node 1、电子卡券分配、对账单入账流水）
+        let order_svc = crate::trade::order::OrderService::from_repos(self.repos.clone());
+        if let Err(e) = order_svc.on_payment_success(id, paid, None).await {
+            tracing::warn!("后台设置已支付触发后置动作告警: order={id}, err={e}");
+        }
+
         let mut patch = OrderPatch::new()
             .i32_val("pay_status", PayStatus::Paid as i32)
             .i32_val("pay_time", now);
-        let offline = order.pay_type_id == pay_type::OFFLINE;
-        if offline {
-            let paid = order.balance + order.unpaid_amount;
-            patch = patch
-                .decimal("offline_paid_amount", order.unpaid_amount)
-                .decimal("paid_amount", paid);
-        }
         if order.order_status == OrderStatus::Pending as i32 {
             patch = patch.i32_val("order_status", OrderStatus::Confirmed as i32);
             let paid = if offline {
