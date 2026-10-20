@@ -25,7 +25,7 @@
 //! | `getIcon` | 远程 CSS + Redis 缓存解析图标 | 返回 1001（依赖远程配置） |
 //! | `workbuddySettings` / `generateWorkbuddyKey` / `revealWorkbuddyKey` | `WorkBuddyKeyService` | 返回 1001（openapi/workbuddy 域） |
 //! | `uploadFile` | `LocalStorageService` multipart 落盘 | 返回 1001（multipart/存储未迁移） |
-//! | `sendTestEmail` | 真实 SMTP 发信 | 返回 1001（邮件服务未迁移） |
+//! | `sendTestEmail` | 真实 SMTP 发信 | 已复用 `system::notify::send_test_email` |
 //! | `createPlatformCertificate` | 方法体全部注释（空操作） | 同样返回成功空响应 |
 //! | `getAdmin` / `getAdminBase` | 附带 `shopLogo` 域名前缀、`storageUrl`/版本号/开关等计算字段 | 仅返回配置项字段，计算字段缺失 |
 //! | `kefuSettings` / `cashierOrderSettings` 的店铺分支 | `shopId > 0` 时走店铺配置/`shop` 表 | 统一走平台 `config` 表（JWT 未签发 `shop_id`） |
@@ -493,13 +493,7 @@ pub fn login_protocol_content_view(
         return None;
     }
     let show = parse_field(
-        &FieldSpec {
-            field: "show",
-            code: "show",
-            ty: ValueType::Int,
-            default: None,
-            is_list: false,
-        },
+        &FieldSpec::new("show", "show", ValueType::Int, None, false),
         show_raw.unwrap_or("0"),
     );
     let content = content_raw.unwrap_or("0");

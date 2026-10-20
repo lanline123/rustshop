@@ -22,9 +22,10 @@
 //! - **购物车未迁移**（兑换卡分支）：Java 会清空并写入 `TYPE_GIFT_EXCHANGE`
 //!   购物车项；本实现返回兑换商品列表 + `exchangeProductToCart.item=true`
 //!   回执，购物车域（trade::cart）未接入（见 `uncertain_points`）。
-//! - **配置服务未迁移**：平台店铺名/logo（`SHOP_NAME/SHOP_LOGO`）与转赠域名
-//!   （`PC_DOMAIN/H5_DOMAIN`）读不到配置 ⇒ 平台店铺返回 null，转赠链接使用
-//!   相对路径 `/giftCard/transfer/`、`/pages/giftCard/transfer?giftCardSn=`。
+//! - **平台店铺名/logo**：`shopId=0` 已从 `config` 表读取
+//!   `shopName`/`shopLogo`；转赠域名（`PC_DOMAIN/H5_DOMAIN`）仍未迁移，
+//!   转赠链接使用相对路径 `/giftCard/transfer/`、
+//!   `/pages/giftCard/transfer?giftCardSn=`。
 //! - **储值卡兑换**：按 Java 语义插入 `user_recharge_order`（status=1,
 //!   postscript=充值卡兑换）并通过 `member::user_manage` 原子加余额 + 写
 //!   `user_balance_log`（change_desc 与 Java「充值订单审核通过增加余额」一致）。

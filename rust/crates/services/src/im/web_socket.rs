@@ -3,33 +3,13 @@
 //! 构造签名固定 `pub fn new(repos: Arc<Repositories>) -> Self`。
 //! 详见 `rust/docs/prompts/im::web_socket.md`。
 //!
-//! ## ⚠ WebSocket 推送通道**未迁移**（重要）
+//! ## WebSocket 推送（已迁移）
 //!
-//! 原 Java `WebSocketController.sendMessage`（`java/tigshop-api/src/main/java/
-//! com/tigshop/api/controller/im/WebSocketController.java:67`）依赖
-//! `WebSocketServerHandler`（Spring `@Component` + `TextWebSocketHandler`），
-//! 其内部是一张**进程内在线会话表**：
-//!
-//! ```java
-//! Set<WebSocketSession> sessions = USER_SESSIONS.get(userId);   // ConcurrentHashMap
-//! if (sessions != null && !sessions.isEmpty()) { ...sendMessage(TextMessage)... }
-//! else { System.out.println("⚠️ 用户未在线: userId=" + userId); }
-//! ```
-//!
-//! 本 Rust 仓库**没有任何 WebSocket 基础设施**（核查命令：
-//! `grep -rln "WebSocket\|tungstenite\|ws://" crates --include=*.rs` 只命中
-//! 本切片的文件；`Cargo.toml` 中亦无 `tokio-tungstenite` 依赖），
-//! 既没有 `/api/socket` 握手端点、也没有 `USER_SESSIONS` 会话表。
-//!
-//! 因此本服务**刻意不伪造一条可用的推送链路**：
-//! 1. 参数校验、返回体结构、成功文案 100% 对齐 Java；
-//! 2. 「推送」这一步退化为 `tracing::warn!` 记录（等价于 Java 的
-//!    「用户未在线」分支——Java 在离线时也**只打印日志、不报错**）；
-//! 3. 由 [`WebSocketService::send_message`] 返回与 Java 完全相同的字符串。
-//!
-//! 换言之：**接口能通、响应体一致，但消息不会真的送达任何浏览器**。
-//! 真正落地需要补 WebSocket 握手端点 + 会话注册表（或改用 Redis pub/sub
-//! 跨进程广播），属于独立的基础设施切片，不在本片范围。
+//! Rust 侧提供 `/ws?token=...&platform=...` 握手端点
+//! （`tigshop_security::ws::handle_upgrade`）与进程内会话注册表
+//! `tigshop_security::ws_registry`。
+//! [`WebSocketService::send_message`] 通过 `send_to_user` 向在线用户推送，
+//! 用户不在线时与 Java 一样只记录日志并返回成功文案。
 //!
 //! ## 另一处 Java 侧门禁未迁移
 //!

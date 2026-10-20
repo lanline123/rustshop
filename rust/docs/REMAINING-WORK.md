@@ -49,6 +49,8 @@
 | H5 默认导航模板兜底 | ✅ 已有 | `DEFAULT_NAV_H5_DECORATE_DATA` |
 | SMTP 邮件（163 SSL/465） | ✅ 已实测 | 配置入库；Rust `sendTestEmail` 返回成功 |
 | 火山翻译 / SEO 标识生成 | ✅ 已实测 | 充值后 `TranslateText` 与 Rust SEO 接口返回 `test-product` |
+| 快递鸟签名/1002 轨迹/1007 面单 | ✅ 代码完成 | `66ced96f`；真实账号返回「没有可用套餐」 |
+| C 端图片/视频/头像/IM 上传走 OSS | ✅ | `c79ec970` |
 
 ---
 
@@ -149,24 +151,27 @@
 配置项：`smtpHost=smtp.163.com`、`smtpPort=465`、`smtpSsl=1`、
 `smtpUser=lanline123@163.com`、`smtpMail=lanline123@163.com`、`smtpPass=<授权码>`。
 
-### 2.6 快递鸟
+### 2.6 快递鸟 ✅（代码完成，账号套餐阻塞）
 
-**凭据已验证**：
+**已实现**：
 
-- EBusinessID：`1309995`
-- API Key：`38f7...49de`
-- 调用 `EbusinessOrderHandle.aspx` / `RequestType=1002` 已通过签名校验；
-- 假运单返回「运单号不匹配」业务错误，说明 ID/Key/签名有效；
-- 关键点：`DataSign = Base64( MD5(RequestData + ApiKey) 的十六进制字符串 )`，
-  不是 `Base64(原始MD5字节)`；
-- SF 查询还需传 `CustomerName`（收件人手机号后四位），否则返回
-  「CustomerName不能为空」。
+- `services/src/logistics/kdniao.rs`：签名、1002 轨迹、1007 电子面单；
+- 后台 `kdniaoBusinessId` / `kdniaoApiKey` 读取与 `shippingSettings` 回显；
+- 管理端/用户端 `shippingInfo` 已接入实时 1002 查询；
+- 电子面单发货（`shipping_method=4`）已接入 1007，并写 `logistics_api_log`；
+- 单测覆盖签名、Success 兼容、轨迹反序列化、面单序列化。
 
-**Rust 侧仍未完成**：
+**真实验证**：
 
-- 尚无 KDN 轨迹查询 / 电子面单 HTTP 客户端（Java `KdniaoLogisticsProvider` 未迁移）；
-- 配置项命名：`kdniaoBusinessId` / `kdniaoApiKey`；
-- 发货人/地址已具备，可继续实现 1002 轨迹查询和 1007 电子面单。
+- 新 EBusinessID `1309995` + API Key 签名正确；
+- 极兔 `JT3175428264802` 查询已到快递鸟，但账号返回
+  `业务错误[没有可用套餐]`；
+- 需在快递鸟后台购买/开通查询/面单套餐后，才能返回真实轨迹与面单。
+
+**注意**：
+
+- `DataSign = Base64( MD5(RequestData + ApiKey) 的十六进制字符串 )`；
+- SF/KYSY/ZTO 查询需 `CustomerName`（手机号后四位）。
 
 ### 2.7 ES 全量同步
 
@@ -198,14 +203,12 @@
 - 服务器 IP `101.37.194.11` 需要加入公众号后台 IP 白名单；
 - 加入后需实测：access_token、客服列表、菜单推送、PC 二维码。
 
-### 2.9 C 端同步上传走 OSS
+### 2.9 C 端同步上传走 OSS ✅
 
-- 管理端异步上传已经走全局 OSS；
-- `save_local_upload_blocking` 仍用于：
-  - 会员头像/图片/视频上传；
-  - IM 视频上传；
-  - APP 包上传；
-- 这些路径仍写本地磁盘，需要改成异步 OSS 或独立线程桥接。
+- 会员图片/视频/头像上传已改为异步全局存储；
+- IM 视频上传已改为异步全局存储；
+- 后台异步上传本就使用全局 OSS；
+- 剩余：APP 更新包上传（`upload_app_file`）仍走本地，属于运维低频路径，可后续单独迁移。
 
 ### 2.10 其他业务小项
 
@@ -226,7 +229,7 @@
 | 阿里云 OSS | AK/SK / bucket / endpoint | ✅ 已验证 |
 | 火山翻译 | AccessKey / SecretKey / 已开通翻译服务 | ✅ 已验证 |
 | SMTP | 163 邮箱用户名 / 授权码 / 发件人 | ✅ 已验证 |
-| 快递鸟 | EBusinessID / API Key | ✅ 凭据已验证；Rust 客户端待实现 |
+| 快递鸟 | EBusinessID / API Key | ✅ 凭据/客户端已完成；账号需购买套餐 |
 | ES | URL / 账号密码 / 索引名 / 分词器 | 缺失 |
 
 配置项优先通过后台「设置」或环境变量注入；**不要把 Secret 写入仓库**。
@@ -267,7 +270,7 @@ python ../tools/check_frontend.py contract --strict
 2. **补前端平台骨架与 P0 域**；
 3. **拿小程序凭据 + IP 白名单**，完成微信直播/公众号真实联调；
 4. **拿微信支付公钥**，实现 Rust 在线支付/退款/回调；
-5. **实现快递鸟轨迹查询/电子面单客户端**（凭据已验证）；
+5. **快递鸟购买查询/面单套餐**，用真实运单验证轨迹与面单；
 6. **ES 全量同步**；
 7. 最后做 Docker/MySQL E2E、CI、文档清理。
 

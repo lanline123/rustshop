@@ -39,16 +39,11 @@
 //!   （32 字符），入库只存 SHA-256 哈希 + 前 8 位前缀；
 //!   `expiresInDays > 0` 才设过期时间。
 //!
-//! ## 未迁移 / 降级（详见返回 JSON 的 `uncertain_points`）
+//! ## 已迁移 / 剩余差异
 //!
-//! - **Redis**：Java 用 `StringRedisTemplate` 存「已验证手机号标记」
-//!   （`admin_modify_mobile_verified:<id>`，10 分钟）与短信验证码
-//!   （`login<mobile>`）。Rust 侧基础设施层虽有 `CacheService`，但本域未被注入
-//!   `Repositories`（只持有 `Arc<Repositories>`），故 `modifyType = 3/4`
-//!   **显式报错**而不是绕过校验（绕过会削弱「换绑手机号需先验证原手机号」这一
-//!   安全控制，属不可接受的降级）。
-//! - **短信服务**（`ConfigService#sendSms`）未迁移 → `getCode` 在复刻完
-//!   Java 的全部前置校验后返回明确业务错误。
+//! - **Redis / 短信**：`getCode` 写 `login<mobile>` 缓存并复用
+//!   `system::notify::send_sms_code`；`modifyType=4` 写
+//!   `admin_modify_mobile_verified:<id>`（10 分钟），`modifyType=3` 校验后换绑。
 //! - **登录令牌失效**：Java 在改密/删号后删除 Redis 中的该用户全部 token
 //!   （`Constants.getAllLoginTokenFormatByUserName`）。Rust 用无状态 JWT，
 //!   无 token 黑名单设施，故**已签发的旧 JWT 在过期前仍然有效**——这是与
