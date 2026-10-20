@@ -126,16 +126,20 @@ impl ProductStyleAdminRepository {
     pub async fn paginate(
         &self,
         q: &ProductStyleListQuery,
-        shop_id: i32,
+        shop_id: Option<i32>,
         now: i64,
         start_time: Option<i64>,
         end_time: Option<i64>,
     ) -> Result<(u64, Vec<StyleRowWithCount>)> {
         let page = q.page_query();
         let (limit, offset) = (page.page_size, (page.page - 1) * page.page_size);
+        // 多租户：平台账号不加店铺条件；店铺账号强制 `ps.shop_id = ?`（i32 内部值）
+        let shop_cond = shop_id
+            .map(|id| format!(" AND ps.shop_id = {id}"))
+            .unwrap_or_default();
 
         let mut count_qb: QueryBuilder<'_, sqlx::MySql> = QueryBuilder::new(format!(
-            "SELECT COUNT(*) FROM product_style ps WHERE ps.shop_id = {shop_id} AND ps.is_delete = {NOT_DELETED}"
+            "SELECT COUNT(*) FROM product_style ps WHERE ps.is_delete = {NOT_DELETED}{shop_cond}"
         ));
         Self::push_filters(&mut count_qb, q, now, start_time, end_time);
         let total: (i64,) = count_qb
@@ -155,7 +159,7 @@ impl ProductStyleAdminRepository {
         );
         Self::push_count_subquery(&mut row_qb);
         row_qb.push(format!(
-            ") cnt ON cnt.style_id = ps.style_id WHERE ps.shop_id = {shop_id} AND ps.is_delete = {NOT_DELETED}"
+            ") cnt ON cnt.style_id = ps.style_id WHERE ps.is_delete = {NOT_DELETED}{shop_cond}"
         ));
         Self::push_filters(&mut row_qb, q, now, start_time, end_time);
         // ORDER BY 子句的列名来自 models::product_style_admin 的白名单映射，

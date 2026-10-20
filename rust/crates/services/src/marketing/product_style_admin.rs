@@ -76,12 +76,13 @@ use tigshop_core::models::marketing::product_style_admin::{
     ProductStyleEditDTO, ProductStyleItemBatchDTO, ProductStyleListQuery, ProductStyleSaveDTO,
     ProductStyleVO, UpdateFieldDTO, ITEM_TYPE_BRAND, ITEM_TYPE_GROUP, ITEM_TYPE_PRODUCT,
     MSG_FIELD_NAME_REQUIRED, MSG_FIELD_VALUE_REQUIRED, MSG_ID_REQUIRED, MSG_INVALID_FIELD_VALUE,
-    MSG_STYLE_ID_NOT_NULL, MSG_STYLE_NOT_FOUND, NOT_DELETED, PLATFORM_SHOP_ID,
+    MSG_STYLE_ID_NOT_NULL, MSG_STYLE_NOT_FOUND, NOT_DELETED,
     PRODUCT_STYLE_COLUMNS, PRODUCT_STYLE_FIELDS,
 };
 use tigshop_core::types::PageResult;
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::marketing::product_style_admin::{ProductStyleAdminRepository, StyleInsert, StylePatch};
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 /// 商品样式配置域服务（挂载于 `AdminState.product_style_admin`）。
@@ -120,7 +121,7 @@ impl ProductStyleAdminService {
 
         let (total, rows) = self
             .repo()
-            .paginate(q, PLATFORM_SHOP_ID, now, start_time, end_time)
+            .paginate(q, TenantScope::current_list_filter(), now, start_time, end_time)
             .await?;
 
         // Java `if (CollUtil.isEmpty(records)) return new Page<>();`
@@ -157,8 +158,10 @@ impl ProductStyleAdminService {
             .repo()
             .find_by_id(style_id)
             .await?
-            .filter(|s| s.shop_id == PLATFORM_SHOP_ID)
             .ok_or_else(|| Error::NotFound(MSG_STYLE_NOT_FOUND.into()))?;
+        // 多租户：归属不符按「不存在」处理（Java 同文案，避免泄漏存在性）
+        TenantScope::current_ensure_access(style.shop_id)
+            .map_err(|_| Error::NotFound(MSG_STYLE_NOT_FOUND.into()))?;
 
         let now = tigshop_core::models::marketing::product_style_admin::now_secs();
         let product_ids = self.repo().find_ref_ids(style_id, ITEM_TYPE_PRODUCT).await?;
@@ -291,7 +294,8 @@ impl ProductStyleAdminService {
                 pc_image: dto.pc_image_or_empty(),
                 start_time,
                 end_time,
-                shop_id: PLATFORM_SHOP_ID,
+                // 多租户：店铺账号落本店；平台账号落平台级（0）
+                shop_id: TenantScope::current().write_shop_id(None)?,
                 add_time: now,
                 update_time: now,
                 is_delete: NOT_DELETED,
@@ -376,6 +380,10 @@ impl ProductStyleAdminService {
             .id
             .filter(|v| *v > 0)
             .ok_or_else(|| Error::Validation(MSG_ID_REQUIRED.into()))?;
+        // 多租户：记录存在时校验归属（Java 对不存在 id 也返回成功，故保留软校验）
+        if let Some(style) = self.repo().find_by_id(id).await? {
+            TenantScope::current_ensure_access(style.shop_id)?;
+        }
         self.repo().delete(id).await
     }
 
@@ -432,6 +440,10 @@ impl ProductStyleAdminService {
             .as_deref()
             .ok_or_else(|| Error::Validation(MSG_FIELD_VALUE_REQUIRED.into()))?;
 
+        // 多租户：字段更新前校验归属
+        if let Some(style) = self.repo().find_by_id(id).await? {
+            TenantScope::current_ensure_access(style.shop_id)?;
+        }
         let affected = self.repo().update_field(id, column, val).await?;
         Ok(affected > 0)
     }
@@ -454,6 +466,12 @@ impl ProductStyleAdminService {
         if dto.ids.is_empty() {
             // Java `removeByIds(空集合)` 直接返回 false，不产生 SQL
             return Ok(false);
+        }
+        // 多租户：批量删除前逐条校验归属（越权直接 403）
+        for id in &dto.ids {
+            if let Some(style) = self.repo().find_by_id(*id).await? {
+                TenantScope::current_ensure_access(style.shop_id)?;
+            }
         }
         let affected = self.repo().delete_many(&dto.ids).await?;
         Ok(affected > 0)
@@ -553,11 +571,14 @@ impl ProductStyleAdminService {
     /// 不满足时抛与「不存在」**相同**的错误（Java 注释明写「当做不存在」，
     /// 避免泄漏其他店铺的资源是否存在）。
     async fn require_own_style(&self, style_id: i32) -> Result<()> {
-        self.repo()
+        let style = self
+            .repo()
             .find_by_id(style_id)
             .await?
-            .filter(|s| s.shop_id == PLATFORM_SHOP_ID)
             .ok_or_else(|| Error::NotFound(MSG_STYLE_NOT_FOUND.into()))?;
+        // 多租户：归属不符 ⇒ 与「不存在」相同错误（Java 注释「当做不存在」）
+        TenantScope::current_ensure_access(style.shop_id)
+            .map_err(|_| Error::NotFound(MSG_STYLE_NOT_FOUND.into()))?;
         Ok(())
     }
 
@@ -661,6 +682,11 @@ pub fn activity_status_of(start_time: i64, end_time: i64, now: i64) -> Option<i3
 #[must_use]
 pub fn activity_status_label(code: i32) -> Option<String> {
     activity_status_name(code)
+}
+
+/// 列表店铺过滤：店铺账号强制本店；平台账号不过滤。
+fn scoped_list_shop_id() -> Option<i32> {
+    TenantScope::current_list_filter()
 }
 
 #[cfg(test)]
@@ -962,6 +988,8 @@ impl ProductStyleAdminService {
 
 #[cfg(test)]
 mod public_active_style_service_tests {
+    use super::scoped_list_shop_id;
+
     #[test]
     fn empty_inputs_are_noop_without_db() {
         // Java：CollUtil.isEmpty ⇒ 直接返回 emptyMap；此处仅验证常量语义
@@ -969,5 +997,26 @@ mod public_active_style_service_tests {
         assert!(empty.is_empty());
         let empty_sns: Vec<String> = Vec::new();
         assert!(empty_sns.is_empty());
+    }
+
+    #[tokio::test]
+    async fn tenant_scope_scopes_list_and_blocks_cross_shop_style() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::{
+            with_tenant_scope, TenantScope,
+        };
+        let shop = TenantScope::for_shop(8);
+        let (filter, write_shop, blocked) = with_tenant_scope(shop, async {
+            (
+                scoped_list_shop_id(),
+                TenantScope::current().write_shop_id(None).unwrap_or(-1),
+                TenantScope::current_ensure_access(9).is_err(),
+            )
+        })
+        .await;
+        assert_eq!(filter, Some(8));
+        assert_eq!(write_shop, 8);
+        assert!(blocked);
+        let filter = with_tenant_scope(TenantScope::platform(), async { scoped_list_shop_id() }).await;
+        assert_eq!(filter, None);
     }
 }

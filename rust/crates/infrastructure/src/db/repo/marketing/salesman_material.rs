@@ -47,11 +47,13 @@ impl SalesmanMaterialRepository {
         self.pool.clone()
     }
 
-    /// 管理端分页（Java `list`：`shop_id` + `categoryId` +
+    /// 管理端分页（Java `list`：店铺租户 + `categoryId` +
     /// `from=user → is_available=1`；排序白名单，缺省 `id DESC`）。
+    ///
+    /// `shop_id`：`None`（平台账号）不过滤；`Some(id)` 强制 `WHERE shop_id = ?`。
     pub async fn paginate(
         &self,
-        shop_id: i32,
+        shop_id: Option<i32>,
         category_id: Option<i32>,
         only_available: bool,
         sort_field: Option<&str>,
@@ -59,14 +61,21 @@ impl SalesmanMaterialRepository {
         limit: u64,
         offset: u64,
     ) -> Result<(u64, Vec<SalesmanMaterial>)> {
-        let mut where_parts = vec!["shop_id = ?".to_string()];
+        let mut where_parts: Vec<String> = Vec::new();
+        if shop_id.is_some() {
+            where_parts.push("shop_id = ?".to_string());
+        }
         if category_id.is_some() {
             where_parts.push("category_id = ?".into());
         }
         if only_available {
             where_parts.push("is_available = 1".into());
         }
-        let where_sql = format!("WHERE {}", where_parts.join(" AND "));
+        let where_sql = if where_parts.is_empty() {
+            String::new()
+        } else {
+            format!("WHERE {}", where_parts.join(" AND "))
+        };
         let column = resolve_sort_column(sort_field);
         let dir = if sort_order.is_some_and(|o| o.eq_ignore_ascii_case("asc")) {
             "ASC"
@@ -74,7 +83,10 @@ impl SalesmanMaterialRepository {
             "DESC"
         };
         let count_sql = format!("SELECT COUNT(*) FROM salesman_material {where_sql}");
-        let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql).bind(shop_id);
+        let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
+        if let Some(shop_id) = shop_id {
+            cq = cq.bind(shop_id);
+        }
         if let Some(v) = category_id {
             cq = cq.bind(v);
         }
@@ -83,7 +95,10 @@ impl SalesmanMaterialRepository {
         let list_sql = format!(
             "SELECT {MATERIAL_COLUMNS} FROM salesman_material {where_sql} ORDER BY {column} {dir} LIMIT ? OFFSET ?"
         );
-        let mut lq = sqlx::query_as::<_, SalesmanMaterial>(&list_sql).bind(shop_id);
+        let mut lq = sqlx::query_as::<_, SalesmanMaterial>(&list_sql);
+        if let Some(shop_id) = shop_id {
+            lq = lq.bind(shop_id);
+        }
         if let Some(v) = category_id {
             lq = lq.bind(v);
         }

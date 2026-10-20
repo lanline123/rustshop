@@ -3,10 +3,12 @@
 //! 对应原 Java `SalesmanMaterialServiceImpl`（10 个端点：admin 7 + public 3）。
 //!
 //! # 语义（逐条对照 Java）
-//! - admin `list`：`shop_id` 固定（Rust 多租户 0）+ `categoryId` 过滤 +
-//!   `from=user` 时 `is_available=1`；排序白名单，缺省 `id DESC`。
+//! - admin `list`：店铺租户过滤（`TenantScope::current_list_filter()`：平台不过滤、
+//!   店铺强制本店）+ `categoryId` 过滤 + `from=user` 时 `is_available=1`；
+//!   排序白名单，缺省 `id DESC`。
 //! - `detail`：素材 + `pics` JSON 解析 + 分类实体 + 商品精简对象。
-//! - `create`：`add_time=now`、`shop_id=0`、`is_top` 默认 0、`share_num` 默认 0、
+//! - `create`：`add_time=now`、`shop_id` 取 `TenantScope::current().write_shop_id(None)`、
+//!   `is_top` 默认 0、`share_num` 默认 0、
 //!   `is_available` 默认 1、`pics` 序列化为 JSON 文本。
 //! - `update`：整行合并（缺省保留原值），`pics` 序列化。
 //! - `del` / `batch`：物理删除（表无逻辑删除列）；`batch` 仅支持 `del`。
@@ -29,6 +31,7 @@ use tigshop_core::models::marketing::salesman_material::{
 use tigshop_core::types::{PageQuery, PageResult};
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::marketing::salesman_material::SalesmanMaterialRepository;
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
 
 /// 素材服务（挂载于 `AdminState.marketing.salesman_material` / `PublicState`）。
@@ -64,7 +67,7 @@ impl SalesmanMaterialService {
         let (total, rows) = self
             .repo()
             .paginate(
-                0,
+                TenantScope::current_list_filter(),
                 q.category_id,
                 only_available,
                 q.sort_field.as_deref(),
@@ -93,7 +96,7 @@ impl SalesmanMaterialService {
         let (total, rows) = self
             .repo()
             .paginate(
-                q.shop_id.unwrap_or(0),
+                Some(q.shop_id.unwrap_or(0)),
                 q.category_id,
                 true,
                 q.sort_field.as_deref(),
@@ -114,6 +117,8 @@ impl SalesmanMaterialService {
         let Some(m) = self.repo().find_by_id(id).await? else {
             return Ok(None);
         };
+        // 多租户：店铺账号只能查看本店素材（公开路由不套租户层，平台语义不拦截）
+        TenantScope::current_ensure_access(m.shop_id)?;
         Ok(Some(self.assemble_one(&m).await?))
     }
 
@@ -132,7 +137,8 @@ impl SalesmanMaterialService {
             is_top: dto.is_top.unwrap_or(0),
             content: dto.content.clone(),
             is_available: Some(1),
-            shop_id: 0,
+            // 多租户：店铺账号落本店；平台账号落平台级（0）
+            shop_id: TenantScope::current().write_shop_id(None)?,
             pics,
             category_id: dto.category_id,
             share_num: Some(0),
@@ -152,6 +158,8 @@ impl SalesmanMaterialService {
         let Some(mut entity) = self.repo().find_by_id(id).await? else {
             return Err(Error::biz(500, MSG_MATERIAL_NOT_FOUND));
         };
+        // 多租户：更新前校验归属
+        TenantScope::current_ensure_access(entity.shop_id)?;
         if let Some(v) = dto.is_top {
             entity.is_top = v;
         }
@@ -164,9 +172,9 @@ impl SalesmanMaterialService {
         if let Some(v) = dto.is_available {
             entity.is_available = Some(v);
         }
-        if let Some(v) = dto.shop_id {
-            entity.shop_id = v;
-        }
+        // 多租户：店铺账号强制本店；平台账号可指定/保留原店铺
+        entity.shop_id =
+            TenantScope::current().write_shop_id(dto.shop_id.or(Some(entity.shop_id)))?;
         if let Some(v) = &dto.pics {
             entity.pics = Some(serde_json::to_string(v).unwrap_or_else(|_| "null".into()));
         }
@@ -191,6 +199,10 @@ impl SalesmanMaterialService {
         let id = dto
             .id
             .ok_or_else(|| Error::Validation(MSG_ID_REQUIRED.into()))?;
+        // 多租户：删除前校验归属
+        if let Some(entity) = self.repo().find_by_id(id).await? {
+            TenantScope::current_ensure_access(entity.shop_id)?;
+        }
         self.repo().delete(&[id]).await?;
         Ok(())
     }
@@ -213,6 +225,10 @@ impl SalesmanMaterialService {
             .ok_or_else(|| Error::Validation("值不能为空".into()))?;
         let column = normalize_field(field)
             .ok_or_else(|| Error::Validation(MSG_INVALID_FIELD_VALUE.into()))?;
+        // 多租户：字段更新前校验归属
+        if let Some(entity) = self.repo().find_by_id(id).await? {
+            TenantScope::current_ensure_access(entity.shop_id)?;
+        }
         self.repo().update_field(id, column, val).await
     }
 
@@ -227,6 +243,12 @@ impl SalesmanMaterialService {
         let Some(ids) = dto.ids.as_deref() else {
             return Ok(false);
         };
+        // 多租户：批量删除前逐条校验归属（越权直接 403，不静默跳过）
+        for id in ids {
+            if let Some(entity) = self.repo().find_by_id(*id).await? {
+                TenantScope::current_ensure_access(entity.shop_id)?;
+            }
+        }
         Ok(self.repo().delete(ids).await? > 0)
     }
 
@@ -310,6 +332,11 @@ fn now_secs_i32() -> i32 {
     i32::try_from(tigshop_common::utils::now_seconds()).unwrap_or(i32::MAX)
 }
 
+/// 列表店铺过滤：店铺账号强制本店；平台账号不过滤。
+fn scoped_list_shop_id() -> Option<i32> {
+    TenantScope::current_list_filter()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -366,5 +393,26 @@ mod tests {
     fn missing_id_is_validation_error() {
         let err = Error::Validation(MSG_ID_REQUIRED.into());
         assert!(matches!(err, Error::Validation(_)));
+    }
+
+    #[tokio::test]
+    async fn tenant_scope_scopes_list_and_blocks_cross_shop_material() {
+        use tigshop_infrastructure::db::repo::marketing::tenant::{
+            with_tenant_scope, TenantScope,
+        };
+        let shop = TenantScope::for_shop(8);
+        let (filter, write_shop, blocked) = with_tenant_scope(shop, async {
+            (
+                scoped_list_shop_id(),
+                TenantScope::current().write_shop_id(None).unwrap_or(-1),
+                TenantScope::current_ensure_access(9).is_err(),
+            )
+        })
+        .await;
+        assert_eq!(filter, Some(8));
+        assert_eq!(write_shop, 8);
+        assert!(blocked);
+        let filter = with_tenant_scope(TenantScope::platform(), async { scoped_list_shop_id() }).await;
+        assert_eq!(filter, None);
     }
 }
