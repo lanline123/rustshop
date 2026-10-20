@@ -15,8 +15,12 @@ use tigshop_core::entities::{Gallery, GalleryPic, GalleryVideoInfo};
 use tigshop_core::models::content::gallery_pic::GalleryPicListQuery;
 use tigshop_core::{Error, Result};
 
-/// 多租户过滤条件（`None` = 不加条件，与 Java `HeaderUtils` 三态一致）。
-const SCOPE_WHERE: &str = "(? IS NULL OR shop_id = ?) AND (? IS NULL OR vendor_id = ?)";
+/// 多租户过滤条件（平台素材规则）：
+/// 店铺账号 `(shop_id = 0 OR shop_id = ?)`（平台素材可读 + 本店）；
+/// 平台账号 `None` → 不加店铺条件。`vendor_id` 仍按 `None` 不加条件。
+/// 占位符顺序不变：`(shop_id, shop_id, vendor_id, vendor_id)`。
+const SCOPE_WHERE: &str =
+    "(? IS NULL OR shop_id = 0 OR shop_id = ?) AND (? IS NULL OR vendor_id = ?)";
 
 /// 相册图片域仓储（持有连接池）。
 #[derive(Clone)]
@@ -378,5 +382,7 @@ mod tests {
     #[test]
     fn scope_where_has_four_placeholders() {
         assert_eq!(SCOPE_WHERE.matches('?').count(), 4);
+        // 平台素材规则：店铺账号可见 `shop_id = 0` + 本店
+        assert!(SCOPE_WHERE.contains("shop_id = 0"));
     }
 }

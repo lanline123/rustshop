@@ -49,6 +49,7 @@ use tigshop_core::models::content::gallery::{
     GallerySortDTO, GalleryTreeVO, GalleryUpdateDTO,
 };
 use tigshop_core::types::PageResult;
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_security::web::{ok, ApiResult};
 
 use crate::AdminState;
@@ -239,25 +240,20 @@ fn admin_type(headers: &HeaderMap) -> Option<String> {
     }
 }
 
-/// 解析当前请求的多租户范围（Java `HeaderUtils.getShopId()` / `getVendorId()`）。
+/// 解析当前请求的多租户范围（content 素材：**身份只信任认证中间件**）。
 ///
-/// - `shop_id`：`x-admin-type = admin` → `Some(0)`；
-///   `shop` / `pos` → `x-shop-id`（缺失 / 非法 → `None`）；
-///   其它（含缺失）→ `None`（**不过滤**）。
-/// - `vendor_id`：仅当 `getAdminType() == "vendor"` 时取 `x-vendor-id`
-///   （缺失 / 非法 → `None`）。
+/// - `shop_id`：取域路由中间件写入的 [`TenantScope`]（优先级：
+///   `TenantContext` → `AuthUser` → 平台），**忽略客户端可伪造的**
+///   `x-admin-type` / `x-shop-id`；平台账号 → `None`（不过滤），
+///   店铺账号 → `Some(本店)`（列表条件为 `(shop_id = 0 OR shop_id = ?)`）。
+/// - `vendor_id`：供应商上下文仍按既有 `x-vendor-id`（不在本次店铺隔离范围）。
 ///
-/// ⚠️ 与 Java 的差异：Java 对脏 `x-shop-id` 会抛 `NumberFormatException`，
-/// 这里回落到 `None`（不过滤），避免一个坏请求头放大成 500。
+/// ⚠️ 与旧实现的差异：旧实现直接读 `x-admin-type` / `x-shop-id` 请求头，
+/// 客户端可伪造跨店数据；现改为信任 JWT 身份（伪造 query `shopId` 由
+/// `tenant_scope_layer` 提前 403）。
 #[must_use]
 pub fn resolve_scope(headers: &HeaderMap) -> GalleryScope {
-    let raw_admin = header_str(headers, "x-admin-type");
-    let shop_id = match raw_admin.as_deref() {
-        Some("admin") => Some(0),
-        Some("shop" | "pos") => header_str(headers, "x-shop-id")
-            .and_then(|v| v.trim().parse::<i32>().ok()),
-        _ => None,
-    };
+    let shop_id = TenantScope::current_list_filter();
     let vendor_id = if admin_type(headers).as_deref() == Some("vendor") {
         header_str(headers, "x-vendor-id").and_then(|v| v.trim().parse::<i32>().ok())
     } else {
@@ -355,37 +351,39 @@ mod tests {
         }
     }
 
-    /// 平台账号：`shop_id = 0`、无供应商过滤（即使带了 `x-shop-id`）。
+    /// 平台上下文（无 task-local / 平台账号）：`shop_id = None`（列表不过滤）。
     #[test]
-    fn admin_scope_is_platform_zero() {
+    fn platform_scope_has_no_shop_filter() {
         let scope = resolve_scope(&headers(&[
             ("x-admin-type", "admin"),
             ("x-shop-id", "9"),
             ("x-vendor-id", "3"),
         ]));
-        assert_eq!(scope, GalleryScope::platform());
-        assert_eq!(scope.shop_id, Some(0));
+        assert_eq!(scope.shop_id, None);
         assert_eq!(scope.vendor_id, None);
     }
 
-    /// 店铺 / 门店账号：`shop_id` 取 `x-shop-id`；缺失或非法 → `None`（不过滤）。
-    #[test]
-    fn shop_and_pos_scopes_take_shop_header() {
-        let scope = resolve_scope(&headers(&[
-            ("x-admin-type", "shop"),
-            ("x-shop-id", "9"),
-            ("x-shop-type", "2"),
-        ]));
+    /// 店铺上下文：`shop_id` 取认证身份（task-local），**忽略可伪造请求头**。
+    #[tokio::test]
+    async fn shop_scope_comes_from_trusted_identity_not_headers() {
+        // 请求头伪造 x-shop-id 无效：无 task-local 时为平台语义
+        let spoofed = resolve_scope(&headers(&[("x-admin-type", "shop"), ("x-shop-id", "9")]));
+        assert_eq!(spoofed.shop_id, None);
+
+        // 店铺身份（task-local）→ 过滤本店
+        let scope = tigshop_infrastructure::db::repo::marketing::tenant::with_tenant_scope(
+            TenantScope::for_shop(9),
+            async {
+                resolve_scope(&headers(&[
+                    ("x-admin-type", "shop"),
+                    ("x-shop-id", "9"),
+                    ("x-shop-type", "2"),
+                ]))
+            },
+        )
+        .await;
         assert_eq!(scope.shop_id, Some(9));
         assert_eq!(scope.vendor_id, None);
-
-        let scope = resolve_scope(&headers(&[("x-admin-type", "pos"), ("x-shop-id", "3")]));
-        assert_eq!(scope, GalleryScope::shop(3));
-
-        let missing = resolve_scope(&headers(&[("x-admin-type", "shop")]));
-        assert_eq!(missing.shop_id, None);
-        let dirty = resolve_scope(&headers(&[("x-admin-type", "shop"), ("x-shop-id", "abc")]));
-        assert_eq!(dirty.shop_id, None);
     }
 
     /// 供应商账号：`vendor_id` 取 `x-vendor-id`；未知账号类型 → 两者都不过滤。

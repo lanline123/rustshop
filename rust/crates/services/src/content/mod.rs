@@ -18,6 +18,7 @@ pub mod pc_cat_floor;
 pub mod pc_navigation;
 pub mod seo;
 pub mod share;
+pub mod tenant_scope;
 pub mod wechat_auto_reply;
 pub mod wechat_kefu_capability;
 pub mod wechat_keyword_rule;

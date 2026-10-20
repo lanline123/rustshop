@@ -34,6 +34,7 @@ use tigshop_core::models::content::gallery_video_info::{
     UploadVideoInfoVO,
 };
 use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 
 use crate::AdminState;
 
@@ -195,25 +196,22 @@ fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
         .map(ToString::to_string)
 }
 
-/// 解析租户范围（见模块头「多租户」）。
+/// 解析租户范围（content 素材：**店铺身份只信任认证中间件**）。
+///
+/// 平台账号 → [`VideoScope::unscoped`]（不加店铺条件）；店铺账号 →
+/// [`VideoScope::shop`]（列表 `(shop_id = 0 OR shop_id = ?)`）；供应商账号
+/// 仍按既有 `x-vendor-id` 请求头（不在本次店铺隔离范围）。
 #[must_use]
 pub fn resolve_scope(headers: &HeaderMap) -> VideoScope {
-    let admin_type = header_str(headers, "x-admin-type");
-    let shop_id = || {
-        header_str(headers, "x-shop-id")
+    if header_str(headers, "x-admin-type").as_deref() == Some("vendor") {
+        let vendor_id = header_str(headers, "x-vendor-id")
             .and_then(|v| v.trim().parse::<i32>().ok())
-            .unwrap_or(-1)
-    };
-    let vendor_id = || {
-        header_str(headers, "x-vendor-id")
-            .and_then(|v| v.trim().parse::<i32>().ok())
-            .unwrap_or(-1)
-    };
-    match admin_type.as_deref() {
-        Some("admin") => VideoScope::admin(),
-        Some("shop") => VideoScope::shop(shop_id()),
-        Some("vendor") => VideoScope::vendor(vendor_id()),
-        _ => VideoScope::unscoped(),
+            .unwrap_or(-1);
+        return VideoScope::vendor(vendor_id);
+    }
+    match TenantScope::current_list_filter() {
+        Some(shop_id) => VideoScope::shop(shop_id),
+        None => VideoScope::unscoped(),
     }
 }
 
@@ -269,24 +267,28 @@ mod tests {
         }
     }
 
-    #[test]
-    fn scope_matches_java_admin_type_rules() {
+    #[tokio::test]
+    async fn scope_uses_trusted_identity() {
+        // 无 task-local = 平台语义 → 不过滤；伪造 shop 头无效
         assert_eq!(
             resolve_scope(&headers(&[("x-admin-type", "admin")])),
-            VideoScope::admin()
+            VideoScope::unscoped()
         );
         assert_eq!(
             resolve_scope(&headers(&[("x-admin-type", "shop"), ("x-shop-id", "9")])),
-            VideoScope::shop(9)
+            VideoScope::unscoped()
         );
+        // 店铺身份（task-local）→ 本店过滤
+        let scope = tigshop_infrastructure::db::repo::marketing::tenant::with_tenant_scope(
+            TenantScope::for_shop(9),
+            async { resolve_scope(&headers(&[("x-admin-type", "shop")])) },
+        )
+        .await;
+        assert_eq!(scope, VideoScope::shop(9));
+        // 供应商仍按 x-vendor-id
         assert_eq!(
             resolve_scope(&headers(&[("x-admin-type", "vendor"), ("x-vendor-id", "7")])),
             VideoScope::vendor(7)
-        );
-        // 缺失/非法 → -1（恒不命中，等价 Java eq(null)）
-        assert_eq!(
-            resolve_scope(&headers(&[("x-admin-type", "shop")])),
-            VideoScope::shop(-1)
         );
         assert_eq!(resolve_scope(&HeaderMap::new()), VideoScope::unscoped());
     }

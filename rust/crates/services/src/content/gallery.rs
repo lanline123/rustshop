@@ -48,6 +48,8 @@ use tigshop_core::types::PageResult;
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::Repositories;
 
+use crate::content::tenant_scope::{ensure_media_access, ensure_media_write, media_write_shop_id};
+
 /// 相册服务。
 pub struct GalleryService {
     repos: Arc<Repositories>,
@@ -101,6 +103,8 @@ impl GalleryService {
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::NotFound(ERR_GALLERY_NOT_FOUND.into()))?;
+        // 多租户：平台素材（shop_id=0）可读；店铺素材仅本店可读
+        ensure_media_access(row.shop_id)?;
         Ok(Some(GalleryDTO::from(&row)))
     }
 
@@ -127,7 +131,8 @@ impl GalleryService {
             gallery_sort: sort,
             // Java BeanUtils 拷贝 null 后落库同样失败；这里按列 NOT NULL 归一为空串
             gallery_thumb: dto.gallery_thumb.clone().unwrap_or_default(),
-            shop_id: scope.shop_id.unwrap_or(0),
+            // 多租户：店铺账号强制落本店；平台账号请求值缺失 → 平台素材（0）
+            shop_id: media_write_shop_id(scope.shop_id)?,
             vendor_id: scope.vendor_id,
         };
         let id = self.repo().insert(&row).await?;
@@ -151,6 +156,8 @@ impl GalleryService {
             // Java：UPDATE ... WHERE gallery_id = 不存在的 id → 0 行，不报错
             None => return Ok(()),
         };
+        // 多租户：仅本店素材可写（平台素材对店铺账号只读）
+        ensure_media_write(existing.shop_id)?;
         let merged = merge_update(existing, dto, scope)?;
         self.repo().update(&merged).await?;
         tracing::info!("更新相册成功: id={id}");
@@ -169,6 +176,10 @@ impl GalleryService {
         let id = dto
             .id
             .ok_or_else(|| Error::Validation(ERR_GROUP_ID_REQUIRED.into()))?;
+        // 多租户：删除前校验归属（记录不存在时保持 Java 的静默 0 行语义）
+        if let Some(row) = self.repo().find_by_id(id).await? {
+            ensure_media_write(row.shop_id)?;
+        }
         if has_delete_mode(dto.delete_mode.as_deref()) {
             let delete_files = is_delete_files_mode(dto.delete_mode.as_deref().unwrap_or(""));
             self.repo().delete_groups_with_mode(id, delete_files).await?;
@@ -193,6 +204,12 @@ impl GalleryService {
             return Ok(false);
         }
         let ids = &dto.ids;
+        // 多租户：先整体校验归属（任一越权 → 403，不做部分删除）
+        for id in ids {
+            if let Some(row) = self.repo().find_by_id(*id).await? {
+                ensure_media_write(row.shop_id)?;
+            }
+        }
         let affected = self.repo().delete_many(ids).await?;
         tracing::info!("批量删除相册: {} 条", affected);
         Ok(affected > 0)

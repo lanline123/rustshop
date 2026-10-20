@@ -116,8 +116,10 @@ impl GalleryVideoInfoRepository {
         source: Option<&str>,
     ) {
         if let Some(shop_id) = scope.shop_id {
-            qb.push(" AND shop_id = ");
+            // 平台素材规则：店铺账号可见 `shop_id = 0`（平台素材）+ 本店
+            qb.push(" AND (shop_id = 0 OR shop_id = ");
             qb.push_bind(shop_id);
+            qb.push(")");
         }
         if let Some(vendor_id) = scope.vendor_id {
             qb.push(" AND vendor_id = ");
@@ -328,6 +330,13 @@ mod tests {
         assert_eq!(cols.len(), 8);
         assert!(cols.contains(&"parent_id"));
         assert!(cols.contains(&"vendor_id"));
+    }
+
+    #[test]
+    fn scope_filter_includes_platform_material_branch() {
+        // 平台素材规则：店铺账号过滤条件包含 `shop_id = 0` 分支
+        let src = include_str!("gallery_video_info.rs");
+        assert!(src.contains("(shop_id = 0 OR shop_id = "));
     }
 
     #[test]

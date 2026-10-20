@@ -35,6 +35,7 @@ use tigshop_core::models::content::gallery_pic::{
     GalleryPicUploadVO, OperateDTO, UpdateFieldDTO,
 };
 use tigshop_openapi::RouteDoc;
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 
 use crate::support::download_response::zip_response;
@@ -135,19 +136,15 @@ fn admin_type(headers: &HeaderMap) -> Option<String> {
     }
 }
 
-/// 解析当前请求多租户范围（Java `HeaderUtils.getShopId()` / `getVendorId()`）。
+/// 解析当前请求多租户范围（content 素材：**身份只信任认证中间件**）。
 ///
-/// ⚠️ 与 Java 的差异：脏 `x-shop-id` 会抛 `NumberFormatException`（500），
-/// 这里回退 `None`（不过滤），与 gallery 域一致。
+/// `shop_id` 取域路由中间件写入的 [`TenantScope`]（平台 → `None` 不过滤；
+/// 店铺 → `Some(本店)`，列表条件 `(shop_id = 0 OR shop_id = ?)`），
+/// 忽略客户端可伪造的 `x-admin-type` / `x-shop-id`。
+/// `vendor_id` 供应商上下文仍按既有 `x-vendor-id`（不在本次店铺隔离范围）。
 #[must_use]
 pub fn resolve_scope(headers: &HeaderMap) -> GalleryScope {
-    let shop_id = match header_str(headers, "x-admin-type").as_deref() {
-        Some("admin") => Some(0),
-        Some("shop" | "pos") => {
-            header_str(headers, "x-shop-id").and_then(|v| v.trim().parse::<i32>().ok())
-        }
-        _ => None,
-    };
+    let shop_id = TenantScope::current_list_filter();
     let vendor_id = if admin_type(headers).as_deref() == Some("vendor") {
         header_str(headers, "x-vendor-id").and_then(|v| v.trim().parse::<i32>().ok())
     } else {
@@ -191,7 +188,6 @@ struct UploadQuery {
 /// 完成本地校验后由服务层返回「对象存储未迁移」业务错误。
 async fn upload_img(
     State(state): State<AdminState>,
-    headers: HeaderMap,
     Extension(auth): Extension<AuthUser>,
     Query(q): Query<UploadQuery>,
     mut multipart: Multipart,
@@ -221,11 +217,9 @@ async fn upload_img(
         )));
     };
     let size = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
-    let shop_id = headers
-        .get("x-shop-id")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.parse::<i32>().ok())
-        .unwrap_or(0);
+    // 多租户：上传播落店铺取认证身份（店铺→本店；平台→请求缺省 0），
+    // 不再信任客户端可伪造的 `x-shop-id`。
+    let shop_id = TenantScope::current().write_shop_id(None)?;
     ok(state
         .content
         .gallery_pic
@@ -403,43 +397,37 @@ mod tests {
         }
     }
 
-    /// 多租户 scope 解析（逐一对照 Java `HeaderUtils`）。
-    #[test]
-    fn scope_resolution_matches_header_utils() {
+    /// 多租户 scope 解析：店铺维度只信任认证身份（task-local），忽略伪造头。
+    #[tokio::test]
+    async fn scope_resolution_uses_trusted_identity() {
+        // 无 task-local = 平台语义 → 不过滤
         assert_eq!(
-            resolve_scope(&headers(&[("x-admin-type", "admin")])),
+            resolve_scope(&headers(&[("x-admin-type", "admin"), ("x-shop-id", "9")])),
             GalleryScope {
-                shop_id: Some(0),
+                shop_id: None,
                 vendor_id: None
             }
         );
+        // 伪造 shop 头不生效（无 task-local）
         assert_eq!(
-            resolve_scope(&headers(&[("x-admin-type", "shop"), ("x-shop-id", "9")])),
-            GalleryScope {
-                shop_id: Some(9),
-                vendor_id: None
-            }
+            resolve_scope(&headers(&[("x-admin-type", "shop"), ("x-shop-id", "9")])).shop_id,
+            None
         );
+        // 店铺身份（task-local）→ 本店过滤
+        let scope = tigshop_infrastructure::db::repo::marketing::tenant::with_tenant_scope(
+            TenantScope::for_shop(9),
+            async { resolve_scope(&headers(&[("x-admin-type", "shop")])) },
+        )
+        .await;
+        assert_eq!(scope.shop_id, Some(9));
+        // 供应商上下文仍取 x-vendor-id
         assert_eq!(
             resolve_scope(&headers(&[
                 ("x-admin-type", "vendor"),
-                ("x-shop-id", "9"),
-                ("x-vendor-id", "7"),
-            ])),
-            GalleryScope {
-                shop_id: None,
-                vendor_id: Some(7)
-            }
-        );
-        // `shop` + `x-shop-type=2` 归一为 store（vendor 仍不生效）
-        assert_eq!(
-            resolve_scope(&headers(&[
-                ("x-admin-type", "shop"),
-                ("x-shop-type", "2"),
                 ("x-vendor-id", "7"),
             ]))
             .vendor_id,
-            None
+            Some(7)
         );
         assert_eq!(
             resolve_scope(&headers(&[])),

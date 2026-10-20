@@ -47,6 +47,10 @@ use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::content::gallery_pic::GalleryPicRepository;
 use tigshop_infrastructure::db::Repositories;
 
+use crate::content::tenant_scope::{
+    ensure_media_access, ensure_media_write, media_write_shop_id,
+};
+
 /// 相册图片域服务。
 pub struct GalleryPicService {
     repos: Arc<Repositories>,
@@ -74,6 +78,12 @@ impl GalleryPicService {
     ) -> Result<GalleryListResVO> {
         let page = q.page_query();
         let repo = self.repo();
+        // 多租户：进入指定分组前先校验分组归属（平台素材可读）
+        if let Some(gallery_id) = q.gallery_filter() {
+            if let Some(g) = repo.find_gallery(gallery_id).await? {
+                ensure_media_access(g.shop_id)?;
+            }
+        }
         let gallery_ids = match q.gallery_filter() {
             Some(gallery_id) => Some(repo.find_self_and_child_ids(gallery_id).await?),
             None => None,
@@ -119,7 +129,12 @@ impl GalleryPicService {
         let Some(id) = id.filter(|id| *id >= 1) else {
             return Ok(None);
         };
-        Ok(self.repo().find_pic(id).await?.as_ref().map(GalleryPicDTO::from))
+        let Some(pic) = self.repo().find_pic(id).await? else {
+            return Ok(None);
+        };
+        // 多租户：平台素材可读；店铺素材仅本店可读
+        ensure_media_access(pic.shop_id)?;
+        Ok(Some(GalleryPicDTO::from(&pic)))
     }
 
     // ————————————————————— 写操作 —————————————————————
@@ -129,6 +144,10 @@ impl GalleryPicService {
         let id = dto
             .id
             .ok_or_else(|| Error::Validation(ERR_ID_REQUIRED.into()))?;
+        // 多租户：删除前校验归属（记录不存在时保持静默 0 行语义）
+        if let Some(pic) = self.repo().find_pic(id).await? {
+            ensure_media_write(pic.shop_id)?;
+        }
         self.repo().delete_pics(&[id]).await?;
         Ok(())
     }
@@ -138,6 +157,10 @@ impl GalleryPicService {
         let column = resolve_gallery_pic_field(&dto.field)
             .ok_or_else(|| Error::biz_msg(ERR_FIELD_INVALID))?;
         debug_assert!(GALLERY_FIELDS.contains(&column));
+        // 多租户：仅本店素材可改（平台素材对店铺账号只读）
+        if let Some(pic) = self.repo().find_pic(dto.id).await? {
+            ensure_media_write(pic.shop_id)?;
+        }
         self.repo().update_pic_field(dto.id, column, &dto.val).await?;
         Ok(())
     }
@@ -151,6 +174,10 @@ impl GalleryPicService {
             .as_deref()
             .filter(|ids| !ids.is_empty())
             .ok_or_else(|| Error::Validation(ERR_SORT_IDS_REQUIRED.into()))?;
+        // 多租户：排序只允许操作本店素材
+        for pic in self.repo().find_pics_by_ids(ids).await? {
+            ensure_media_write(pic.shop_id)?;
+        }
         self.repo().sort_pics(ids).await?;
         Ok(())
     }
@@ -169,6 +196,19 @@ impl GalleryPicService {
             .as_deref()
             .filter(|t| !t.trim().is_empty())
             .ok_or_else(|| Error::Validation(ERR_TYPE_REQUIRED.into()))?;
+        // 多租户：源素材与目标分组均需属于本店（平台素材对店铺账号只读）
+        if is_video_type(dto.r#type.as_deref()) {
+            for video in self.repo().find_videos_by_ids(ids).await? {
+                ensure_media_write(video.shop_id)?;
+            }
+        } else {
+            for pic in self.repo().find_pics_by_ids(ids).await? {
+                ensure_media_write(pic.shop_id)?;
+            }
+        }
+        if let Some(gallery) = self.repo().find_gallery(target_gallery_id).await? {
+            ensure_media_write(gallery.shop_id)?;
+        }
         if is_video_type(dto.r#type.as_deref()) {
             self.repo().transfer_videos(ids, target_gallery_id).await?;
         } else {
@@ -185,8 +225,14 @@ impl GalleryPicService {
             .filter(|ids| !ids.is_empty())
             .ok_or_else(|| Error::Validation(ERR_IDS_REQUIRED.into()))?;
         if is_video_type(dto.r#type.as_deref()) {
+            for video in self.repo().find_videos_by_ids(ids).await? {
+                ensure_media_write(video.shop_id)?;
+            }
             self.repo().delete_videos(ids).await?;
         } else {
+            for pic in self.repo().find_pics_by_ids(ids).await? {
+                ensure_media_write(pic.shop_id)?;
+            }
             self.repo().delete_pics(ids).await?;
         }
         Ok(())
@@ -204,6 +250,8 @@ impl GalleryPicService {
         let mut files: Vec<(String, Vec<u8>)> = Vec::new();
         if is_video_type(dto.r#type.as_deref()) {
             for video in self.repo().find_videos_by_ids(ids).await? {
+                // 多租户：平台素材可下载；店铺素材仅本店
+                ensure_media_access(video.shop_id)?;
                 if video.video_url.trim().is_empty() {
                     continue;
                 }
@@ -213,6 +261,7 @@ impl GalleryPicService {
             }
         } else {
             for pic in self.repo().find_pics_by_ids(ids).await? {
+                ensure_media_access(pic.shop_id)?;
                 if pic.pic_url.trim().is_empty() {
                     continue;
                 }
@@ -250,6 +299,11 @@ impl GalleryPicService {
             .ok_or_else(|| Error::Validation(ERR_SOURCE_REQUIRED.into()))?;
         let ext = validate_external_url(pic_url, &ALLOWED_IMAGE_EXTENSIONS)
             .map_err(Error::biz_msg)?;
+        // 多租户：目标分组归属校验 + 落库店铺强制取认证身份
+        if let Some(gallery) = self.repo().find_gallery(gallery_id).await? {
+            ensure_media_write(gallery.shop_id)?;
+        }
+        let shop_id = media_write_shop_id(scope.shop_id)?;
         let pic_thumb = dto
             .pic_thumb
             .clone()
@@ -262,7 +316,7 @@ impl GalleryPicService {
             .unwrap_or_else(|| DEFAULT_EXTERNAL_PIC_NAME.to_string());
         let pic = GalleryPic {
             pic_id: 0,
-            shop_id: scope.shop_id.unwrap_or(0),
+            shop_id,
             gallery_id,
             pic_ower_id: admin_id.unwrap_or(0),
             pic_url: pic_url.to_string(),
@@ -311,6 +365,12 @@ impl GalleryPicService {
             .unwrap_or_else(|| DEFAULT_IMAGE_UPLOAD_MAX_SIZE.to_string());
         validate_upload_file(content_type, size, &max_size)
             .map_err(|(code, message)| Error::biz(code, message))?;
+        // 多租户：目标分组归属校验（`shop_id` 由路由层按认证身份强制）
+        if let Some(gallery_id) = gallery_id {
+            if let Some(gallery) = self.repo().find_gallery(gallery_id).await? {
+                ensure_media_write(gallery.shop_id)?;
+            }
+        }
 
         let original = file_name
             .map(str::trim)

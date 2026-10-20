@@ -25,10 +25,12 @@ const GALLERY_COLUMNS: &str = "gallery_id, parent_id, gallery_admin_id, gallery_
 
 /// 分页查询的公共过滤条件（多租户 + 分组）。
 ///
-/// 用 `? IS NULL OR col = ?` 形态保持「`None` = 不加条件」的 Java 语义，
-/// 同时避免动态拼接 SQL 带来的注入面。
+/// **平台素材规则**（content 素材）：`shop_id = 0` 的平台素材所有账号可读；
+/// 店铺素材仅本店可见；平台账号不过滤（`None`）。
+/// 即：店铺账号 → `(shop_id = 0 OR shop_id = ?)`；平台账号 → `? IS NULL` 恒真。
+/// 绑定顺序仍为 `(shop_id, shop_id, vendor_id, vendor_id)`。
 const SCOPE_WHERE: &str =
-    "(? IS NULL OR shop_id = ?) AND (? IS NULL OR vendor_id = ?)";
+    "(? IS NULL OR shop_id = 0 OR shop_id = ?) AND (? IS NULL OR vendor_id = ?)";
 
 #[derive(Clone)]
 pub struct GalleryRepository {
@@ -389,6 +391,13 @@ mod tests {
     fn placeholders_renders_in_clause() {
         assert_eq!(placeholders(1), "?");
         assert_eq!(placeholders(3), "?, ?, ?");
+    }
+
+    #[test]
+    fn scope_where_has_platform_material_rule() {
+        // 平台素材规则：店铺账号 `(shop_id = 0 OR shop_id = ?)`；占位符仍为 4
+        assert!(SCOPE_WHERE.contains("shop_id = 0"));
+        assert_eq!(SCOPE_WHERE.matches('?').count(), 4);
     }
 
     #[test]

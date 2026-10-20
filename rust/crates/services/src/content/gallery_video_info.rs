@@ -30,6 +30,8 @@ use tigshop_core::types::PageResult;
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::Repositories;
 
+use crate::content::tenant_scope::{ensure_media_access, ensure_media_write, media_write_shop_id};
+
 /// 视频相册信息服务。
 pub struct GalleryVideoInfoService {
     repos: Arc<Repositories>,
@@ -105,6 +107,8 @@ impl GalleryVideoInfoService {
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::biz_msg(MSG_VIDEO_INFO_NOT_FOUND))?;
+        // 多租户：平台素材可读；店铺素材仅本店可读
+        ensure_media_access(row.shop_id)?;
         Ok(GalleryVideoInfoDetailVO {
             id: row.id,
             gallery_id: row.gallery_id,
@@ -136,7 +140,8 @@ impl GalleryVideoInfoService {
         }
         let row = GalleryVideoInfo {
             id: 0,
-            shop_id: scope.shop_id.unwrap_or(0),
+            // 多租户：店铺账号强制落本店；平台账号请求值缺失 → 平台素材（0）
+            shop_id: media_write_shop_id(scope.shop_id)?,
             gallery_id: dto.resolve_gallery_id(),
             video_url: url,
             video_name: name,
@@ -169,6 +174,8 @@ impl GalleryVideoInfoService {
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::NotFound(MSG_VIDEO_INFO_NOT_FOUND.into()))?;
+        // 多租户：仅本店素材可改（平台素材对店铺账号只读）
+        ensure_media_write(existing.shop_id)?;
         if let Some(url) = dto.video_url.as_deref() {
             if existing.source == "external" || dto.source.as_deref() == Some("external") {
                 validate_external_video_url(Some(url)).map_err(Error::biz_msg)?;
@@ -209,6 +216,10 @@ impl GalleryVideoInfoService {
     /// - `id` 缺失 → `Validation("id不能为空")`
     pub async fn delete(&self, dto: &OperateDTO) -> Result<()> {
         let id = dto.id.ok_or_else(|| Error::Validation(MSG_ID_REQUIRED.into()))?;
+        // 多租户：删除前校验归属（记录不存在时保持静默 0 行语义）
+        if let Some(row) = self.repo().find_by_id(id).await? {
+            ensure_media_write(row.shop_id)?;
+        }
         self.repo().delete(id).await?;
         tracing::info!("删除相册视频: id={id}");
         Ok(())

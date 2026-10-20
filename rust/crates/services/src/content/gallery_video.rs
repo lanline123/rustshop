@@ -32,6 +32,8 @@ use tigshop_core::types::PageResult;
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::Repositories;
 
+use crate::content::tenant_scope::{ensure_media_access, ensure_media_write, media_write_shop_id};
+
 /// 视频相册服务。
 pub struct GalleryVideoService {
     repos: Arc<Repositories>,
@@ -92,6 +94,8 @@ impl GalleryVideoService {
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::NotFound(MSG_VIDEO_NOT_FOUND.into()))?;
+        // 多租户：平台素材可读；店铺素材仅本店可读
+        ensure_media_access(row.shop_id)?;
         Ok(Some(to_vo(&row)))
     }
 
@@ -113,7 +117,8 @@ impl GalleryVideoService {
         let sort = self.repo().next_sort(scope, parent_id).await?;
         let row = GalleryVideo {
             id: 0,
-            shop_id: scope.shop_id.unwrap_or(0),
+            // 多租户：店铺账号强制落本店；平台账号请求值缺失 → 平台素材（0）
+            shop_id: media_write_shop_id(scope.shop_id)?,
             parent_id,
             name,
             sort,
@@ -139,6 +144,8 @@ impl GalleryVideoService {
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::biz_msg(MSG_VIDEO_NOT_FOUND))?;
+        // 多租户：仅本店素材可改（平台素材对店铺账号只读）
+        ensure_media_write(existing.shop_id)?;
         if self
             .repo()
             .name_exists_excluding(existing.parent_id, &name, id)
@@ -158,6 +165,10 @@ impl GalleryVideoService {
     /// - 数据库失败 → `Error::Database`
     pub async fn delete(&self, dto: &GalleryDelDTO) -> Result<()> {
         let id = require_group_id(dto.id).map_err(Error::Validation)?;
+        // 多租户：删除前校验归属（记录不存在时保持静默 0 行语义）
+        if let Some(row) = self.repo().find_by_id(id).await? {
+            ensure_media_write(row.shop_id)?;
+        }
         if has_delete_mode(dto.delete_mode.as_deref()) {
             let delete_files = is_delete_files_mode(dto.delete_mode.as_deref().unwrap_or(""));
             self.repo().delete_with_mode(id, delete_files).await?;
@@ -176,6 +187,12 @@ impl GalleryVideoService {
     pub async fn batch(&self, dto: &BatchDTO) -> Result<bool> {
         if !is_delete_batch(dto) {
             return Ok(false);
+        }
+        // 多租户：先整体校验归属（任一越权 → 403，不做部分删除）
+        for id in &dto.ids {
+            if let Some(row) = self.repo().find_by_id(*id).await? {
+                ensure_media_write(row.shop_id)?;
+            }
         }
         let affected = self.repo().delete_many(&dto.ids).await?;
         Ok(affected > 0)

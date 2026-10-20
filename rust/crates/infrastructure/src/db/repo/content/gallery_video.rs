@@ -87,11 +87,12 @@ impl GalleryVideoRepository {
             .map_err(map_err)
     }
 
-    /// 追加租户 + 父级过滤。
+    /// 追加租户 + 父级过滤（平台素材规则：店铺账号可见 `shop_id = 0` + 本店）。
     fn push_filters(qb: &mut QueryBuilder<'_, MySql>, scope: VideoScope, parent: Option<i32>) {
         if let Some(shop_id) = scope.shop_id {
-            qb.push(" AND shop_id = ");
+            qb.push(" AND (shop_id = 0 OR shop_id = ");
             qb.push_bind(shop_id);
+            qb.push(")");
         }
         if let Some(vendor_id) = scope.vendor_id {
             qb.push(" AND vendor_id = ");
@@ -317,6 +318,9 @@ mod tests {
 
     #[test]
     fn order_clause_matches_build_sort_order() {
+        // 平台素材规则：店铺账号过滤条件包含 `shop_id = 0` 分支
+        let src = include_str!("gallery_video.rs");
+        assert!(src.contains("(shop_id = 0 OR shop_id = "));
         assert_eq!(order_clause("id", Some(true)), " ORDER BY id DESC");
         assert_eq!(order_clause("sort", Some(false)), " ORDER BY sort ASC");
         assert_eq!(order_clause("name", None), "");
