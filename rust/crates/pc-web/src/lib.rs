@@ -1,4 +1,4 @@
-﻿use axum::{
+use axum::{
     http::Uri,
     response::{Html, IntoResponse},
     Router,
@@ -13,6 +13,29 @@ pub mod pages;
 pub mod state;
 
 pub use app::App;
+
+fn percent_decode(s: &str) -> String {
+    let mut bytes = Vec::new();
+    let mut chars = s.bytes();
+    while let Some(b) = chars.next() {
+        if b == b'%' {
+            if let (Some(h1), Some(h2)) = (chars.next(), chars.next()) {
+                let hex_str = [h1, h2];
+                if let Ok(s_hex) = std::str::from_utf8(&hex_str) {
+                    if let Ok(val) = u8::from_str_radix(s_hex, 16) {
+                        bytes.push(val);
+                        continue;
+                    }
+                }
+            }
+        } else if b == b'+' {
+            bytes.push(b' ');
+            continue;
+        }
+        bytes.push(b);
+    }
+    String::from_utf8(bytes).unwrap_or_else(|_| s.to_string())
+}
 
 pub async fn render_app(uri: Uri) -> impl IntoResponse {
     use leptos::prelude::*;
@@ -35,7 +58,7 @@ pub async fn render_app(uri: Uri) -> impl IntoResponse {
             .split('&')
             .find(|pair| pair.starts_with("keyword=") || pair.starts_with("q="))
             .and_then(|pair| pair.split('=').nth(1))
-            .map(|s| s.replace('+', " "));
+            .map(|s| percent_decode(s));
         Some(loader::load_search_data(kw, 1).await)
     } else {
         None
@@ -53,9 +76,12 @@ pub async fn render_app(uri: Uri) -> impl IntoResponse {
         None
     };
 
+    let site_config = loader::load_site_config().await;
+
     let owner = Owner::new();
     let html = owner.with(|| {
         provide_context(RequestUrl::new(&path));
+        provide_context(site_config);
         if let Some(hd) = home_data {
             provide_context(hd);
         }

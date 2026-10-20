@@ -171,7 +171,7 @@ async fn send_warning(
     Json(dto): Json<DepositSendWarningDTO>,
 ) -> ApiResult<()> {
     require_platform(&tenant)?;
-    state.merchant.deposit_account.send_warning(&dto)?;
+    state.merchant.deposit_account.send_warning(&dto).await?;
     ok(())
 }
 

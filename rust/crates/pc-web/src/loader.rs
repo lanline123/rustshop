@@ -37,6 +37,58 @@ pub async fn get_repos() -> Option<Arc<Repositories>> {
     res
 }
 
+// ---------------- 站点全局配置模型（主题配色/Logo/导航） ----------------
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct NavItemVO {
+    pub title: String,
+    pub link: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SiteConfig {
+    pub theme_css: String,
+    pub logo: String,
+    pub shop_title: String,
+    pub navigations: Vec<NavItemVO>,
+}
+
+pub fn default_theme_css() -> String {
+    r#"
+                        --general: #ff4444;
+                        --main-bg: #ff4444;
+                        --btn-hover-bg: #ff6262;
+                        --main-bg-gradient: #ff4444;
+                        --main-text: #ffffff;
+                        --vice-bg: #ff8855;
+                        --vice-text: #ffffff;
+                        --icon: #fc0000;
+                        --price: #fc0000;
+                        --tag-text: #cf0000;
+                        --tag-bg: #fff2f2;
+                        --pc-home-max-width: 1190px;
+                        --pc-home-min-width: 1190px;
+                        --pc-home-padding-x: 0px;
+    "#.trim().to_string()
+}
+
+impl Default for SiteConfig {
+    fn default() -> Self {
+        Self {
+            theme_css: default_theme_css(),
+            logo: "/static/images/logo_blue.png".to_string(),
+            shop_title: "TigShop".to_string(),
+            navigations: vec![
+                NavItemVO { title: "首页".into(), link: "/".into() },
+                NavItemVO { title: "限时秒杀".into(), link: "/search".into() },
+                NavItemVO { title: "新品上市".into(), link: "/search".into() },
+                NavItemVO { title: "品牌特卖".into(), link: "/search".into() },
+                NavItemVO { title: "领券中心".into(), link: "/search".into() },
+                NavItemVO { title: "企业采购".into(), link: "/search".into() },
+            ],
+        }
+    }
+}
+
 // ---------------- 首页数据模型 ----------------
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CategoryItemVO {
@@ -106,6 +158,77 @@ fn normalize_pic(pic: &str) -> String {
 }
 
 // ---------------- 数据加载工厂 ----------------
+pub async fn load_site_config() -> SiteConfig {
+    let mut config = SiteConfig::default();
+    let repos_opt = get_repos().await;
+    if let Some(repos) = repos_opt {
+        // 1. 读取主题配色与 Logo
+        if let Ok(map) = repos.content.home.config_vals(&["themeStyle", "shopLogo", "shopTitle"]).await {
+            if let Some(Some(raw_theme)) = map.get("themeStyle") {
+                if let Ok(val) = serde_json::from_str::<serde_json::Value>(raw_theme) {
+                    if let Some(obj) = val.as_object() {
+                        let mut css_rules = Vec::new();
+                        for (k, v) in obj {
+                            if k.starts_with("--") {
+                                if let Some(c) = v.as_str() {
+                                    if !c.is_empty() {
+                                        css_rules.push(format!("{}: {};", k, c));
+                                    }
+                                }
+                            }
+                        }
+                        if !css_rules.is_empty() {
+                            css_rules.push("--pc-home-max-width: 1190px;".to_string());
+                            css_rules.push("--pc-home-min-width: 1190px;".to_string());
+                            css_rules.push("--pc-home-padding-x: 0px;".to_string());
+                            config.theme_css = css_rules.join("\n                        ");
+                        }
+                    }
+                }
+            }
+
+            if let Some(Some(logo)) = map.get("shopLogo") {
+                if !logo.is_empty() {
+                    config.logo = logo.clone();
+                }
+            }
+
+            if let Some(Some(title)) = map.get("shopTitle") {
+                if !title.is_empty() {
+                    config.shop_title = title.clone();
+                }
+            }
+        }
+
+        // 2. 读取后端装修的 PC 导航条 (pc_navigation)
+        if let Ok(rows) = sqlx::query_as::<_, (String, String)>(
+            "SELECT title, link FROM pc_navigation WHERE is_show = 1 ORDER BY sort_order ASC LIMIT 8"
+        )
+        .fetch_all(&repos.pool)
+        .await
+        {
+            if !rows.is_empty() {
+                let mut navs = Vec::new();
+                for (t, raw_l) in rows {
+                    let mut href = "/search".to_string();
+                    if let Ok(j) = serde_json::from_str::<serde_json::Value>(&raw_l) {
+                        if let Some(l) = j.get("link").and_then(|v| v.as_str()) {
+                            href = if l.starts_with('/') { l.to_string() } else { format!("/{}", l) };
+                        }
+                    } else if raw_l.starts_with('/') {
+                        href = raw_l;
+                    }
+                    navs.push(NavItemVO { title: t, link: href });
+                }
+                if !navs.is_empty() {
+                    config.navigations = navs;
+                }
+            }
+        }
+    }
+    config
+}
+
 pub async fn load_home_data() -> HomeData {
     let repos_opt = get_repos().await;
     if let Some(repos) = repos_opt {

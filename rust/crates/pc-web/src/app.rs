@@ -14,13 +14,17 @@ use crate::pages::member::MemberPage;
 
 #[component]
 pub fn App() -> impl IntoView {
+    let site_config = use_context::<crate::loader::SiteConfig>().unwrap_or_default();
+    let theme_css = site_config.theme_css.clone();
+    let site_title = format!("{} - 全栈 Rust 高性能商业商城系统", site_config.shop_title);
+
     view! {
         <!DOCTYPE html>
         <html lang="zh-CN">
             <head>
                 <meta charset="utf-8"/>
                 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-                <title>"TigShop - 全栈 Rust 高性能商业商城系统"</title>
+                <title>{site_title}</title>
                 // 引入 TigShop 官方 3 套阿里云矢量图标库
                 <link rel="stylesheet" href="https://at.alicdn.com/t/c/font_4441878_nmmffdd6bwr.css"/>
                 <link rel="stylesheet" href="https://at.alicdn.com/t/c/font_400590_7he137t8862.css"/>
@@ -28,24 +32,11 @@ pub fn App() -> impl IntoView {
                 // 引入解构后的全量 CSS 样式库
                 <link rel="stylesheet" href="/static/css/mall.css"/>
                 <style>
-                    "
-                    :root, body, .app {
-                        --general: #ff4444;
-                        --main-bg: #ff4444;
-                        --btn-hover-bg: #ff6262;
-                        --main-bg-gradient: #ff4444;
-                        --main-text: #ffffff;
-                        --vice-bg: #ff8855;
-                        --vice-text: #ffffff;
-                        --icon: #fc0000;
-                        --price: #fc0000;
-                        --tag-text: #cf0000;
-                        --tag-bg: #fff2f2;
-                        --pc-home-max-width: 1190px;
-                        --pc-home-min-width: 1190px;
-                        --pc-home-padding-x: 0px;
-                    }
-                    body {
+                    {format!(r#"
+                    :root, body, .app {{
+                        {}
+                    }}
+                    body {{
                         background-color: #f2f3f5;
                         color: #666;
                         font-size: 12px;
@@ -53,20 +44,20 @@ pub fn App() -> impl IntoView {
                         margin: 0;
                         padding: 0;
                         -webkit-font-smoothing: antialiased;
-                    }
-                    .container {
+                    }}
+                    .container {{
                         width: 100%;
                         max-width: 1190px;
                         min-width: 1190px;
                         margin: 0 auto;
                         box-sizing: border-box;
                         clear: both;
-                    }
-                    a {
+                    }}
+                    a {{
                         text-decoration: none;
                         color: inherit;
-                    }
-                    "
+                    }}
+                    "#, theme_css)}
                 </style>
             </head>
             <body>

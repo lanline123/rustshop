@@ -47,6 +47,10 @@ pub fn TopBar() -> impl IntoView {
 
 #[component]
 pub fn PageHeader() -> impl IntoView {
+    let site_config = use_context::<crate::loader::SiteConfig>().unwrap_or_default();
+    let logo_url = site_config.logo.clone();
+    let navs = site_config.navigations.clone();
+
     view! {
         <div class="header" style="border-bottom: 1px solid #ddd;">
             <div class="top-area container">
@@ -54,7 +58,7 @@ pub fn PageHeader() -> impl IntoView {
                     // Logo
                     <div class="logo">
                         <a href="/" class="alv1">
-                            <img src="/static/images/logo_blue.png" alt="TigShop" style="width: 190px; height: 55px; object-fit: contain;"/>
+                            <img src=logo_url alt="TigShop" style="width: 190px; height: 55px; object-fit: contain;"/>
                         </a>
                     </div>
 
@@ -97,7 +101,7 @@ pub fn PageHeader() -> impl IntoView {
                     </div>
                 </div>
 
-                // 全局导航条 (DefNav)
+                // 全局导航条 (DefNav - 依据后台装修 pc_navigation 实时渲染)
                 <div class="top-nav top-nav-index" style="position: relative; height: 38px;">
                     <div class="nav-bd container flex align-end" style="display: flex; align-items: flex-end; height: 100%;">
                         <div class="main-nav-link" style="width: 190px; height: 38px; line-height: 38px; background: var(--main-bg); color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; text-align: center;">
@@ -107,12 +111,19 @@ pub fn PageHeader() -> impl IntoView {
                             </div>
                         </div>
                         <ul class="sub-nav" style="display: flex; list-style: none; margin: 0; padding: 0; height: 38px; align-items: center;">
-                            <li><a href="/" class="alv1" style="font-size: 15px; padding: 0 20px; color: var(--general); font-weight: bold; height: 38px; line-height: 38px; display: block;">"首页"</a></li>
-                            <li><a href="/search" class="alv1" style="font-size: 15px; padding: 0 20px; color: #333; height: 38px; line-height: 38px; display: block;">"限时秒杀"</a></li>
-                            <li><a href="/search" class="alv1" style="font-size: 15px; padding: 0 20px; color: #333; height: 38px; line-height: 38px; display: block;">"新品上市"</a></li>
-                            <li><a href="/search" class="alv1" style="font-size: 15px; padding: 0 20px; color: #333; height: 38px; line-height: 38px; display: block;">"品牌特卖"</a></li>
-                            <li><a href="/search" class="alv1" style="font-size: 15px; padding: 0 20px; color: #333; height: 38px; line-height: 38px; display: block;">"领券中心"</a></li>
-                            <li><a href="/search" class="alv1" style="font-size: 15px; padding: 0 20px; color: #333; height: 38px; line-height: 38px; display: block;">"企业采购"</a></li>
+                            {
+                                navs.into_iter().enumerate().map(|(idx, n)| {
+                                    let color = if idx == 0 { "var(--general)" } else { "#333" };
+                                    let fw = if idx == 0 { "bold" } else { "normal" };
+                                    view! {
+                                        <li>
+                                            <a href=n.link class="alv1" style=format!("font-size: 15px; padding: 0 16px; color: {}; font-weight: {}; height: 38px; line-height: 38px; display: block;", color, fw)>
+                                                {n.title}
+                                            </a>
+                                        </li>
+                                    }
+                                }).collect::<Vec<_>>()
+                            }
                         </ul>
                     </div>
                 </div>

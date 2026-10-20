@@ -110,6 +110,7 @@ pub async fn run_migrations(pool: &DbPool, dir: &str) -> anyhow::Result<()> {
 /// 全仓储聚合根（按限界上下文分组）。
 #[derive(Clone)]
 pub struct Repositories {
+    pub pool: DbPool,
     pub identity: repo::identity::Repositories,
     pub merchant: repo::merchant::Repositories,
     pub wholesale: repo::wholesale::Repositories,
@@ -130,6 +131,7 @@ impl Repositories {
     #[must_use]
     pub fn new(pool: DbPool) -> Self {
         Self {
+            pool: pool.clone(),
             identity: repo::identity::Repositories::new(pool.clone()),
             merchant: repo::merchant::Repositories::new(pool.clone()),
             wholesale: repo::wholesale::Repositories::new(pool.clone()),

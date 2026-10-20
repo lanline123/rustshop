@@ -246,12 +246,62 @@ impl DepositAccountService {
         Ok(())
     }
 
-    /// `POST /adminapi/deposit/account/sendWarning`（**未迁移**：站内信/短信通道）。
-    pub fn send_warning(&self, _dto: &DepositSendWarningDTO) -> Result<()> {
-        Err(Error::biz(
-            SERVICE_DATA_ERROR,
-            "保证金预警发送未迁移：依赖站内信/短信/推送通道（message 域）",
-        ))
+    /// `POST /adminapi/deposit/account/sendWarning`：发送保证金预警站内信通知（对齐 Java DepositAccountAdminServiceImpl#sendWarning）。
+    pub async fn send_warning(&self, dto: &DepositSendWarningDTO) -> Result<()> {
+        let owner_type = dto.owner_type.unwrap_or(1);
+        let owner_id = dto
+            .resolved_owner_id()
+            .filter(|v| *v > 0)
+            .ok_or_else(|| Error::biz_msg("持有者id非法"))?;
+
+        let is_supplier = owner_type == 2;
+        let owner_label = if is_supplier { "供应商" } else { "店铺" };
+
+        let account = self.repo().find_by_owner(owner_type, owner_id).await?;
+        let pending = account
+            .as_ref()
+            .map(|a| pending_amount(a.paid, required(a)))
+            .unwrap_or(Decimal::ZERO);
+
+        let title = dto
+            .title
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or("保证金预警通知");
+        let content = if let Some(c) = dto.content.as_deref().filter(|s| !s.trim().is_empty()) {
+            c.to_string()
+        } else if pending > Decimal::ZERO {
+            format!("您的{owner_label}保证金待补缴 {pending} 元，请尽快补足，以免影响正常经营。")
+        } else {
+            format!("您的{owner_label}保证金存在异常，请前往财务中心-保证金查看并处理。")
+        };
+
+        let related_data = serde_json::json!({
+            "ownerType": owner_type,
+            "ownerId": owner_id,
+            "shopId": if is_supplier { 0 } else { owner_id }
+        })
+        .to_string();
+
+        let target_shop_id = if is_supplier { 0 } else { owner_id };
+
+        self.repos
+            .system
+            .admin_msg
+            .create_message(
+                44, // DEPOSIT_WARNING
+                target_shop_id,
+                0,
+                title,
+                &content,
+                &related_data,
+            )
+            .await?;
+
+        tracing::info!(
+            "保证金预警发送成功: owner_type={owner_type}, owner_id={owner_id}, title={title}"
+        );
+        Ok(())
     }
 
     /// 保证金双缓冲到期扫描（Java `DepositLifecycleService#runDueCheck`）。

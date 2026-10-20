@@ -352,21 +352,9 @@ impl ShopManageService {
             .paginate_shops(q, shop_id_scope, manager_ids.as_deref())
             .await?;
 
-        // 平台自营占位（shopId = 0）：需要平台自营店铺/门店配置（未迁移）
-        if q.include_self_operated_flag() == 1
-            && (q.shop_type_or_default() == shop_type::SHOP
-                || q.shop_type_or_default() == shop_type::STORE)
-            && q.page_no() == 1
-            && shop_id_scope.unwrap_or(0) <= 0
-        {
-            return Err(Error::biz_msg(
-                "includeSelfOperated=1 需要平台自营店铺/门店配置（配置服务未迁移），暂不支持",
-            ));
-        }
-
         let refs = self.load_shop_refs(&shops).await?;
         let is_my_shop = q.is_my_shop_flag() == 1;
-        let list: Vec<ShopVO> = shops
+        let mut list: Vec<ShopVO> = shops
             .iter()
             .map(|s| {
                 let mut vo = build_shop_vo(
@@ -384,6 +372,36 @@ impl ShopManageService {
                 vo
             })
             .collect();
+
+        let mut total = total;
+        // 平台自营主体（shopId = 0）：当 includeSelfOperated=1 且在第 1 页时，在首位插入自营虚拟主体
+        if q.include_self_operated_flag() == 1
+            && (q.shop_type_or_default() == shop_type::SHOP
+                || q.shop_type_or_default() == shop_type::STORE)
+            && q.page_no() == 1
+            && shop_id_scope.unwrap_or(0) <= 0
+            && !list.iter().any(|s| s.shop_id == 0)
+        {
+            let shop_title = if q.shop_type_or_default() == shop_type::STORE {
+                "自营门店".to_string()
+            } else {
+                "自营店铺".to_string()
+            };
+            let kw = q.keyword.as_deref().unwrap_or("").trim();
+            if kw.is_empty() || shop_title.contains(kw) {
+                let self_op = ShopVO {
+                    shop_id: 0,
+                    shop_title,
+                    shop_type: Some(q.shop_type_or_default()),
+                    status: Some(1),
+                    status_text: "开业".to_string(),
+                    ..Default::default()
+                };
+                list.insert(0, self_op);
+                total += 1;
+            }
+        }
+
         Ok(PageResult::new(total, list, &page))
     }
 

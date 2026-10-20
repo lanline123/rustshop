@@ -562,6 +562,61 @@ impl ShopRepository {
         Ok(true)
     }
 
+    /// 对应 `ShopWithdrawServiceImpl#uploadPayVoucher` 命中线下打款凭证完成时调用的
+    /// `AccountServiceImpl#completeWithDrawLog`：
+    /// `frozen_money -= amount`（释放冻结金额），流水记 `type=1 / is_new=1`。
+    pub async fn complete_withdraw(
+        &self,
+        withdraw: &ShopWithdraw,
+    ) -> Result<bool> {
+        let mut tx = self.pool.begin().await.map_err(map_err)?;
+
+        let before: Option<(Option<Decimal>, Option<Decimal>)> = sqlx::query_as(
+            "SELECT shop_money, frozen_money FROM `shop` WHERE shop_id = ? FOR UPDATE",
+        )
+        .bind(withdraw.shop_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(map_err)?;
+        let (old_shop, old_frozen) = match before {
+            Some((Some(shop_money), Some(frozen_money))) => (shop_money, frozen_money),
+            _ => return Err(Error::NotFound("店铺数据不存在".into())),
+        };
+
+        sqlx::query(
+            "UPDATE `shop` SET frozen_money = frozen_money - ? \
+             WHERE shop_id = ?",
+        )
+        .bind(withdraw.amount)
+        .bind(withdraw.shop_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(map_err)?;
+
+        let new_shop = old_shop;
+        let new_frozen = old_frozen - withdraw.amount;
+
+        sqlx::query(
+            "INSERT INTO shop_account_log \
+                (add_time, shop_money, frozen_money, `type`, remarks, \
+                 new_shop_money, new_frozen_money, shop_id, is_new, balance_type, change_amount) \
+             VALUES (?, ?, ?, '1', '线下提现打款完成', ?, ?, ?, 1, 1, ?)",
+        )
+        .bind(now_seconds() as i64)
+        .bind(old_shop)
+        .bind(old_frozen)
+        .bind(new_shop)
+        .bind(new_frozen)
+        .bind(withdraw.shop_id)
+        .bind(withdraw.amount)
+        .execute(&mut *tx)
+        .await
+        .map_err(map_err)?;
+
+        tx.commit().await.map_err(map_err)?;
+        Ok(true)
+    }
+
     // ===== 店铺经营类目（`shop_product_category`） =====
 
     /// 经营类目分页（`ShopProductCategoryServiceImpl#list`）。

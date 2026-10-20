@@ -11,7 +11,7 @@
 # ---------- Docker ----------
 # docker compose up -d --build   # 启动 mysql + redis + rabbitmq + 应用
 
-FROM rust:1.83-slim AS builder
+FROM rust:bookworm AS builder
 WORKDIR /app
 
 # 先拷贝清单以利用层缓存

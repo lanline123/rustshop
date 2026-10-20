@@ -1,4 +1,4 @@
-﻿//! 商家提现服务（`merchant::shop_withdraw`，8 个管理端端点）。
+//! 商家提现服务（`merchant::shop_withdraw`，8 个管理端端点）。
 //!
 //! 对应原 Java `com.tigshop.service.shop.impl.ShopWithdrawServiceImpl` 的：
 //! `create` / `update` / `del` / `updateField` / `batch` / `uploadPayVoucher` /
@@ -286,10 +286,16 @@ impl ShopWithdrawService {
             .shop_withdraw
             .update_voucher(id, voucher, STATUS_AUDIT_PASS)
             .await?;
-        // 账户余额完成联动未迁移（模块头偏差 3）
-        tracing::warn!(
-            "uploadPayVoucher: 提现 {id} 已完成打款并置状态 3，账户余额联动未迁移"
-        );
+        // 账户余额完成联动：释放冻结金额并写入 shop_account_log 流水（对齐 Java completeWithDrawLog）
+        if let Err(e) = self.repos.merchant.shop.complete_withdraw(&detail).await {
+            tracing::warn!(
+                "uploadPayVoucher: 提现 {id} 账户余额联动失败: {e}"
+            );
+        } else {
+            tracing::info!(
+                "uploadPayVoucher: 提现 {id} 已完成打款，冻结资金已成功核销"
+            );
+        }
         Ok(())
     }
 
