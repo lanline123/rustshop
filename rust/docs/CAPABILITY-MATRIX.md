@@ -40,10 +40,13 @@
 | 能力 | 状态 | 验证/说明 |
 |---|---|---|
 | AJ-Captcha 滑块验证码 | ✅ | 生成/校验/AES 坐标/一次性二次校验；登录阈值 5 次 |
-| 短信验证码 | ✅ 阿里云 | RPC HMAC-SHA1 签名；`TIG_SMS__MOCK=1` 本地联调；其它云厂商待接 |
-| 邮件验证码 | ✅ SMTP | lettre 发送；demo 凭据实测返回 535（链路已执行），需真实 SMTP |
-| 微信 API 客户端基础 | 🟡 骨架 | access_token 缓存、客服列表/客服文本消息、小程序 code2session、统一 errcode 处理；已接客服能力探测；见 `WECHAT-CLIENT.md` |
-| 微信生态（OAuth/JSAPI/公众号/小程序码/视频号） | ⛔ 待凭据 | 客户端基础已就绪，具体业务端点待凭据后逐个接入 |
+| 短信验证码 | ✅ 阿里云 | RPC HMAC-SHA1 签名；真实短信已送达；`TIG_SMS__MOCK=1` 本地联调；其它云厂商待接 |
+| 邮件验证码 | ✅ 163 SMTP | `smtp.163.com:465` SSL 登录/发信实测通过；Rust `sendTestEmail` 返回 200 |
+| 微信 API 客户端基础 | ✅ | access_token 缓存、客服列表/客服文本消息、小程序 code2session、统一 errcode 处理；已接客服能力探测 |
+| 微信生态（公众号回调/OAuth/PC 扫码/小程序手机号） | ✅ | 安全模式回调、SCAN/subscribe、OAuth code 登录、PC 二维码、`getuserphonenumber` 已实现；真实 token 受 IP 白名单限制 |
+| 微信视频号直播/直播订单 | ⛔ 待凭据 | 需小程序 AppID/Secret 与直播接口权限 |
+| 快递鸟物流 | 🟡 代码完成 | 签名/1002 轨迹/1007 面单/物流路由已实现；账号缺套餐，极兔单号返「没有可用套餐」 |
+| 火山翻译/SEO | ✅ | SigV4 + `TranslateText` 已充值实测；SEO 单条接口返回 `test-product` |
 
 ## 4. IM / 异步任务 / 权限
 
@@ -52,7 +55,7 @@
 | IM WebSocket `/ws` | ✅ | 欢迎语、心跳回显、无效 token 拒绝、服务端推送；IM 消息收发已接 WS 双向推送（实测）；多端会话；进程内表（多实例需 Redis） |
 | 定时任务（订单超时取消/自动收货） | ✅ | 轮询 + 幂等条件更新（替代 Java RabbitMQ 延迟队列），可配 `autoCancelOrderMinute`/`autoDeliveryDays` |
 | MQ（RabbitMQ） | ✅ | `tigshop_infrastructure::mq` 抽象（Memory/RabbitMQ `lapin` 驱动，支持异步发布/消费抽象与环境降级） |
-| 多后端存储 | ✅ | 本地目录、阿里云 OSS、腾讯云 COS、AWS S3/MinIO 四后端统一适配 |
+| 多后端存储 | 🟡 部分 | 本地目录 + 阿里云 OSS 真实上传/删除已验证；COS/S3 驱动仍为占位（只拼接 URL，不发 HTTP） |
 | RBAC 方法级权限 | ✅ | 契约自动生成 864 条权限；`all` 超管；403+code1001 与 Java 一致；30s 缓存 |
 | 多租户 shop_id 隔离 | ✅ | JWT Claims 签发与解析、`AuthUser::scoped_shop_id`；商品与营销优惠券列表/详情/增删改均接入租户范围隔离（单测全绿） |
 
