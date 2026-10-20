@@ -1613,6 +1613,20 @@ impl OrderAdminService {
             .find_order(id)
             .await?
             .ok_or_else(|| Error::biz_msg("订单不存在"))?;
+        // 定金预售：已付定金、待付尾款阶段不允许取消（Java 返回 false）。
+        if order.presale_type == Some(2) {
+            if let Some(presale) = self
+                .repos
+                .payment
+                .pay
+                .find_presale_by_order_id(id)
+                .await?
+            {
+                if presale.presale_status == 1 {
+                    return Err(Error::biz_msg("预售订单已支付定金，待付尾款阶段无法取消"));
+                }
+            }
+        }
         let actions = self.order_actions(&order).await?;
         if !actions.cancel_order {
             return Err(Error::biz_msg("订单状态错误"));
