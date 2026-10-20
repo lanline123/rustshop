@@ -27,10 +27,8 @@
 //!   时自动把申请置为处理中。实际渠道退款执行（微信/支付宝/线下）仍由支付域
 //!   负责；退款结算单/RabbitMQ 退款结算路由未迁移。
 //! - **整单售后退回优惠券**（`restoreOrderCouponUsageIfFullAftersales`）。
-//! - **供应商审核环节**：`vendor.after_sales_review` 开关与
-//!   `VendorMapper.selectOnboardedById` 未迁移，且当前部署 `tigshop.is-vendor: 0`
-//!   （`java/tigshop-adminapi/src/main/resources/application.yaml`），
-//!   故按开关关闭处理（`vendor_review_required = false`）。
+//! - **供应商审核环节**：已读取 `vendor.after_sales_review`（仅
+//!   `tigshop.is-vendor=1` 的供应商退货售后生效）；未开启时按 Java 跳过供应商审核。
 //! - **站内消息 / 语音播报**（`AdminMsgService`）、**微信直播同步**
 //!   （`wechatLiveOrderSyncService`）、**订单日志**（`orderLogService`）、
 //!   **后台操作日志**（`adminLogService`）、**自动同意退货/自动确认收货延时队列**、
@@ -928,9 +926,27 @@ impl AftersalesService {
                 None => Vec::new(),
             };
 
-            // 供应商是否还需人工审核：当前部署 is-vendor = 0，故恒为 false
-            // （Java `isVendorAftersalesReviewRequired` 还会查 vendor.after_sales_review）
-            let vendor_review_required = false;
+            // 供应商是否还需人工审核（Java `isVendorAftersalesReviewRequired`：
+            // 仅供应商退货售后 + 供应商 `after_sales_review = 1`）。
+            let vendor_review_required = if is_vendor_return_aftersales(&aftersales)
+                && is_vendor_deployment()
+            {
+                match aftersales
+                    .vendor_id
+                    .filter(|v| *v > 0)
+                {
+                    Some(vendor_id) => self
+                        .repos
+                        .merchant
+                        .deposit_recharge
+                        .find_vendor(vendor_id)
+                        .await?
+                        .is_some_and(|v| v.after_sales_review == Some(1)),
+                    None => false,
+                }
+            } else {
+                false
+            };
             let vendor_audit_skipped = !vendor_review_required
                 && is_vendor_return_aftersales(&aftersales)
                 && aftersales.status == aftersales_status::IN_REVIEW;
