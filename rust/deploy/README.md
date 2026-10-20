@@ -23,19 +23,32 @@ docker compose up -d --build
   `/adminws` → 8080；`/api`、`/ws` → 8181；`/metrics` → 8080。
 - **后端 8181 只提供 `/api` JSON，不返回任何 HTML**。PC 前端是独立 SPA，必须由 nginx 静态托管。
   （历史上的 Leptos SSR fallback 已于 2026-10-20 下线，见 `rust/crates/bin/src/main.rs` 注释。）
+- **Rust 打包不包含前端**：`cargo build --release` / `Dockerfile` 只产出
+  `tigshop` 后端二进制与 `config.yaml`、`migrations`、`template`；前端 `dist`
+  必须单独构建并由 nginx（或对象存储/CDN）托管。
 
-### 前端 dist 构建（重写路线，2026-10-20 起）
+### 前端 dist 构建（2026-10-20 重写后）
 
-| 端 | 源码 | 构建 | 部署到 |
-|---|---|---|---|
-| 管理端 | `admin-web/` | `pnpm install && pnpm build` | `/usr/share/nginx/html/admin` |
-| PC 商城 | `pc-web/` | `pnpm install && pnpm build` | `/usr/share/nginx/html/pc` |
-| uniapp | `java/view/uniapp` | 各自小程序/H5 流程 | — |
+前端 pnpm workspace 在 `rust/web`，包含 `admin` / `pc` / `shared` 三个包。
+
+```bash
+cd rust/web
+pnpm install
+pnpm --filter @tigshop/admin build
+pnpm --filter @tigshop/pc build
+```
+
+| 端 | 源码 | 构建命令 | 产物 | 部署到 |
+|---|---|---|---|---|
+| 管理端 | `rust/web/admin` | `pnpm --filter @tigshop/admin build` | `rust/web/admin/dist` | `/usr/share/nginx/html/admin` |
+| PC 商城 | `rust/web/pc` | `pnpm --filter @tigshop/pc build` | `rust/web/pc/dist` | `/usr/share/nginx/html/pc` |
+| 共享包 | `rust/web/shared` | 随上两个包构建 | — | — |
+| uniapp | `java/view/uniapp` | 各自小程序/H5 流程 | — | — |
 
 > ⚠️ 原版前端 `java/view/{admin,Tigshop-Pc}` **不再是部署来源**，仅作为重写时的对照基准
-> （详见 `docs/FRONTEND-MIGRATION-TASKS.md`）。
+> （详见 `docs/FRONTEND-MIGRATION-TASKS.md` 与 `docs/FRONTEND-REFACTOR-STATUS.md`）。
 >
-> ⚠️ `pc-web` 的 `vite.config.ts` 未设 `base`，默认按站点根 `/` 访问；若要挂 `/pc/` 子路径，
+> ⚠️ `rust/web/pc/vite.config.ts` 未设 `base`，默认按站点根 `/` 访问；若要挂 `/pc/` 子路径，
 > 需 `vite build --base=/pc/` 并同步 `createWebHistory('/pc/')`。推荐给 PC 独立域名。
 
 - 本地开发也可用 `nginx -c /path/to/deploy/nginx.conf` 验证路由。
