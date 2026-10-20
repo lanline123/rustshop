@@ -1594,8 +1594,9 @@ impl OrderAdminService {
     /// 返还库存 + 扣回虚拟销量 → 置「已取消」+ 取消原因 → 级联取消子单 → 日志。
     ///
     /// 已补：未付款/兑换订单返还抵扣积分、余额原路返还并写余额日志、
-    /// 释放订单/父单优惠券占用、写店铺与供应商后台取消消息。
-    /// 仍未迁移：秒杀库存/销量、拼团限购恢复、礼品卡组库存返还、预售尾款校验。
+    /// 释放订单/父单优惠券占用、写店铺与供应商后台取消消息、
+    /// 回补秒杀库存/扣回秒杀销量、返还礼品卡组可用库存。
+    /// 仍未迁移：拼团限购恢复、预售尾款校验。
     pub async fn cancel_order(
         &self,
         id: i32,
@@ -1620,6 +1621,41 @@ impl OrderAdminService {
                 .order_admin
                 .restore_stock(it.product_id, it.sku_id, it.quantity)
                 .await?;
+            // 秒杀订单取消：回补秒杀库存并扣回秒杀销量。
+            if it.is_seckill == Some(1) {
+                let seckill = crate::marketing::seckill::SeckillService::new(self.repos.clone());
+                let sku_id = (it.sku_id > 0).then_some(it.sku_id);
+                let _ = seckill.inc_stock(it.product_id, sku_id, it.quantity).await;
+                let _ = seckill.dec_sales(it.product_id, sku_id, it.quantity).await;
+            }
+            // 礼品卡商品取消：返还卡组可用库存。
+            if let Some(product) = self
+                .repos
+                .catalog
+                .product_manage
+                .find_product(it.product_id)
+                .await?
+            {
+                if let Some(group_id) = product.gift_card_groups_id.filter(|v| *v > 0) {
+                    if let Some(group) = self
+                        .repos
+                        .marketing
+                        .gift_card
+                        .find_group(group_id)
+                        .await?
+                    {
+                        let _ = self
+                            .repos
+                            .marketing
+                            .gift_card
+                            .update_group_stock(
+                                group_id,
+                                group.availability_stock.unwrap_or(0) + it.quantity,
+                            )
+                            .await;
+                    }
+                }
+            }
         }
         let remark = description
             .map(str::trim)
