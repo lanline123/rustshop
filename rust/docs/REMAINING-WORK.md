@@ -151,18 +151,22 @@
 
 ### 2.6 快递鸟
 
-**现状**：
+**凭据已验证**：
 
-- 用 EBusinessID `1653560` + API Key 调用查询接口，返回：
-  「非法参数[请核实ID和key是否正确…]」
-- 去掉 API Key 连字符后仍失败。
+- EBusinessID：`1309995`
+- API Key：`38f7...49de`
+- 调用 `EbusinessOrderHandle.aspx` / `RequestType=1002` 已通过签名校验；
+- 假运单返回「运单号不匹配」业务错误，说明 ID/Key/签名有效；
+- 关键点：`DataSign = Base64( MD5(RequestData + ApiKey) 的十六进制字符串 )`，
+  不是 `Base64(原始MD5字节)`；
+- SF 查询还需传 `CustomerName`（收件人手机号后四位），否则返回
+  「CustomerName不能为空」。
 
-**需要确认**：
+**Rust 侧仍未完成**：
 
-- EBusinessID / API Key 是否对应同一账号；
-- 账号是否开通、实名；
-- 是否配置 IP 白名单（服务器出口 IP `101.37.194.11`）；
-- 发货人/地址已具备，凭据通过后可测轨迹查询与电子面单。
+- 尚无 KDN 轨迹查询 / 电子面单 HTTP 客户端（Java `KdniaoLogisticsProvider` 未迁移）；
+- 配置项命名：`kdniaoBusinessId` / `kdniaoApiKey`；
+- 发货人/地址已具备，可继续实现 1002 轨迹查询和 1007 电子面单。
 
 ### 2.7 ES 全量同步
 
@@ -222,7 +226,7 @@
 | 阿里云 OSS | AK/SK / bucket / endpoint | ✅ 已验证 |
 | 火山翻译 | AccessKey / SecretKey / 已开通翻译服务 | ✅ 已验证 |
 | SMTP | 163 邮箱用户名 / 授权码 / 发件人 | ✅ 已验证 |
-| 快递鸟 | EBusinessID / API Key / IP 白名单 | ❌ 接口拒绝 |
+| 快递鸟 | EBusinessID / API Key | ✅ 凭据已验证；Rust 客户端待实现 |
 | ES | URL / 账号密码 / 索引名 / 分词器 | 缺失 |
 
 配置项优先通过后台「设置」或环境变量注入；**不要把 Secret 写入仓库**。
@@ -263,7 +267,7 @@ python ../tools/check_frontend.py contract --strict
 2. **补前端平台骨架与 P0 域**；
 3. **拿小程序凭据 + IP 白名单**，完成微信直播/公众号真实联调；
 4. **拿微信支付公钥**，实现 Rust 在线支付/退款/回调；
-5. **快递鸟凭据修正**；
+5. **实现快递鸟轨迹查询/电子面单客户端**（凭据已验证）；
 6. **ES 全量同步**；
 7. 最后做 Docker/MySQL E2E、CI、文档清理。
 
