@@ -14,7 +14,7 @@
 //! > 与 batch 1 文件（`product_manage_extra.rs`）零路径重叠。
 
 use axum::{
-    extract::{Query, State},
+    extract::{Extension, Query, State},
     routing::{get, post},
     Json, Router,
 };
@@ -24,9 +24,11 @@ use tigshop_core::models::catalog::product_manage_client::{
     SelectProductListQuery,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AuthUser};
 
 use crate::AdminState;
+
+use super::tenant;
 
 /// 本文件 6 条路由（去 `/adminapi` 前缀的路径 + 原 Java handler）。
 const ROUTE_TABLE: [(&str, &str, &str); 6] = [
@@ -70,8 +72,10 @@ struct ProductIdQuery {
 /// `GET /adminapi/product/product/config?shopId=`
 async fn config(
     State(state): State<AdminState>,
-    Query(q): Query<ProductConfigQuery>,
+    Extension(auth): Extension<AuthUser>,
+    Query(mut q): Query<ProductConfigQuery>,
 ) -> ApiResult<serde_json::Value> {
+    q.shop_id = tenant::list_scope(&auth, q.shop_id)?;
     ok(state.catalog.product_manage_client.admin_config(&q).await?)
 }
 
@@ -94,8 +98,10 @@ async fn get_promote_data(
 /// `GET /adminapi/product/product/selectProductList`
 async fn select_product_list(
     State(state): State<AdminState>,
-    Query(q): Query<SelectProductListQuery>,
+    Extension(auth): Extension<AuthUser>,
+    Query(mut q): Query<SelectProductListQuery>,
 ) -> ApiResult<PageResult<serde_json::Value>> {
+    q.shop_id = tenant::list_scope(&auth, q.shop_id)?;
     ok(state.catalog.product_manage_client.admin_select_product_list(&q).await?)
 }
 

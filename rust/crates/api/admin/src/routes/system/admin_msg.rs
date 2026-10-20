@@ -3,14 +3,11 @@
 //! 对应原 Java `com.tigshop.adminapi.controller.msg.AdminMsgController`
 //! （`@RequestMapping("/adminapi/msg/adminMsg")`，7 个端点，全部需登录）。
 //!
-//! > **身份/可见范围**：Java 用请求头 `x-admin-type` + `x-shop-id`/`x-vendor-id`；
-//! > Rust JWT 只有 `admin_type`，`shopId`/`vendorId` 用查询参数兜底：
-//! > 说明：JWT 尚无 vendor 声明，vendor 账号只能依赖查询参数 `vendorId`
-//! > 兜底（无法做可信 vendor 归属校验）；已列为剩余点，待 JWT 增加 vendor_id 后再修。
-//! > `admin_type == "vendor"` → 供应商视角（`vendorId`），否则店铺/平台视角
-//! > （`shopId`，`admin`/缺失 → 平台视角，额外过滤 `is_broadcast = 1`）。
+//! **身份/可见范围**：使用认证中间件写入的 `TenantContext`（JWT 的
+//! `admin_type` / `shop_id` / `vendor_id`）：供应商取 vendor scope，店铺账号
+//! 强制本店，平台账号可显式 `shopId` 过滤、缺省只看广播。
 //!
-//! > **msgCount**：Java 为 SSE 长连接；Rust 未接入 SSE，返回明确 1001 业务错误。
+//! **msgCount**：已实现 SSE 长连接，周期性推送未读数与业务指标。
 
 use std::time::Duration;
 

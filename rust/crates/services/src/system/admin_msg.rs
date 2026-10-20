@@ -7,8 +7,9 @@
 //! `list`（身份可见性 + msgType + title LIKE + 排序）、`msgTypeArr`（分类树 + 未读累加）、
 //! `homeSummary`（未读总数 + 最新一条）、`setReaded`、`setAllReaded`。
 //!
-//! # 未迁移 / 简化
-//! - `msgCount`：Java 为 SSE 长连接实时推送角标；Rust 未接入 SSE → 明确 1001 业务错误。
+//! # 已实现 / 简化
+//! - `msgCount`：路由层已实现 SSE，周期性调用
+//!   [`AdminMsgService::get_msg_count`] 推送未读数与业务指标。
 //! - `broadcastList`：复用 `list` 的可见性与分页口径；订单/商品摘要聚合
 //!   （`BroadcastProductVO`/金额汇总）未迁移，返回基础字段 + 空 products / 0 金额。
 //! - `related_data` 的默认 route 补全（`applyDefaultRoute`）未迁移：仅透传已存在 route。
