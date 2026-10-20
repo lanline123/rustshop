@@ -37,8 +37,8 @@
 //!   （`wechatLiveOrderSyncService`）、**订单日志**（`orderLogService`）、
 //!   **后台操作日志**（`adminLogService`）、**自动同意退货/自动确认收货延时队列**、
 //!   **拼团团长退款解散整团**、**账期订单状态回滚**。
-//! - **退货地址自动回填**（`resolveReturnAddress`）：依赖 `vendor.receive_info` /
-//!   `shop.receive_info` / 平台发货设置（`ShippingSettingsVO`）三级兜底，配置项服务未迁移。
+//! - **退货地址自动回填**：已实现 `vendor.receive_info` → `shop.receive_info` →
+//!   平台 `receiveSender/receiveMobile/receive*` 三级兜底。
 //! - **多语言翻译**（`TranslatePackage` / `MessageHelper`）：文案按中文原文返回。
 
 use std::collections::{BTreeMap, HashMap, HashSet};
