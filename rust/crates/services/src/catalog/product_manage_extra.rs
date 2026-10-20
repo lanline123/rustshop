@@ -226,9 +226,28 @@ impl ProductManageExtraService {
         Ok(true)
     }
 
-    /// 关键词分词（Java `getParticiple`；ES 未迁移）。
-    pub async fn get_participle(&self) -> Result<String> {
-        Err(Error::biz(SERVICE_DATA_ERROR, MSG_PARTICIPLE_NOT_MIGRATED))
+    /// 关键词分词（对齐 Java `ProductServiceImpl#getParticiple`：
+    /// 去首尾空白 → 移除空格 → HTML 转义 → Jieba 分词 → 空格拼接）。
+    pub async fn get_participle(&self, product_name: Option<&str>) -> Result<String> {
+        let raw = product_name
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| Error::Validation("productName 不能为空".into()))?;
+        let without_spaces = raw.replace(' ', "");
+        let escaped = without_spaces
+            .replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;")
+            .replace('"', "&quot;")
+            .replace('\'', "&#39;");
+        let jieba = jieba_rs::Jieba::new();
+        let words = jieba.cut(&escaped, false);
+        Ok(words
+            .into_iter()
+            .map(str::trim)
+            .filter(|w| !w.is_empty())
+            .collect::<Vec<_>>()
+            .join(" "))
     }
 
     /// 全量同步 ES（Java `initAllToEs`；ES 未迁移）。

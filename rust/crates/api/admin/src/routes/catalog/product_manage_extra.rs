@@ -166,9 +166,22 @@ async fn audit_again(
     ok(state.catalog.product_manage_extra.audit_again(q.id).await?)
 }
 
-/// `POST /adminapi/product/product/getParticiple`（未迁移：ES 分词）
-async fn get_participle(State(state): State<AdminState>) -> ApiResult<String> {
-    ok(state.catalog.product_manage_extra.get_participle().await?)
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProductKeyDTO {
+    product_name: Option<String>,
+}
+
+/// `POST /adminapi/product/product/getParticiple`：关键词分词。
+async fn get_participle(
+    State(state): State<AdminState>,
+    Json(dto): Json<ProductKeyDTO>,
+) -> ApiResult<String> {
+    ok(state
+        .catalog
+        .product_manage_extra
+        .get_participle(dto.product_name.as_deref())
+        .await?)
 }
 
 /// `POST /adminapi/product/product/initAllToEs`（未迁移：ES 客户端）

@@ -36,6 +36,7 @@ aes-gcm.workspace = true
 rsa.workspace = true
 sha2.workspace = true
 reqwest.workspace = true
+jieba-rs.workspace = true
 lettre.workspace = true
 sha1.workspace = true
 hmac.workspace = true
