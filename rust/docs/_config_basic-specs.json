@@ -1,0 +1,1192 @@
+{
+ "ctx": "system",
+ "feature": "config_basic",
+ "endpoints": [
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/basicSettings",
+   "summary": "获取商城设置-基础信息",
+   "auth": "jwt+perm",
+   "permissions": [
+    "configManage",
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getBasicSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:62"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveBasic",
+   "summary": "保存商城设置-基础信息",
+   "auth": "jwt+perm",
+   "permissions": [
+    "saveBasicManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveBasic",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:69"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/productSettings",
+   "summary": "获取商城设置-商品设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "configManage",
+    "config",
+    "productManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "getProductSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:76"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveProduct",
+   "summary": "保存商城设置-商品设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "saveSettingProductManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveProduct",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:83"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/shoppingSettings",
+   "summary": "获取商城设置-交易设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "configManage",
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getShoppingSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:90"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveShopping",
+   "summary": "保存商城设置-交易设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "saveSettingShoppingManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveShoppingSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:97"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/orderSettings",
+   "summary": "获取商城设置-订单设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "configManage",
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getOrderSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:104"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveOrder",
+   "summary": "保存商城设置-订单设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "saveSettingsOrderManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveOrderSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:111"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/kefuSettings",
+   "summary": "获取商城设置-客服设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "configManage",
+    "config",
+    "kefuSetting"
+   ],
+   "controller": "ConfigController",
+   "handler": "getKefuSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:118"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveKefu",
+   "summary": "保存商城设置-客服设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "saveSettingKefuManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveKefuSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:129"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/shippingSettings",
+   "summary": "获取配送设置-配送设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getShippingSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:152"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveShipping",
+   "summary": "保存配送设置-配送设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "settingSaveShippingManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveShippingSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:159"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/globalSettings",
+   "summary": "获取系统设置-全局设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getGlobalSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:166"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveGlobal",
+   "summary": "保存系统设置-全局设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "saveSettingsGlobalManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveGlobalSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:173"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/workbuddySettings",
+   "summary": "获取 MCP 密钥设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getWorkBuddySettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:180"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/generateWorkbuddyKey",
+   "summary": "生成 MCP 密钥",
+   "auth": "jwt+perm",
+   "permissions": [
+    "saveSettingsGlobalManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "generateWorkbuddyKey",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:187"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/revealWorkbuddyKey",
+   "summary": "复制 MCP 密钥",
+   "auth": "jwt+perm",
+   "permissions": [
+    "isPlatformSuperAdmin"
+   ],
+   "controller": "ConfigController",
+   "handler": "revealWorkbuddyKey",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:196"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/loginSettings",
+   "summary": "获取系统设置-登录设置",
+   "auth": "anonymous",
+   "permissions": [
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getLoginSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:211"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveLogin",
+   "summary": "保存系统设置-登录设置",
+   "auth": "anonymous",
+   "permissions": [
+    "saveSettingsSaveLoginManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveLoginSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:218"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/basicPaySettings",
+   "summary": "获取系统设置-支付基础设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getBasicPaySettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:225"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveBasicPay",
+   "summary": "保存系统设置-支付基础设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "uploadFileModifyManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveBasicPaySettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:232"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/wechatPaySettings",
+   "summary": "获取系统设置-微信支付设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getWechatPaySettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:239"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveWechatPay",
+   "summary": "保存系统设置-微信支付设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "uploadFileModifyManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveWechatPaySettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:246"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/miniProgramRiskSettings",
+   "summary": "获取小程序风控配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getMiniProgramRiskSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:253"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveMiniProgramRisk",
+   "summary": "保存小程序风控配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "uploadFileModifyManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveMiniProgramRiskSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:260"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/wechatLiveSettings",
+   "summary": "获取小程序直播/视频号独立小程序配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getWechatLiveSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:267"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveWechatLive",
+   "summary": "保存小程序直播/视频号独立小程序配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "uploadFileModifyManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveWechatLiveSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:274"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/createPlatformCertificate",
+   "summary": "生成平台证书",
+   "auth": "jwt+perm",
+   "permissions": [
+    "uploadFileModifyManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "createPlatformCertificate",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:281"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/uploadFile",
+   "summary": "上传密钥文件",
+   "auth": "jwt+perm",
+   "permissions": [
+    "uploadFileModifyManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "uploadFile",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:288"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/aliPaySettings",
+   "summary": "获取系统设置-支付宝支付设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getAliPaySettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:295"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveAliPay",
+   "summary": "保存系统设置-支付宝支付设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "uploadFileModifyManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveAliPaySettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:302"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/yaBandPaySettings",
+   "summary": "获取系统设置-YaBandPay支付设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getYaBandPaySettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:309"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveYaBandPay",
+   "summary": "保存系统设置-YaBandPay支付设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "uploadFileModifyManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveYaBandPaySettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:316"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/offlinePaySettings",
+   "summary": "获取系统设置-线下支付设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getOfflinePaySettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:323"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveOfflinePay",
+   "summary": "保存系统设置-线下支付设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "uploadFileModifyManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveOfflinePaySettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:330"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/payPalSettings",
+   "summary": "获取系统设置-PayPal支付设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getPayPalSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:337"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/savePayPal",
+   "summary": "保存系统设置-PayPal支付设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "uploadFileModifyManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "savePayPalSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:344"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/yunPaySettings",
+   "summary": "获取系统设置-云支付设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getYunPaySettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:356"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveYunPay",
+   "summary": "保存系统设置-云支付设置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "uploadFileModifyManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveYunPaySettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:363"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/mailSettings",
+   "summary": "获取系统设置-邮箱配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getMailSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:372"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveMail",
+   "summary": "保存系统设置-邮箱配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "mailTemplatesUpdateManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveMail",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:379"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/sendTestEmail",
+   "summary": "发送测试邮件",
+   "auth": "jwt+perm",
+   "permissions": [
+    "sendTestEmailModifyManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "sendTestEmail",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:386"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/notifySettings",
+   "summary": "获取消息设置-通知配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getNotifySettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:393"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveNotify",
+   "summary": "保存消息设置-通知配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "saveSettingNotifyManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveNotify",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:400"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/authSettings",
+   "summary": "获取会员认证配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getAuthSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:407"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveAuth",
+   "summary": "保存会员认证配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "saveAuthSettingsManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveAuth",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:414"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/afterSalesSettings",
+   "summary": "获取售后配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getAfterSalesSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:421"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveAfterSales",
+   "summary": "保存售后配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "settingSaveAfterSalesManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveAfterSales",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:429"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/themeStyleSettings",
+   "summary": "获取主题风格配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config",
+    "decorate"
+   ],
+   "controller": "ConfigController",
+   "handler": "getThemeStyleSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:436"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveThemeStyle",
+   "summary": "保存主题风格配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "themeStyleUpdateManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveThemeStyle",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:443"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/categoryDecorateSettings",
+   "summary": "获取分类页装修配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config",
+    "decorate"
+   ],
+   "controller": "ConfigController",
+   "handler": "getCategoryDecorateSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:450"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveCategoryDecorate",
+   "summary": "保存分类页装修配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "themeCategoryDecorateManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveCategoryDecorate",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:457"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/productDetailStyleSettings",
+   "summary": "获取商品详情页风格配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config",
+    "decorate"
+   ],
+   "controller": "ConfigController",
+   "handler": "getProductDetailStyleSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:464"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveProductDetailStyle",
+   "summary": "保存商品详情页风格配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "pcProductStyleSaveManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveProductDetailStyle",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:471"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/searchStyleSettings",
+   "summary": "获取搜索页风格配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config",
+    "decorate"
+   ],
+   "controller": "ConfigController",
+   "handler": "getSearchStyleSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:478"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveSearchStyle",
+   "summary": "保存搜索页风格配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "pcSearchStyleSaveManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveSearchStyle",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:485"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/mobileSearchStyleSettings",
+   "summary": "获取移动端搜索风格配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config",
+    "decorate"
+   ],
+   "controller": "ConfigController",
+   "handler": "getMobileSearchStyleSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:492"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveMobileSearchStyle",
+   "summary": "保存移动端搜索风格配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "mobileSearchStyleSaveManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveMobileSearchStyle",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:499"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/memberCenterDecorateSettings",
+   "summary": "获取个人中心页装修配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "mobileUserManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "getMemberCenterDecorateSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:506"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveMemberCenterDecorate",
+   "summary": "保存个人中心页装修配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "mobileUserManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveMemberCenterDecorate",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:513"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/shopSettings",
+   "summary": "获取店铺配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getShopSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:520"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveShop",
+   "summary": "保存店铺配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "shopSettingsUpdateManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveShop",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:527"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/buyerShowSettings",
+   "summary": "获取买家秀配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "buyerShowManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "getBuyerShowSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:534"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveBuyerShow",
+   "summary": "保存买家秀配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "buyerShowSettingsUpdateManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveBuyerShow",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:541"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/merchantSettings",
+   "summary": "获取商户配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getMerchantSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:548"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveMerchant",
+   "summary": "保存商户配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "adminMerchantSettingsUpdateManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveMerchant",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:555"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/getAdmin",
+   "summary": "根据配置编码获取配置",
+   "auth": "jwt",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "getAdmin",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:562"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/getAdminBase",
+   "summary": "admin 初始化配置",
+   "auth": "jwt",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "getAdminBase",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:568"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/basicConfig",
+   "summary": "获取基础配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getBasicConfig",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:575"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/getIcon",
+   "summary": "获取图标icon",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getIcon",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:582"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/getBase",
+   "summary": "根据配置编码获取配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "config"
+   ],
+   "controller": "ConfigController",
+   "handler": "getBaseConfig",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:589"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/vendorSettings",
+   "summary": "获取供应商配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "vendorSettingManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "getVendorSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:596"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveVendor",
+   "summary": "保存供应商配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "vendorSettingUpdateManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveVendor",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:603"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/getLoginProtocol",
+   "summary": "获取登录协议",
+   "auth": "anonymous",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "getLoginProtocol",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:609"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/getLoginProtocolContent",
+   "summary": "获取登录协议内容  termsOfService:服务协议；privacyPolicy:隐私政策；afterSalesService:售后服务",
+   "auth": "anonymous",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "getLoginProtocolContentVO",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:615"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveLoginProtocol",
+   "summary": "保存登录协议",
+   "auth": "anonymous",
+   "permissions": [
+    "protocolUpdateManagement"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveLoginProtocol",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:622"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/profitSharingSettings",
+   "summary": "获取结算与分账配置",
+   "auth": "jwt",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "getProfitSharingSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:628"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveProfitSharing",
+   "summary": "保存结算与分账配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "profitsharingSettingUpdateManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveProfitSharing",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:635"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/withdrawalSettings",
+   "summary": "获取提现配置",
+   "auth": "jwt",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "getWithdrawalSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:641"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveWithdrawal",
+   "summary": "保存提现配置",
+   "auth": "jwt",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "saveWithdrawal",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:647"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/memberWithdrawalSettings",
+   "summary": "获取会员余额提现配置",
+   "auth": "jwt",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "getMemberWithdrawalSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:653"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveMemberWithdrawal",
+   "summary": "保存会员余额提现配置",
+   "auth": "jwt",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "saveMemberWithdrawal",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:659"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/commissionWithdrawalSettings",
+   "summary": "获取分销佣金提现配置",
+   "auth": "jwt",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "getCommissionWithdrawalSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:665"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveCommissionWithdrawal",
+   "summary": "保存分销佣金提现配置",
+   "auth": "jwt",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "saveCommissionWithdrawal",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:671"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/storeSettings",
+   "summary": "获取门店配置",
+   "auth": "jwt",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "getStoreSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:677"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveStore",
+   "summary": "保存门店配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "storeSettingsUpdateManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveStore",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:684"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/amapAllSettings",
+   "summary": "获取web Amap 配置",
+   "auth": "jwt",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "amapAllSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:703"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveAllAmapSettings",
+   "summary": "保存web Amap 配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "storeSettingsUpdateManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveAllAmapSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:710"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/mapSettings",
+   "summary": "获取地图服务商配置",
+   "auth": "jwt",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "mapSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:716"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveMapSettings",
+   "summary": "保存地图服务商配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "storeSettingsUpdateManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveMapSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:723"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/savePersonalizedSetting",
+   "summary": "保存个性化设置",
+   "auth": "jwt",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "savePersonalizedSetting",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:729"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/getPersonalizedSetting",
+   "summary": "获取个性化设置",
+   "auth": "jwt",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "getPersonalizedSetting",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:735"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/searchSettings",
+   "summary": "商品搜索配置",
+   "auth": "jwt",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "getSearchSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:742"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveSearch",
+   "summary": "保存商品搜索配置",
+   "auth": "jwt",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "saveSearch",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:748"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/storeSelfOperatedSettings",
+   "summary": "获取平台门店配置",
+   "auth": "jwt",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "getStoreSelfOperatedSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:754"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveStoreSelfOperated",
+   "summary": "保存平台门店配置",
+   "auth": "jwt+perm",
+   "permissions": [
+    "storeSettingsUpdateManage"
+   ],
+   "controller": "ConfigController",
+   "handler": "saveStore",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:761"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveDingConfig",
+   "summary": "保存钉钉配置",
+   "auth": "jwt",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "saveDingConfig",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:768"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveWXWorkConfig",
+   "summary": "保存企业微信配置",
+   "auth": "jwt",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "saveWXWorkConfig",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:774"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/getDingConfig",
+   "summary": "获取钉钉配置",
+   "auth": "jwt",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "getDingConfig",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:780"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/getWXWorkConfig",
+   "summary": "获取企业微信配置",
+   "auth": "jwt",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "getWXWorkConfig",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:786"
+  },
+  {
+   "method": "GET",
+   "path": "/adminapi/setting/config/getCashierOrderSettings",
+   "summary": "获取收银台订单设置",
+   "auth": "jwt",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "getCashierOrderSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:792"
+  },
+  {
+   "method": "POST",
+   "path": "/adminapi/setting/config/saveCashierOrderSettings",
+   "summary": "保存收银台订单设置",
+   "auth": "jwt",
+   "permissions": [],
+   "controller": "ConfigController",
+   "handler": "saveCashierOrderSettings",
+   "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\setting\\ConfigController.java:798"
+  }
+ ]
+}

@@ -1,0 +1,28 @@
+[package]
+name = "tigshop-server"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "tigshop"
+path = "src/main.rs"
+
+[dependencies]
+tigshop-core = { path = "../core" }
+tigshop-common = { path = "../common" }
+tigshop-infrastructure = { path = "../infrastructure" }
+tigshop-security = { path = "../security" }
+tigshop-services = { path = "../services" }
+tigshop-admin-api = { path = "../api/admin" }
+tigshop-api = { path = "../api/public" }
+tokio.workspace = true
+axum.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+anyhow.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

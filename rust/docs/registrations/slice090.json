@@ -1,0 +1,7 @@
+{
+  "slice_id": "slice090",
+  "tag": "商米云打印回调",
+  "has_admin": false,
+  "has_public": true,
+  "core_models_mod": "pub mod slice090;"
+}

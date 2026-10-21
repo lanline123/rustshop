@@ -1,0 +1,7 @@
+{
+  "slice_id": "slice188",
+  "tag": "系统设置（装修/样式类配置读写）",
+  "has_admin": true,
+  "has_public": false,
+  "core_models_mod": "pub mod slice188;"
+}

@@ -1,0 +1,7 @@
+{
+  "slice_id": "slice135",
+  "tag": "文章",
+  "has_admin": true,
+  "has_public": true,
+  "core_models_mod": "pub mod slice135;"
+}

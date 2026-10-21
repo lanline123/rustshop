@@ -1,0 +1,7 @@
+{
+  "slice_id": "slice100",
+  "tag": "库存日志",
+  "has_admin": true,
+  "has_public": false,
+  "core_models_mod": "pub mod slice100;"
+}

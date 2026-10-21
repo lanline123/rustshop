@@ -1,0 +1,28 @@
+[package]
+name = "tigshop-api"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+tigshop-core = { path = "../../core" }
+tigshop-common = { path = "../../common" }
+tigshop-infrastructure = { path = "../../infrastructure" }
+tigshop-security = { path = "../../security" }
+tigshop-services = { path = "../../services" }
+tigshop-openapi = { path = "../openapi" }
+axum.workspace = true
+axum-extra.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_urlencoded.workspace = true
+tracing.workspace = true
+anyhow.workspace = true
+rust_decimal.workspace = true
+
+[lints]
+workspace = true
