@@ -3701,6 +3701,17 @@ fn expand_export_columns(selected: &[String]) -> Result<Vec<OrderExportItemVO>> 
     }
     let mut columns = Vec::new();
     for key in keys {
+        // 原版前端未选择列时回传导出列的数组下标（如 `0,1`），
+        // 兼容“键名”和“下标”两种提交形式。
+        if let Some(col) = key
+            .parse::<usize>()
+            .ok()
+            .and_then(|idx| all.get(idx))
+            .cloned()
+        {
+            columns.push(col);
+            continue;
+        }
         if let Some(col) = all.iter().find(|c| c.key == key) {
             columns.push(col.clone());
             continue;
