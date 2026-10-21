@@ -17,7 +17,7 @@ use tower_http::services::ServeDir;
 
 use axum::{
     extract::{Query, State},
-    http::StatusCode,
+    http::{header, HeaderMap, HeaderValue, StatusCode},
     middleware,
     routing::{get, post},
     Extension, Json, Router,
@@ -246,7 +246,7 @@ async fn user_register(
 async fn user_login(
     State(state): State<PublicState>,
     Json(dto): Json<LoginDTO>,
-) -> Result<Json<ApiResponse<LoginVO>>, AppError> {
+) -> Result<(HeaderMap, Json<ApiResponse<LoginVO>>), AppError> {
     // C 端登录与 Java `ClientLoginFilter` 一致：失败次数达到阈值后要求滑块验证码。
     tigshop_services::system::captcha::validate_login_captcha(
         &dto.username,
@@ -268,16 +268,28 @@ async fn user_login(
         state
             .jwt
             .issue_pair(user_id.to_string(), username.clone(), None, Some("member".into()))?;
-    Ok(Json(ApiResponse::success(LoginVO {
-        token: access.clone(),
-        admin_type: None,
-        access_token: access,
-        refresh_token: refresh,
-        token_type: "Bearer".into(),
-        expires_in,
-        admin_id: user_id,
-        username,
-    })))
+    // 原版 PC/H5 部分页面只依赖登录 cookie；登录成功时同步下发 accessToken，
+    // 配合 require_auth 的 cookie 回退，避免直达页 Authorization: Bearer null 时 401。
+    let cookie = format!(
+        "accessToken={access}; Path=/; Max-Age={expires_in}; HttpOnly; Secure; SameSite=Lax"
+    );
+    let mut headers = HeaderMap::new();
+    if let Ok(value) = HeaderValue::from_str(&cookie) {
+        headers.insert(header::SET_COOKIE, value);
+    }
+    Ok((
+        headers,
+        Json(ApiResponse::success(LoginVO {
+            token: access.clone(),
+            admin_type: None,
+            access_token: access,
+            refresh_token: refresh,
+            token_type: "Bearer".into(),
+            expires_in,
+            admin_id: user_id,
+            username,
+        })),
+    ))
 }
 
 /// `GET /api/user/profile`：个人资料。
