@@ -544,6 +544,8 @@ pub fn assemble_init_config_settings(configs: &ConfigIndex) -> InitConfigSetting
     vo.kefu_type = get_int(configs, "kefuType");
     vo.dollar_sign = get_str(configs, "dollarSign");
     vo.dollar_sign_cn = get_str(configs, "dollarSignCn");
+    // 个人中心“资产中心”用 integralName 拼“积分明细”；缺失时会显示成“null明细”。
+    vo.integral_name = get_str(configs, "integralName");
     // 结算页开关：数据库里是 1，但之前没有装配到 VO，前端拿到 null 后
     // 会隐藏余额抵扣、发票信息，或把“已售”显示为 0。
     vo.can_invoice = get_int(configs, BIZ_CAN_INVOICE);
