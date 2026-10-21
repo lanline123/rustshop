@@ -1187,6 +1187,7 @@ fn to_vo(o: &Order, item_count: i32) -> OrderVO {
     OrderVO {
         order_id: o.order_id,
         order_sn: o.order_sn.clone(),
+        shop_id: o.shop_id,
         order_status: o.order_status,
         status_label: o.status_label().to_string(),
         pay_status: o.pay_status,

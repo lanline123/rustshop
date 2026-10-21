@@ -19,6 +19,12 @@ LOGISTICS_PATHS = {
 }
 API_PATHS = {
     "/api/common/recommend/guessLike",
+    "/api/user/order/list",
+    "/api/user/order/detail",
+}
+ORDER_PATHS = {
+    "/api/user/order/list",
+    "/api/user/order/detail",
 }
 
 
@@ -65,9 +71,26 @@ class Handler(BaseHTTPRequestHandler):
         try:
             obj = json.loads(body)
             data = obj.get("data") if isinstance(obj, dict) else None
-            if path in API_PATHS and isinstance(data, dict) and isinstance(data.get("records"), list):
+            if path == "/api/common/recommend/guessLike" and isinstance(data, dict) and isinstance(data.get("records"), list):
                 # 原版前端对 guessLike 直接执行 (result || []).filter(...)
                 obj["data"] = data["records"]
+                body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+            elif path in ORDER_PATHS and isinstance(data, dict):
+                # 旧二进制 OrderVO 缺 shopId，且 detail 返回 {order,items}；
+                # 原版订单详情按「订单字段平铺 + items」读取。
+                order = data.get("order")
+                if isinstance(order, dict):
+                    merged = dict(order)
+                    merged["items"] = data.get("items", [])
+                    merged.setdefault("shopId", 0)
+                    obj["data"] = merged
+                else:
+                    records = data.get("records")
+                    if isinstance(records, list):
+                        for row in records:
+                            if isinstance(row, dict):
+                                row.setdefault("shopId", 0)
+                    obj["data"] = data
                 body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
             elif path in LOGISTICS_PATHS and isinstance(data, list):
                 records = []
