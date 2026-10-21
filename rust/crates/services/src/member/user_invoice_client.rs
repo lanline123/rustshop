@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use tigshop_common::utils::now_seconds;
 use tigshop_core::models::member::user_invoice_client::{
-    status_text, validate, UserInvoiceDTO, UserInvoiceVO, INVOICE_ID_REQUIRED, INVOICE_NOT_EXIST,
+    status_text, validate, UserInvoiceDTO, UserInvoiceVO, INVOICE_NOT_EXIST,
     SERVICE_DATA_ERROR,
 };
 use tigshop_core::{Error, Result};
@@ -61,10 +61,14 @@ impl UserInvoiceClientService {
     }
 
     /// `POST /api/user/invoice/update`：仅本人资质，重置待审核。
+    ///
+    /// PC 首次进入“增票资质”页时前端可能提交 `update` 但没有 `invoiceId`；
+    /// 这种情况下按新增处理，避免用户第一次填写就被“资质ID不能为空”拦截。
     pub async fn update(&self, user_id: i32, dto: &UserInvoiceDTO) -> Result<()> {
-        let invoice_id = dto
-            .invoice_id
-            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, INVOICE_ID_REQUIRED))?;
+        let Some(invoice_id) = dto.invoice_id else {
+            self.create(user_id, dto).await?;
+            return Ok(());
+        };
         validate(dto)?;
         if self.repo().find_own(invoice_id, user_id).await?.is_none() {
             return Err(Error::biz(SERVICE_DATA_ERROR, INVOICE_NOT_EXIST));
