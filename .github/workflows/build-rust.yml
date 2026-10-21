@@ -34,12 +34,19 @@ jobs:
           rustc --version
           cargo --version
 
-      # 缓存 ~/.cargo 与 target/：依赖不重复编译，改动后只重编工作区 crate
-      - name: Cargo build cache
-        uses: Swatinem/rust-cache@v2
+      # 缓存 cargo registry 与 target。
+      # 注意：容器里 HOME=/github/home 但以 root 运行，rust-cache 会因 HOME 校验失败跳过缓存，
+      # 因此这里用 actions/cache + 绝对路径。
+      - name: Cache cargo registry & target
+        uses: actions/cache@v4
         with:
-          workspaces: rust/crates -> target
-          cache-on-failure: true
+          path: |
+            /github/home/.cargo/registry
+            /github/home/.cargo/git
+            ${{ github.workspace }}/rust/crates/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('rust/crates/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
 
       - name: Build release binary
         working-directory: rust/crates
