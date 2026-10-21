@@ -71,8 +71,9 @@ jobs:
             /github/home/.cargo/git
             /tmp/cargo-target
             /tmp/sccache
-          key: cargo-v3-${{ runner.os }}-${{ hashFiles('rust/crates/Cargo.lock') }}
+          key: cargo-v3-${{ runner.os }}-${{ hashFiles('rust/crates/Cargo.lock') }}-${{ github.run_id }}
           restore-keys: |
+            cargo-v3-${{ runner.os }}-${{ hashFiles('rust/crates/Cargo.lock') }}-
             cargo-v3-${{ runner.os }}-
 
       - name: Build release binary
