@@ -312,8 +312,13 @@ async fn shop_create(
     Query(q): Query<ShopIdQuery>,
     Json(p): Json<ShopWritePayload>,
 ) -> ApiResult<serde_json::Value> {
-    // 店铺账号只能在自身店铺下新建（越权 shopId → 403）；平台必须显式指定。
-    let scope = target_shop(&tenant, q.shop_id)?;
+    // 平台端“新增店铺”不传 shopId，表示从平台直接创建，不能按 403 拒绝；
+    // 店铺账号仍强制自身店铺，传其它店铺继续拒绝。
+    let scope = if tenant.shop_scope().is_some() {
+        target_shop(&tenant, q.shop_id)?
+    } else {
+        q.shop_id.filter(|v| *v > 0).unwrap_or(0)
+    };
     let shop_id = state
         .merchant
         .shop_manage
