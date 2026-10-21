@@ -74,11 +74,8 @@ async fn optional_auth(
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok());
     if token.is_some() {
-        let claims = jwt.from_authorization(token)?;
-        let id = claims
-            .sub
-            .parse::<i32>()
-            .map_err(|_| AppError(Error::Unauthorized("令牌主体无效".into())))?;
+        let Ok(claims) = jwt.from_authorization(token) else { return Ok(next.run(req).await); };
+        let Ok(id) = claims.sub.parse::<i32>() else { return Ok(next.run(req).await); };
         req.extensions_mut().insert(AuthUser {
             id,
             username: claims.usr,

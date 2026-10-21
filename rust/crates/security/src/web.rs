@@ -51,10 +51,6 @@ impl IntoResponse for AppError {
         let body: ApiResponse<()> = self.0.into();
         // 业务错误保持 HTTP 200（兼容原 Java ResultWrapper 风格）；
         // 认证/权限/参数错误使用真实 HTTP 状态码。
-        let status = match status {
-            StatusCode::OK => StatusCode::BAD_REQUEST,
-            s => s,
-        };
         (status, Json(body)).into_response()
     }
 }

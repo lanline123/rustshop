@@ -24,6 +24,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase", default)]
 pub struct ProductSearchClientQuery {
     /// 分类 ID
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub cat: Option<i32>,
     /// 品牌，可多个，逗号分隔
     pub brand: Option<String>,
@@ -46,12 +47,16 @@ pub struct ProductSearchClientQuery {
     /// 活动类型：`new` / `hot` / `best`
     pub intro: Option<String>,
     /// 优惠券 ID（ES 分支不支持，MySQL 支持）
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub coupon_id: Option<i32>,
     /// 店铺分类 ID
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub shop_category_id: Option<i32>,
     /// 店铺 ID
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub shop_id: Option<i32>,
     /// 商品状态（缺省 1 上架）
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub product_status: Option<i32>,
     /// 属性查询
     pub attrs: Option<Vec<SearchAttrObj>>,
@@ -64,6 +69,7 @@ pub struct ProductSearchClientQuery {
     /// 是否排除礼品卡商品
     pub exclude_gift_card_product: Option<bool>,
     /// 是否过滤预售商品
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub is_filter_presale_product: Option<i32>,
 }
 
@@ -206,6 +212,19 @@ pub fn parse_id_csv(raw: Option<&str>) -> Vec<i32> {
         .unwrap_or_default()
 }
 
+/// 兼容原版前端把数字 ID 放在 URL query 后按字符串提交（`"17"`）。
+fn de_opt_i32_lenient<'de, D>(de: D) -> Result<Option<i32>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(de)?;
+    Ok(match value {
+        Some(serde_json::Value::Number(n)) => n.as_i64().and_then(|v| i32::try_from(v).ok()),
+        Some(serde_json::Value::String(s)) => s.trim().parse::<i32>().ok(),
+        _ => None,
+    })
+}
+
 /// 兼容前端把 `attrValue` 传成字符串数组 / 单字符串。
 fn de_opt_i32_or_str_list<'de, D>(de: D) -> Result<Option<Vec<String>>, D::Error>
 where
@@ -232,6 +251,15 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn category_search_accepts_original_string_id() {
+        let q: ProductSearchClientQuery =
+            serde_json::from_str(r#"{"cat":"17","size":30,"page":1,"attrs":[]}"#)
+                .expect("原版分类页把 cat 作为字符串提交");
+        assert_eq!(q.cat, Some(17));
+        assert_eq!(q.page_query().page_size, 30);
+    }
 
     #[test]
     fn sort_mapping_matches_java_build_product_list_dto() {
