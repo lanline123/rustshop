@@ -270,8 +270,9 @@ async fn user_login(
             .issue_pair(user_id.to_string(), username.clone(), None, Some("member".into()))?;
     // 原版 PC/H5 部分页面只依赖登录 cookie；登录成功时同步下发 accessToken，
     // 配合 require_auth 的 cookie 回退，避免直达页 Authorization: Bearer null 时 401。
+    // 注意：原版前端路由守卫和 useCookie 需要 JS 能读取该 cookie，因此不能加 HttpOnly。
     let cookie = format!(
-        "accessToken={access}; Path=/; Max-Age={expires_in}; HttpOnly; Secure; SameSite=Lax"
+        "accessToken={access}; Path=/; Max-Age={expires_in}; Secure; SameSite=Lax"
     );
     let mut headers = HeaderMap::new();
     if let Ok(value) = HeaderValue::from_str(&cookie) {
