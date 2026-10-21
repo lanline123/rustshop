@@ -411,7 +411,7 @@ fn to_item_vo(it: &OrderItem) -> OrderItemVO {
         product_sn: it.product_sn.clone(),
         pic_thumb: it.pic_thumb.clone(),
         sku_id: it.sku_id,
-        sku_data: it.sku_data.clone(),
+        sku_data: parse_sku_data_array(&it.sku_data),
         price: it.price,
         origin_price: it.origin_price,
         quantity: it.quantity,
@@ -3903,6 +3903,18 @@ fn to_product_add_info(p: &Product) -> ProductAddInfoVO {
         suppliers_id: p.suppliers_id,
         product_brief: p.product_brief.clone(),
         is_delete: Some(p.is_delete),
+    }
+}
+
+/// 订单明细规格数组：把下单快照 `order_item.sku_data` 的 JSON 字符串还原成数组。
+fn parse_sku_data_array(raw: &str) -> Vec<serde_json::Value> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Vec::new();
+    }
+    match serde_json::from_str::<serde_json::Value>(raw) {
+        Ok(serde_json::Value::Array(items)) => items,
+        _ => Vec::new(),
     }
 }
 

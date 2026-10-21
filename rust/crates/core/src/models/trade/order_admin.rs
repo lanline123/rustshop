@@ -947,7 +947,8 @@ pub struct OrderItemVO {
     pub product_sn: String,
     pub pic_thumb: String,
     pub sku_id: i32,
-    pub sku_data: String,
+    /// 规格明细数组（原版前端按数组渲染 `名称：值 | ...`）
+    pub sku_data: Vec<serde_json::Value>,
     pub price: Decimal,
     pub origin_price: Option<Decimal>,
     pub quantity: i32,
