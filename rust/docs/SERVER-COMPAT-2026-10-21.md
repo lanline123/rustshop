@@ -29,6 +29,7 @@
 | `GET /adminapi/panel/panel/index` | `realTimeData` 缺 `today*`/`yesterday*`/growth 字段，首页 `toString()` 崩溃 | `services/src/analytics/panel.rs` 补齐 `ConsoleData`/`RealTimeData` |
 | `GET /adminapi/setting/logisticsCompany/list` | 返回裸数组、字段 `companyId/companyName`；前端按 `records` + `logisticsId/logisticsName` 读，订单页 `length` 崩溃 | `api/admin/src/routes/logistics/shipping_list.rs` 改为 `PageResult` + 原字段 |
 | `GET /api/common/recommend/guessLike` | 返回 `PageResult`，前端直接 `(res || []).filter` | `services/src/system/recommend.rs` 改为 `Vec` |
+| `GET /api/user/order/detail` | 返回 `{order,items}` 且 `OrderVO` 缺 `shopId`，原版详情读取平铺字段并请求 `shop/detail` | `api/public/src/lib.rs` 改为平铺 + items；`OrderVO` 增加 `shopId`；状态文案按 Java 0–5 映射 |
 | `GET /adminapi/msg/adminMsg/msgCount?startTime=` | 空字符串不能解析为 `Option<i64>`，SSE 400 | `api/admin/src/routes/system/admin_msg.rs` 空串按 `None` |
 
 ## 3. 临时兼容层（服务器 OOM 无法编译时）
