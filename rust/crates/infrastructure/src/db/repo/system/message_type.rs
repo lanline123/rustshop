@@ -363,6 +363,33 @@ impl MessageTypeRepository {
         .map_err(map_err)
     }
 
+    /// 按消息类型名称取短信模板 ID（`message_template.type = 3`）。
+    ///
+    /// 原版后台「消息类型」页面把短信模板 ID 存在
+    /// `message_template.template_id`，而不是 `config.smsVerificationTemplate`。
+    /// 这里按名称前缀匹配，例如「获取验证码」。
+    pub async fn find_sms_template_id_by_message_name(
+        &self,
+        message_name: &str,
+    ) -> Result<Option<String>> {
+        let row: Option<(Option<String>,)> = sqlx::query_as(
+            "SELECT t.template_id
+               FROM message_template t
+               JOIN message_type mt ON mt.message_id = t.message_id
+              WHERE t.type = 3
+                AND mt.name LIKE CONCAT(?, '%')
+                AND t.template_id IS NOT NULL
+                AND t.template_id <> ''
+              ORDER BY t.id ASC
+              LIMIT 1",
+        )
+        .bind(message_name)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.and_then(|(v,)| v))
+    }
+
     /// 按主键更新单个模板（**只更新非 `None` 的列**），对应 Java
     /// `MessageTemplateService#updateBatchById` 的单条语义
     /// （MyBatis-Plus `updateById` 为 `NOT_NULL` 策略）。
