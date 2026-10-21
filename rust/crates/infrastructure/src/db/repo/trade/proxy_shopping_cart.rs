@@ -193,7 +193,7 @@ impl ProxyShoppingCartRepository {
         cart_type: i32,
     ) -> Result<Option<ExistingCart>> {
         let row = sqlx::query_as::<_, (i32, i32, i32, i32, i32)>(
-            "SELECT cart_id, quantity, product_id, sku_id, product_type FROM cart
+            "SELECT cart_id, quantity, product_id, COALESCE(sku_id, 0) AS sku_id, product_type FROM cart
              WHERE user_id = ? AND product_id = ? AND type = ? AND (sku_id <=> ?) LIMIT 1",
         )
         .bind(user_id)
@@ -220,7 +220,7 @@ impl ProxyShoppingCartRepository {
     ) -> Result<Vec<ExistingCart>> {
         // 多租户：店铺账号强制 shop_scope；平台账号 None 时不过滤。
         let rows = sqlx::query_as::<_, (i32, i32, i32, i32, i32)>(
-            "SELECT cart_id, quantity, product_id, sku_id, product_type FROM cart
+            "SELECT cart_id, quantity, product_id, COALESCE(sku_id, 0) AS sku_id, product_type FROM cart
              WHERE user_id = ? AND type = ? AND (? IS NULL OR shop_id = ?)",
         )
         .bind(user_id)
