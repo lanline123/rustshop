@@ -104,9 +104,9 @@ impl PromotionRepository {
     pub async fn count_buckets(&self, now: i64) -> Result<PromotionCountRow> {
         let sql = format!(
             "SELECT \
-             SUM(CASE WHEN (start_time <= ? AND end_time >= ?) OR (start_time = 0 AND end_time = 0) THEN 1 ELSE 0 END) AS time_type1_count, \
-             SUM(CASE WHEN start_time <= ? AND end_time >= ? AND end_time <= ? THEN 1 ELSE 0 END) AS time_type2_count, \
-             SUM(CASE WHEN end_time > 0 AND end_time < ? THEN 1 ELSE 0 END) AS time_type3_count \
+             CAST(SUM(CASE WHEN (start_time <= ? AND end_time >= ?) OR (start_time = 0 AND end_time = 0) THEN 1 ELSE 0 END) AS SIGNED) AS time_type1_count, \
+             CAST(SUM(CASE WHEN start_time <= ? AND end_time >= ? AND end_time <= ? THEN 1 ELSE 0 END) AS SIGNED) AS time_type2_count, \
+             CAST(SUM(CASE WHEN end_time > 0 AND end_time < ? THEN 1 ELSE 0 END) AS SIGNED) AS time_type3_count \
              FROM promotion"
         );
         let row: (Option<i64>, Option<i64>, Option<i64>) = sqlx::query_as(&sql)

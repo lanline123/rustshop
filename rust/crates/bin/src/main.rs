@@ -849,6 +849,7 @@ async fn main() -> anyhow::Result<()> {
         im: im.clone(),
         wholesale: wholesale.clone(),
         jwt: (*jwt).clone(),
+        upload_dir: cfg.file.upload_dir.clone(),
     };
 
     // 6. CORS（开发期允许全部来源，生产按域名收紧）
