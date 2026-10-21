@@ -854,7 +854,14 @@ impl UserCenterService {
             dim_username: dim_username(&user.username),
             user_id: user.user_id,
             username: user.username.clone(),
-            nickname: user.nickname.clone(),
+            // 原版前端优先展示 nickname；昵称为空时回退用户名，避免会员中心姓名空白。
+            nickname: user
+                .nickname
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .or_else(|| Some(user.username.clone())),
             avatar: avatar_raw,
             rank_id: user.rank_id,
             balance: user.balance,
