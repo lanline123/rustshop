@@ -1,4 +1,4 @@
-﻿//! 前台购物车数量/优惠券试算路由（trade::cart_summary）。
+//! 前台购物车数量/优惠券试算路由（trade::cart_summary）。
 //!
 //! 对应 Java `CartController` 的 2 个端点：
 //! `GET /api/cart/cart/getCount`、`GET /api/cart/cart/getCouponDiscount`。
@@ -63,9 +63,25 @@ async fn optional_auth(
     let token = req
         .headers()
         .get(header::AUTHORIZATION)
-        .and_then(|v| v.to_str().ok());
-    if token.is_some() {
-        let Ok(claims) = jwt.from_authorization(token) else { return Ok(next.run(req).await); };
+        .and_then(|v| v.to_str().ok())
+        .filter(|t| !t.trim().eq_ignore_ascii_case("bearer null") && !t.trim().is_empty())
+        .map(str::to_string)
+        .or_else(|| {
+            req.headers()
+                .get(header::COOKIE)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|raw| {
+                    raw.split(';').find_map(|pair| {
+                        let (name, value) = pair.split_once('=')?;
+                        matches!(name.trim(), "accessToken" | "token")
+                            .then(|| value.trim().trim_matches('"').to_string())
+                            .filter(|v| !v.is_empty() && v != "null")
+                            .map(|v| format!("Bearer {v}"))
+                    })
+                })
+        });
+    if let Some(token) = token.as_deref() {
+        let Ok(claims) = jwt.from_authorization(Some(token)) else { return Ok(next.run(req).await); };
         let Ok(id) = claims.sub.parse::<i32>() else { return Ok(next.run(req).await); };
         req.extensions_mut().insert(AuthUser {
             id,
