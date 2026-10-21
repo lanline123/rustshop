@@ -482,8 +482,10 @@ async fn order_create(
 #[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]
 struct MyOrderQuery {
+    /// 前端“全部”标签传 `orderStatus=-1`，应视为不过滤。
     order_status: Option<i32>,
     page: Option<u64>,
+    #[serde(alias = "size")]
     page_size: Option<u64>,
 }
 
@@ -496,8 +498,9 @@ async fn order_list(
         page: q.page.unwrap_or(1),
         page_size: q.page_size.unwrap_or(20),
     };
+    let order_status = q.order_status.filter(|status| *status >= 0);
     let vo = state.trade.order
-        .list(Some(auth.id), q.order_status, None, &page)
+        .list(Some(auth.id), order_status, None, &page)
         .await?;
     ok(vo)
 }
