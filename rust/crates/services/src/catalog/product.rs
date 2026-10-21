@@ -29,7 +29,21 @@ impl ProductService {
             page: query.page.unwrap_or(1),
             page_size: query.page_size.unwrap_or(20),
         };
-        let (total, products) = self.repos.catalog.product.paginate(query).await?;
+        let mut expanded = query.clone();
+        // 原版首页/分类页的分类筛选包含子分类；公开列表此前只做精确
+        // `category_id = ?`，导致父分类下的商品在首页为空。
+        if expanded.category_ids.is_empty() {
+            if let Some(root) = expanded.category_id.filter(|v| *v > 0) {
+                let cats = self.repos.catalog.category.find_categories(false).await?;
+                let pairs: Vec<(i32, i32)> = cats
+                    .iter()
+                    .map(|c| (c.category_id, c.parent_id))
+                    .collect();
+                expanded.category_ids =
+                    crate::catalog::product_manage::descendant_category_ids(&pairs, root);
+            }
+        }
+        let (total, products) = self.repos.catalog.product.paginate(&expanded).await?;
         let list = products.into_iter().map(to_vo).collect();
         Ok(PageResult::new(total, list, &page))
     }
