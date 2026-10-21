@@ -2305,13 +2305,19 @@ fn to_brand_option(b: &Brand) -> BrandOptionVO {
 
 /// 商品实体 → 前台详情主体（对应 Java `ProductInfoDTO` 的可迁移部分）。
 fn to_client_info(p: &Product) -> ClientProductInfoVO {
+    // 虚拟类商品不管理库存，库里常为 0；原版前端用 productStock > 0 判断售罄。
+    let product_stock = if p.is_virtual_product() {
+        999_999
+    } else {
+        p.product_stock
+    };
     ClientProductInfoVO {
         product_id: p.product_id,
         product_name: p.product_name.clone(),
         product_sn: p.product_sn.clone(),
         product_tsn: p.product_tsn.clone(),
         seo_identification: p.seo_identification.clone(),
-        product_stock: p.product_stock,
+        product_stock,
         product_price: p.product_price,
         market_price: p.market_price,
         cost_price: p.cost_price,
