@@ -1,0 +1,7 @@
+{
+  "slice_id": "slice098",
+  "tag": "客服接入规则",
+  "has_admin": true,
+  "has_public": false,
+  "core_models_mod": "pub mod slice098;"
+}

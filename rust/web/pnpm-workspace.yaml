@@ -1,0 +1,16 @@
+packages:
+  - "admin"
+  - "pc"
+  - "shared"
+
+# 说明：本文件是 rust/web 的前端 pnpm workspace 根。
+# - 与 rust/crates（Rust cargo workspace）完全独立，互不影响。
+# - 历史：仓库根曾有 admin-web/ 与 pc-web/ 两个独立前端（各自 node_modules + lock），
+#   2026-10-20 起统一迁移到 rust/web/{admin,pc} 并共享 shared 包。
+
+# 允许执行构建脚本的依赖：
+# - esbuild：Vite 的底层打包器，必须编译原生二进制
+# - vue-demi：Vue 2/3 兼容层，postinstall 生成适配文件
+allowBuilds:
+  esbuild: true
+  vue-demi: true

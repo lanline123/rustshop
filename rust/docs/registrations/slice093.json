@@ -1,0 +1,7 @@
+{
+  "slice_id": "slice093",
+  "tag": "子商户管理",
+  "has_admin": true,
+  "has_public": false,
+  "core_models_mod": "pub mod slice093;"
+}

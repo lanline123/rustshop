@@ -1,0 +1,7 @@
+{
+  "slice_id": "slice064",
+  "tag": "分销模式设置",
+  "has_admin": true,
+  "has_public": false,
+  "core_models_mod": "pub mod slice064;"
+}

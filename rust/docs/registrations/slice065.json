@@ -1,0 +1,7 @@
+{
+  "slice_id": "slice065",
+  "tag": "前台用户反馈留言",
+  "has_admin": false,
+  "has_public": true,
+  "core_models_mod": "pub mod slice065;"
+}

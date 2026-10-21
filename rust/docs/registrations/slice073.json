@@ -1,0 +1,7 @@
+{
+  "slice_id": "slice073",
+  "tag": "前台用户账户信息",
+  "has_admin": false,
+  "has_public": true,
+  "core_models_mod": "pub mod slice073;"
+}

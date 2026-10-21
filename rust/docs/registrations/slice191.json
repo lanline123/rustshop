@@ -1,0 +1,7 @@
+{
+  "slice_id": "slice191",
+  "tag": "设置-拉卡拉支付",
+  "has_admin": true,
+  "has_public": false,
+  "core_models_mod": "pub mod slice191;"
+}
