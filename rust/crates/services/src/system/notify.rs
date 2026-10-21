@@ -158,6 +158,16 @@ pub async fn send_sms_code(repos: &Repositories, mobile: &str, code: &str) -> Re
     env_override(&mut cfg, CFG_SMS_SIGN_NAME, "TIG_SMS__SIGN_NAME");
     env_override(&mut cfg, CFG_SMS_TEMPLATE, "TIG_SMS__TEMPLATE_CODE");
 
+    // 原版后台「消息类型 → 获取验证码」把模板 ID 写在
+    // `message_template.template_id`；优先读这里，兼容旧的 config 兜底。
+    let template = repos
+        .system
+        .message_type
+        .find_sms_template_id_by_message_name("获取验证码")
+        .await?
+        .or_else(|| cfg.get(CFG_SMS_TEMPLATE).cloned())
+        .unwrap_or_default();
+
     let provider = cfg.get(CFG_SMS_PROVIDER).map(String::as_str).unwrap_or("1");
     match provider {
         "1" | "aliyun" => {
@@ -170,7 +180,7 @@ pub async fn send_sms_code(repos: &Repositories, mobile: &str, code: &str) -> Re
                 .get(CFG_SMS_SIGN_NAME)
                 .map(String::as_str)
                 .unwrap_or_default();
-            let template = cfg.get(CFG_SMS_TEMPLATE).map(String::as_str).unwrap_or_default();
+            let template = template.as_str();
             if key_id.is_empty() || key_secret.is_empty() || sign_name.is_empty() || template.is_empty() {
                 return Err(Error::biz(
                     1001,
@@ -184,7 +194,7 @@ pub async fn send_sms_code(repos: &Repositories, mobile: &str, code: &str) -> Re
             let secret_key = cfg.get(CFG_SMS_TENCENT_SECRET_KEY).map(String::as_str).unwrap_or_default();
             let sdk_app_id = cfg.get(CFG_SMS_TENCENT_SDK_APP_ID).map(String::as_str).unwrap_or_default();
             let sign_name = cfg.get(CFG_SMS_TENCENT_SIGN_NAME).map(String::as_str).unwrap_or_default();
-            let template = cfg.get(CFG_SMS_TEMPLATE).map(String::as_str).unwrap_or_default();
+            let template = template.as_str();
             if secret_id.is_empty() || secret_key.is_empty() || sdk_app_id.is_empty() || sign_name.is_empty() || template.is_empty() {
                 return Err(Error::biz(
                     1001,
@@ -199,7 +209,7 @@ pub async fn send_sms_code(repos: &Repositories, mobile: &str, code: &str) -> Re
             let channel = cfg.get(CFG_SMS_HUAWEI_CHANNEL).map(String::as_str).unwrap_or_default();
             let sign_name = cfg.get(CFG_SMS_HUAWEI_SIGN_NAME).map(String::as_str).unwrap_or_default();
             let endpoint = cfg.get(CFG_SMS_HUAWEI_ENDPOINT).map(String::as_str).unwrap_or_default();
-            let template = cfg.get(CFG_SMS_TEMPLATE).map(String::as_str).unwrap_or_default();
+            let template = template.as_str();
             if app_key.is_empty() || app_secret.is_empty() || channel.is_empty() || sign_name.is_empty() || template.is_empty() {
                 return Err(Error::biz(
                     1001,
@@ -213,7 +223,7 @@ pub async fn send_sms_code(repos: &Repositories, mobile: &str, code: &str) -> Re
             let secret_key = cfg.get(CFG_SMS_VOLCENGINE_SECRET_KEY).map(String::as_str).unwrap_or_default();
             let sms_account = cfg.get(CFG_SMS_VOLCENGINE_SMS_ACCOUNT).map(String::as_str).unwrap_or_default();
             let sign_name = cfg.get(CFG_SMS_VOLCENGINE_SIGN_NAME).map(String::as_str).unwrap_or_default();
-            let template = cfg.get(CFG_SMS_TEMPLATE).map(String::as_str).unwrap_or_default();
+            let template = template.as_str();
             if access_key.is_empty() || secret_key.is_empty() || sms_account.is_empty() || sign_name.is_empty() || template.is_empty() {
                 return Err(Error::biz(
                     1001,
