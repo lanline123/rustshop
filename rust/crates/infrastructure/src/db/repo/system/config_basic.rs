@@ -127,7 +127,9 @@ impl ConfigBasicRepository {
             .map_err(map_err)?;
         let now = tigshop_common::utils::now_millis();
         sqlx::query(
-            "INSERT INTO config (biz_code, biz_val, create_time, update_time, is_del) VALUES (?, ?, ?, ?, 0)",
+            "INSERT INTO config (biz_code, biz_val, create_time, create_by_id, create_by_name,
+                                 update_time, update_by_id, update_by_name, is_del)
+             VALUES (?, ?, ?, 0, 'system', ?, 0, 'system', 0)",
         )
         .bind(code)
         .bind(value)
