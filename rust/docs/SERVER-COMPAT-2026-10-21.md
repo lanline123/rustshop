@@ -1,5 +1,8 @@
 # 服务器兼容修复记录（2026-10-21）
 
+> 后续修订固定策略见 [`COMPAT-STRATEGY.md`](COMPAT-STRATEGY.md)：
+> 保留原版前端，只做「数据库兼容 SQL + Rust 契约兼容」，不切换 `rust/web`。
+
 线上：`https://www.yjxj.cn/`（原版 PC）、`https://www.yjxj.cn/admin`（原版 admin）。
 目标：**继续使用原版前端**，修 Rust 后端与数据库兼容问题，不改原版页面。
 
