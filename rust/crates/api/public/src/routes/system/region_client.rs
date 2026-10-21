@@ -57,7 +57,6 @@ use axum::{
 };
 use serde::Deserialize;
 use tigshop_core::entities::Region;
-use tigshop_core::models::system::region_client::CityRegionVO;
 use tigshop_core::Error;
 use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 use tigshop_security::JwtService;
@@ -169,6 +168,21 @@ struct CityNameQuery {
     city_name: Option<String>,
 }
 
+/// 原版前端读取 camelCase（`regionId`/`regionName`/`parentId`/`isHot`...），
+/// 而 Rust 实体按 snake_case 序列化；此处在控制器边界统一转换。
+fn region_json(r: &Region) -> serde_json::Value {
+    serde_json::json!({
+        "regionId": r.region_id,
+        "regionName": r.region_name,
+        "parentId": r.parent_id,
+        "level": r.level,
+        "isHot": r.is_hot,
+        "sortOrder": r.sort_order,
+        "firstWord": r.first_word,
+        "standardCode": r.standard_code,
+    })
+}
+
 /// `GET /api/sys/region/getRegion`：地区级联列表。
 ///
 /// 对应 Java `RegionController.getRegion(@RequestParam(value = "regionIds",
@@ -180,8 +194,16 @@ struct CityNameQuery {
 async fn get_region(
     State(state): State<PublicState>,
     Query(q): Query<RegionIdsQuery>,
-) -> ApiResult<Vec<Vec<Region>>> {
-    ok(state.system.region_client.region_cascade(q.region_ids.as_deref()).await?)
+) -> ApiResult<Vec<Vec<serde_json::Value>>> {
+    let rows = state
+        .system
+        .region_client
+        .region_cascade(q.region_ids.as_deref())
+        .await?;
+    ok(rows
+        .into_iter()
+        .map(|level| level.iter().map(region_json).collect())
+        .collect())
 }
 
 /// `GET /api/sys/region/getProvinceList`：省份列表。
@@ -189,8 +211,11 @@ async fn get_region(
 /// 对应 Java `RegionController.getProvinceList()`（`RegionController.java:42`）→
 /// `RegionServiceImpl#getProvinceList`：`level = 2`，名字去掉「省」「市」
 /// 「自治区」，按 `first_word` 排序。
-async fn get_province_list(State(state): State<PublicState>) -> ApiResult<Vec<Region>> {
-    ok(state.system.region_client.province_list().await?)
+async fn get_province_list(
+    State(state): State<PublicState>,
+) -> ApiResult<Vec<serde_json::Value>> {
+    let rows = state.system.region_client.province_list().await?;
+    ok(rows.iter().map(region_json).collect())
 }
 
 /// `GET /api/sys/region/getUserRegion`：用户所在地区。
@@ -201,8 +226,9 @@ async fn get_province_list(State(state): State<PublicState>) -> ApiResult<Vec<Re
 /// ⚠️ Java 会先按来访 IP 定位城市名（`Ip2RegionUtil.getRegionByIp()`），
 /// 定位不到/内网时兜底 `"北京"`。Rust 侧未接入 ip2region，
 /// 目前**固定走兜底分支**（等价于 Java 在 IP 为空时的行为）。
-async fn get_user_region(State(state): State<PublicState>) -> ApiResult<Region> {
-    ok(state.system.region_client.user_region().await?)
+async fn get_user_region(State(state): State<PublicState>) -> ApiResult<serde_json::Value> {
+    let region = state.system.region_client.user_region().await?;
+    ok(region_json(&region))
 }
 
 /// `GET /api/sys/region/getCityRegion`：城市列表（热门 + 全量）。
@@ -212,8 +238,14 @@ async fn get_user_region(State(state): State<PublicState>) -> ApiResult<Region> 
 ///
 /// Java 结果缓存在 Redis（key `city_pinying_list`）；Rust 侧未接 Redis，
 /// 每次实查。
-async fn get_city_region(State(state): State<PublicState>) -> ApiResult<CityRegionVO> {
-    ok(state.system.region_client.city_region().await?)
+async fn get_city_region(
+    State(state): State<PublicState>,
+) -> ApiResult<serde_json::Value> {
+    let vo = state.system.region_client.city_region().await?;
+    ok(serde_json::json!({
+        "hot": vo.hot.iter().map(region_json).collect::<Vec<_>>(),
+        "city": vo.city.iter().map(region_json).collect::<Vec<_>>(),
+    }))
 }
 
 /// `GET /api/sys/region/getCityListByCityName?cityName=...`：按名称模糊查城市。
@@ -228,11 +260,12 @@ async fn get_city_region(State(state): State<PublicState>) -> ApiResult<CityRegi
 async fn get_city_list_by_city_name(
     State(state): State<PublicState>,
     Query(q): Query<CityNameQuery>,
-) -> ApiResult<Vec<Region>> {
+) -> ApiResult<Vec<serde_json::Value>> {
     let Some(name) = q.city_name.as_deref() else {
         return ok(Vec::new());
     };
-    ok(state.system.region_client.city_list_by_name(name).await?)
+    let rows = state.system.region_client.city_list_by_name(name).await?;
+    ok(rows.iter().map(region_json).collect())
 }
 
 /// `GET /api/sys/region/getRegionListByRegionId?regionId=...`：取直接子节点。
@@ -246,8 +279,13 @@ async fn get_city_list_by_city_name(
 async fn get_region_list_by_region_id(
     State(state): State<PublicState>,
     Query(q): Query<RegionIdQuery>,
-) -> ApiResult<Vec<Region>> {
-    ok(state.system.region_client.region_list_by_parent_id(q.region_id).await?)
+) -> ApiResult<Vec<serde_json::Value>> {
+    let rows = state
+        .system
+        .region_client
+        .region_list_by_parent_id(q.region_id)
+        .await?;
+    ok(rows.iter().map(region_json).collect())
 }
 
 /// `GET /api/sys/region/getRegionPath?regionId=...`：完整地区路径（根 → 叶）。
@@ -259,6 +297,31 @@ async fn get_region_list_by_region_id(
 async fn get_region_path(
     State(state): State<PublicState>,
     Query(q): Query<RegionIdQuery>,
-) -> ApiResult<Vec<Region>> {
-    ok(state.system.region_client.region_path(q.region_id).await?)
+) -> ApiResult<Vec<serde_json::Value>> {
+    let rows = state.system.region_client.region_path(q.region_id).await?;
+    ok(rows.iter().map(region_json).collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn region_json_uses_original_camel_case_keys() {
+        let r = Region {
+            region_id: 110000,
+            level: Some(2),
+            region_name: "北京市".into(),
+            parent_id: 1,
+            is_hot: 0,
+            sort_order: 50,
+            first_word: "B".into(),
+            standard_code: None,
+        };
+        let v = region_json(&r);
+        assert_eq!(v["regionId"], 110000);
+        assert_eq!(v["regionName"], "北京市");
+        assert_eq!(v["parentId"], 1);
+        assert_eq!(v["sortOrder"], 50);
+    }
 }

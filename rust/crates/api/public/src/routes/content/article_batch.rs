@@ -1,4 +1,4 @@
-﻿//! 前台文章路由（content::article_batch）。
+//! 前台文章路由（content::article_batch）。
 //!
 //! 对应 Java 2 个端点：
 //! `GET /api/article/article/issueInfo`、`GET /api/article/category/indexBzzxList`。
@@ -19,6 +19,8 @@ use tigshop_core::Error;
 use tigshop_openapi::RouteDoc;
 use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 use tigshop_security::JwtService;
+
+use serde::Deserialize;
 
 use crate::PublicState;
 
@@ -84,11 +86,27 @@ async fn issue_info(
     ok(state.content.article_batch.issue_info(&q).await?)
 }
 
+/// `GET /api/article/category/indexBzzxList` 查询参数。
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct IndexBzzxQuery {
+    /// 分类数量上限（原版 footer 传 5）
+    category_size: Option<usize>,
+    /// 每个分类的文章数量上限（当前仓储固定 5，保留参数兼容）
+    article_size: Option<usize>,
+}
+
 /// `GET /api/article/category/indexBzzxList`：分类 + 文章列表。
 async fn index_bzzx_list(
     State(state): State<PublicState>,
+    Query(q): Query<IndexBzzxQuery>,
 ) -> ApiResult<Vec<CategoryWithArticlesVO>> {
-    ok(state.content.article_batch.index_bzzx_list().await?)
+    let _ = q.article_size;
+    ok(state
+        .content
+        .article_batch
+        .index_bzzx_list(q.category_size)
+        .await?)
 }
 
 #[cfg(test)]

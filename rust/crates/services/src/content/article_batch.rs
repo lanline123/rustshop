@@ -1,4 +1,4 @@
-﻿//! 文章批量操作/前台文章域服务（content::article_batch）。
+//! 文章批量操作/前台文章域服务（content::article_batch）。
 //!
 //! - `batch`：仅 `type = del` 批量删除；ids 为空 →「未选择项目」。
 //! - `issue_info`：id 有效 → 对应文章；id 缺省 → 最新一篇文章（均可能为 None）。
@@ -53,10 +53,21 @@ impl ArticleBatchService {
     }
 
     /// 分类 + 文章列表（Java `childrenArticleListWithCategory`）。
-    pub async fn index_bzzx_list(&self) -> Result<Vec<CategoryWithArticlesVO>> {
-        self.repo()
+    ///
+    /// `category_size` 对应原版 footer 的 `categorySize=5`；不传时保持原行为
+    /// （全部分类），传入时只取前 N 个分类，避免 footer 被全部分类挤成一排。
+    pub async fn index_bzzx_list(
+        &self,
+        category_size: Option<usize>,
+    ) -> Result<Vec<CategoryWithArticlesVO>> {
+        let mut rows = self
+            .repo()
             .list_categories_with_articles(CATEGORY_ARTICLES_LIMIT)
-            .await
+            .await?;
+        if let Some(limit) = category_size.filter(|n| *n > 0) {
+            rows.truncate(limit);
+        }
+        Ok(rows)
     }
 }
 
