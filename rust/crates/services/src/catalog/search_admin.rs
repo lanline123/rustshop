@@ -353,6 +353,8 @@ fn to_product_vo(p: &Product) -> ProductVO {
         pic_url: p.pic_url.clone(),
         pic_thumb: p.pic_thumb.clone(),
         sales: p.virtual_sales,
+        price: Some(p.product_price),
+        virtual_sales: p.virtual_sales,
         add_time: p.add_time,
         store_product_name: None,
         store_product_price: None,
