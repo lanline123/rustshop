@@ -11,7 +11,7 @@
 | 微信服务器回调 | `wechatServerToken` 已配置，回调 URL 为 `/api/user/login/wechatServer` | 未用真实微信服务器回调 | **未验证** |
 | 微信支付 | 商户号、证书、API v2 key、私钥/公钥已配置；但 `wechatPayAppId`、`wechatPayAppSecret` 为空 | 未发起真实支付 | **未通过** |
 | 支付宝 | `useAlipay=1`，AppID、RSA 私钥/公钥已配置 | 未发起真实支付/退款 | **配置通过；真实链路未测** |
-| 短信验证码 | 阿里云 `smsKeyId`/`smsKeySecret`/`smsSignName` 已配置 | `sendMobileCode` 返回 HTTP 200 + code 1001 | **未通过：缺少短信模板 ID** |
+| 短信验证码 | 阿里云 Key/Secret/签名已配置；已补 `smsVerificationTemplate=SMS_507055173` | 向 `18235190438` 发送：HTTP 200 + code 0 | **通过（阿里云已受理；是否到达取决于运营商/模板变量）** |
 | Elasticsearch | 集群可连接 | 集群 `green`，但 `_cat/indices` 为 `[]`，`tigshop_products` 不存在 | **未启用/未验证** |
 | OSS 图片 | 存储地址可用 | 商品图片 HEAD `200 image/jpeg` | **通过** |
 | 微信小程序 | — | — | **按要求跳过** |
@@ -84,20 +84,19 @@ smsProvider = 1
 smsKeyId
 smsKeySecret
 smsSignName
+smsVerificationTemplate = SMS_507055173
 ```
 
-但 `config` 表没有 `smsVerificationTemplate` 配置项。
-
-实测：
+实测向 `18235190438` 发送：
 
 ```http
 POST /api/user/login/sendMobileCode
+{"mobile":"18235190438","email":"","verifyToken":"","event":"login"}
 → HTTP 200
-→ code 1001
-→ 短信通道未配置：请在设置中填写 smsKeyId/smsKeySecret/smsSignName 与短信模板 ID
+→ {"code":0,"msg":"success"}
 ```
 
-需要补充阿里云短信模板 ID，然后重新测试真实发送。
+阿里云已受理发送请求。若手机未收到，需要按短信模板变量/签名/运营商拦截继续排查。
 
 ### 5. Elasticsearch
 
@@ -128,13 +127,12 @@ OSS 可用。
 ## 待补配置
 
 ```text
-1. smsVerificationTemplate（阿里云短信模板 ID）
-2. wechatPayAppId
-3. wechatPayAppSecret
-4. 微信支付 0.01 元真实下单/回调
-5. 支付宝 0.01 元真实支付/回调
-6. 微信扫码登录真人回调
-7. ES 商品索引与数据
+1. wechatPayAppId
+2. wechatPayAppSecret
+3. 微信支付 0.01 元真实下单/回调
+4. 支付宝 0.01 元真实支付/回调
+5. 微信扫码登录真人回调
+6. ES 商品索引与数据
 ```
 
 ## 最终判断
@@ -143,7 +141,7 @@ OSS 可用。
 微信登录：接口通，扫码未测
 微信支付：未通过（AppID/Secret 为空）
 支付宝：配置在，真实支付未测
-短信：未通过（缺模板 ID）
+短信：通过（SMS_507055173 已发送成功）
 ES：集群在，索引为空，不算通过
 OSS：通过
 微信小程序：跳过
