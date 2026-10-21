@@ -160,6 +160,8 @@ fn to_vo(p: Product) -> ProductVO {
         pic_url: p.pic_url,
         pic_thumb: p.pic_thumb,
         sales: p.virtual_sales,
+        price: Some(p.product_price),
+        virtual_sales: p.virtual_sales,
         add_time: p.add_time,
         store_product_name: None,
         store_product_price: None,

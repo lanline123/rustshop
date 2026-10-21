@@ -54,6 +54,10 @@ pub struct ProductVO {
     pub pic_url: String,
     pub pic_thumb: String,
     pub sales: i32,
+    /// 推荐卡片兼容字段：前端 `ProductCard` 读取 `product.price`
+    pub price: Option<Decimal>,
+    /// 推荐卡片兼容字段：前端读取 `product.virtualSales`
+    pub virtual_sales: i32,
     /// 上架时间（库中为 int unsigned 秒级时间戳）
     pub add_time: i32,
     // —— 原 Java exist=false 的门店扩展字段 ——
