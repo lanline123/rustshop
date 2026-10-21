@@ -156,6 +156,8 @@ pub struct OrderVO {
     pub order_sn: String,
     pub shop_id: i32,
     pub order_status: i32,
+    /// 原版前端订单卡读取 `orderStatusName`（不能只给 statusLabel）
+    pub order_status_name: String,
     pub status_label: String,
     pub pay_status: i32,
     pub shipping_status: i32,
@@ -165,4 +167,17 @@ pub struct OrderVO {
     pub mobile: String,
     pub add_time: i32,
     pub item_count: i32,
+    /// 订单商品明细（前端订单卡需要渲染 items）
+    pub items: Vec<serde_json::Value>,
+    /// 订单可操作项（前端直接访问 availableActions.toPay 等）
+    pub available_actions: serde_json::Value,
+    pub cancel_remark: Option<String>,
+    pub order_type: Option<i32>,
+    pub parent_order_sn: Option<String>,
+    pub is_card_order: bool,
+    pub is_cycle_order: bool,
+    pub is_pickup: bool,
+    pub presale_info: Option<serde_json::Value>,
+    pub order_source: Option<String>,
+    pub cycle_card_info: Option<serde_json::Value>,
 }
