@@ -84,7 +84,8 @@ use tigshop_core::models::system::config_client::{
     BIZ_MOBILE_SEARCH_STYLE_TYPE, BIZ_PRODUCT_DETAIL_STYLE_TYPE, BIZ_SEARCH_STYLE_TYPE,
     BIZ_SHOP_ICP_NO, BIZ_SHOP_LOGO, BIZ_SHOP_NAME, BIZ_SHOP_KEYWORDS, BIZ_SHOP_TITLE,
     BIZ_SHOP_TITLE_SUFFIX, BIZ_SHOP_DESC, BIZ_SHOW_TEMPLATE_CONTENT, BIZ_STORAGE_TYPE,
-    BIZ_TEMPLATE_CONTENT, BIZ_THEME_STYLE,
+    BIZ_TEMPLATE_CONTENT, BIZ_THEME_STYLE, BIZ_CAN_INVOICE, BIZ_INVOICE_ADDED, BIZ_USE_SURPLUS,
+    BIZ_USE_POINTS, BIZ_USE_COUPON,
     DEFAULT_HEADER_STYLE, MOBILE_SEARCH_STYLE_DEFAULT_RAW,
 };
 use tigshop_core::{Error, Result};
@@ -543,6 +544,15 @@ pub fn assemble_init_config_settings(configs: &ConfigIndex) -> InitConfigSetting
     vo.kefu_type = get_int(configs, "kefuType");
     vo.dollar_sign = get_str(configs, "dollarSign");
     vo.dollar_sign_cn = get_str(configs, "dollarSignCn");
+    // 结算页开关：数据库里是 1，但之前没有装配到 VO，前端拿到 null 后
+    // 会隐藏余额抵扣、发票信息，或把“已售”显示为 0。
+    vo.can_invoice = get_int(configs, BIZ_CAN_INVOICE);
+    vo.invoice_added = get_int(configs, BIZ_INVOICE_ADDED);
+    vo.use_surplus = get_int(configs, BIZ_USE_SURPLUS);
+    vo.use_points = get_int(configs, BIZ_USE_POINTS);
+    vo.use_coupon = get_int(configs, BIZ_USE_COUPON);
+    vo.show_selled_count = get_int(configs, "showSelledCount");
+    vo.show_marketprice = get_int(configs, "showMarketprice");
     // ⚠️ `themeStyle` 在 `InitConfigSettingsVO` 里**没有**对应字段
     // （它只出现在 `ThemeSettingsVO` 与 `getBase` 的 Map 里），
     // 故此处不写入 VO。翻译切面（Java 的 `@JsonTranslate`）未迁移，
