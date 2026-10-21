@@ -296,10 +296,29 @@ pub async fn require_auth(
     mut req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
-    let token = req
+    let header_token = req
         .headers()
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok());
+    // 原版前端在部分直达页/刷新场景只带登录 cookie，不带 Authorization；
+    // header 缺失或为 `Bearer null` 时回退读取 cookie，避免误报未登录。
+    let cookie_token: Option<String> = req
+        .headers()
+        .get(header::COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|raw| {
+            raw.split(';').find_map(|pair| {
+                let (name, value) = pair.split_once('=')?;
+                matches!(name.trim(), "accessToken" | "token" | "adminToken")
+                    .then(|| value.trim().trim_matches('"').to_string())
+                    .filter(|v| !v.is_empty() && v != "null")
+            })
+        });
+    let cookie_bearer = cookie_token.map(|t| format!("Bearer {t}"));
+    let token = match header_token {
+        Some(t) if !t.trim().eq_ignore_ascii_case("bearer null") && !t.trim().is_empty() => Some(t),
+        _ => cookie_bearer.as_deref(),
+    };
 
     let claims = jwt.from_authorization(token)?;
     let id = claims
