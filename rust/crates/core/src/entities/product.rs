@@ -443,6 +443,15 @@ pub struct Product {
 impl Product {
     /// 数据库表名。
     pub const TABLE: &'static str = "product";
+
+    /// 是否为无需库存的虚拟类商品。
+    ///
+    /// 商品类型：2 虚拟商品、3 卡密商品、4 付费内容、7/8 礼品卡。
+    /// 这些商品在库中 `product_stock` 可能为 0，但不能按售罄处理。
+    #[must_use]
+    pub fn is_virtual_product(&self) -> bool {
+        matches!(self.product_type, Some(2 | 3 | 4 | 7 | 8))
+    }
 }
 
 

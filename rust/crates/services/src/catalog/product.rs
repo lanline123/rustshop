@@ -50,7 +50,7 @@ impl ProductService {
 
     /// 商品详情（缓存优先，替代原 Java @Cacheable）。
     pub async fn detail(&self, product_id: i32) -> Result<ProductVO> {
-        let key = format!("product:detail:{product_id}");
+        let key = format!("product:detail:v2:{product_id}");
 
         let loader = || async {
             let p = self
@@ -132,20 +132,27 @@ impl ProductService {
     /// 失效商品详情缓存（库存变更后调用）。无缓存时为空操作。
     pub async fn invalidate_detail_cache(&self, product_id: i32) {
         if let Some(cache) = &self.cache {
-            let _ = cache.del(&format!("product:detail:{product_id}")).await;
+            let _ = cache.del(&format!("product:detail:v2:{product_id}")).await;
         }
     }
 }
 
 /// 实体 → VO 转换。
 fn to_vo(p: Product) -> ProductVO {
+    // 虚拟商品不管理库存，库里 stock 常为 0；原版前端用 stock > 0 判断售罄，
+    // 因此对虚拟类商品返回一个可售库存值。
+    let product_stock = if p.is_virtual_product() {
+        999_999
+    } else {
+        p.product_stock
+    };
     ProductVO {
         product_id: p.product_id,
         product_name: p.product_name,
         product_sn: p.product_sn,
         product_price: p.product_price,
         market_price: p.market_price,
-        product_stock: p.product_stock,
+        product_stock,
         product_status: p.product_status,
         category_id: p.category_id,
         brand_id: p.brand_id,
