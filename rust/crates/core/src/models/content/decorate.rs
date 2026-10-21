@@ -199,32 +199,63 @@ pub struct DecorateCreateDTO {
     pub decorate_title: Option<String>,
     pub data: Option<String>,
     pub draft_data: Option<String>,
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub decorate_type: Option<i32>,
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub page_type: Option<i32>,
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub is_home: Option<i32>,
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub shop_id: Option<i32>,
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub status: Option<i32>,
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub sort_order: Option<i32>,
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub parent_id: Option<i32>,
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub locale_id: Option<i32>,
+}
+
+/// 兼容原版前端把数字字段作为字符串提交（`"1"`）。
+fn de_opt_i32_lenient<'de, D>(deserializer: D) -> Result<Option<i32>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(match value {
+        Some(serde_json::Value::Number(n)) => n.as_i64().and_then(|v| i32::try_from(v).ok()),
+        Some(serde_json::Value::String(s)) => s.trim().parse::<i32>().ok(),
+        _ => None,
+    })
 }
 
 /// 更新装修页请求，对应 Java `DecorateUpdateDTO`。
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct DecorateUpdateDTO {
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub decorate_id: Option<i32>,
     pub decorate_title: Option<String>,
     pub data: Option<String>,
     pub draft_data: Option<String>,
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub decorate_type: Option<i32>,
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub page_type: Option<i32>,
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub is_home: Option<i32>,
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub shop_id: Option<i32>,
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub status: Option<i32>,
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub parent_id: Option<i32>,
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub locale_id: Option<i32>,
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub sort_order: Option<i32>,
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub binded_h5_id: Option<i32>,
 }
 
@@ -232,9 +263,12 @@ pub struct DecorateUpdateDTO {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct DecorateSaveDTO {
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub id: Option<i32>,
     pub data: Option<serde_json::Value>,
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub parent_id: Option<i32>,
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub locale_id: Option<i32>,
 }
 
@@ -731,6 +765,16 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(q.decorate_types(), vec![1, 2]);
+    }
+
+    #[test]
+    fn create_dto_accepts_original_string_numbers() {
+        let dto: DecorateCreateDTO =
+            serde_json::from_str(r#"{"decorateTitle":"测试","sortOrder":"1","decorateType":"2","status":"0"}"#)
+                .expect("原版前端把排序/类型作为字符串提交");
+        assert_eq!(dto.sort_order, Some(1));
+        assert_eq!(dto.decorate_type, Some(2));
+        assert_eq!(dto.status, Some(0));
     }
 
     #[test]

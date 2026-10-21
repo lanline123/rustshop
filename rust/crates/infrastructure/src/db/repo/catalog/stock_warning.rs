@@ -260,7 +260,7 @@ impl StockWarningRepository {
 
         let (limit, offset) = page.limit_offset();
         let list_sql = format!(
-            "{base}ORDER BY {}, t.sku_id ASC LIMIT ? OFFSET ?",
+            "{base}ORDER BY {}, sku_id ASC LIMIT ? OFFSET ?",
             sort_expression(spec.sort_field.as_deref(), spec.sort_order.as_deref())
         );
         let mut lq = sqlx::query_as::<_, StockWarningRow>(&list_sql);
@@ -278,7 +278,7 @@ impl StockWarningRepository {
     pub async fn list_warning(&self, spec: &WarningQuerySpec) -> Result<Vec<StockWarningRow>> {
         let base = build_warning_sql(spec);
         let sql = format!(
-            "{base}ORDER BY {}, t.sku_id ASC",
+            "{base}ORDER BY {}, sku_id ASC",
             sort_expression(spec.sort_field.as_deref(), spec.sort_order.as_deref())
         );
         let mut q = sqlx::query_as::<_, StockWarningRow>(&sql);
@@ -441,33 +441,33 @@ pub fn sort_expression(sort_field: Option<&str>, sort_order: Option<&str>) -> &'
     match sort_field {
         Some("currentStock" | "physicalStock" | "productStock") => {
             if asc {
-                "t.current_stock ASC"
+                "current_stock ASC"
             } else {
-                "t.current_stock DESC"
+                "current_stock DESC"
             }
         }
         Some("transitStock") => {
             if asc {
-                "t.transit_stock ASC"
+                "transit_stock ASC"
             } else {
-                "t.transit_stock DESC"
+                "transit_stock DESC"
             }
         }
         Some("lowerLimit") => {
             if asc {
-                "t.lower_limit ASC"
+                "lower_limit ASC"
             } else {
-                "t.lower_limit DESC"
+                "lower_limit DESC"
             }
         }
         Some("upperLimit") => {
             if asc {
-                "t.upper_limit ASC"
+                "upper_limit ASC"
             } else {
-                "t.upper_limit DESC"
+                "upper_limit DESC"
             }
         }
-        _ => "t.product_id DESC",
+        _ => "product_id DESC",
     }
 }
 
@@ -521,33 +521,33 @@ mod tests {
     #[test]
     fn sort_expression_follows_java_whitelist() {
         // 未传 / 非法字段回退商品 ID 倒序
-        assert_eq!(sort_expression(None, None), "t.product_id DESC");
+        assert_eq!(sort_expression(None, None), "product_id DESC");
         assert_eq!(
             sort_expression(Some("1;DROP TABLE product"), None),
-            "t.product_id DESC"
+            "product_id DESC"
         );
         // 实物库存三种别名等价
         assert_eq!(
             sort_expression(Some("currentStock"), Some("asc")),
-            "t.current_stock ASC"
+            "current_stock ASC"
         );
         assert_eq!(
             sort_expression(Some("physicalStock"), Some("ASC")),
-            "t.current_stock ASC"
+            "current_stock ASC"
         );
         assert_eq!(
             sort_expression(Some("productStock"), Some("desc")),
-            "t.current_stock DESC"
+            "current_stock DESC"
         );
         // 仅 asc / ASC 升序，其余（含 Asc）一律降序
         assert_eq!(
             sort_expression(Some("transitStock"), Some("Asc")),
-            "t.transit_stock DESC"
+            "transit_stock DESC"
         );
-        assert_eq!(sort_expression(Some("lowerLimit"), None), "t.lower_limit DESC");
+        assert_eq!(sort_expression(Some("lowerLimit"), None), "lower_limit DESC");
         assert_eq!(
             sort_expression(Some("upperLimit"), Some("asc")),
-            "t.upper_limit ASC"
+            "upper_limit ASC"
         );
     }
 
