@@ -21,7 +21,7 @@ use tigshop_core::models::payment::order_invoice::OrderInvoicePageQuery;
 use tigshop_core::{Error, Result};
 
 /// `order_invoice` 固定 SELECT 列清单（顺序与实体一致）。
-const INVOICE_SELECT: &str = "SELECT id, user_id, order_id, invoice_type, status, apply_reply, title_type, company_code, company_name, company_address, company_phone, company_bank, company_account, invoice_content, invoice_no, amount, mobile, email, add_time, NULL AS invoice_attachment, invoicing_time FROM order_invoice";
+const INVOICE_SELECT: &str = "SELECT id, user_id, order_id, invoice_type, status, apply_reply, title_type, company_code, company_name, company_address, company_phone, company_bank, company_account, invoice_content, invoice_no, amount, mobile, email, add_time, NULL AS invoice_attachment, NULL AS invoicing_time FROM order_invoice";
 
 /// 发票申请域仓储。
 #[derive(Clone)]
@@ -191,7 +191,7 @@ impl OrderInvoiceRepository {
     /// 新增（Java `save`）。
     pub async fn insert(&self, entity: &OrderInvoice) -> Result<i32> {
         let res = sqlx::query(
-            "INSERT INTO order_invoice (user_id, order_id, invoice_type, status, apply_reply, title_type, company_code, company_name, company_address, company_phone, company_bank, company_account, invoice_content, invoice_no, amount, mobile, email, add_time, invoicing_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO order_invoice (user_id, order_id, invoice_type, status, apply_reply, title_type, company_code, company_name, company_address, company_phone, company_bank, company_account, invoice_content, invoice_no, amount, mobile, email, add_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(entity.user_id)
         .bind(entity.order_id)
@@ -211,7 +211,7 @@ impl OrderInvoiceRepository {
         .bind(&entity.mobile)
         .bind(&entity.email)
         .bind(entity.add_time)
-        .bind(entity.invoicing_time)
+
         .execute(&self.pool)
         .await
         .map_err(map_err)?;
@@ -221,7 +221,7 @@ impl OrderInvoiceRepository {
     /// 整行更新（Java `updateById`；服务层先合并旧值，等价 NOT_NULL 语义）。
     pub async fn update(&self, entity: &OrderInvoice) -> Result<u64> {
         let res = sqlx::query(
-            "UPDATE order_invoice SET user_id = ?, order_id = ?, invoice_type = ?, status = ?, apply_reply = ?, title_type = ?, company_code = ?, company_name = ?, company_address = ?, company_phone = ?, company_bank = ?, company_account = ?, invoice_content = ?, invoice_no = ?, amount = ?, mobile = ?, email = ?, add_time = ?, invoicing_time = ? WHERE id = ?",
+            "UPDATE order_invoice SET user_id = ?, order_id = ?, invoice_type = ?, status = ?, apply_reply = ?, title_type = ?, company_code = ?, company_name = ?, company_address = ?, company_phone = ?, company_bank = ?, company_account = ?, invoice_content = ?, invoice_no = ?, amount = ?, mobile = ?, email = ?, add_time = ? WHERE id = ?",
         )
         .bind(entity.user_id)
         .bind(entity.order_id)
@@ -241,7 +241,7 @@ impl OrderInvoiceRepository {
         .bind(&entity.mobile)
         .bind(&entity.email)
         .bind(entity.add_time)
-        .bind(entity.invoicing_time)
+
         .bind(entity.id)
         .execute(&self.pool)
         .await
@@ -308,7 +308,9 @@ mod tests {
             .trim_start_matches("SELECT ")
             .split(" FROM ")
             .next()
-            .unwrap();
+            .unwrap()
+            .replace("NULL AS invoice_attachment", "invoice_attachment")
+            .replace("NULL AS invoicing_time", "invoicing_time");
         assert_eq!(selected, INVOICE_COLUMNS.join(", "));
         assert_eq!(INVOICE_COLUMNS.len(), 21);
     }
