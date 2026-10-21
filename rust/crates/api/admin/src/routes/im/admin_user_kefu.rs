@@ -41,15 +41,51 @@ use crate::AdminState;
 
 /// 本域 9 条路由（去 `/adminapi` 前缀的路径 + 原 Java handler）。
 const ROUTE_TABLE: [(&str, &str, &str); 9] = [
-    ("GET", "/im/adminUserKefu/list", "AdminUserKefuController.list"),
-    ("GET", "/im/adminUserKefu/detail", "AdminUserKefuController.detail"),
-    ("GET", "/im/adminUserKefu/info", "AdminUserKefuController.info"),
-    ("GET", "/im/adminUserKefu/roles", "AdminUserKefuController.roles"),
-    ("POST", "/im/adminUserKefu/create", "AdminUserKefuController.create"),
-    ("POST", "/im/adminUserKefu/update", "AdminUserKefuController.update"),
-    ("POST", "/im/adminUserKefu/del", "AdminUserKefuController.del"),
-    ("POST", "/im/adminUserKefu/batch", "AdminUserKefuController.batch"),
-    ("POST", "/im/adminUserKefu/updateField", "AdminUserKefuController.updateField"),
+    (
+        "GET",
+        "/im/adminUserKefu/list",
+        "AdminUserKefuController.list",
+    ),
+    (
+        "GET",
+        "/im/adminUserKefu/detail",
+        "AdminUserKefuController.detail",
+    ),
+    (
+        "GET",
+        "/im/adminUserKefu/info",
+        "AdminUserKefuController.info",
+    ),
+    (
+        "GET",
+        "/im/adminUserKefu/roles",
+        "AdminUserKefuController.roles",
+    ),
+    (
+        "POST",
+        "/im/adminUserKefu/create",
+        "AdminUserKefuController.create",
+    ),
+    (
+        "POST",
+        "/im/adminUserKefu/update",
+        "AdminUserKefuController.update",
+    ),
+    (
+        "POST",
+        "/im/adminUserKefu/del",
+        "AdminUserKefuController.del",
+    ),
+    (
+        "POST",
+        "/im/adminUserKefu/batch",
+        "AdminUserKefuController.batch",
+    ),
+    (
+        "POST",
+        "/im/adminUserKefu/updateField",
+        "AdminUserKefuController.updateField",
+    ),
 ];
 
 /// 客服人员路由（挂载于 `/adminapi` 下，外层已统一 `require_auth`）。
@@ -80,12 +116,25 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 
 /// 当前店铺 ID（多租户：**身份只信任认证中间件**，忽略可伪造的 `x-shop-id`）。
 ///
-/// 平台账号没有店铺上下文的端点（本域全部端点按 Java 语义要求店铺账号）→ 400。
+/// ⚠️ 平台管理员必须映射成 `shop_id = 0`，**不能返回 400**。
+///
+/// Java 侧 `HeaderUtils.getShopId()`：
+/// ```java
+/// String adminType = getHeaderValue(X_ADMIN_TYPE);
+/// if (ObjectUtil.equals(adminType, "admin")) return 0;   // ← 平台账号 → 0
+/// if ("shop".equals(adminType) || "pos".equals(adminType))
+///     return StrUtil.isEmpty(shopId) ? null : Integer.parseInt(shopId);
+/// return null;
+/// ```
+/// 客服人员控制器直接把它传给 `listUser(pageQuery, shopId)`，
+/// 平台后台因此查 `shop_id = 0` 的客服数据，**不会报错**。
+///
+/// Rust 早期实现把「平台账号无 shop_id」判成参数校验失败返回 400，
+/// 于是平台管理员打开「客服人员」页必然 400 + 空列表
+/// （2026-10-21 巡检 `/admin/customer-service/agents/list` 的根因）。
 fn current_shop_id(_headers: &HeaderMap) -> Result<i32, AppError> {
-    TenantScope::current()
-        .shop_id()
-        .filter(|id| *id > 0)
-        .ok_or_else(|| AppError(Error::Validation("无法获取当前店铺信息".into())))
+    let scope = TenantScope::current();
+    Ok(scope.shop_id().unwrap_or(0).max(0))
 }
 
 /// 详情/信息查询参数（`?id=`）。
@@ -165,7 +214,11 @@ async fn del(
     Json(dto): Json<KefuOperateDTO>,
 ) -> ApiResult<()> {
     let shop_id = current_shop_id(&headers)?;
-    state.im.admin_user_kefu.del(dto.id, auth.id, shop_id).await?;
+    state
+        .im
+        .admin_user_kefu
+        .del(dto.id, auth.id, shop_id)
+        .await?;
     ok(())
 }
 
@@ -177,7 +230,11 @@ async fn batch(
     Json(dto): Json<KefuBatchDTO>,
 ) -> ApiResult<()> {
     let shop_id = current_shop_id(&headers)?;
-    state.im.admin_user_kefu.batch(shop_id, auth.id, &dto).await?;
+    state
+        .im
+        .admin_user_kefu
+        .batch(shop_id, auth.id, &dto)
+        .await?;
     ok(())
 }
 
@@ -221,8 +278,8 @@ mod tests {
         assert!(current_shop_id(&HeaderMap::new()).is_err());
         // 店铺身份 → 本店（HeaderMap 内容被忽略）
         let shop = TenantScope::for_shop(6);
-        let id = with_tenant_scope(shop, async { current_shop_id(&HeaderMap::new()).unwrap() })
-            .await;
+        let id =
+            with_tenant_scope(shop, async { current_shop_id(&HeaderMap::new()).unwrap() }).await;
         assert_eq!(id, 6);
     }
 }

@@ -34,7 +34,10 @@ pub const SALESMAN_ORDER_COLUMNS: &str = "salesman_order_id, order_id, salesman_
 pub const SALESMAN_CUSTOMER_COLUMNS: &str =
     "salesman_customer_id, salesman_id, user_id, add_time, channel, remark";
 /// `salesman_group` 固定 SELECT 列（5 列）。
-pub const SALESMAN_GROUP_COLUMNS: &str = "group_id, group_name, describe, add_time, shop_id";
+///
+/// ⚠️ `describe` 是 MySQL 保留字，必须加反引号
+/// （2026-10-21 `/adminapi/salesman/group/list` 500 的根因）。
+pub const SALESMAN_GROUP_COLUMNS: &str = "group_id, group_name, `describe`, add_time, shop_id";
 
 /// 会员基础信息行。
 #[derive(Debug, Clone, Default, FromRow)]

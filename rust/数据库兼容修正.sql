@@ -19,6 +19,12 @@
 --      → Rust 实体使用 String/Option<String>，sqlx 报:
 --        SQL type `DATE` is not compatible with Rust type `String`
 --
+--   4. DATETIME
+--      → Rust 实体使用 String/Option<String>，sqlx 报:
+--        SQL type `DATETIME` is not compatible with rust type `String`
+--        （2026-10-21 线上实例：`wechat_live.create_time`
+--           → /adminapi/content/wechatLive/list 500）
+--
 -- 执行方式（推荐 mysql 命令行，支持 DELIMITER）：
 --
 --   mysql -h 127.0.0.1 -u root -p 你的数据库名 < rust/数据库兼容修正.sql
@@ -31,7 +37,7 @@
 --   * 整数 UNSIGNED 转有符号时，超过有符号上限的异常值会先钳制到上限。
 --   * 只处理整数 UNSIGNED；DECIMAL UNSIGNED 不影响 sqlx 的 i32/i64 解码，
 --     脚本不会改动。
---   * 脚本末尾会输出剩余未转换列数量，三个结果都应为 0。
+--   * 脚本末尾会输出剩余未转换列数量，四个结果都应为 0。
 --
 -- ============================================================================
 
@@ -253,9 +259,77 @@ DROP PROCEDURE IF EXISTS tigshop_fix_date_columns;
 
 
 -- ============================================================================
--- 第四步：校验结果
+-- 第四步：DATETIME → VARCHAR(19)
 -- ============================================================================
--- 三个 remaining_* 都应为 0。
+-- Rust 实体把这些时间字段声明为 String/Option<String>
+-- （见 `crates/core/src/entities/*.rs`，例如 `wechat_live.create_time`）。
+-- DATETIME 的文本形式 `YYYY-MM-DD HH:MM:SS` 正好 19 字符；
+-- 转 VARCHAR(19) 不丢数据，字典序比较/排序与原语义一致。
+--
+-- ⚠️ 转为 VARCHAR 后 `DEFAULT CURRENT_TIMESTAMP` / `ON UPDATE CURRENT_TIMESTAMP`
+--    不再可用，故：
+--    * 默认值改为 NULL（写入端由 Rust 显式赋值）；
+--    * 原 NOT NULL 列保留 NOT NULL（Rust 侧总会写值）；
+--    * 依赖 DB 自动更新的列（ON UPDATE），由 Rust 代码显式写时间。
+--
+-- 只转换**实体里确实声明为 String 的时间列**所在表现存的全部 datetime 列；
+-- 若某表的 datetime 列在实体里是 i32/i64（UNIX 时间戳），**不能**转 —— 见下方
+-- 排除清单。
+
+DROP PROCEDURE IF EXISTS tigshop_fix_datetime_columns;
+
+DELIMITER $$
+
+CREATE PROCEDURE tigshop_fix_datetime_columns()
+BEGIN
+  DECLARE done INT DEFAULT 0;
+  DECLARE v_table VARCHAR(64);
+  DECLARE v_column VARCHAR(64);
+  DECLARE v_nullable VARCHAR(3);
+  DECLARE v_comment VARCHAR(2048);
+
+  DECLARE cur CURSOR FOR
+    SELECT TABLE_NAME, COLUMN_NAME, IS_NULLABLE, COLUMN_COMMENT
+      FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND DATA_TYPE IN ('datetime', 'timestamp')
+     ORDER BY TABLE_NAME, ORDINAL_POSITION;
+
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = 1;
+
+  OPEN cur;
+
+  read_loop: LOOP
+    FETCH cur INTO v_table, v_column, v_nullable, v_comment;
+
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+
+    SET @dt_alter_sql = CONCAT(
+      'ALTER TABLE `', v_table, '` MODIFY COLUMN `', v_column, '` VARCHAR(19)',
+      IF(v_nullable = 'NO', ' NOT NULL', ' NULL'),
+      IF(v_comment = '', '', CONCAT(' COMMENT ', QUOTE(v_comment)))
+    );
+
+    PREPARE dt_alter_stmt FROM @dt_alter_sql;
+    EXECUTE dt_alter_stmt;
+    DEALLOCATE PREPARE dt_alter_stmt;
+  END LOOP;
+
+  CLOSE cur;
+END$$
+
+DELIMITER ;
+
+CALL tigshop_fix_datetime_columns();
+DROP PROCEDURE IF EXISTS tigshop_fix_datetime_columns;
+
+
+-- ============================================================================
+-- 第五步：校验结果
+-- ============================================================================
+-- 四个 remaining_* 都应为 0。
 -- decimal_unsigned 仅作信息展示：DECIMAL UNSIGNED 不影响 Rust i32/i64。
 
 SET FOREIGN_KEY_CHECKS = 1;
@@ -282,6 +356,14 @@ SELECT 'remaining_date_columns' AS check_item,
   FROM information_schema.COLUMNS
  WHERE TABLE_SCHEMA = DATABASE()
    AND DATA_TYPE = 'date'
+
+UNION ALL
+
+SELECT 'remaining_datetime_columns' AS check_item,
+       COUNT(*) AS remaining_count
+  FROM information_schema.COLUMNS
+ WHERE TABLE_SCHEMA = DATABASE()
+   AND DATA_TYPE IN ('datetime', 'timestamp')
 
 UNION ALL
 

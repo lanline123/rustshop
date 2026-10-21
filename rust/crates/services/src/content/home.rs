@@ -149,6 +149,16 @@ impl HomeService {
     }
 
     /// `GET /api/home/home/pcHeader`：PC 头部装修配置（返回 `{"pcHeader": ...}`）。
+    ///
+    /// 契约要点（**必须与 Java 一致**）：Java `getPcHeader` 在
+    /// `pageModule.pcHeader` 缺失时 `return pageModule.get("pcHeader")`
+    /// 直接返回 **null**，控制器再包一层得到 `{"pcHeader": null}`。
+    ///
+    /// 前台据此判新旧版：`resolvePcHeaderConfigFromResult` 对 `null` 返回 null，
+    /// `isHomeNewStyle` 为 false → 全站 `.container` 用旧版固定 1190px 宽度。
+    /// 若这里返回 `{}`（空对象），前台会把它当成「已配置新版头部」，
+    /// 于是旧版首页模块套上 1264–1600 的新版宽度 → 首屏 Banner/分类栏/推荐位
+    /// 与下方楼层错位（**2026-10-21 首页布局错乱的根因**）。
     pub async fn pc_header(&self, q: &DecoratePreviewQuery) -> Result<Value> {
         let decorate = self
             .find_page(DECORATE_TYPE_PC, PAGE_HOME, q.preview_id)
@@ -157,7 +167,7 @@ impl HomeService {
             .as_ref()
             .and_then(|d| parse_json_opt(&d.data))
             .and_then(|value| pc_header_from(&value))
-            .unwrap_or_else(|| json!({}));
+            .unwrap_or(Value::Null);
         Ok(json!({ "pcHeader": header }))
     }
 
@@ -267,9 +277,10 @@ impl HomeService {
     pub async fn get_recommend(&self, q: &RecommendQuery) -> Result<Value> {
         let decorate = match q.decorate_id.filter(|id| *id > 0) {
             Some(decorate_id) => self.find_decorate_by_id(decorate_id).await?,
-            None => self
-                .find_page(DECORATE_TYPE_H5, PAGE_HOME, q.preview_id)
-                .await?,
+            None => {
+                self.find_page(DECORATE_TYPE_H5, PAGE_HOME, q.preview_id)
+                    .await?
+            }
         };
         let Some(decorate) = decorate else {
             return Ok(Value::Null);
@@ -303,9 +314,7 @@ impl HomeService {
         page_type: i32,
         preview_id: Option<i32>,
     ) -> Result<DecorateModuleListVO> {
-        let decorate = self
-            .find_page(decorate_type, page_type, preview_id)
-            .await?;
+        let decorate = self.find_page(decorate_type, page_type, preview_id).await?;
         Ok(decorate
             .as_ref()
             .map(module_vo)
@@ -457,19 +466,13 @@ fn find_module(value: &Value, module_index: Option<&str>) -> Option<Value> {
 
 /// 配置字符串值（未命中返回 None；命中 NULL 也返回 None）。
 #[must_use]
-fn cfg_str(
-    map: &std::collections::HashMap<String, Option<String>>,
-    key: &str,
-) -> Option<String> {
+fn cfg_str(map: &std::collections::HashMap<String, Option<String>>, key: &str) -> Option<String> {
     map.get(key).cloned().flatten()
 }
 
 /// 配置整数值（解析失败返回 None）。
 #[must_use]
-fn cfg_int(
-    map: &std::collections::HashMap<String, Option<String>>,
-    key: &str,
-) -> Option<i32> {
+fn cfg_int(map: &std::collections::HashMap<String, Option<String>>, key: &str) -> Option<i32> {
     map.get(key)
         .and_then(|v| v.as_deref())
         .and_then(|v| v.trim().parse::<i32>().ok())
@@ -544,8 +547,7 @@ mod tests {
             Value::String("a.png".into())
         );
         assert_eq!(
-            pc_header_from(&json!({"pageModule": {"header": {"logo": "b.png"}}})).unwrap()
-                ["logo"],
+            pc_header_from(&json!({"pageModule": {"header": {"logo": "b.png"}}})).unwrap()["logo"],
             Value::String("b.png".into())
         );
         assert_eq!(

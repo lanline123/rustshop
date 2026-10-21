@@ -40,8 +40,12 @@ pub struct CartRow {
 
 impl CartRow {
     /// 行 → 列表 VO。
+    ///
+    /// `price` / `subtotal` 对齐 Java `CartVO`：`price` 取 DB 快照价，
+    /// `subtotal = price * quantity`（价格/活动引擎未迁移，不做优惠分摊）。
     #[must_use]
     pub fn to_vo(&self) -> CartItemVO {
+        let price = self.original_price;
         CartItemVO {
             cart_id: self.cart_id,
             user_id: self.user_id,
@@ -53,6 +57,8 @@ impl CartRow {
             pic_thumb: self.pic_thumb.clone(),
             market_price: self.market_price,
             original_price: self.original_price,
+            price,
+            subtotal: price * Decimal::from(self.quantity),
             product_type: self.product_type,
             shop_id: self.shop_id,
             sku_data: self.sku_data.clone(),

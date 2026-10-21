@@ -39,25 +39,34 @@
 //! > 退款执行与退款申请（`refund_apply`）关联。
 
 use axum::{
-    extract::{Query, State},
+    extract::{Query, Request, State},
+    http::header,
+    middleware::{self, Next},
+    response::Response,
     routing::{get, post},
     Extension, Json, Router,
 };
 use serde::Deserialize;
 use tigshop_core::models::trade::aftersales_client::{
     AfterSalesApplyDataVO, AfterSalesClientDetailVO, AfterSalesClientVO, AftersalesCancelParam,
-    AftersalesConfigVO, AftersalesFeedbackParam, AftersalesListQuery, AftersalesLogVO, AftersalesVO,
-    ClientAfterSalesUpdateParam, CreateAftersalesParam,
+    AftersalesConfigVO, AftersalesFeedbackParam, AftersalesListQuery, AftersalesLogVO,
+    AftersalesVO, ClientAfterSalesUpdateParam, CreateAftersalesParam,
 };
-use tigshop_core::Error;
 use tigshop_core::types::PageResult;
+use tigshop_core::Error;
 use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
+use tigshop_security::JwtService;
 
 use crate::PublicState;
 
 /// 售后域前台路由（挂载于 `/api` 下）。
+///
+/// **必须自带 [`optional_auth`]**：本域 10 条全部依赖登录会员上下文
+/// （`current_user_id` 读 `Extension<AuthUser>`）。若不像其它 41 个 optional
+/// 路由那样在本模块挂上中间件，`AuthUser` 永远不会被写入 extensions，
+/// 于是**即使是已登录账号也会被判成未登录** → 全部返回业务码 401
+/// （2026-10-21 实测：`/member/return/list` 页面 401 的根因）。
 pub fn routes(state: &PublicState) -> Router<PublicState> {
-    let _ = state;
     Router::new()
         .route("/user/aftersales/list", get(aftersales_list))
         .route("/user/aftersales/config", get(aftersales_config))
@@ -69,13 +78,52 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/user/aftersales/detailLog", get(aftersales_detail_log))
         .route("/user/aftersales/feedback", post(aftersales_feedback))
         .route("/user/aftersales/cancel", post(aftersales_cancel))
+        .layer(middleware::from_fn_with_state(
+            state.jwt.clone(),
+            optional_auth,
+        ))
+}
+
+/// 可选登录态中间件（对应 Java `permitAll` + JWT 过滤器；同 `content/seo.rs`）：
+///
+/// - 合法 token → 写入 [`AuthUser`]；
+/// - 无 token / 空 token / `Bearer null` / 过期 token → 游客，不返回 401。
+async fn optional_auth(
+    State(jwt): State<JwtService>,
+    mut req: Request,
+    next: Next,
+) -> Result<Response, AppError> {
+    let token = req
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok());
+    if token.is_some() {
+        let Ok(claims) = jwt.from_authorization(token) else {
+            return Ok(next.run(req).await);
+        };
+        let Ok(id) = claims.sub.parse::<i32>() else {
+            return Ok(next.run(req).await);
+        };
+        req.extensions_mut().insert(AuthUser {
+            id,
+            username: claims.usr,
+            role_id: claims.role,
+            admin_type: claims.typ,
+            shop_id: claims.shop_id,
+        });
+    }
+    Ok(next.run(req).await)
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。
 #[must_use]
 pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     [
-        ("GET", "/api/user/aftersales/list", "AfterSalesController.list"),
+        (
+            "GET",
+            "/api/user/aftersales/list",
+            "AfterSalesController.list",
+        ),
         (
             "GET",
             "/api/user/aftersales/config",
@@ -182,7 +230,11 @@ async fn aftersales_apply_data(
     Query(q): Query<ApplyDataQuery>,
 ) -> ApiResult<AfterSalesApplyDataVO> {
     let _ = current_user_id(&auth)?;
-    ok(state.trade.aftersales_client.apply_data(q.item_id, q.order_id).await?)
+    ok(state
+        .trade
+        .aftersales_client
+        .apply_data(q.item_id, q.order_id)
+        .await?)
 }
 
 /// `/user/aftersales/applyData` 查询参数。
@@ -204,7 +256,11 @@ async fn aftersales_create(
     Json(param): Json<CreateAftersalesParam>,
 ) -> ApiResult<tigshop_services::trade::aftersales_client::CreateAftersalesResult> {
     let user_id = current_user_id(&auth)?;
-    ok(state.trade.aftersales_client.create(&param, user_id).await?)
+    ok(state
+        .trade
+        .aftersales_client
+        .create(&param, user_id)
+        .await?)
 }
 
 /// `POST /api/user/aftersales/update`：修改售后申请。
@@ -217,7 +273,11 @@ async fn aftersales_update(
     Json(param): Json<ClientAfterSalesUpdateParam>,
 ) -> ApiResult<&'static str> {
     let user_id = current_user_id(&auth)?;
-    state.trade.aftersales_client.update(&param, user_id).await?;
+    state
+        .trade
+        .aftersales_client
+        .update(&param, user_id)
+        .await?;
     ok("修改成功")
 }
 
@@ -232,7 +292,11 @@ async fn aftersales_get_record(
 ) -> ApiResult<PageResult<AftersalesVO>> {
     let user_id = current_user_id(&auth)?;
     q.user_id = Some(user_id);
-    ok(state.trade.aftersales_client.get_record(&q, user_id).await?)
+    ok(state
+        .trade
+        .aftersales_client
+        .get_record(&q, user_id)
+        .await?)
 }
 
 /// `GET /api/user/aftersales/detail?id=`：售后详情（含关联订单）。
@@ -264,7 +328,11 @@ async fn aftersales_detail_log(
     Query(q): Query<IdQuery>,
 ) -> ApiResult<Vec<AftersalesLogVO>> {
     let user_id = current_user_id(&auth)?;
-    ok(state.trade.aftersales_client.detail_log(q.id, user_id).await?)
+    ok(state
+        .trade
+        .aftersales_client
+        .detail_log(q.id, user_id)
+        .await?)
 }
 
 /// `POST /api/user/aftersales/feedback`：提交回寄物流/反馈记录。
@@ -277,7 +345,11 @@ async fn aftersales_feedback(
     Json(param): Json<AftersalesFeedbackParam>,
 ) -> ApiResult<&'static str> {
     let user_id = current_user_id(&auth)?;
-    state.trade.aftersales_client.feedback(&param, user_id).await?;
+    state
+        .trade
+        .aftersales_client
+        .feedback(&param, user_id)
+        .await?;
     ok("提交成功")
 }
 
@@ -291,6 +363,10 @@ async fn aftersales_cancel(
     Json(param): Json<AftersalesCancelParam>,
 ) -> ApiResult<&'static str> {
     let user_id = current_user_id(&auth)?;
-    state.trade.aftersales_client.cancel(&param, user_id).await?;
+    state
+        .trade
+        .aftersales_client
+        .cancel(&param, user_id)
+        .await?;
     ok("已取消")
 }

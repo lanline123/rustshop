@@ -236,16 +236,27 @@ impl FeedbackRepository {
     /// - `userId != null && userId > 0` → `user_id = ?`
     /// - `queryShopId != null` → `shop_id = ?`
     /// - `platformAdmin` → `AND (shop_id = 0 OR type NOT IN (2))`
-    fn push_filters(qb: &mut QueryBuilder<'_, MySql>, q: &FeedbackListQuery, f: &FeedbackListFilter) {
+    fn push_filters(
+        qb: &mut QueryBuilder<'_, MySql>,
+        q: &FeedbackListQuery,
+        f: &FeedbackListFilter,
+    ) {
         if let Some(keyword) = q.effective_keyword() {
             qb.push(" AND content LIKE ");
             qb.push_bind(format!("%{keyword}%"));
         }
         if !f.types.is_empty() {
-            qb.push(format!(" AND type IN ({})", placeholders(f.types.len())));
+            // ⚠️ `QueryBuilder::push` 里写的 `?` 是**字面量**，不会绑定参数；
+            // 占位符必须由 `push_bind` 自己追加。
+            // 曾经写成 `push(" AND type IN (?)") + push_bind(..)`，
+            // 生成 `AND type IN (?) ?` → MySQL 1064 `near '?'`
+            // （2026-10-21 线上 `/adminapi/user/feedback/list` 500 的根因）。
+            qb.push(" AND type IN (");
+            let mut sep = qb.separated(", ");
             for t in &f.types {
-                qb.push_bind(*t);
+                sep.push_bind(*t);
             }
+            sep.push_unseparated(")");
         }
         if f.force_empty {
             qb.push(" AND 1 = 0");
@@ -280,13 +291,15 @@ impl FeedbackRepository {
             // Java：`.and(platformAdmin, w -> w.eq(shopId, 0).or()
             //        .notIn(type, SHOP_FEEDBACK_TYPES))`
             // `SHOP_FEEDBACK_TYPES = Set.of(2)` ⇒ `type NOT IN (2)`
-            qb.push(format!(
-                " AND (shop_id = 0 OR type NOT IN ({}))",
-                placeholders(SHOP_FEEDBACK_TYPES.len())
-            ));
+            //
+            // ⚠️ 同 `type IN (...)`：占位符只能由 `push_bind` 追加，
+            // 不能在 `push` 的字面量里写 `?`（否则 `near '?'` 1064）。
+            qb.push(" AND (shop_id = 0 OR type NOT IN (");
+            let mut sep = qb.separated(", ");
             for t in SHOP_FEEDBACK_TYPES {
-                qb.push_bind(t);
+                sep.push_bind(t);
             }
+            sep.push_unseparated("))");
         }
     }
 
@@ -339,10 +352,7 @@ impl FeedbackRepository {
     /// `getOne(eq(parentId, id).orderByDesc(id).last("LIMIT 1"))`）。
     ///
     /// 没有回复时返回 `Ok(None)` ⇒ 服务层抛 `"回复记录不存在"`。
-    pub async fn find_latest_reply_by_parent_id(
-        &self,
-        parent_id: i32,
-    ) -> Result<Option<Feedback>> {
+    pub async fn find_latest_reply_by_parent_id(&self, parent_id: i32) -> Result<Option<Feedback>> {
         sqlx::query_as::<_, Feedback>(&format!(
             "{FEEDBACK_SELECT} WHERE parent_id = ? ORDER BY id DESC LIMIT 1"
         ))
@@ -432,10 +442,7 @@ impl FeedbackRepository {
     ///
     /// `shop.shop_title` 可空 ⇒ 值用 `Option<String>`
     /// （Java 直接 `shopVO.setShopTitle(shop.getShopTitle())`，NULL 就传 NULL）。
-    pub async fn find_shop_titles(
-        &self,
-        shop_ids: &[i32],
-    ) -> Result<HashMap<i32, Option<String>>> {
+    pub async fn find_shop_titles(&self, shop_ids: &[i32]) -> Result<HashMap<i32, Option<String>>> {
         if shop_ids.is_empty() {
             return Ok(HashMap::new());
         }
@@ -498,10 +505,7 @@ impl FeedbackRepository {
 
     /// 单个店铺 `(shop_id, shop_title)`（对应 Java `detail` 里的
     /// `shopService.getOne(eq(shopId, ...))`）。
-    pub async fn find_shop_brief(
-        &self,
-        shop_id: i32,
-    ) -> Result<Option<(i32, Option<String>)>> {
+    pub async fn find_shop_brief(&self, shop_id: i32) -> Result<Option<(i32, Option<String>)>> {
         sqlx::query_as::<_, (i32, Option<String>)>(
             "SELECT shop_id, shop_title FROM shop WHERE shop_id = ? LIMIT 1",
         )
@@ -847,19 +851,47 @@ mod tests {
     /// `parent_id = 0` 无条件追加（回复不进列表）。
     #[test]
     fn always_filters_top_level_feedback() {
-        let sql = build(&query(serde_json::json!({})), &FeedbackListFilter::platform(vec![], None));
+        let sql = build(
+            &query(serde_json::json!({})),
+            &FeedbackListFilter::platform(vec![], None),
+        );
         assert!(sql.contains(" AND parent_id = 0"), "{sql}");
         // 无类型筛选 ⇒ 不加 type IN
         assert!(!sql.contains("type IN"), "{sql}");
         // 平台账号 ⇒ 追加可见性条件，且只有一个占位符（SHOP_FEEDBACK_TYPES 长度 1）
-        assert!(sql.contains(" AND (shop_id = 0 OR type NOT IN (?))"), "{sql}");
+        assert!(
+            sql.contains(" AND (shop_id = 0 OR type NOT IN (?))"),
+            "{sql}"
+        );
+        // 占位符数量必须与绑定参数数量一致：`push` 里的字面量 `?` 会导致
+        // MySQL 1064 `near '?'`（2026-10-21 `/adminapi/user/feedback/list` 500）。
+        assert_eq!(
+            sql.matches('?').count(),
+            1,
+            "平台可见性条件只应有 1 个占位符: {sql}"
+        );
+    }
+
+    /// `type IN (...)` 必须由 `push_bind` 生成占位符，
+    /// **不能**在 `push` 的字面量里写 `?`（否则 SQL 变成 `IN (?) ?`）。
+    #[test]
+    fn type_in_placeholders_match_binds() {
+        let f = FeedbackListFilter::platform(vec![2, 3], None);
+        let sql = build(&query(serde_json::json!({})), &f);
+        // `type IN (?, ?)` + `NOT IN (?)`
+        assert_eq!(sql.matches('?').count(), 3, "占位符数量不符: {sql}");
+        assert!(sql.contains("type IN (?, ?)"), "{sql}");
+        // 不得出现 `()) ?`、`(?) ?` 这类重复占位
+        assert!(!sql.contains(") ?"), "疑似重复占位符: {sql}");
     }
 
     /// `type` 为 `null` / `""` 时（平台账号）**不加**类型条件。
     #[test]
     fn empty_types_adds_no_condition() {
         let q = query(serde_json::json!({}));
-        let types = tigshop_core::models::member::feedback::resolve_platform_feedback_types(q.r#type.as_deref());
+        let types = tigshop_core::models::member::feedback::resolve_platform_feedback_types(
+            q.r#type.as_deref(),
+        );
         let sql = build(&q, &FeedbackListFilter::platform(types, None));
         assert!(!sql.contains("type IN ("), "{sql}");
     }
@@ -868,10 +900,18 @@ mod tests {
     #[test]
     fn shop_scope_conditions() {
         let q = query(serde_json::json!({"type": "2"}));
-        let types = tigshop_core::models::member::feedback::resolve_shop_feedback_types(q.r#type.as_deref());
+        let types = tigshop_core::models::member::feedback::resolve_shop_feedback_types(
+            q.r#type.as_deref(),
+        );
         let sql = build(&q, &FeedbackListFilter::shop(types, 7, false));
+        // `type IN (?)` 的占位由 push_bind 生成（字面量 `?` 会重复绑定）
         assert!(sql.contains(" AND type IN (?)"), "{sql}");
-        assert!(sql.contains(" AND shop_id = "), "{sql}");
+        assert_eq!(
+            sql.matches('?').count(),
+            2,
+            "IN + shop_id 共 2 个占位: {sql}"
+        );
+        assert!(!sql.contains(") ?"), "疑似重复占位符: {sql}");
         assert!(!sql.contains("OR type NOT IN"), "{sql}");
     }
 
@@ -879,7 +919,9 @@ mod tests {
     #[test]
     fn shop_scope_empty_types_forces_empty_page() {
         let q = query(serde_json::json!({"type": "0,1"}));
-        let types = tigshop_core::models::member::feedback::resolve_shop_feedback_types(q.r#type.as_deref());
+        let types = tigshop_core::models::member::feedback::resolve_shop_feedback_types(
+            q.r#type.as_deref(),
+        );
         assert!(types.is_empty());
         let sql = build(&q, &FeedbackListFilter::shop(types, 7, true));
         assert!(sql.contains(" AND 1 = 0"), "{sql}");
@@ -927,10 +969,7 @@ mod tests {
     #[test]
     fn zero_valued_filters_follow_java() {
         let f = FeedbackListFilter::platform(vec![], None);
-        let sql = build(
-            &query(serde_json::json!({"productId": 0, "status": 0})),
-            &f,
-        );
+        let sql = build(&query(serde_json::json!({"productId": 0, "status": 0})), &f);
         assert!(sql.contains("product_id = "), "{sql}");
         assert!(sql.contains("status = "), "{sql}");
 
@@ -1040,7 +1079,10 @@ mod tests {
         assert_eq!(feedback_status::REPLIED, 1);
         assert_eq!(feedback_status::CLOSED, 2);
         assert_eq!(SHOP_FEEDBACK_TYPES.len(), 1);
-        assert_eq!(SHOP_FEEDBACK_TYPES[0], tigshop_core::models::member::feedback::feedback_type::PRODUCT);
+        assert_eq!(
+            SHOP_FEEDBACK_TYPES[0],
+            tigshop_core::models::member::feedback::feedback_type::PRODUCT
+        );
     }
 
     /// `map_err`：行不存在 → `NotFound`，文案与 Java `"留言不存在"` 一致。

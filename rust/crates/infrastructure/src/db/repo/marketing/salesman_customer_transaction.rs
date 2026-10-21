@@ -46,26 +46,39 @@ impl SalesmanCustomerTransactionRepository {
     }
 
     /// 分页：`salesman_id` + `order.add_time` 区间（Java Mapper XML 口径）。
+    ///
+    /// `salesman_id = None` → 不加分销员过滤（Java `CustomerTransactionPageQuery`
+    /// 的 `salesmanId` 非必填，为空即查全部成交记录）。
     pub async fn paginate(
         &self,
-        salesman_id: i32,
+        salesman_id: Option<i32>,
         start: Option<i64>,
         end: Option<i64>,
         limit: u64,
         offset: u64,
     ) -> Result<(u64, Vec<CustomerTransactionRow>)> {
-        let mut where_parts = vec!["so.salesman_id = ?".to_string()];
+        let mut where_parts: Vec<String> = Vec::new();
+        if salesman_id.is_some() {
+            where_parts.push("so.salesman_id = ?".into());
+        }
         if start.is_some() {
             where_parts.push("o.add_time >= ?".into());
         }
         if end.is_some() {
             where_parts.push("o.add_time <= ?".into());
         }
-        let where_sql = format!("WHERE {}", where_parts.join(" AND "));
+        let where_sql = if where_parts.is_empty() {
+            String::new()
+        } else {
+            format!("WHERE {}", where_parts.join(" AND "))
+        };
 
         let count_sql =
             format!("SELECT COUNT(*) FROM salesman_order so JOIN `order` o ON o.order_id = so.order_id {where_sql}");
-        let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql).bind(salesman_id);
+        let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
+        if let Some(v) = salesman_id {
+            cq = cq.bind(v);
+        }
         if let Some(v) = start {
             cq = cq.bind(v);
         }
@@ -77,7 +90,10 @@ impl SalesmanCustomerTransactionRepository {
         let sql = format!(
             "SELECT so.salesman_id, o.order_id, o.order_sn, o.user_id, o.add_time, o.total_amount, o.paid_amount, o.order_status FROM salesman_order so JOIN `order` o ON o.order_id = so.order_id {where_sql} ORDER BY o.order_id DESC LIMIT ? OFFSET ?"
         );
-        let mut q = sqlx::query_as::<_, CustomerTransactionRow>(&sql).bind(salesman_id);
+        let mut q = sqlx::query_as::<_, CustomerTransactionRow>(&sql);
+        if let Some(v) = salesman_id {
+            q = q.bind(v);
+        }
         if let Some(v) = start {
             q = q.bind(v);
         }
@@ -94,10 +110,7 @@ impl SalesmanCustomerTransactionRepository {
     }
 
     /// 分销员对应的会员名（`salesman.salesman_id → user.username`）。
-    pub async fn salesman_names(
-        &self,
-        salesman_ids: &[i32],
-    ) -> Result<Vec<(i32, Option<String>)>> {
+    pub async fn salesman_names(&self, salesman_ids: &[i32]) -> Result<Vec<(i32, Option<String>)>> {
         let ids: Vec<i32> = salesman_ids.iter().copied().filter(|id| *id > 0).collect();
         if ids.is_empty() {
             return Ok(Vec::new());

@@ -30,18 +30,63 @@ pub const MAX_PAGE_SIZE: u64 = 100;
 pub const MSG_SALESMAN_ID_REQUIRED: &str = "salesmanId不能为空";
 
 /// 客户交易列表查询（Java `CustomerTransactionPageQuery`）。
+///
+/// ⚠️ `salesmanId` **不是必填**：Java `CustomerTransactionPageQuery` 上该字段
+/// 没有任何 `@NotNull`，服务层只是把它透传给 Mapper（为空则不加过滤）。
+/// 原版 admin 页面 `views/salesman/customerTransactions/List.vue` 更是把
+/// `salesmanId` 初始化成**空字符串 `""`** 后原样提交；Jackson 把 `""` 绑成
+/// `null`，于是「全部客户的成交记录」正常返回。
+///
+/// Rust 早期实现：serde 严格解析 `""` → 整个请求 422/400，且服务层强制
+/// `salesmanId` 必填 → 页面永远拿不到数据
+/// （2026-10-21 巡检 `/admin/salesman/customer-transactions/list` 的根因）。
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct CustomerTransactionQuery {
+    /// 分销员 ID（可选；`""` / 非法串 → `None` = 不过滤）
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub salesman_id: Option<i32>,
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub is_export: Option<i32>,
     pub start_time: Option<String>,
     pub end_time: Option<String>,
+    #[serde(default, deserialize_with = "de_opt_u64_lenient")]
     pub page: Option<u64>,
-    #[serde(rename = "pageSize", alias = "size")]
+    #[serde(
+        rename = "pageSize",
+        alias = "size",
+        default,
+        deserialize_with = "de_opt_u64_lenient"
+    )]
     pub page_size: Option<u64>,
     pub sort_field: Option<String>,
     pub sort_order: Option<String>,
+}
+
+/// 宽松地把 JSON 值解析为 `Option<i32>`：`""` / 非数字串 / 其它类型 → `None`。
+fn de_opt_i32_lenient<'de, D>(deserializer: D) -> Result<Option<i32>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(match value {
+        Some(serde_json::Value::Number(n)) => n.as_i64().and_then(|v| i32::try_from(v).ok()),
+        Some(serde_json::Value::String(s)) => s.trim().parse::<i32>().ok(),
+        _ => None,
+    })
+}
+
+/// 宽松地把 JSON 值解析为 `Option<u64>`（用于 `page` / `size`）。
+fn de_opt_u64_lenient<'de, D>(deserializer: D) -> Result<Option<u64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(match value {
+        Some(serde_json::Value::Number(n)) => n.as_u64(),
+        Some(serde_json::Value::String(s)) => s.trim().parse::<u64>().ok(),
+        _ => None,
+    })
 }
 
 /// 客户交易行（Java `CustomerTransactionOrderVO` 精简子集）。
@@ -79,7 +124,9 @@ pub fn parse_time(raw: Option<&str>) -> Option<i64> {
 #[must_use]
 pub fn format_time(secs: Option<i32>) -> String {
     use chrono::TimeZone;
-    let Some(secs) = secs else { return String::new() };
+    let Some(secs) = secs else {
+        return String::new();
+    };
     if secs == 0 {
         return String::new();
     }
