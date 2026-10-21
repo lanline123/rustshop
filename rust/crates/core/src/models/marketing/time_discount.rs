@@ -23,17 +23,65 @@ pub struct TimeDiscountListQuery {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct TimeDiscountItemDTO {
+    #[serde(default, deserialize_with = "de_opt_i32")]
     pub product_id: Option<i32>,
     /// 适用 SKU 列表；为空表示作用于该商品全部规格
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_i32_list")]
     pub sku_ids: Vec<i32>,
     /// 折扣值：`discount_type` 为 1 时是折扣率（如 8.5 表示 8.5 折），
     /// 为 2 时是立减金额，为 3 时是固定折扣价
+    #[serde(default, deserialize_with = "de_opt_decimal")]
     pub value: Option<Decimal>,
     /// 1 折扣率 2 立减 3 固定价
+    #[serde(default, deserialize_with = "de_opt_i32")]
     pub discount_type: Option<i32>,
+    #[serde(default, deserialize_with = "de_opt_i32")]
     pub start_time: Option<i32>,
+    #[serde(default, deserialize_with = "de_opt_i32")]
     pub end_time: Option<i32>,
+}
+
+/// 原版前端会把数字以字符串提交（含数组元素），这里统一宽松解析。
+fn de_opt_i32<'de, D>(deserializer: D) -> Result<Option<i32>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(match value {
+        Some(serde_json::Value::Number(n)) => n.as_i64().and_then(|v| i32::try_from(v).ok()),
+        Some(serde_json::Value::String(s)) => s.trim().parse::<i32>().ok(),
+        _ => None,
+    })
+}
+
+fn de_opt_decimal<'de, D>(deserializer: D) -> Result<Option<Decimal>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(match value {
+        Some(serde_json::Value::Number(n)) => n.to_string().parse::<Decimal>().ok(),
+        Some(serde_json::Value::String(s)) => s.trim().parse::<Decimal>().ok(),
+        _ => None,
+    })
+}
+
+fn de_i32_list<'de, D>(deserializer: D) -> Result<Vec<i32>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    let Some(serde_json::Value::Array(items)) = value else {
+        return Ok(Vec::new());
+    };
+    Ok(items
+        .into_iter()
+        .filter_map(|v| match v {
+            serde_json::Value::Number(n) => n.as_i64().and_then(|x| i32::try_from(x).ok()),
+            serde_json::Value::String(s) => s.trim().parse::<i32>().ok(),
+            _ => None,
+        })
+        .collect())
 }
 
 /// 创建限时折扣请求。
@@ -41,11 +89,14 @@ pub struct TimeDiscountItemDTO {
 #[serde(rename_all = "camelCase", default)]
 pub struct TimeDiscountCreateDTO {
     pub promotion_name: Option<String>,
+    #[serde(default, deserialize_with = "de_opt_i32")]
     pub start_time: Option<i32>,
+    #[serde(default, deserialize_with = "de_opt_i32")]
     pub end_time: Option<i32>,
+    #[serde(default, deserialize_with = "de_opt_i32")]
     pub shop_id: Option<i32>,
     /// 参与活动的商品 ID 列表（用于跨活动冲突校验）
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_i32_list")]
     pub product_ids: Vec<i32>,
     #[serde(default)]
     pub item: Vec<TimeDiscountItemDTO>,
