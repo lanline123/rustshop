@@ -150,9 +150,9 @@ impl OrderRepository {
         .bind(order.discount_amount)
         .bind(order.tax_rate)
         .bind(order.tax_rate_amount)
-        // 该库 `parent_order_id` 为非空列（默认 0），主订单没有父单时写 0 而不是 NULL。
+        // 该库 `parent_order_id` / `parent_order_sn` 均为非空列，主订单没有父单时写默认值。
         .bind(order.parent_order_id.unwrap_or(0))
-        .bind(&order.parent_order_sn)
+        .bind(order.parent_order_sn.as_deref().unwrap_or(""))
         .bind(order.is_store_splited)
         .bind(order.pos_user_id)
         .execute(&mut **tx)
