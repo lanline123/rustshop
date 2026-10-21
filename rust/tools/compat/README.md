@@ -2,6 +2,22 @@
 
 本目录的脚本用于「**不改前端**、用 Rust 后端替换原 Java 服务」的本地/测试环境。
 
+## 数据库兼容修正（换库必看）
+
+从 Java `pure.sql` 新建数据库后，直接导入合并版 SQL：
+
+```bash
+mysql -h 127.0.0.1 -u root -p 数据库名 < rust/数据库兼容修正.sql
+```
+
+它一次完成：
+
+1. 整数 `UNSIGNED` → 有符号整数
+2. `JSON` → `TEXT`
+3. `DATE` → `VARCHAR(10)`
+
+可重复执行，末尾输出三个 `remaining_*` 校验值，均应为 `0`。
+
 ## mysql_signed_schema.py
 
 Java 的 MySQL dump 中大量主键/状态列是 `INT UNSIGNED`，而 Rust 模型按 `i32/i64` 解码

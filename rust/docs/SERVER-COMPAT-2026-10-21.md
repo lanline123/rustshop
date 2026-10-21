@@ -14,6 +14,14 @@
 | `JSON` 列 → Rust `String` 解码失败 | `tools/compat/fix_json_schema.sql` | `remaining_json_columns = 0` |
 | `DATE` 列 → Rust `Option<String>` 解码失败 | `tools/compat/fix_date_schema.sql` | `remaining_date_columns = 0` |
 
+换库/重新导入 Java `pure.sql` 后，直接导入合并版脚本即可（可重复执行，末尾自带校验）：
+
+```bash
+mysql -h 127.0.0.1 -u root -p 数据库名 < rust/数据库兼容修正.sql
+```
+
+文件：`rust/数据库兼容修正.sql`
+
 代表错误：
 
 - `admin_id ... INT UNSIGNED`
