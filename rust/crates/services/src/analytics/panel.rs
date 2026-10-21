@@ -210,8 +210,16 @@ impl PanelService {
         let rows = self.repo().search_authority(keyword).await?;
         Ok(Value::Array(
             rows.into_iter()
-                .map(|(id, name, route)| {
-                    json!({ "authorityId": id, "authorityName": name, "routeLink": route })
+                .map(|(id, sn, name, route)| {
+                    // 原版前端读取 authorityNames（数组）并 .join(" / ")；
+                    // authoritySn 用于点击后按路由 name 跳转。
+                    json!({
+                        "authorityId": id,
+                        "authoritySn": sn,
+                        "authorityName": name,
+                        "authorityNames": [name],
+                        "routeLink": route
+                    })
                 })
                 .collect(),
         ))
