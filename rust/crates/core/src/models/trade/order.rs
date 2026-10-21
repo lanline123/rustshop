@@ -180,4 +180,8 @@ pub struct OrderVO {
     pub presale_info: Option<serde_json::Value>,
     pub order_source: Option<String>,
     pub cycle_card_info: Option<serde_json::Value>,
+    /// 发票申请数据（发票列表页读取 `invoiceData`）
+    pub invoice_data: Option<serde_json::Value>,
+    pub balance: Decimal,
+    pub shipping_fee: Decimal,
 }
