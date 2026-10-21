@@ -110,9 +110,13 @@ async fn my_coupon_detail(
     Extension(auth): Extension<AuthUser>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<serde_json::Value> {
-    let coupon = state.marketing.coupon.detail(q.id).await?;
+    // 原版前端进入 /coupon 时可能没有 query.id；此时返回空详情，不抛 400。
+    let Some(coupon_id) = q.id else {
+        return ok(serde_json::Value::Null);
+    };
+    let coupon = state.marketing.coupon.detail(coupon_id).await?;
     let usable = state.marketing.coupon.my_usable_coupons(auth.id).await?;
-    let is_receive = usable.iter().any(|uc| uc.coupon_id == q.id);
+    let is_receive = usable.iter().any(|uc| uc.coupon_id == coupon_id);
     ok(serde_json::json!({
         "couponId": coupon.coupon_id,
         "couponName": coupon.coupon_name,
@@ -132,7 +136,7 @@ async fn my_coupon_detail(
 
 #[derive(Debug, Deserialize)]
 struct IdQuery {
-    id: i32,
+    id: Option<i32>,
 }
 
 /// `POST /api/user/coupon/claim`：领取优惠券（需登录）。
