@@ -42,6 +42,10 @@ mysql -h 127.0.0.1 -u root -p 数据库名 < rust/数据库兼容修正.sql
 | `GET /api/common/recommend/guessLike` | 返回 `PageResult`，前端直接 `(res || []).filter` | `services/src/system/recommend.rs` 改为 `Vec` |
 | `GET /api/user/order/detail` | 返回 `{order,items}` 且 `OrderVO` 缺 `shopId`，原版详情读取平铺字段并请求 `shop/detail` | `api/public/src/lib.rs` 改为平铺 + items；`OrderVO` 增加 `shopId`；状态文案按 Java 0–5 映射 |
 | `GET /adminapi/msg/adminMsg/msgCount?startTime=` | 空字符串不能解析为 `Option<i64>`，SSE 400 | `api/admin/src/routes/system/admin_msg.rs` 空串按 `None` |
+| 所有 public optional 路由 | 原版前端未登录也发 `Authorization: Bearer null`，Rust 返回 401，登录页/注册页公共接口全挂 | 42 个 `optional_auth` 把非法 token 当游客；`require_auth` 仍 401 |
+| `POST /api/search/search/getProduct` | 原版分类页传 `cat:"17"` 字符串，Rust `Option<i32>` 反序列化 400，列表空 | `ProductSearchClientQuery` 数字 ID 字段兼容字符串 |
+| 业务错误响应 | Rust 把 `Biz` 错误也返回 HTTP 400，前端提示“Request failed with status code 400” | `AppError` 恢复 Java 语义：业务错误 HTTP 200 + code/msg |
+| 统计/会员页 | `salesStatistics` 缺 `salesStatisticsData`、销售指标缺平铺字段、新增会员 `dateType` 字符串 400 | `services/src/analytics/*` 按原版 VO 补齐并兼容字符串参数 |
 
 ## 3. 新二进制构建与部署
 
@@ -50,8 +54,9 @@ mysql -h 127.0.0.1 -u root -p 数据库名 < rust/数据库兼容修正.sql
 
 - 仓库：`https://github.com/lanline123/rustshop`（已清理，只保留 `rust/` + `.github` + `.gitignore`）
 - 构建：`.github/workflows/build-rust.yml`（rockylinux:8 / glibc 2.28）
-- 产物：`tigshop`（45,159,376 bytes，sha256 `9afebcf4bb14d475d89aeb8ba810b21d8f5f15b4f56d72b23f8ba3252446ed88`）
-- 部署：备份旧二进制为 `tigshop.bak.20261021`，替换 `/www/wwwroot/tigshop-rust/tigshop` 后重启
+- 最新部署：Release `build-18`，对应提交 `7c621087be85282e1b9a7acfe9bbe4a3dbc5c75b`
+- 产物：`rustshop`（45,178,080 bytes，sha256 `61ba306437582df41a36c67343b88f3e0c6878bf5cbccb8bd3367a2e8ed6f0de`）
+- 部署：备份旧二进制为 `tigshop.bak.before_build18`，替换 `/www/wwwroot/tigshop-rust/tigshop` 后重启
 - 临时 nginx/Python shim 已停用并删除；请求直接走新 Rust 代码
 
 > 原版前端未改；旧二进制只用于回滚。
@@ -79,15 +84,22 @@ mysql -h 127.0.0.1 -u root -p 数据库名 < rust/数据库兼容修正.sql
   - `GET /adminapi/setting/config/aliPaySettings` → 200（支付宝 AppID 已配置）。
 - 服务器 ES：`GET https://127.0.0.1:9200/_cluster/health` → `status=green`。
 - `GET /api/order/check/getAvailablePaymentType` → 200（在线支付可用）。
+- build-18 部署后实测：
+  - 带 `Authorization: Bearer null` 的公共接口 → 200（登录页不再 401）；
+  - `/member/login`、`/member/register` 无 401 / 网络错误；
+  - `/list/?cat=17` 正常显示商品；`cat=34`（水墨画）数据库本身无商品；
+  - `/admin/statistics-order|sale|goods|sale-targets|new-members` 无 JS 异常；
+  - `sendMobileCode` → HTTP 200 + code 1001「短信通道未配置」。
 
 ## 6. GitHub 编译
 
-本机仓库没有配置 `git remote`，也无法提供 GitHub 凭据，因此当前只能本地提交。
-在 GitHub 仓库配置好 remote 后执行：
+仓库：`https://github.com/lanline123/rustshop`
 
-```bash
-git push origin master
-```
+Actions：`.github/workflows/build-rust.yml`（rockylinux:8 / glibc 2.28）。
+
+最新成功产物：Release `build-18`，对应提交 `7c621087be85282e1b9a7acfe9bbe4a3dbc5c75b`。
+
+后续由人工手动触发构建，不自动构建。
 
 `.github/workflows/build-rust.yml` 已存在：推送到 `main` 或手动
 `workflow_dispatch` 后会在 `rockylinux:8` 构建 release 并发布 Release。
