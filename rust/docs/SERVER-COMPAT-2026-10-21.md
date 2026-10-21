@@ -54,9 +54,9 @@ mysql -h 127.0.0.1 -u root -p 数据库名 < rust/数据库兼容修正.sql
 
 - 仓库：`https://github.com/lanline123/rustshop`（已清理，只保留 `rust/` + `.github` + `.gitignore`）
 - 构建：`.github/workflows/build-rust.yml`（rockylinux:8 / glibc 2.28）
-- 最新部署：Release `build-25`，对应提交 `b26f0dfbdf039bd79a2c95709123db7551f4e06c`
-- 产物：`rustshop`（45,203,088 bytes，sha256 `64c591ba3082d5c5f5b376ce725dded1c127cff6f9c398a6cde6b983ae26f0c0`）
-- 部署：备份旧二进制为 `tigshop.bak.before_build25`，替换 `/www/wwwroot/tigshop-rust/tigshop` 后重启
+- 最新部署：Release `build-27`，对应提交 `599bfb126d4c60bcd9144d2c476004db4d5e9b94`
+- 产物：`rustshop`（45,203,312 bytes，sha256 `735e2f794ee55cad21d20c236ae6add1de2bfb2df0d083e9552c856ffc2c7a28`）
+- 部署：备份旧二进制为 `tigshop.bak.before_build27`，替换 `/www/wwwroot/tigshop-rust/tigshop` 后重启
 - 临时 nginx/Python shim 已停用并删除；请求直接走新 Rust 代码
 
 > 原版前端未改；旧二进制只用于回滚。
@@ -84,7 +84,7 @@ mysql -h 127.0.0.1 -u root -p 数据库名 < rust/数据库兼容修正.sql
   - `GET /adminapi/setting/config/aliPaySettings` → 200（支付宝 AppID 已配置）。
 - 服务器 ES：`GET https://127.0.0.1:9200/_cluster/health` → `status=green`。
 - `GET /api/order/check/getAvailablePaymentType` → 200（在线支付可用）。
-- build-25 部署后实测：
+- build-27 部署后实测：
   - 带 `Authorization: Bearer null` 的公共接口 → 200（登录页不再 401）；
   - `/member/login`、`/member/register` 无 401 / 网络错误；
   - `/list/?cat=17` 正常显示商品；`cat=34`（水墨画）数据库本身无商品；
@@ -100,7 +100,7 @@ mysql -h 127.0.0.1 -u root -p 数据库名 < rust/数据库兼容修正.sql
 
 Actions：`.github/workflows/build-rust.yml`（rockylinux:8 / glibc 2.28）。
 
-最新成功产物：Release `build-25`，对应提交 `b26f0dfbdf039bd79a2c95709123db7551f4e06c`。
+最新成功产物：Release `build-27`，对应提交 `599bfb126d4c60bcd9144d2c476004db4d5e9b94`。
 
 后续由人工手动触发构建，不自动构建。
 
