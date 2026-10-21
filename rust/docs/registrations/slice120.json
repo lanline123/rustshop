@@ -1,7 +1,0 @@
-{
-  "slice_id": "slice120",
-  "tag": "打印机配置管理",
-  "has_admin": true,
-  "has_public": false,
-  "core_models_mod": "pub mod slice120;"
-}

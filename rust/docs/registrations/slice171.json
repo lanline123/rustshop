@@ -1,7 +1,0 @@
-{
-  "slice_id": "slice171",
-  "tag": "表单令牌校验",
-  "has_admin": true,
-  "has_public": true,
-  "core_models_mod": "pub mod slice171;"
-}

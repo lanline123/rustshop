@@ -1,7 +1,0 @@
-{
-  "slice_id": "slice066",
-  "tag": "前台用户发票",
-  "has_admin": false,
-  "has_public": true,
-  "core_models_mod": "pub mod slice066;"
-}
