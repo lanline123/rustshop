@@ -111,7 +111,7 @@ impl PayRepository {
         order_type: i32,
     ) -> Result<Option<Paylog>> {
         sqlx::query_as::<_, Paylog>(
-            "SELECT paylog_id, pay_sn, pay_name, order_id, order_sn, order_amount, order_type, pay_amount, pay_status, pay_code, profit_sharing_channel, add_time, transaction_id, notify_data, refund_amount, token_code, appid FROM paylog WHERE order_id = ? AND order_type = ? AND pay_status = ? ORDER BY paylog_id DESC LIMIT 1",
+            "SELECT paylog_id, pay_sn, pay_name, order_id, order_sn, order_amount, order_type, pay_amount, pay_status, pay_code, profit_sharing_channel, add_time, transaction_id, notify_data, refund_amount, token_code FROM paylog WHERE order_id = ? AND order_type = ? AND pay_status = ? ORDER BY paylog_id DESC LIMIT 1",
         )
         .bind(order_id)
         .bind(order_type)
@@ -124,7 +124,7 @@ impl PayRepository {
     /// 按主键查支付日志（`checkStatus` 的 paylogId 分支）。
     pub async fn find_paylog_by_id(&self, paylog_id: i32) -> Result<Option<Paylog>> {
         sqlx::query_as::<_, Paylog>(
-            "SELECT paylog_id, pay_sn, pay_name, order_id, order_sn, order_amount, order_type, pay_amount, pay_status, pay_code, profit_sharing_channel, add_time, transaction_id, notify_data, refund_amount, token_code, appid FROM paylog WHERE paylog_id = ? LIMIT 1",
+            "SELECT paylog_id, pay_sn, pay_name, order_id, order_sn, order_amount, order_type, pay_amount, pay_status, pay_code, profit_sharing_channel, add_time, transaction_id, notify_data, refund_amount, token_code FROM paylog WHERE paylog_id = ? LIMIT 1",
         )
         .bind(paylog_id)
         .fetch_optional(&self.pool)

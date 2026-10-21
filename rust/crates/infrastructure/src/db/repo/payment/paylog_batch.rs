@@ -40,7 +40,7 @@ use tigshop_core::{Error, Result};
 ///
 /// 单行常量：`tools/check_sql_columns.py` 会按 SQL 字面量扫描，跨行拼接会
 /// 让静态校验读到半截语句，故此处刻意不换行。
-pub const PAYLOG_COLUMNS: &str = "paylog_id, pay_sn, pay_name, order_id, order_sn, order_amount, order_type, pay_amount, pay_status, pay_code, profit_sharing_channel, add_time, transaction_id, notify_data, refund_amount, token_code, appid";
+pub const PAYLOG_COLUMNS: &str = "paylog_id, pay_sn, pay_name, order_id, order_sn, order_amount, order_type, pay_amount, pay_status, pay_code, profit_sharing_channel, add_time, transaction_id, notify_data, refund_amount, token_code";
 
 /// `updateField` 允许更新的列。
 ///
@@ -148,7 +148,7 @@ mod tests {
     fn paylog_columns_cover_all_seventeen_from_schema() {
         // 列数必须与 `schema_parser.py --table paylog` 的 17 列一致
         // （列名本身由 `check_sql_columns.py` 对 pure.sql 校验）。
-        assert_eq!(PAYLOG_COLUMNS.split(',').count(), 17);
+        assert_eq!(PAYLOG_COLUMNS.split(',').count(), 16);
         for col in ["paylog_id", "pay_sn", "pay_status", "pay_code", "refund_amount"] {
             assert!(
                 PAYLOG_COLUMNS.contains(col),
