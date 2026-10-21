@@ -1,0 +1,58 @@
+name: check-rust
+
+# 普通 push 只做编译检查，不生成二进制、不发布 Release。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'rust/crates/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-22.04
+    container: rockylinux:8
+    env:
+      CARGO_TARGET_DIR: /tmp/cargo-check-target
+    steps:
+      - name: Install git & build deps
+        run: |
+          set -e
+          sed -i -e 's|^mirrorlist=|#mirrorlist=|g' \
+                 -e 's|^#baseurl=http://dl.rockylinux.org|baseurl=https://dl.rockylinux.org|g' \
+                 /etc/yum.repos.d/Rocky-*.repo 2>/dev/null || true
+          dnf install -y --setopt=install_weak_deps=False --nodocs \
+            git gcc gcc-c++ make pkgconfig openssl-devel perl which tar xz curl
+          dnf clean all
+
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+            | sh -s -- -y --profile minimal
+          . "$HOME/.cargo/env"
+          rustc --version
+
+      - name: Cache cargo target
+        uses: actions/cache@v4
+        with:
+          path: |
+            /github/home/.cargo/registry
+            /github/home/.cargo/git
+            /tmp/cargo-check-target
+          key: check-cargo-${{ runner.os }}-${{ hashFiles('rust/crates/Cargo.lock') }}-${{ github.run_id }}
+          restore-keys: |
+            check-cargo-${{ runner.os }}-${{ hashFiles('rust/crates/Cargo.lock') }}-
+            check-cargo-${{ runner.os }}-
+
+      - name: cargo check
+        working-directory: rust/crates
+        env:
+          PKG_CONFIG_PATH: /usr/lib64/pkgconfig:/usr/share/pkgconfig
+        run: |
+          . "$HOME/.cargo/env"
+          cargo check -p tigshop-server

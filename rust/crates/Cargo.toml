@@ -207,5 +207,13 @@ codegen-units = 1
 panic = "abort"
 strip = true
 
+# 测试/预发布构建：可运行，但比 fat LTO release 快很多。
+[profile.staging]
+inherits = "release"
+lto = "thin"
+codegen-units = 16
+incremental = true
+strip = true
+
 [profile.bench]
 debug = true
