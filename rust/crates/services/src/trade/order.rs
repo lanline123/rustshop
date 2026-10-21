@@ -210,12 +210,19 @@ impl OrderService {
 
             let promotion_data = groupon_line
                 .and_then(|g| serde_json::to_string(&g.data).ok());
+            let product = products.get(&pid);
             items.push(OrderItem {
                 order_sn: order_sn.clone(),
                 user_id,
                 price,
                 quantity: qty,
                 product_id: pid,
+                product_name: product
+                    .map(|p| p.product_name.clone())
+                    .unwrap_or_default(),
+                product_sn: product.map(|p| p.product_sn.clone()).unwrap_or_default(),
+                pic_thumb: product.map(|p| p.pic_thumb.clone()).unwrap_or_default(),
+                product_type: product.and_then(|p| p.product_type).unwrap_or(1),
                 sku_id,
                 sku_data: line.sku_data.clone().unwrap_or_default(),
                 origin_price: Some(base_price),
@@ -228,12 +235,19 @@ impl OrderService {
 
         // 满赠赠品行（价格 0，isGift=1；库存扣减在事务内单独处理）
         for gift in &applied_gifts {
+            let product = products.get(&gift.product_id);
             items.push(OrderItem {
                 order_sn: order_sn.clone(),
                 user_id,
                 price: Decimal::ZERO,
                 quantity: gift.num,
                 product_id: gift.product_id,
+                product_name: product
+                    .map(|p| p.product_name.clone())
+                    .unwrap_or_default(),
+                product_sn: product.map(|p| p.product_sn.clone()).unwrap_or_default(),
+                pic_thumb: product.map(|p| p.pic_thumb.clone()).unwrap_or_default(),
+                product_type: product.and_then(|p| p.product_type).unwrap_or(1),
                 sku_id: gift.sku_id,
                 sku_data: String::new(),
                 origin_price: Some(Decimal::ZERO),
