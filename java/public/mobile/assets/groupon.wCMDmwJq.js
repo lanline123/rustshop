@@ -1,0 +1,1 @@
+const r=r=>{if(!r)return 0;try{const t=JSON.parse(r);return Array.isArray(t)?t.reduce((r,t)=>{const e=Number(null==t?void 0:t.groupNum);return Number.isFinite(e)?Math.max(r,e):r},0):0}catch{return 0}};export{r as g};

@@ -1,0 +1,1 @@
+import{aU as e}from"./ntmrFmLd.js";const u=r=>e({url:"user/priceInquiry/list",method:"get",params:r}),s=r=>e({url:"user/priceInquiry/detail",method:"get",params:{id:r}}),i=r=>e({url:"user/priceInquiry/reply",method:"post",data:r}),n=r=>e({url:"user/priceInquiry/del",method:"post",data:{id:r}});export{u as a,n as d,s as g,i as r};

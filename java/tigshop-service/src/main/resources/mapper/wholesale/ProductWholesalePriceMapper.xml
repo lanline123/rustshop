@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.wholesale.ProductWholesalePriceMapper">
+
+    <resultMap id="BaseResultMap" type="com.tigshop.bean.model.wholesale.ProductWholesalePrice">
+        <id     property="id"             column="id"/>
+        <result property="productId"      column="product_id"/>
+        <result property="skuId"          column="sku_id"/>
+        <result property="gradeId"        column="grade_id"/>
+        <result property="tierMinQty"     column="tier_min_qty"/>
+        <result property="priceMode"      column="price_mode"/>
+        <result property="discount"       column="discount"/>
+        <result property="wholesalePrice" column="wholesale_price"/>
+        <result property="status"         column="status"/>
+        <result property="isDelete"       column="is_delete"/>
+        <result property="createTime"     column="create_time"/>
+        <result property="updateTime"     column="update_time"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, product_id, sku_id, grade_id, tier_min_qty, price_mode, discount,
+        wholesale_price, status, is_delete, create_time, update_time
+    </sql>
+
+    <!-- 列出某商品全部未删除的批发价记录（含通用价 + 所有等级 + 所有阶梯） -->
+    <select id="listByProductId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM product_wholesale_price
+        WHERE is_delete = 0
+          AND product_id = #{productId}
+    </select>
+
+    <!-- 物理删除：全量替换策略 — 删旧 + 插新 -->
+    <delete id="deleteByProductId">
+        DELETE FROM product_wholesale_price
+         WHERE product_id = #{productId}
+    </delete>
+
+    <!-- 批量预取每个商品的「第一阶梯」批发价（CR-20260613-1629：起量最低阶梯，替换原 MIN(id) 录入序首条）
+         过滤：is_delete=0 AND status=1 AND (grade_id=0 OR grade_id=当前等级)
+         策略：内层按 (product_id, grade_id) 分组，先用相关子查询锁定该组的最低 tier_min_qty，
+              再取该阶梯内 MIN(id) 作 tiebreak → 外层 JOIN 回填全字段。
+              每商品最多返回 2 行（通用第一阶梯 + 当前等级第一阶梯），等级优先在 Java 侧聚合。
+              不用窗口函数，MySQL 5.7/8.x 通用；禁 N+1。 -->
+    <select id="selectFirstPriceByProductIds" resultMap="BaseResultMap">
+        SELECT
+            t.id, t.product_id, t.sku_id, t.grade_id, t.tier_min_qty, t.price_mode, t.discount,
+            t.wholesale_price, t.status, t.is_delete, t.create_time, t.update_time
+        FROM product_wholesale_price t
+        INNER JOIN (
+            SELECT p.product_id, p.grade_id, MIN(p.id) AS min_id
+            FROM product_wholesale_price p
+            WHERE p.is_delete = 0
+              AND p.status = 1
+              AND (p.grade_id = 0 OR p.grade_id = #{gradeId})
+              AND p.product_id IN
+              <foreach collection="productIds" item="pid" open="(" separator="," close=")">
+                  #{pid}
+              </foreach>
+              AND p.tier_min_qty = (
+                  SELECT MIN(p2.tier_min_qty)
+                  FROM product_wholesale_price p2
+                  WHERE p2.product_id = p.product_id
+                    AND p2.grade_id = p.grade_id
+                    AND p2.is_delete = 0
+                    AND p2.status = 1
+              )
+            GROUP BY p.product_id, p.grade_id
+        ) m ON t.id = m.min_id
+        WHERE t.is_delete = 0
+    </select>
+
+</mapper>

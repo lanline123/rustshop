@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.product.ProductStockAllocateRecordMapper">
+    <select id="getPage" resultType="com.tigshop.bean.vo.product.ProductStockAllocateRecordPageVO">
+        SELECT
+        allocate_id as allocateId,
+        allocate_code as allocateCode,
+        outbound_organization_id as outboundOrganizationId,
+        warehousing_organization_id as warehousingOrganizationId,
+        `status` as status,
+        add_by as addBy,
+        DATE_FORMAT(FROM_UNIXTIME(add_time), '%Y-%m-%d %H:%i:%s') as addTime,
+        stock_in_comment as stockInComment,
+        stock_out_comment as stockOutComment,
+        stock_allocate_comment as comment
+        FROM
+        product_stock_allocate_record
+        <where>
+            AND (outbound_organization_id = #{productStockAllocateRecordDTO.shopId} OR warehousing_organization_id = #{productStockAllocateRecordDTO.shopId})
+            <if test="productStockAllocateRecordDTO.keyword != null and productStockAllocateRecordDTO.keyword != ''">
+                AND (allocate_code LIKE CONCAT('%',#{productStockAllocateRecordDTO.keyword},'%'))
+            </if>
+
+            <if test="productStockAllocateRecordDTO.status != null">
+                AND `status` = #{productStockAllocateRecordDTO.status}
+            </if>
+
+            <if test="productStockAllocateRecordDTO.addBy != null and productStockAllocateRecordDTO.addBy != ''">
+                AND add_by = #{productStockAllocateRecordDTO.addBy}
+            </if>
+            ORDER BY add_time DESC
+        </where>
+    </select>
+    <select id="getListByProductIds" resultType="com.tigshop.bean.model.product.ProductStockAllocateRecord">
+        SELECT
+        pr.allocate_code,
+        pr.outbound_organization_id,
+        pr.warehousing_organization_id,
+        pr.`status`,
+        pr.add_by,
+        pr.add_time
+        FROM
+        product_stock_allocate_record pr
+        where (pr.warehousing_organization_id = #{shopId} or pr.outbound_organization_id = #{shopId})
+        <if test="allocateIds != null and !allocateIds.isEmpty()">
+            AND pr.allocate_id IN
+            <foreach collection="allocateIds" item="allocateId" open="(" separator="," close=")">
+                #{allocateId}
+            </foreach>
+        </if>
+    </select>
+</mapper>

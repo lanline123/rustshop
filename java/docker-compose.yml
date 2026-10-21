@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  adminapi:
+    build:
+      context: ./tigshop-adminapi
+      dockerfile: adminapi.Dockerfile
+    container_name: tigshop-adminapi
+    ports:
+      - "${ADMINAPI_PORT}:8080"
+    volumes:
+      - ./tigshop-adminapi/target/tigshop-adminapi-0.0.1-SNAPSHOT.jar:/app/tigshop-adminapi.jar
+      - ./opt:/app/opt
+      - ./logs:/app/logs
+    depends_on:
+      - mysql
+      - redis
+      - rabbitmq
+    networks:
+      - tigshop-net
+
+  api:
+    build:
+      context: ./tigshop-api
+      dockerfile: api.Dockerfile
+    container_name: tigshop-api
+    ports:
+      - "${API_PORT}:8181"
+    volumes:
+      - ./tigshop-api/target/tigshop-api-0.0.1-SNAPSHOT.jar:/app/tigshop-api.jar
+      - ./opt:/app/opt
+    depends_on:
+      - mysql
+      - redis
+      - rabbitmq
+    networks:
+      - tigshop-net
+
+  mysql:
+    image: mysql:8.0
+    container_name: tigshop-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "${MYSQL_PORT}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./database/demo.sql:/docker-entrypoint-initdb.d/demo.sql
+    networks:
+      - tigshop-net
+
+  redis:
+    image: redis:7.0
+    container_name: tigshop-redis
+    ports:
+      - "${REDIS_PORT}:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - tigshop-net
+
+  rabbitmq:
+    build:
+      context: ./rabbitmq-plugins
+    container_name: tigshop-rabbitmq
+    ports:
+      - "${RABBITMQ_PORT}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT}:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - tigshop-net
+
+volumes:
+  mysql-data:
+  redis-data:
+  rabbitmq-data:
+
+networks:
+  tigshop-net:
+    driver: bridge

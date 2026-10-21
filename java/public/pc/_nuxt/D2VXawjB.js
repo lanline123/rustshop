@@ -1,0 +1,1 @@
+import{g as r,h as i}from"./ntmrFmLd.js";function u(t=1){const o=r(),s=i();let e="";return t===1?e="加入购物车":t===5||t===6?e="立即预约":e="立即购买",o.isIdentity===1&&(s.isAuthenticated?s.userInfo.isCompanyAuth||(e="实名后采购"):e="登录后采购"),e}export{u as g};

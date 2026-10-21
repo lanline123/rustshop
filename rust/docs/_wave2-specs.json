@@ -1,0 +1,583 @@
+{
+ "identity/admin_account": {
+  "ctx": "identity",
+  "feature": "admin_account",
+  "count": 7,
+  "endpoints": [
+   {
+    "method": "GET",
+    "path": "/adminapi/admin/adminAccount/getMainAccount",
+    "summary": "根据店铺或供应商ID查询主账号信息",
+    "auth": "jwt",
+    "permissions": [],
+    "controller": "AdminAccountController",
+    "handler": "getMainAccount",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\account\\AdminAccountController.java:38"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/admin/adminAccount/pageShopOrVendor",
+    "summary": "根据主账号ID和类型查询账号列表",
+    "auth": "jwt",
+    "permissions": [],
+    "controller": "AdminAccountController",
+    "handler": "pageShopOrVendor",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\account\\AdminAccountController.java:46"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/admin/adminAccount/bindMainAccount",
+    "summary": "根据主账号ID和店铺ID/供应商ID绑定账号",
+    "auth": "jwt+perm",
+    "permissions": [
+     "adminAccountBindMainAccount"
+    ],
+    "controller": "AdminAccountController",
+    "handler": "bindMainAccount",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\account\\AdminAccountController.java:53"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/admin/adminAccount/updateMainAccount",
+    "summary": "修改主账号信息",
+    "auth": "jwt+perm",
+    "permissions": [
+     "adminAccountUpdateManager"
+    ],
+    "controller": "AdminAccountController",
+    "handler": "updateMainAccount",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\account\\AdminAccountController.java:61"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/admin/adminAccount/updateMainAccountPwd",
+    "summary": "修改主账号密码",
+    "auth": "jwt+perm",
+    "permissions": [
+     "adminAccountUpdateManager"
+    ],
+    "controller": "AdminAccountController",
+    "handler": "updateMainAccountPwd",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\account\\AdminAccountController.java:69"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/admin/adminAccount/pageAdminUser",
+    "summary": "账号管理列表",
+    "auth": "jwt",
+    "permissions": [],
+    "controller": "AdminAccountController",
+    "handler": "pageAdminUser",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\account\\AdminAccountController.java:76"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/admin/adminAccount/deleteAdminUser",
+    "summary": "删除管理员账号",
+    "auth": "jwt+perm",
+    "permissions": [
+     "adminAccountUpdateManager"
+    ],
+    "controller": "AdminAccountController",
+    "handler": "deleteAdminUser",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\account\\AdminAccountController.java:84"
+   }
+  ]
+ },
+ "system/tips_manage": {
+  "ctx": "system",
+  "feature": "tips_manage",
+  "count": 1,
+  "endpoints": [
+   {
+    "method": "GET",
+    "path": "/adminapi/common/tipsManage/list",
+    "summary": "提示管理列表",
+    "auth": "jwt",
+    "permissions": [],
+    "controller": "TipsManageController",
+    "handler": "list",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\common\\TipsManageController.java:26"
+   }
+  ]
+ },
+ "system/log": {
+  "ctx": "system",
+  "feature": "log",
+  "count": 1,
+  "endpoints": [
+   {
+    "method": "GET",
+    "path": "/api/common/log",
+    "summary": "创建日志记录",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "LogController",
+    "handler": "create",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\common\\LogController.java:40"
+   }
+  ]
+ },
+ "system/app_version_client": {
+  "ctx": "system",
+  "feature": "app_version_client",
+  "count": 0,
+  "endpoints": []
+ },
+ "catalog/product_batch": {
+  "ctx": "catalog",
+  "feature": "product_batch",
+  "count": 2,
+  "endpoints": [
+   {
+    "method": "GET",
+    "path": "/adminapi/product/productBatch/productBatchDeal",
+    "summary": "商品导出Excel",
+    "auth": "jwt+perm",
+    "permissions": [
+     "productBatchAddManage"
+    ],
+    "controller": "ProductBatchController",
+    "handler": "productBatchDeal",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ProductBatchController.java:46"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/product/productBatch/productService/list",
+    "summary": "商品服务列表",
+    "auth": "jwt+perm",
+    "permissions": [
+     "productBatchAddManage"
+    ],
+    "controller": "ProductBatchController",
+    "handler": "list",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ProductBatchController.java:71"
+   }
+  ]
+ },
+ "catalog/search_admin": {
+  "ctx": "catalog",
+  "feature": "search_admin",
+  "count": 5,
+  "endpoints": [
+   {
+    "method": "GET",
+    "path": "/adminapi/search/aggregate",
+    "summary": "综合搜索",
+    "auth": "jwt+perm",
+    "permissions": [
+     "productManage"
+    ],
+    "controller": "SearchController",
+    "handler": "aggregate",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\search\\SearchController.java:45"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/search/product",
+    "summary": "商品搜索",
+    "auth": "jwt+perm",
+    "permissions": [
+     "productManage"
+    ],
+    "controller": "SearchController",
+    "handler": "product",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\search\\SearchController.java:56"
+   },
+   {
+    "method": "POST",
+    "path": "/api/search/search/getProduct",
+    "summary": "商品列表",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "SearchController",
+    "handler": "list",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\search\\SearchController.java:39"
+   },
+   {
+    "method": "POST",
+    "path": "/api/search/search/getFilter",
+    "summary": "商品筛选",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "SearchController",
+    "handler": "getFilter",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\search\\SearchController.java:45"
+   },
+   {
+    "method": "GET",
+    "path": "/api/search/search/getAttributeSuggestions",
+    "summary": "获取属性搜索建议",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "SearchController",
+    "handler": "getAttributeSuggestions",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\search\\SearchController.java:54"
+   }
+  ]
+ },
+ "catalog/product_inventory_log": {
+  "ctx": "catalog",
+  "feature": "product_inventory_log",
+  "count": 1,
+  "endpoints": [
+   {
+    "method": "GET",
+    "path": "/adminapi/product/productInventoryLog/list",
+    "summary": "获取列表",
+    "auth": "jwt+perm",
+    "permissions": [
+     "productInventoryLogManage"
+    ],
+    "controller": "ProductInventoryLogController",
+    "handler": "list",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ProductInventoryLogController.java:28"
+   }
+  ]
+ },
+ "catalog/product_search": {
+  "ctx": "catalog",
+  "feature": "product_search",
+  "count": 1,
+  "endpoints": [
+   {
+    "method": "GET",
+    "path": "/api/search/searchGuess/index",
+    "summary": "搜索关键词联想",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "SearchGuessController",
+    "handler": "getSearchGuessList",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\search\\SearchGuessController.java:35"
+   }
+  ]
+ },
+ "catalog/e_card_group": {
+  "ctx": "catalog",
+  "feature": "e_card_group",
+  "count": 8,
+  "endpoints": [
+   {
+    "method": "GET",
+    "path": "/adminapi/product/eCardGroup/list",
+    "summary": "获取列表",
+    "auth": "jwt+perm",
+    "permissions": [
+     "eCardManage"
+    ],
+    "controller": "ECardGroupController",
+    "handler": "list",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ECardGroupController.java:55"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/product/eCardGroup/detail",
+    "summary": "获取详情",
+    "auth": "jwt+perm",
+    "permissions": [
+     "eCardManage"
+    ],
+    "controller": "ECardGroupController",
+    "handler": "detail",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ECardGroupController.java:61"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/product/eCardGroup/create",
+    "summary": "创建",
+    "auth": "jwt+perm",
+    "permissions": [
+     "eCardManage"
+    ],
+    "controller": "ECardGroupController",
+    "handler": "create",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ECardGroupController.java:67"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/product/eCardGroup/update",
+    "summary": "更新",
+    "auth": "jwt+perm",
+    "permissions": [
+     "eCardManage"
+    ],
+    "controller": "ECardGroupController",
+    "handler": "update",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ECardGroupController.java:73"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/product/eCardGroup/del",
+    "summary": "删除",
+    "auth": "jwt+perm",
+    "permissions": [
+     "eCardManage"
+    ],
+    "controller": "ECardGroupController",
+    "handler": "del",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ECardGroupController.java:79"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/product/eCardGroup/updateField",
+    "summary": "更新字段",
+    "auth": "jwt+perm",
+    "permissions": [
+     "eCardManage"
+    ],
+    "controller": "ECardGroupController",
+    "handler": "updateField",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ECardGroupController.java:85"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/product/eCardGroup/batch",
+    "summary": "批量操作",
+    "auth": "jwt+perm",
+    "permissions": [
+     "eCardManage"
+    ],
+    "controller": "ECardGroupController",
+    "handler": "batch",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ECardGroupController.java:91"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/product/eCardGroup/import",
+    "summary": "批量导入",
+    "auth": "jwt+perm",
+    "permissions": [
+     "eCardManage"
+    ],
+    "controller": "ECardGroupController",
+    "handler": "batchImport",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ECardGroupController.java:97"
+   }
+  ]
+ },
+ "catalog/e_card": {
+  "ctx": "catalog",
+  "feature": "e_card",
+  "count": 7,
+  "endpoints": [
+   {
+    "method": "GET",
+    "path": "/adminapi/product/eCard/list",
+    "summary": "获取列表",
+    "auth": "jwt+perm",
+    "permissions": [
+     "eCardManage"
+    ],
+    "controller": "ECardController",
+    "handler": "list",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ECardController.java:33"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/product/eCard/detail",
+    "summary": "获取详情",
+    "auth": "jwt+perm",
+    "permissions": [
+     "eCardManage"
+    ],
+    "controller": "ECardController",
+    "handler": "detail",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ECardController.java:39"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/product/eCard/create",
+    "summary": "创建",
+    "auth": "jwt+perm",
+    "permissions": [
+     "eCardManage"
+    ],
+    "controller": "ECardController",
+    "handler": "create",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ECardController.java:45"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/product/eCard/update",
+    "summary": "更新",
+    "auth": "jwt+perm",
+    "permissions": [
+     "eCardManage"
+    ],
+    "controller": "ECardController",
+    "handler": "update",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ECardController.java:51"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/product/eCard/del",
+    "summary": "删除",
+    "auth": "jwt+perm",
+    "permissions": [
+     "eCardManage"
+    ],
+    "controller": "ECardController",
+    "handler": "del",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ECardController.java:57"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/product/eCard/updateField",
+    "summary": "更新字段",
+    "auth": "jwt+perm",
+    "permissions": [
+     "eCardManage"
+    ],
+    "controller": "ECardController",
+    "handler": "updateField",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ECardController.java:63"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/product/eCard/batch",
+    "summary": "批量操作",
+    "auth": "jwt+perm",
+    "permissions": [
+     "eCardManage"
+    ],
+    "controller": "ECardController",
+    "handler": "batch",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ECardController.java:69"
+   }
+  ]
+ },
+ "catalog/services": {
+  "ctx": "catalog",
+  "feature": "services",
+  "count": 7,
+  "endpoints": [
+   {
+    "method": "GET",
+    "path": "/adminapi/product/productServices/list",
+    "summary": "商品服务列表",
+    "auth": "jwt+perm",
+    "permissions": [
+     "productServicesManage"
+    ],
+    "controller": "ServicesController",
+    "handler": "list",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ServicesController.java:51"
+   },
+   {
+    "method": "GET",
+    "path": "/adminapi/product/productServices/detail",
+    "summary": "商品服务详情",
+    "auth": "jwt+perm",
+    "permissions": [
+     "productServicesManage"
+    ],
+    "controller": "ServicesController",
+    "handler": "detail",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ServicesController.java:57"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/product/productServices/create",
+    "summary": "创建商品服务",
+    "auth": "jwt+perm",
+    "permissions": [
+     "productServicesModifyManage"
+    ],
+    "controller": "ServicesController",
+    "handler": "create",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ServicesController.java:64"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/product/productServices/update",
+    "summary": "更新商品服务",
+    "auth": "jwt+perm",
+    "permissions": [
+     "productServicesModifyManage"
+    ],
+    "controller": "ServicesController",
+    "handler": "update",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ServicesController.java:71"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/product/productServices/del",
+    "summary": "删除商品服务",
+    "auth": "jwt+perm",
+    "permissions": [
+     "productServicesModifyManage"
+    ],
+    "controller": "ServicesController",
+    "handler": "del",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ServicesController.java:78"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/product/productServices/batch",
+    "summary": "批量操作商品服务",
+    "auth": "jwt+perm",
+    "permissions": [
+     "productServicesModifyManage"
+    ],
+    "controller": "ServicesController",
+    "handler": "batch",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ServicesController.java:85"
+   },
+   {
+    "method": "POST",
+    "path": "/adminapi/product/productServices/updateField",
+    "summary": "商品服务字段修改",
+    "auth": "jwt+perm",
+    "permissions": [
+     "productServicesModifyManage"
+    ],
+    "controller": "ServicesController",
+    "handler": "updateField",
+    "source": "tigshop-adminapi\\src\\main\\java\\com\\tigshop\\adminapi\\controller\\product\\ServicesController.java:92"
+   }
+  ]
+ },
+ "catalog/exchange": {
+  "ctx": "catalog",
+  "feature": "exchange",
+  "count": 3,
+  "endpoints": [
+   {
+    "method": "GET",
+    "path": "/api/product/exchange/detail",
+    "summary": "积分兑换详情",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "ExchangeController",
+    "handler": "detail",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\product\\ExchangeController.java:65"
+   },
+   {
+    "method": "GET",
+    "path": "/api/product/exchange/list",
+    "summary": "获取列表",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "ExchangeController",
+    "handler": "list",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\product\\ExchangeController.java:130"
+   },
+   {
+    "method": "POST",
+    "path": "/api/product/exchange/addToCart",
+    "summary": "添加积分商品购物车",
+    "auth": "optional",
+    "permissions": [],
+    "controller": "ExchangeController",
+    "handler": "addExchangeProductToCart",
+    "source": "tigshop-api\\src\\main\\java\\com\\tigshop\\api\\controller\\product\\ExchangeController.java:137"
+   }
+  ]
+ },
+ "catalog/product_style_client": {
+  "ctx": "catalog",
+  "feature": "product_style_client",
+  "count": 0,
+  "endpoints": []
+ }
+}

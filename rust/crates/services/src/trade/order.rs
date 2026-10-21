@@ -1183,12 +1183,32 @@ impl OrderService {
     }
 }
 
+/// 原版客户端 `OrderStatusEnum` 文案（0–5）；兼容历史内部状态 10/20/30/40/50。
+fn client_status_label(status: i32) -> String {
+    match status {
+        0 => "待付款",
+        1 => "已确认，待发货",
+        2 => "处理中，已发货",
+        3 => "已取消",
+        4 => "无效",
+        5 => "已完成",
+        10 => "待发货",
+        20 => "已发货",
+        30 => "已完成",
+        40 => "已取消",
+        50 => "已关闭",
+        _ => "未知状态",
+    }
+    .to_string()
+}
+
 fn to_vo(o: &Order, item_count: i32) -> OrderVO {
     OrderVO {
         order_id: o.order_id,
         order_sn: o.order_sn.clone(),
+        shop_id: o.shop_id,
         order_status: o.order_status,
-        status_label: o.status_label().to_string(),
+        status_label: client_status_label(o.order_status),
         pay_status: o.pay_status,
         shipping_status: o.shipping_status,
         total_amount: o.total_amount,

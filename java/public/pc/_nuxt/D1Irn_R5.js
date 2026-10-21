@@ -1,0 +1,1 @@
+import{aU as t}from"./ntmrFmLd.js";const s=o=>t({url:"user/coupon/getList",method:"get",params:o}),u=o=>t({url:"user/coupon/list",method:"get",params:o}),r=o=>t({url:"user/coupon/claim",method:"post",data:o}),n=o=>t({url:"user/coupon/detail",method:"get",params:{id:o}});export{r as a,n as b,u as c,s as g};

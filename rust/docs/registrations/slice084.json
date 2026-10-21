@@ -1,0 +1,7 @@
+{
+  "slice_id": "slice084",
+  "tag": "商品样式",
+  "has_admin": false,
+  "has_public": true,
+  "core_models_mod": "pub mod slice084;"
+}

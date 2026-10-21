@@ -1,0 +1,2 @@
+-- 客户的需视情况进行操作，执行后需重新设置店铺用户对应权限，否则将将拥有所有权限
+-- UPDATE `admin_user_shop` SET  `auth_list` = '[\"all\"]';

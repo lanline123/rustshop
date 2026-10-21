@@ -1,0 +1,1 @@
+export { default as ThemeTogglePopup } from './src/ThemeTogglePopup.vue';

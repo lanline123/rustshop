@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.deposit.ShopDepositRuleMapper">
+
+
+    <select id="matchMaxByCategories" resultType="java.util.LinkedHashMap">
+        SELECT rc.category_id AS categoryId, MAX(r.deposit_amount) AS depositAmount
+        FROM shop_deposit_rule r
+        INNER JOIN shop_deposit_rule_category rc ON rc.rule_id = r.shop_deposit_rule_id
+        WHERE r.status = 1
+        AND r.is_delete = 0
+        AND r.start_time &lt;= #{now}
+        AND (r.end_time = 0 OR r.end_time &gt;= #{now})
+        AND FIND_IN_SET(#{merchantType}, r.merchant_types)
+        AND FIND_IN_SET(#{shopType}, r.shop_types)
+        AND rc.category_id IN
+        <foreach collection="categoryIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+        GROUP BY rc.category_id
+    </select>
+</mapper>

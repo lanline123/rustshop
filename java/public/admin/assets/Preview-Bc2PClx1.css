@@ -1,0 +1,1 @@
+.dec-pc-spacer{box-sizing:border-box;padding-left:var(--dec-box-padding, 0);padding-right:var(--dec-box-padding, 0);padding-top:var(--dec-box-padding-top, 0);padding-bottom:var(--dec-box-padding-bottom, 0)}.dec-pc-spacer__content{height:var(--dec-pc-spacer-height);background:var(--dec-pc-spacer-bg);border-radius:var(--dec-box-radius, 0);box-sizing:border-box}

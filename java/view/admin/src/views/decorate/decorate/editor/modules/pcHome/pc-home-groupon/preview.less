@@ -1,0 +1,727 @@
+/**
+ * PC 首页拼团模块 - 预览样式
+ * 说明：对齐前台 pcGroupon 页面的样式
+ */
+
+// 切换按钮箭头（Vort 引用 @/assets/icons/base/yuanjiaojiantouyou.svg，Tigshop 无该资源，内联同形 SVG）
+@groupon-arrow-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Cpath fill='black' d='M238.016 179.008C227.776 168.832 220.16 157.312 215.04 144.64c-5.12-12.736-7.616-25.856-7.616-39.296 0-13.44 2.56-26.752 7.616-39.808 5.12-13.12 12.736-24.768 22.912-34.944C258.368 10.176 282.752 0 311.104 0c28.352 0 52.736 10.176 73.152 30.528l404.928 408.192c10.176 8.704 17.472 19.84 21.824 33.28 4.352 13.44 6.208 27.456 5.44 42.048-0.704 14.528-4.032 28.928-9.792 43.136-5.824 14.208-13.824 26.368-24 36.544l-398.336 401.664c-20.352 21.12-44.736 31.68-73.152 31.68-28.352 0-52.736-10.56-73.088-31.68-10.176-10.176-17.856-21.632-22.912-34.368-5.12-12.736-7.616-25.856-7.616-39.296 0-13.44 2.56-26.752 7.616-39.872 5.12-13.12 12.736-24.768 22.912-34.944l329.6-333.952L238.016 179.008 238.016 179.008zM238.016 179.008'/%3E%3C/svg%3E");
+
+.dec-pc-home-groupon {
+    // 左右边距用 margin 实现（与前台 PcGrouponLegacy 一致），需同步缩减宽度，
+    // 否则 width:100% + margin 会导致容器整体溢出/右移（左右边距“展示错误”）
+    width: calc(100% - var(--dec-box-padding, 0px) * 2);
+    box-sizing: border-box;
+    position: relative;
+
+    // ==================== 容器样式（通过 CSS 变量控制） ====================
+    background-color: var(--dec-bg-color, #fff);
+    border-radius: var(--dec-box-radius, 0);
+    margin-left: var(--dec-box-padding, 0);
+    margin-right: var(--dec-box-padding, 0);
+    margin-top: var(--dec-box-padding-top, 5px);
+    margin-bottom: var(--dec-box-padding-bottom, 5px);
+    padding: 0 var(--dec-inner-padding, 0);
+    overflow: hidden;
+
+    // ==================== 拼团模块主容器 ====================
+    .mod_groupon {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        overflow: hidden;
+
+        // ==================== 标题区域 ====================
+        .groupon-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0;
+            box-sizing: border-box;
+
+            .groupon-title-wrapper {
+                display: flex;
+                align-items: baseline;
+                gap: 4px;
+
+                // titleStyle=3 的竖线装饰
+                .line {
+                    width: 4px;
+                    height: 16px;
+                    background-color: #1a1a1a;
+                    border-radius: 8px;
+                    align-self: center;
+                }
+
+                // 标题图标
+                .image-size {
+                    width: 30px;
+                    height: 30px;
+                    margin-left: 10px;
+                    object-fit: contain;
+                }
+
+                // 标题文本
+                .groupon-title {
+                    font-size: 24px;
+                    font-weight: 700;
+                    color: #1a1a1a;
+                    margin-right: 5px;
+                }
+
+                // 副标题/描述文本
+                .groupon-desc {
+                    font-size: 12px;
+                    color: #1a1a1a;
+                    &.big-sm {
+                        font-size: 16px;
+                    }
+                }
+            }
+
+            // 右侧倒计时容器
+            .groupon-count-down {
+                display: flex;
+                align-items: center;
+                font-size: 18px;
+                color: #1a1a1a;
+            }
+
+            // 右侧「更多」链接
+            .groupon-more-link {
+                display: flex;
+                align-items: center;
+                font-size: 14px;
+                color: #1a1a1a;
+                cursor: pointer;
+
+                .icon {
+                    margin-left: 4px;
+                    color: inherit;
+                }
+            }
+        }
+
+        // ==================== 顶部倒计时样式（对齐前台 .countdown-box） ====================
+        .countdown-box {
+            display: flex;
+            align-items: center;
+            color: var(--countdownTextColor, #1a1a1a);
+
+            // "天"字分隔符
+            .countdown-separator-text {
+                font-size: 18px;
+                margin: 0 2px;
+            }
+
+            // "距结束/距开始" 文本
+            .countdown-text {
+                font-size: 18px;
+                font-weight: 400;
+                line-height: 24px;
+                color: var(--countdownTextColor, #1a1a1a);
+                text-transform: capitalize;
+            }
+
+            // 时分秒之间的冒号分隔符
+            .countdown-separator {
+                color: var(--countdownTextColor, #1a1a1a);
+                margin: 0 2px;
+            }
+
+            // 数字方块（时/分/秒/天）
+            .countdown-item {
+                display: inline-block;
+                padding: 2px 0;
+                width: 32px;
+                text-align: center;
+                background-color: #1a1a1a;
+                color: #fff;
+                border-radius: 4px;
+                font-size: 16px;
+
+                // 天数超过2位时自适应宽度
+                &.days {
+                    padding: 2px 5px;
+                    width: auto;
+                    min-width: 32px;
+                }
+            }
+        }
+
+        // ==================== 商品列表区域 ====================
+        .groupon_list_wrap {
+            position: relative;
+            z-index: 1;
+            flex: 1;
+            height: 100%;
+            width: 100%;
+        }
+
+        // ==================== Flex 布局（style 2/3）容器 ====================
+        .goods-ad-warp {
+            overflow: hidden;
+            box-sizing: border-box;
+
+            .goods-ad-con {
+                display: flex;
+                flex-wrap: wrap;
+            }
+        }
+
+        // ==================== 横向滚动布局（style 6） ====================
+        .groupon_list.is-scroll {
+            position: relative;
+            width: 100%;
+            overflow: hidden;
+            box-sizing: border-box;
+
+            // 滚动容器
+            .scroll-container {
+                display: flex;
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                overflow-y: hidden;
+                scroll-behavior: smooth;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                -ms-overflow-style: none;
+                box-sizing: border-box;
+
+                &::-webkit-scrollbar {
+                    display: none;
+                }
+
+                .proditem {
+                    flex: 0 0 auto;
+                    width: auto;
+                }
+            }
+
+            // 左右切换按钮（对齐秒杀组件 .swiper-button-prev/next）
+            .swiper-button-prev,
+            .swiper-button-next {
+                position: absolute;
+                top: 50%;
+                transform: translateY(-50%);
+                width: 40px;
+                height: 48px;
+                background-color: rgba(0, 0, 0, 0.122);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                z-index: 10;
+                transition: background-color 0.2s ease;
+                outline: none;
+                box-sizing: border-box;
+
+                &:hover {
+                    background-color: rgba(0, 0, 0, 0.239);
+                }
+
+                // 箭头图标（与秒杀组件保持一致，使用 SVG mask）
+                &::after {
+                    content: "" !important;
+                    display: block;
+                    width: 14px;
+                    height: 14px;
+                    background-color: #fff;
+                    font-family: initial !important;
+                    font-size: 0 !important;
+                    color: transparent !important;
+                    -webkit-mask: @groupon-arrow-mask no-repeat center / contain;
+                    mask: @groupon-arrow-mask no-repeat center / contain;
+                    transform-origin: center;
+                }
+            }
+
+            // 左按钮
+            .swiper-button-prev {
+                left: 0;
+                border-radius: 0 24px 24px 0;
+                padding-right: 7px;
+                line-height: 35px;
+
+                &::after {
+                    transform: rotate(180deg);
+                }
+            }
+
+            // 右按钮
+            .swiper-button-next {
+                right: 0;
+                border-radius: 24px 0 0 24px;
+                padding-left: 7px;
+                line-height: 35px;
+            }
+        }
+
+        // ==================== 商品卡片通用样式 ====================
+        .proditem,
+        .goods-ad-item {
+            box-sizing: border-box;
+            position: relative;
+            background-color: #ffffff;
+
+            // hover 时图片亮度增加
+            &:hover {
+                .groupon-item-image {
+                    .pro_pic {
+                        filter: brightness(105%);
+                    }
+                }
+            }
+        }
+
+        .item-content {
+            background-color: transparent;
+        }
+
+        .item-con {
+            background-color: #ffffff;
+            padding-bottom: 10px;
+        }
+
+        // ==================== 商品内容结构（对齐前台 .g-item-warp） ====================
+        .g-item-warp {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+
+            .pic {
+                width: 100%;
+            }
+        }
+
+        // ==================== 商品图片区域 ====================
+        .groupon-item-image-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .groupon-item-image {
+            margin: 0 auto;
+            display: flex;
+            justify-content: center;
+            overflow: hidden;
+            background-color: #f5f5f5;
+            aspect-ratio: 1 / 1;
+
+            .pro_pic {
+                transition:
+                    transform 0.4s ease,
+                    filter 0.2s ease;
+                width: 100%;
+                height: 100%;
+                object-fit: contain;
+            }
+        }
+
+        // ==================== cardStyle=1 的图片倒计时条样式（对齐前台 .countdown） ====================
+        .countdown {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(90deg, #f86e30, #e91817);
+            height: 34px;
+            padding: 0 10px;
+            box-sizing: border-box;
+            font-size: 12px;
+            color: #ffffff;
+            font-family: inherit;
+
+            // "拼团"标题
+            .title {
+                flex: 0 0 auto;
+                font-weight: bold;
+                font-size: 16px;
+                color: #ffffff;
+            }
+
+            // 倒计时区域
+            .countdown-time {
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+                flex: 1;
+                gap: 6px;
+                white-space: nowrap;
+
+                // "距结束/距开始/已结束" 文本
+                .time {
+                    font-size: 12px;
+                }
+
+                // 倒计时数字文本
+                .text {
+                    font-variant-numeric: tabular-nums;
+                    font-feature-settings: "tnum";
+                    font-family: inherit;
+                    font-size: 12px;
+                }
+            }
+        }
+
+        // ==================== 商品名称区域（对齐前台 .groupon-item__name） ====================
+        .titleBox.groupon-item__name {
+            height: auto;
+            min-height: 20px;
+            margin-top: 10px;
+            margin-bottom: 12px;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            color: #1a1a1a;
+            font-size: 16px;
+            font-weight: 400;
+            line-height: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            flex-wrap: nowrap;
+            gap: 4px;
+
+            &:hover {
+                color: var(--main-bg, #409eff);
+            }
+
+            // 商品名称文本（含"人团"标签伪元素）
+            .product-name-text {
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                flex: 1;
+                min-width: 0;
+                position: relative;
+
+                // "N人团"标签
+                &::before {
+                    content: attr(data-group-label);
+                    display: inline-flex;
+                    align-items: center;
+                    // “N人团”标签：浅红底 + 红字（对齐设计稿）
+                    color: #ff4d4f !important;
+                    background: #fff1f0;
+                    height: 16px;
+                    padding: 0 4px;
+                    border-radius: 2px;
+                    font-size: 12px;
+                    line-height: 16px;
+                    font-weight: normal;
+                    white-space: nowrap;
+                    box-sizing: border-box;
+                    margin-right: 4px;
+                    vertical-align: middle;
+                    flex-shrink: 0;
+                    transform: translateY(-1px);
+                }
+            }
+        }
+
+        // ==================== cardStyle=1 的 priceBox 样式（对齐前台 .priceBox） ====================
+        .priceBox {
+            width: 100%;
+            height: 35px;
+            background: #fff2f3;
+            border-radius: 3px;
+            margin-top: 18px;
+            display: flex;
+            align-items: center;
+            position: relative;
+
+            // 价格数字区域
+            .priceBoxNum {
+                display: flex;
+                align-items: flex-end;
+
+                // 拼团价
+                .minGrouponPrice {
+                    color: var(--price, #ee0a24);
+                    font-weight: 500;
+                    font-size: 22px;
+                    padding-left: 9px;
+                    height: 26px;
+                    display: flex;
+                    align-items: flex-end;
+                }
+
+                // 原价（划线）
+                .old {
+                    margin-left: 7px;
+                    display: flex;
+                    align-items: flex-end;
+                    font-weight: 500;
+                    font-size: 12px;
+                    color: #9a9a9a;
+                    text-decoration-line: line-through;
+                }
+            }
+
+            // "拼"字按钮
+            .text {
+                padding: 0 20px;
+                height: 30px;
+                background: #ee0a25;
+                border-radius: 3px;
+                font-weight: 600;
+                font-size: 20px;
+                color: #ffffff;
+                line-height: 30px;
+                margin-left: auto;
+                clip-path: polygon(20% 0, 100% 0, 100% 100%, 0 100%);
+                text-align: center;
+            }
+        }
+
+        // ==================== cardStyle!=1 的价格区域样式（对齐前台 .groupon-item__price） ====================
+        .groupon-item__price {
+            display: flex;
+            align-items: center;
+
+            // 价格容器（可纵向排列）
+            .price-wrapper {
+                display: flex;
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            // 拼团价
+            .price-miaosha {
+                align-items: baseline;
+                justify-content: center;
+                margin-right: 8px;
+                color: var(--main-bg, #ee0a24);
+                line-height: 22px;
+                font-size: 24px;
+                font-weight: 600;
+            }
+
+            // 原价（划线）
+            .price-origin {
+                align-items: baseline;
+                justify-content: center;
+                height: 19px;
+                color: #888b94;
+                text-decoration: line-through;
+                font-size: 14px;
+            }
+
+            // 购买按钮区域
+            .buy {
+                margin-left: auto;
+
+                // 默认圆形加号按钮
+                .view_detail {
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 50%;
+                    background: var(--primary-light-9, #ecf5ff);
+                    color: var(--main-bg, #409eff);
+                    cursor: pointer;
+
+                    &:hover {
+                        color: var(--primary-dark-2, #337ecc);
+                    }
+
+                    &.disabled {
+                        opacity: 0.5;
+                        cursor: not-allowed;
+                    }
+                }
+            }
+        }
+    }
+
+    // ==================== style=2 一行4个 ====================
+    &.ad-style__2 {
+        .goods-ad-con {
+            display: flex;
+            flex-wrap: wrap;
+        }
+    }
+
+    // ==================== style=3 一行5个 ====================
+    &.ad-style__3 {
+        .goods-ad-con {
+            display: flex;
+            flex-wrap: wrap;
+        }
+    }
+
+    // ==================== style=4 一行6个 ====================
+    &.ad-style__4 {
+        .goods-ad-con {
+            display: flex;
+            flex-wrap: wrap;
+        }
+    }
+
+    // ==================== style=6 横向滚动 ====================
+    &.ad-style__6 {
+        .scroll-container .proditem {
+            width: auto;
+        }
+    }
+
+    // ==================== textAlign=2 居中对齐（对齐前台 .ad-text_align__2） ====================
+    &.ad-text_align__2 {
+        .groupon-item__price {
+            align-items: center;
+            justify-content: center;
+
+            .price-wrapper {
+                align-items: center;
+            }
+
+            .buy {
+                margin-left: 0;
+                margin-top: 8px;
+            }
+        }
+
+        .titleBox.groupon-item__name {
+            justify-content: center;
+        }
+    }
+
+    // ==================== 购买按钮样式（对齐前台 .ad-buy_btn_style__*） ====================
+    // 隐藏购买按钮
+    &.ad-buy_btn_style__0 {
+        .buy {
+            display: none;
+        }
+    }
+
+    // 图标按钮样式 1-4
+    &.ad-buy_btn_style__1,
+    &.ad-buy_btn_style__2,
+    &.ad-buy_btn_style__3,
+    &.ad-buy_btn_style__4 {
+        .buy {
+            .dec-buy-btn .iconfont-pc {
+                color: var(--main-bg, #409eff);
+                font-size: 24px;
+            }
+        }
+    }
+
+    // ==================== 商品样式变体（对齐前台 .ad-goods_style__*） ====================
+    // 投影样式
+    &.ad-goods_style__2 {
+        .goods-ad-item,
+        .proditem {
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+        }
+    }
+
+    // 描边样式
+    &.ad-goods_style__3 {
+        .goods-ad-item,
+        .proditem {
+            border: 1px solid rgba(50, 50, 51, 0.1);
+        }
+    }
+
+    // 透明样式
+    &.ad-goods_style__4 {
+        .goods-ad-item,
+        .proditem {
+            background: transparent;
+
+            .item-content,
+            .item-con {
+                background: transparent;
+            }
+        }
+    }
+
+    // ==================== 圆角样式（对齐前台 .ad-goods_radio_style__2） ====================
+    &.ad-goods_radio_style__2 {
+        .goods-ad-item,
+        .proditem {
+            background-color: #ffffff;
+            border-radius: 6px;
+            overflow: hidden;
+
+            .item-content,
+            .item-con {
+                border-radius: 6px;
+                overflow: hidden;
+            }
+
+            .groupon-item-image-wrapper {
+                background-color: transparent;
+            }
+
+            .groupon-item-image {
+                border-radius: 6px 6px 0 0;
+                overflow: hidden;
+            }
+
+            .groupon-item__name,
+            .groupon-item__price,
+            .priceBox {
+                background-color: #ffffff;
+            }
+
+            .groupon-item__price {
+                border-radius: 0 0 6px 6px;
+            }
+        }
+    }
+
+    // ==================== 商品名称内边距（对齐前台 .ad-goods_name_padding__*） ====================
+    &.ad-goods_name_padding__0 {
+        .groupon-item__name {
+            margin-left: 0;
+            margin-right: 0;
+        }
+        .groupon-item__price {
+            padding-left: 0;
+            padding-right: 0;
+        }
+    }
+
+    &.ad-goods_name_padding__1 {
+        .groupon-item__name {
+            margin-left: 10px;
+            margin-right: 10px;
+        }
+        .groupon-item__price {
+            padding-left: 10px;
+            padding-right: 10px;
+        }
+    }
+
+    // ==================== 商品名称行数（对齐前台 .ad-goods_name_row__*） ====================
+    &.ad-goods_name_row__2 {
+        .titleBox.groupon-item__name {
+            min-height: 56px;
+            white-space: normal;
+
+            .product-name-text {
+                white-space: normal;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                line-clamp: 2;
+                -webkit-box-orient: vertical;
+                line-height: 28px;
+                height: 56px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                word-break: break-word;
+            }
+        }
+    }
+
+    // ==================== 文本加粗（对齐前台 .ad-text_weight__2） ====================
+    &.ad-text_weight__2 {
+        .titleBox.groupon-item__name {
+            font-weight: bold;
+        }
+    }
+}

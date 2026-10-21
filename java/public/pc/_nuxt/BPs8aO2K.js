@@ -1,0 +1,1 @@
+import{aU as e}from"./ntmrFmLd.js";const o=()=>e({url:"user/comment/subNum",method:"get"}),s=t=>e({url:"user/comment/showedList?isShowed=0",method:"get",params:t}),r=t=>e({url:"user/comment/list",method:"get",params:t}),u=t=>e({url:"user/comment/evaluate",method:"post",data:t}),n=t=>e({url:"user/comment/detail",method:"get",params:t});export{s as a,r as b,o as c,n as g,u};

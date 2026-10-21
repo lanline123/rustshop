@@ -1,0 +1,1 @@
+import{a6 as s}from"./index-B6WS-doS.js";const e=1,n=2,o=()=>s({url:"setting/config/shippingSettings",method:"get"}),g=t=>s({url:"setting/config/saveShipping",method:"post",data:t});let i=null;const c=()=>(i||(i=o().then(t=>Number(t==null?void 0:t.logisticsProvider)===n?n:e).catch(()=>(i=null,e))),i),a=()=>{i=null};export{e as L,o as a,a as c,c as g,g as u};

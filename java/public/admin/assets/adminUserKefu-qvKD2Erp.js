@@ -1,0 +1,1 @@
+import{a6 as t}from"./index-B6WS-doS.js";const u=e=>t({url:"im/adminUserKefu/list",method:"get",params:e}),m=(e,r)=>t({url:"im/adminUserKefu/"+e,method:"get",params:r}),d=(e,r)=>t({url:"im/adminUserKefu/"+e,method:"post",data:r}),i=e=>t({url:"im/adminUserKefu/updateField",method:"post",data:e});export{m as a,d as b,u as g,i as u};

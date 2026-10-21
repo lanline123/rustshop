@@ -1,0 +1,1 @@
+import{L as t,v as i}from"./d4FtwaAL.js";const n={install(o){t._context=o._context,i._context=o._context,o.directive("loading",i),o.config.globalProperties.$loading=t},directive:i,service:t};export{n as E};

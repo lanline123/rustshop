@@ -1,0 +1,3 @@
+# AI-OS merge strategies
+.ai-os/memory.md merge=union
+.ai-os/memory/*.md merge=union

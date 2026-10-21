@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.tigshop.mapper.order.AftersalesMapper">
+
+    <select id="selectTotalAmount" resultType="java.math.BigDecimal">
+        SELECT
+            SUM(ai.number * vp.supply_price) AS totalAmount
+        FROM aftersales a
+                 LEFT JOIN aftersales_item ai ON ai.aftersale_id = a.aftersale_id
+                 LEFT JOIN order_item oi ON oi.item_id = ai.order_item_id
+                 LEFT JOIN vendor_product_sku vp ON vp.id = oi.vendor_product_sku_id
+        WHERE ai.aftersale_id = #{aftersaleId}
+          AND a.`status` = #{status}
+    </select>
+
+
+</mapper>

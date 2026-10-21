@@ -1,0 +1,979 @@
+// 老图标
+@import "https://at.alicdn.com/t/c/font_2712500_jd8i8ai7b8k.css";
+@import "https://at.alicdn.com/t/c/font_400590_7he137t8862.css";
+
+// 官方图标 tigshop-公共
+@import "https://at.alicdn.com/t/c/font_4441878_nmmffdd6bwr.css";
+
+// 移动端图标
+@import "https://at.alicdn.com/t/c/font_4483982_0nepfmfsbzsq.css";
+
+// 收银台图标
+@import "https://at.alicdn.com/t/c/font_5031011_xmkslcixf2r.css";
+
+// pc端图标
+@import "https://at.alicdn.com/t/c/font_4389188_4f7gj6caz7w.css";
+
+// 后台图标
+// @import "https://at.alicdn.com/t/c/font_4375017_qm78ketv4rh.css";
+@import "https://at.alicdn.com/t/c/font_4375017_xu71r2aqgpf.css";
+
+:root {
+    --tig-primary: #1456f0;
+    --tig-button-hover-bg: #3d7dfc;
+    --tig-button-active-bg: #f4f7ff;
+    --tig-button-disabled-bg: #8aabf8;
+    --tig-item-active-bg: #f4f7ff;
+    --tig-button-text-hover-bg: #1456f01c;
+
+    --tig-text-hover: #336df4;
+    --tig-primary-light-3: #336df4;
+    --tig-primary-color: #1456f0;
+    --tig-red-text-color: #f23030;
+
+    --tig-nav-theme-color: #000000e0;
+    --tig-nav-theme-bg: #ffffff;
+    --tig-nav-bg: #ffffff;
+    --tig-menu-bg: #ffffff;
+    --tig-menu-text-color: #000000e0;
+    --tig-menu-active-bg: #f4f7ff;
+
+    --el-color-primary: var(--tig-primary);
+    --el-color-primary-light-7: var(--tig-primary);
+    --el-color-primary-light-9: var(--tig-item-active-bg);
+    --el-color-primary-light-3: var(--tig-button-hover-bg);
+    --el-color-primary-light-5: var(--tig-button-disabled-bg);
+    --el-color-primary-dark-2: var(--tig-primary);
+    --el-button-hover-bg-color: var(--tig-item-active-bg);
+
+    // 新增的topmenu高度变量(收银专用)
+    --tig-topmenu-height: 70px;
+    --tig-pos-radius: 8px;
+}
+
+@font-sizes: {
+    large: 16px;
+    medium: 14px;
+    small: 12px;
+    mini: 10px;
+};
+
+.main-warp {
+    color: var(--tig-nav-theme-color);
+}
+
+.admin-dark {
+    > .container {
+        padding: 15px 20px 20px 20px;
+        box-sizing: border-box;
+
+        > .content_wrapper {
+            background-color: #ffffff;
+        }
+    }
+}
+
+.ant-drawer-content-wrapper {
+    max-width: 100%;
+}
+
+// 全局 message 层级提升，避免被弹窗遮罩层挡住
+.ant-message {
+    z-index: 9999 !important;
+}
+
+html {
+    -webkit-text-size-adjust: 100%;
+    word-break: normal;
+}
+
+html,
+body,
+div,
+span,
+applet,
+object,
+iframe,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+blockquote,
+pre,
+a,
+abbr,
+acronym,
+address,
+big,
+cite,
+code,
+del,
+dfn,
+em,
+font,
+img,
+ins,
+kbd,
+q,
+s,
+samp,
+small,
+strike,
+strong,
+sub,
+sup,
+tt,
+var,
+b,
+u,
+i,
+center,
+dl,
+dt,
+dd,
+ol,
+ul,
+li,
+fieldset,
+form,
+label,
+legend,
+table,
+caption,
+tbody,
+tfoot,
+thead,
+tr,
+th {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    outline: 0;
+    vertical-align: baseline;
+}
+
+body {
+    line-height: 1;
+    margin: 0;
+    color: rgba(0, 0, 0, 0.85);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizelegibility;
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        segoe ui,
+        Roboto,
+        helvetica neue,
+        Arial,
+        noto sans,
+        sans-serif,
+        apple color emoji,
+        segoe ui emoji,
+        segoe ui symbol,
+        noto color emoji;
+    font-variant: tabular-nums;
+    background-color: #fff;
+}
+
+em {
+    font-style: normal;
+}
+
+html,
+body,
+#app,
+#root {
+    height: 100%;
+}
+
+.colorWeak {
+    filter: invert(80%);
+}
+
+.ant-layout.layout-basic {
+    height: 100vh;
+    min-height: 100vh;
+}
+
+canvas {
+    display: block;
+}
+
+a:hover {
+    color: var(--tig-button-hover-bg);
+}
+
+ul,
+ol {
+    list-style: none;
+    padding: 0;
+}
+
+td {
+    vertical-align: middle;
+}
+
+.flex {
+    display: flex;
+}
+
+.flex-column {
+    display: flex;
+    flex-direction: column;
+}
+
+.flex-wrap {
+    flex-wrap: wrap;
+}
+
+.flex-nowrap {
+    flex-wrap: nowrap;
+}
+
+.flex-justify-between {
+    justify-content: space-between;
+}
+
+.flex-justify-end {
+    justify-content: flex-end;
+}
+
+/* 左右结构 */
+.flex-justify-center {
+    justify-content: center;
+}
+
+/* x居中 */
+.flex-align-center {
+    align-items: center;
+}
+
+.nowarp {
+    white-space: nowrap;
+}
+
+/* 垂直y居中 */
+
+.iconfont,
+.ico-font {
+    font-family: "admin-iconfont" !important;
+    font-size: 16px;
+    font-style: normal;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.iconfont-admin {
+    font-family: "iconfont-admin" !important;
+    font-size: 16px;
+    font-style: normal;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+    color: var(--tig-primary);
+    text-decoration: none;
+    background-color: transparent;
+    outline: none;
+    cursor: pointer;
+    transition: color 0.3s;
+    -webkit-text-decoration-skip: objects;
+}
+
+.f12 {
+    font-size: 12px;
+}
+
+.f14 {
+    font-size: 14px;
+}
+
+.relative {
+    position: relative;
+}
+
+.cursor-pointer {
+    cursor: pointer;
+}
+
+//英文小写变大写
+.text-transform {
+    text-transform: uppercase;
+}
+
+.dollar,
+.decimal,
+.price_format {
+    font-weight: normal;
+}
+
+.dollar {
+    font-size: 80%;
+    padding-right: 2px;
+}
+
+.green {
+    color: #31c19e;
+}
+
+.yellow {
+    color: #ed6a0c;
+}
+
+.gray {
+    color: #999;
+}
+
+.red {
+    color: var(--tig-red-text-color);
+}
+
+.mr10 {
+    margin-right: 10px;
+}
+
+.ml5 {
+    margin-left: 5px;
+}
+
+.ml10 {
+    margin-left: 10px;
+}
+
+.mt10 {
+    margin-top: 10px;
+}
+
+.mt20 {
+    margin-top: 20px;
+}
+
+.mb10 {
+    margin-bottom: 10px;
+}
+
+.mb20 {
+    margin-bottom: 20px;
+}
+
+.btn-link {
+    white-space: nowrap;
+    cursor: pointer;
+    color: var(--tig-primary);
+}
+
+.content_wrapper {
+    background: #fff;
+    padding: 20px;
+}
+
+.ant-pagination-item-link {
+    border: 0 !important;
+    background: none !important;
+}
+
+.ant-pagination-mini li {
+    margin: 0 2px !important;
+}
+
+.ant-pagination-mini li:hover {
+    border-color: #fff !important;
+    background-color: inherit !important;
+}
+
+.ant-pagination-mini li.ant-pagination-item-active:hover {
+    border-color: var(--tig-primary) !important;
+}
+
+.lyecs-modal-gallery .ant-modal-body {
+    padding: 0;
+}
+
+button .iconfont {
+    vertical-align: middle;
+    line-height: 0.8;
+}
+
+// 空数据
+.empty-warp {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    align-content: center;
+}
+
+.empty-warp .empty-bg {
+    text-align: center;
+    font-size: 14px;
+    display: block;
+    width: 100%;
+    padding-top: 20px;
+    padding-bottom: 30px;
+    color: #999;
+}
+
+.empty-warp .empty-bg::before {
+    content: "";
+    height: 150px;
+    background: url("./images/common/empty-bg.png") center center;
+    background-size: 160px 160px;
+    background-repeat: no-repeat;
+    width: 100%;
+    display: block;
+}
+
+.table-container .empty-warp {
+    min-height: 500px;
+}
+
+// 按钮样式
+.ant-btn-primary {
+    background-color: var(--tig-primary);
+}
+
+.ant-btn-primary:not(:disabled):hover {
+    background-color: var(--tig-button-hover-bg);
+}
+
+.ant-btn-default:not(:disabled):hover {
+    color: var(--tig-primary);
+    border-color: var(--tig-primary);
+}
+
+// 表单样式
+.ant-form-item-extra {
+    padding-top: 3px;
+}
+
+// 关闭图片预览时小图的mask
+.ant-image .ant-image-mask {
+    display: none;
+}
+
+// 下拉宽度不再固定
+.ant-select-dropdown {
+    width: auto !important;
+}
+
+// 图片预览加上白底
+.ant-image-preview-operations {
+    background: none !important;
+}
+
+.ant-image-preview-img {
+    background-color: #fff;
+    padding: 20px;
+}
+
+.ant-popconfirm-message {
+    font-size: 12px;
+}
+
+.lyecs-tabs .ant-tabs-tab-btn {
+    font-size: 14px;
+    font-weight: bold;
+}
+
+// 弹窗样式
+.ant-modal {
+    max-height: 90%;
+}
+
+.ant-drawer-content.noPadding .ant-drawer-body {
+    padding: 0;
+}
+
+.ant-modal.noPadding .ant-modal-body {
+    padding: 0;
+}
+
+.ant-drawer-body .content_wrapper {
+    padding: 0;
+}
+
+body .el-drawer__header {
+    border-bottom: 1px solid rgba(5, 5, 5, 0.06);
+    padding: 16px 24px;
+    margin: 0;
+}
+
+body .el-drawer__title {
+    font-size: 16px;
+    color: #333;
+}
+
+body .el-drawer__footer {
+    padding: 8px 16px;
+    border-top: 1px solid rgba(5, 5, 5, 0.06);
+}
+
+.ant-modal-body .content_wrapper {
+    padding: 0;
+}
+
+// element样式重做
+body {
+    .el-button {
+        transition:
+            color 0.1s ease-in,
+            background-color 0.1s ease-in,
+            border-color 0.1s ease-in,
+            width 0.2s ease-in;
+    }
+
+    .el-image-viewer__canvas img {
+        padding: 20px;
+    }
+
+    .el-dropdown-menu__item {
+        transition: all 0.2s;
+    }
+
+    .el-dropdown-menu__item:not(.is-disabled):focus {
+        background: rgba(0, 0, 0, 0.04);
+        color: inherit;
+    }
+
+    .brand-select .el-select-dropdown__wrap,
+    .brand-select {
+        max-height: 590px !important;
+        height: 320px;
+    }
+
+    .el-table {
+        //font-size: 12px;
+    }
+
+    .el-table .caret-wrapper {
+        margin-left: 3px;
+    }
+
+    .el-table .sort-caret {
+        border: solid 4px transparent;
+    }
+
+    .el-table .sort-caret.ascending {
+        top: -4px;
+    }
+
+    .el-table .sort-caret.descending {
+        bottom: -1px;
+    }
+
+    .el-tabs__item {
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    .el-tabs__nav-wrap::after {
+        height: 1px;
+    }
+
+    .noPadding .el-dialog__body {
+        padding: 0;
+    }
+
+    .el-dialog__header {
+        border-bottom: 1px solid #eee;
+        margin-right: 0;
+        padding: 14px 20px;
+    }
+
+    .el-dialog__headerbtn {
+        top: 0;
+    }
+
+    .el-dialog__footer {
+        border-top: 1px solid #eee;
+        padding: 10px 20px;
+    }
+
+    .el-form-item {
+        margin-bottom: 24px;
+    }
+
+    .el-color-picker__color {
+        border: 0px;
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12) inset;
+    }
+
+    .el-color-picker .el-color-picker__empty {
+        display: none;
+    }
+
+    // select
+    .el-select__wrapper {
+        //font-size: 12px;
+    }
+
+    .el-select {
+        min-width: 160px;
+    }
+
+    .el-select__popper.el-popper {
+        border: none;
+        margin-top: -8px;
+        margin-bottom: -8px;
+        box-shadow:
+            0 6px 16px 0 rgba(0, 0, 0, 0.08),
+            0 3px 6px -4px rgba(0, 0, 0, 0.12),
+            0 9px 28px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .el-select__popper .el-select-dropdown {
+        padding: 4px;
+        box-sizing: border-box;
+    }
+
+    .el-select__popper .el-select-dropdown__list {
+        margin: 0 !important;
+    }
+
+    .el-select__popper .el-tree-node__content:hover {
+        border-radius: 2px;
+    }
+
+    .el-select__popper .el-tree-node__content {
+        padding: 3px 0;
+        transition: background 0.3s ease;
+    }
+
+    .el-select__popper .is-current > .el-tree-node__content {
+        background-color: #e6f7ff;
+    }
+
+    .el-select-dropdown__item.selected {
+        color: rgba(0, 0, 0, 0.88);
+        font-weight: normal;
+    }
+
+    .el-select__popper .el-popper__arrow {
+        display: none;
+    }
+
+    // cascader联动选择样式
+
+    .el-cascader .el-input__icon {
+        width: 15px;
+    }
+
+    .el-cascader__dropdown.el-popper {
+        border: 0 !important;
+    }
+
+    .el-cascader__dropdown.el-popper .el-popper__arrow::before {
+        border-color: #fff !important;
+    }
+
+    .el-cascader-menu__wrap.el-scrollbar__wrap {
+        height: 252px !important;
+    }
+
+    .el-input {
+        .el-input__count {
+            color: #b6babf;
+        }
+    }
+
+    .el-radio__inner {
+        width: 16px;
+        height: 16px;
+        border-color: #d9d9d9;
+        border-style: solid;
+        border-width: 1px;
+        border-radius: 50%;
+        transition: all 0.3s;
+        background: #fff;
+        position: relative;
+
+        &:after {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            display: block;
+            width: 16px;
+            height: 16px;
+            margin-top: -8px;
+            margin-left: -8px;
+            background-color: var(--tig-primary);
+            border-top: 0;
+            border-left: 0;
+            border-radius: 50%;
+            transform: scale(0);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.78, 0.14, 0.15, 0.86);
+            content: " ";
+        }
+    }
+
+    .el-radio__input.is-checked {
+        .el-radio__inner {
+            border-color: var(--tig-primary);
+            background: #fff;
+
+            &:after {
+                transform: scale(0.5);
+                opacity: 1;
+                background-color: var(--tig-primary);
+                transition: all 0.3s cubic-bezier(0.78, 0.14, 0.15, 0.86);
+            }
+        }
+
+        + .el-radio__label {
+            color: inherit;
+        }
+    }
+
+    .el-checkbox {
+        --el-checkbox-input-height: 16px;
+        --el-checkbox-input-width: 16px;
+
+        .el-checkbox__inner::after {
+            // left: 4.5px;
+            // top: 2px;
+            border-width: 2px;
+        }
+
+        .el-checkbox__input.is-indeterminate .el-checkbox__inner::before {
+            top: 5px;
+            height: 4px;
+        }
+    }
+
+    // tips
+    .el-popper.is-light {
+        box-shadow:
+            0 6px 16px 0 rgba(0, 0, 0, 0.08),
+            0 3px 6px -4px rgba(0, 0, 0, 0.12),
+            0 9px 28px 8px rgba(0, 0, 0, 0.05);
+        border: 0;
+    }
+
+    .el-popper.is-light .el-popper__arrow::before {
+        border: 0;
+    }
+
+    // slider
+    .el-slider__runway {
+        height: 4px;
+    }
+
+    .el-slider__bar {
+        height: 4px;
+    }
+
+    .el-slider__button {
+        width: 14px;
+        height: 14px;
+    }
+
+    .el-slider__input {
+        width: 60px;
+    }
+
+    .el-slider__button-wrapper {
+        top: -16px;
+    }
+
+    .el-button--primary {
+        border-color: var(--tig-primary);
+    }
+}
+
+// 分页
+.pagination-con {
+    margin: 16px 0;
+    display: flex;
+    justify-content: right;
+}
+
+// 表单
+body .el-tabs__content {
+    overflow: visible;
+}
+
+.lyecs-form-table .el-tabs__content {
+    padding-top: 20px;
+    padding-bottom: 20px;
+}
+
+.el-form-item .extra {
+    font-size: 12px;
+    color: #9598a6;
+    line-height: 20px;
+    padding-top: 3px;
+}
+
+.el-form-item .extra::before {
+    content: "";
+    flex-basis: 100%;
+}
+
+// 编辑器
+.w-e-bar-divider {
+    display: none !important;
+}
+
+// 提醒
+.notice-warp {
+    background-color: #eef2ff;
+    border-radius: 9px;
+    padding: 15px;
+    margin-bottom: 20px;
+    line-height: 24px;
+    white-space: normal;
+}
+
+.error-notice-warp {
+    color: #ff2200;
+    background-color: #feeeee;
+    padding: 15px;
+    margin-bottom: 20px;
+    line-height: 26px;
+    white-space: normal;
+}
+
+.line1 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@media only screen and (max-width: 767px) {
+    .el-form-item__label {
+        max-width: 92px;
+        text-align: right;
+        line-height: 16px;
+        padding-top: 7px;
+    }
+
+    .main-panel ul {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+
+    .filtrate-menu {
+        flex-wrap: wrap;
+
+        .asterisk-left {
+            width: 100%;
+        }
+    }
+
+    .ant-drawer .ant-drawer-body {
+        padding: 20px;
+    }
+}
+// 维护图标（iconfont-tig）
+// 这些类名同时存在于其它字体库，必须使用字体类组合选择器固定 tigshop 字体的字形，避免被后加载的字体覆盖。
+.iconfont-tig.icon-gerenshezhi:before {
+    content: "\e736";
+}
+.iconfont-tig.icon-qiehuan:before {
+    content: "\e642";
+}
+.iconfont-tig.icon-dingdan1:before {
+    content: "\e737";
+}
+.iconfont-tig.icon-dingwei:before {
+    content: "\e64b";
+}
+.iconfont-tig.icon-dianhua:before {
+    content: "\e64c";
+}
+.iconfont-tig.icon-duoyuyan:before {
+    content: "\e644";
+}
+.iconfont-tig.icon-zengjia:before {
+    content: "\e63e";
+}
+.iconfont-tig.icon-xiazai:before {
+    content: "\e71c";
+}
+.iconfont-tig.icon-zhankai:before {
+    content: "\e715";
+}
+.iconfont-tig.icon-qingchuhuancun:before {
+    content: "\e712";
+}
+.iconfont-tig.icon-guanliyuan:before {
+    content: "\e70e";
+}
+.iconfont-tig.icon-gongyingshang:before {
+    content: "\e70f";
+}
+.iconfont-tig.icon-dingdanguanli:before {
+    content: "\e701";
+}
+.iconfont-tig.icon-gongsiqiye:before {
+    content: "\e6f0";
+}
+.iconfont-tig.icon-shangpin1:before {
+    content: "\e74e";
+}
+.iconfont-tig.icon-tishi1:before {
+    content: "\e75a";
+}
+.iconfont-tig.icon-huiyuan3:before {
+    content: "\e8b1";
+}
+.iconfont-tig.icon-dingding:before {
+    content: "\e649";
+}
+.iconfont-tig.icon-quanxian1:before {
+    content: "\e641";
+}
+.iconfont-tig.icon-guanli:before {
+    content: "\e643";
+}
+.iconfont-tig.icon-jingying:before {
+    content: "\e645";
+}
+.iconfont-tig.icon-shezhi:before {
+    content: "\e647";
+}
+.iconfont-tig.icon-shuju:before {
+    content: "\e648";
+}
+.iconfont-tig.icon-zhuangxiu:before {
+    content: "\e64a";
+}
+.iconfont-tig.icon-shipin:before {
+    content: "\e602";
+}
+.icon-dingdan1:before {
+    content: "\e737";
+}
+.icon-dingwei:before {
+    content: "\e64b";
+}
+.icon-shimingrenzheng:before {
+    content: "\e705";
+}
+
+// 维护图标 （iconfont-h5）
+.icon-a-gengduo20:before {
+    content: "\e717";
+}
+
+.icon-xiaochengxuzhibo:before {
+    content: "\e731";
+}
+
+.icon-shipinhaozhibo:before {
+    content: "\e732";
+}
+
+.icon-daohang:before {
+    content: "\e640";
+}
+
+.icon-fanhui:before {
+    content: "\e714";
+}

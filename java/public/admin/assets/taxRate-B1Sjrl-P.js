@@ -1,0 +1,1 @@
+import{a6 as e}from"./index-B6WS-doS.js";const r=t=>e({url:"setting/taxRate/list",method:"get",params:t}),o=(t,a)=>e({url:`setting/taxRate/${t}`,method:"get",params:a}),n=(t,a)=>e({url:`setting/taxRate/${t}`,method:"post",data:a}),u=t=>e({url:"setting/taxRate/del",method:"post",data:t});export{o as a,u as d,r as g,n as u};

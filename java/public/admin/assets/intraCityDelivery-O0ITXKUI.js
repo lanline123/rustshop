@@ -1,0 +1,1 @@
+import{a6 as t}from"./index-B6WS-doS.js";const r=e=>t({url:"o2o/localDelivery/getConfig",method:"get",params:e}),s=e=>t({url:"setting/config/storeSelfOperatedSettings",method:"get",params:e}),a=e=>t({url:"setting/config/saveStoreSelfOperated",method:"post",data:e});export{s as a,r as g,a as s};

@@ -1,0 +1,1 @@
+import{p as r,r as a,T as e}from"./index-Lmko8ZQO.js";import{u as n}from"./currency.ZOTvfYq3.js";const l=()=>{n();const l=r(),u=a(""),o=a(""),s=a(""),c=a("");return u.value=l.dollarSign,o.value=l.dollarSignCn,s.value=l.dollarSign,c.value=e(l.dollarSignCn),{currency:u,currencyName:o,baseCurrency:s,baseCurrencyName:c}};export{l as u};

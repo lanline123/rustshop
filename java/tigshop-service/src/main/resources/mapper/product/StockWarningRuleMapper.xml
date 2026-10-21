@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.product.StockWarningRuleMapper">
+
+    <!--
+      库存状态与 5.3 的展示规则一致：低于下限为低库存，高于上限为高库存，区间内为正常库存，无规则为未配置。
+      放在外层基于内层已算好的 currentStock 判断，使状态筛选可下推 SQL，分页总数才准确。
+    -->
+    <sql id="stockStatusExpr">
+        CASE
+            WHEN t.ruleId IS NULL THEN 9
+            WHEN t.currentStock &lt; t.lowerLimit THEN 1
+            WHEN t.currentStock &gt; t.upperLimit THEN 2
+            ELSE 0
+        END
+    </sql>
+
+    <!-- 列表与导出共用同一份查询，保证导出内容与页面所见完全一致 -->
+    <sql id="warningQuery">
+        SELECT t.*, <include refid="stockStatusExpr"/> AS stockStatus
+        FROM (
+        SELECT
+            p.product_id AS productId,
+            IFNULL(ps.sku_id, 0) AS skuId,
+            p.product_name AS productName,
+            ps.sku_value AS productSkuName,
+            p.pic_thumb AS productPicThumb,
+            p.product_sn AS productSn,
+            ps.sku_sn AS skuSn,
+            p.product_tsn AS productTsn,
+            p.shop_id AS productShopId,
+            sp.shop_id AS storeShopId,
+            p.product_related AS productRelated,
+            r.id AS ruleId,
+            r.warn_enabled AS warnEnabled,
+            r.lower_limit AS lowerLimit,
+            r.upper_limit AS upperLimit,
+            r.update_time AS updateTime,
+            <!--
+              库存口径与 ProductSkuMapper.getProductStockPageByO2O 一致：门店独立库存优先。
+              门店独立库存与总库存同时启用时两处都会扣减，可售库存取较小值。
+            -->
+            CASE
+                WHEN #{query.useStoreStock} AND sp.store_product_id IS NOT NULL AND ps.sku_id IS NOT NULL
+                    THEN CASE WHEN #{query.useTotalStock}
+                        THEN LEAST(IFNULL(sps.sku_stock, 0), IFNULL(ps.sku_stock, 0))
+                        ELSE IFNULL(sps.sku_stock, 0) END
+                WHEN #{query.useStoreStock} AND sp.store_product_id IS NOT NULL
+                    THEN CASE WHEN #{query.useTotalStock}
+                        THEN LEAST(IFNULL(sp.product_stock, 0), IFNULL(p.product_stock, 0))
+                        ELSE IFNULL(sp.product_stock, 0) END
+                WHEN ps.sku_id IS NOT NULL THEN IFNULL(ps.sku_stock, 0)
+                ELSE IFNULL(p.product_stock, 0)
+            END AS currentStock,
+            IFNULL(pt.transitStock, 0) AS transitStock
+        FROM product p
+            LEFT JOIN product_sku ps ON ps.product_id = p.product_id
+            LEFT JOIN store_product sp ON sp.product_id = p.product_id AND sp.shop_id = #{query.shopId}
+            LEFT JOIN store_product_sku sps ON sps.store_product_id = sp.store_product_id
+                AND sps.product_sku_id = ps.sku_id
+            LEFT JOIN stock_warning_rule r ON r.product_id = p.product_id
+                AND r.sku_id = IFNULL(ps.sku_id, 0)
+                AND r.shop_id = #{query.shopId}
+                AND r.is_delete = 0
+            <!--
+              在途库存＝采购单已下单但尚未入库的数量，与采购单详情的「剩余待收」同源。
+              只取 type=1 的采购订单（type=2 是直录入库单，创建即已加库存），
+              状态只取 1 待入库与 2 部分入库，已完成(3)与已关闭(4)的未收部分不再视为在途。
+              供应链功能关闭时表为空表，聚合结果为 0，不影响列表。
+            -->
+            LEFT JOIN (
+                SELECT poi.product_id AS productId, poi.sku_id AS skuId,
+                    SUM(GREATEST(poi.quantity - IFNULL(poi.received_quantity, 0), 0)) AS transitStock
+                FROM purchase_order_item poi
+                    INNER JOIN purchase_order po ON po.id = poi.order_id
+                WHERE po.is_del = 0
+                    AND poi.is_del = 0
+                    AND po.type = 1
+                    AND po.status IN (1, 2)
+                    AND po.shop_id = #{query.shopId}
+                GROUP BY poi.product_id, poi.sku_id
+            ) pt ON pt.productId = p.product_id AND pt.skuId = IFNULL(ps.sku_id, 0)
+        WHERE p.is_delete = 0
+            AND p.vendor_id IS NULL
+            AND (p.shop_id = #{query.shopId} OR sp.shop_id = #{query.shopId})
+            <!-- 导出按勾选行取数；放在内层可先收窄结果集，主体与删除条件仍然生效 -->
+            <if test="query.targets != null and query.targets.size() > 0">
+                AND (p.product_id, IFNULL(ps.sku_id, 0)) IN
+                <foreach collection="query.targets" item="target" open="(" separator="," close=")">
+                    (#{target.productId}, #{target.skuId})
+                </foreach>
+            </if>
+            <if test="query.productType != null">
+                AND p.product_type = #{query.productType}
+            </if>
+            <if test="query.keyword != null and query.keyword != ''">
+                AND (
+                    p.product_name LIKE CONCAT('%', #{query.keyword}, '%')
+                    OR p.product_sn LIKE CONCAT('%', #{query.keyword}, '%')
+                    OR ps.sku_sn LIKE CONCAT('%', #{query.keyword}, '%')
+                )
+            </if>
+        ) t
+        <where>
+            <if test="query.stockStatus != null">
+                <include refid="stockStatusExpr"/> = #{query.stockStatus}
+            </if>
+            <!-- 低/高/正常等已配置状态仅展示已开启库存预警的商品；未配置状态(9)仍需保留未配置项。 -->
+            <if test="query.stockStatus != null and query.stockStatus != 9">
+                AND t.warnEnabled = 1
+            </if>
+            <if test="query.warnEnabled != null">
+                AND t.warnEnabled = #{query.warnEnabled}
+            </if>
+        </where>
+        <!--
+          排序字段采用白名单映射，避免直接拼接前端参数导致 SQL 注入。
+          支持页面四个库存列：实物库存 currentStock、在途库存 transitStock、库存下限 lowerLimit、库存上限 upperLimit。
+          未传或非法字段回退商品 ID 倒序；方向仅接受 asc，其余按 desc 处理。
+        -->
+        ORDER BY
+        <choose>
+            <when test="query.sortField == 'currentStock' or query.sortField == 'physicalStock' or query.sortField == 'productStock'">
+                <choose>
+                    <when test="query.sortOrder != null and (query.sortOrder == 'asc' or query.sortOrder == 'ASC')">t.currentStock ASC</when>
+                    <otherwise>t.currentStock DESC</otherwise>
+                </choose>
+            </when>
+            <when test="query.sortField == 'transitStock'">
+                <choose>
+                    <when test="query.sortOrder != null and (query.sortOrder == 'asc' or query.sortOrder == 'ASC')">t.transitStock ASC</when>
+                    <otherwise>t.transitStock DESC</otherwise>
+                </choose>
+            </when>
+            <when test="query.sortField == 'lowerLimit'">
+                <choose>
+                    <when test="query.sortOrder != null and (query.sortOrder == 'asc' or query.sortOrder == 'ASC')">t.lowerLimit ASC</when>
+                    <otherwise>t.lowerLimit DESC</otherwise>
+                </choose>
+            </when>
+            <when test="query.sortField == 'upperLimit'">
+                <choose>
+                    <when test="query.sortOrder != null and (query.sortOrder == 'asc' or query.sortOrder == 'ASC')">t.upperLimit ASC</when>
+                    <otherwise>t.upperLimit DESC</otherwise>
+                </choose>
+            </when>
+            <otherwise>t.productId DESC</otherwise>
+        </choose>, t.skuId ASC
+    </sql>
+
+    <select id="selectWarningPage" resultType="com.tigshop.bean.vo.product.StockWarningRowVO">
+        <include refid="warningQuery"/>
+    </select>
+
+    <select id="selectWarningList" resultType="com.tigshop.bean.vo.product.StockWarningRowVO">
+        <include refid="warningQuery"/>
+    </select>
+
+    <!--
+      批量查询商品编码和SKU编码两个输入列的候选。
+      两类编码都可能重复或互相撞车，服务层按命中类型及商品ID交叉匹配，
+      确保SKU属于输入商品并唯一定位；主体与删除条件和列表保持一致。
+    -->
+    <select id="selectTargetsBySn" resultType="com.tigshop.bean.vo.product.StockWarningSnTargetVO">
+        SELECT ps.sku_sn AS sn, p.product_id AS productId, ps.sku_id AS skuId, 1 AS matchType, 0 AS skuCount
+        FROM product_sku ps
+            INNER JOIN product p ON p.product_id = ps.product_id
+            LEFT JOIN store_product sp ON sp.product_id = p.product_id AND sp.shop_id = #{shopId}
+        WHERE p.is_delete = 0
+            AND p.vendor_id IS NULL
+            AND (p.shop_id = #{shopId} OR sp.shop_id = #{shopId})
+            AND ps.sku_sn IN
+            <foreach collection="snList" item="sn" open="(" separator="," close=")">
+                #{sn}
+            </foreach>
+        UNION ALL
+        <!-- skuCount 为 0 时支持仅填商品编码，否则必须同时提供SKU编码 -->
+        SELECT p.product_sn AS sn, p.product_id AS productId, 0 AS skuId, 2 AS matchType,
+            (SELECT COUNT(*) FROM product_sku s WHERE s.product_id = p.product_id) AS skuCount
+        FROM product p
+            LEFT JOIN store_product sp ON sp.product_id = p.product_id AND sp.shop_id = #{shopId}
+        WHERE p.is_delete = 0
+            AND p.vendor_id IS NULL
+            AND (p.shop_id = #{shopId} OR sp.shop_id = #{shopId})
+            AND p.product_sn IN
+            <foreach collection="snList" item="sn" open="(" separator="," close=")">
+                #{sn}
+            </foreach>
+        </select>
+
+    <!--
+      相关商品按库存预警当前主体过滤：平台商品必须已分配给当前门店，
+      门店自建商品只允许当前主体自己的商品；平台自营主体只取 shop_id=0。
+    -->
+    <select id="selectVisibleProductIds" resultType="java.lang.Integer">
+        SELECT DISTINCT p.product_id
+        FROM product p
+            LEFT JOIN store_product sp ON sp.product_id = p.product_id
+                AND sp.shop_id = #{shopId}
+                AND sp.is_delete = 0
+        WHERE p.is_delete = 0
+            AND p.vendor_id IS NULL
+            AND (
+                p.shop_id = #{shopId}
+                OR (p.shop_id = 0 AND sp.shop_id = #{shopId})
+            )
+            AND p.product_id IN
+            <foreach collection="productIds" item="productId" open="(" separator="," close=")">
+                #{productId}
+            </foreach>
+    </select>
+
+    <select id="selectEvaluateRow" resultType="com.tigshop.bean.vo.product.StockWarningEvaluateRowVO">
+        SELECT
+            p.product_id AS productId,
+            p.product_name AS productName,
+            ps.sku_value AS skuValue,
+            p.vendor_id AS vendorId,
+            CASE
+                WHEN #{useStoreStock} AND sp.store_product_id IS NOT NULL AND #{skuId} &gt; 0
+                    THEN CASE WHEN #{useTotalStock}
+                        THEN LEAST(IFNULL(sps.sku_stock, 0), IFNULL(ps.sku_stock, 0))
+                        ELSE IFNULL(sps.sku_stock, 0) END
+                WHEN #{useStoreStock} AND sp.store_product_id IS NOT NULL
+                    THEN CASE WHEN #{useTotalStock}
+                        THEN LEAST(IFNULL(sp.product_stock, 0), IFNULL(p.product_stock, 0))
+                        ELSE IFNULL(sp.product_stock, 0) END
+                WHEN #{skuId} &gt; 0 THEN IFNULL(ps.sku_stock, 0)
+                ELSE IFNULL(p.product_stock, 0)
+            END AS currentStock
+        FROM product p
+            LEFT JOIN product_sku ps ON ps.product_id = p.product_id AND ps.sku_id = #{skuId}
+            LEFT JOIN store_product sp ON sp.product_id = p.product_id AND sp.shop_id = #{shopId}
+            LEFT JOIN store_product_sku sps ON sps.store_product_id = sp.store_product_id
+                AND sps.product_sku_id = #{skuId}
+        WHERE p.product_id = #{productId}
+        LIMIT 1
+    </select>
+</mapper>

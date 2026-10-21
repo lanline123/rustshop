@@ -1,0 +1,1 @@
+import{f as e,c as s,t as o,x as c,o as n,_ as l}from"./ntmrFmLd.js";const r=e({__name:"Tag",props:{txt:{type:String,default:""},active:{type:Boolean,default:!1}},setup(t){return(a,i)=>(n(),s("div",{class:c(["tag",{active:t.active}])},o(a.$t(t.txt)),3))}}),p=l(r,[["__scopeId","data-v-e4485cfb"]]);export{p as default};

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.finance.OrderInvoiceMapper">
+
+    <select id="orderInvoicePage" resultType="com.tigshop.bean.vo.finance.OrderInvoiceVO">
+        select oi.*, o.order_sn
+        from order_invoice oi
+        left join `order` o on oi.order_id = o.order_id
+        left join user u on oi.user_id = u.user_id
+        <where>
+            <if test="query.keyword != null and query.keyword != ''">
+                and (u.username like concat('%', #{query.keyword}, '%')
+                or oi.company_name like concat('%', #{query.keyword}, '%'))
+            </if>
+            <if test="query.status != null">
+                and oi.status = #{query.status}
+            </if>
+            <if test="query.invoiceType != null">
+                and oi.invoice_type = #{query.invoiceType}
+            </if>
+        </where>
+    </select>
+
+</mapper>

@@ -1,0 +1,1 @@
+import{aI as e}from"./index-B6WS-doS.js";const r=e("category",{state:()=>({categoryTree:null}),getters:{},actions:{clearCategory(){this.categoryTree=null}},persist:{enabled:!0,strategies:[{storage:sessionStorage,paths:[]}]}});export{r as u};

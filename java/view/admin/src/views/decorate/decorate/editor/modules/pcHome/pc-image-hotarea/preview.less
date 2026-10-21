@@ -1,0 +1,93 @@
+/**
+ * PC 热图绘制模块 - 预览样式
+ * 说明：复用移动端热图绘制模块的样式规范，适配 PC 装修预览区域
+ *
+ * 使用 BEM 命名规范，添加 dec- 前缀避免冲突
+ * 动态值通过 CSS 变量传递
+ */
+
+.dec-image-hotarea {
+    box-sizing: border-box;
+    padding-left: var(--dec-box-padding, 10px);
+    padding-right: var(--dec-box-padding, 10px);
+    padding-top: var(--dec-box-padding-top, 5px);
+    padding-bottom: var(--dec-box-padding-bottom, 5px);
+
+    &__content {
+        background-color: var(--dec-bg-color, #ffffff);
+        border-radius: var(--dec-box-radius, 0);
+        overflow: hidden;
+        padding: var(--dec-inner-padding, 0);
+    }
+
+    &__wrapper {
+        overflow: hidden;
+    }
+
+    &__list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--dec-item-gap, 0);
+    }
+
+    &__item {
+        box-sizing: border-box;
+        overflow: hidden;
+    }
+
+    &__pic-wrap {
+        position: relative;
+        overflow: hidden;
+    }
+
+    &__image {
+        width: 100%;
+        height: auto;
+        display: block;
+        object-fit: cover;
+    }
+
+    &__area {
+        position: absolute;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(21, 91, 212, 0.6);
+        color: #fff;
+        text-decoration: none;
+        box-sizing: border-box;
+        border: 1px solid transparent;
+        transition: all 0.2s;
+
+        &:hover {
+            background: rgba(21, 91, 212, 0.8);
+            border-color: #155bd4;
+        }
+    }
+
+    &__area-text {
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        padding: 0 4px;
+    }
+
+    &__empty {
+        padding-top: 30px;
+        text-align: center;
+        background-color: #f2f4f6;
+
+        &-icon {
+            width: 100px;
+            height: 100px;
+            margin: 0 auto 10px;
+            background: url("@/assets/decorate/empty-img-bg.png") no-repeat center center;
+            background-size: 100% auto;
+        }
+
+        &-text {
+            padding-bottom: 50px;
+        }
+    }
+}

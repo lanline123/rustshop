@@ -1,0 +1,1 @@
+import{a6 as t}from"./index-B6WS-doS.js";const i=e=>t({url:"promotion/wechatLive/list",method:"get",params:e}),s=(e,o)=>t({url:"promotion/wechatLive/"+e,method:"get",params:o}),a=(e,o)=>t({url:"promotion/wechatLive/"+e,method:"post",data:o}),n=()=>t({url:"promotion/wechatLive/refresh",method:"get"});export{n as a,s as b,i as g,a as u};

@@ -1,0 +1,1 @@
+import{o as a,c,a as i,I as l,v as n}from"./ntmrFmLd.js";const u=["xlink:href"],_={__name:"SvgIcon",props:{name:{type:String,required:!0},color:{type:String,default:""}},setup(o){const e=o,r=n(()=>`#icon-${e.name}`),s=n(()=>e.name?`icon icon-${e.name}`:"icon");return(t,m)=>(a(),c("svg",l({class:s.value},t.$attrs),[i("use",{"xlink:href":r.value},null,8,u)],16))}};export{_};

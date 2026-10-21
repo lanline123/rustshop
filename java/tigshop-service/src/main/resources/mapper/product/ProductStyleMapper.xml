@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.product.ProductStyleMapper">
+
+    <sql id="activeStyleColumns">
+        p.product_id AS productId,
+        ps.style_id AS styleId,
+        ps.style_name AS styleName,
+        ps.style_type AS styleType,
+        ps.style_image AS styleImage,
+        ps.pc_image AS pcImage,
+        psi.add_time AS itemAddTime
+    </sql>
+
+    <sql id="activeStyleFilter">
+        AND ps.status = 1
+        AND ps.is_delete = 0
+        AND p.product_id IN
+            <foreach collection="productIds" item="pid" open="(" separator="," close=")">
+                #{pid}
+            </foreach>
+        AND (ps.start_time = 0 OR ps.start_time &lt;= #{now})
+        AND (ps.end_time = 0 OR ps.end_time &gt;= #{now})
+    </sql>
+
+    <!--
+        批量获取商品生效样式（边框+活动背景）
+        使用 UNION ALL 分别处理三种关联方式：
+          item_type=1 直接匹配商品ID
+          item_type=2 匹配商品分组（product_group.product_ids JSON数组）
+          item_type=3 匹配商品所属品牌
+    -->
+    <select id="selectActiveStylesByProductIds" resultType="map">
+        SELECT productId, styleId, styleName, styleType, styleImage, pcImage, itemAddTime
+        FROM (
+            SELECT
+                <include refid="activeStyleColumns"/>
+            FROM product_style ps
+            INNER JOIN product_style_item psi ON ps.style_id = psi.style_id AND psi.item_type = 1
+            INNER JOIN product p ON psi.ref_id = p.product_id
+            WHERE 1 = 1
+                <include refid="activeStyleFilter"/>
+
+            UNION ALL
+
+            SELECT
+                <include refid="activeStyleColumns"/>
+            FROM product_style ps
+            INNER JOIN product_style_item psi ON ps.style_id = psi.style_id AND psi.item_type = 2
+            INNER JOIN product_group pg ON pg.product_group_id = psi.ref_id
+            INNER JOIN product p ON JSON_CONTAINS(pg.product_ids, CAST(p.product_id AS JSON))
+            WHERE 1 = 1
+                <include refid="activeStyleFilter"/>
+
+            UNION ALL
+
+            SELECT
+                <include refid="activeStyleColumns"/>
+            FROM product_style ps
+            INNER JOIN product_style_item psi ON ps.style_id = psi.style_id AND psi.item_type = 3
+            INNER JOIN product p ON psi.ref_id = p.brand_id
+            WHERE 1 = 1
+                <include refid="activeStyleFilter"/>
+        ) AS combined
+        ORDER BY itemAddTime DESC
+    </select>
+
+    <!--
+        商品样式分页列表
+        通过 LEFT JOIN 子查询实时统计每个样式的关联商品数（product_count），
+        使统计列可参与数据库层的 ORDER BY 与分页，保证按"商品数"排序正确。
+        ORDER BY 与 LIMIT 由 MyBatis-Plus 分页插件根据 page.orders 自动追加。
+    -->
+    <select id="pageList" resultType="com.tigshop.bean.vo.product.ProductStyleVO">
+        SELECT
+            ps.style_id,
+            ps.style_name,
+            ps.style_type,
+            ps.style_image,
+            ps.pc_image,
+            ps.start_time,
+            ps.end_time,
+            ps.status,
+            ps.shop_id,
+            ps.add_time,
+            ps.update_time,
+            IFNULL(cnt.product_count, 0) AS product_count
+        FROM product_style ps
+        LEFT JOIN (
+            SELECT
+                psi.style_id AS style_id,
+                COUNT(DISTINCT p.product_id) AS product_count
+            FROM product_style_item psi
+            INNER JOIN product p ON (
+                (psi.item_type = 1 AND psi.ref_id = p.product_id)
+                OR (psi.item_type = 2 AND EXISTS (
+                    SELECT 1 FROM product_group pg
+                    WHERE pg.product_group_id = psi.ref_id
+                      AND JSON_CONTAINS(pg.product_ids, CAST(p.product_id AS JSON))
+                ))
+                OR (psi.item_type = 3 AND psi.ref_id = p.brand_id)
+            )
+            WHERE p.is_delete = 0
+              AND p.product_status = 1
+            GROUP BY psi.style_id
+        ) cnt ON cnt.style_id = ps.style_id
+        <where>
+            ps.shop_id = #{shopId}
+            AND ps.is_delete = 0
+            <if test="query.styleType != null">
+                AND ps.style_type = #{query.styleType}
+            </if>
+            <if test="query.status != null">
+                AND ps.status = #{query.status}
+            </if>
+            <if test="query.keyword != null and query.keyword != ''">
+                AND ps.style_name LIKE CONCAT('%', #{query.keyword}, '%')
+            </if>
+            <if test="query.activityStatus != null and query.activityStatus == 1">
+                AND ps.start_time &gt; #{now}
+            </if>
+            <if test="query.activityStatus != null and query.activityStatus == 2">
+                AND ps.start_time &lt;= #{now}
+                AND ps.end_time &gt;= #{now}
+            </if>
+            <if test="query.activityStatus != null and query.activityStatus == 3">
+                AND ps.end_time &lt; #{now}
+            </if>
+            <if test="startTime != null">
+                AND ps.start_time &gt;= #{startTime}
+            </if>
+            <if test="endTime != null">
+                AND ps.end_time &lt;= #{endTime}
+            </if>
+        </where>
+    </select>
+
+    <!-- 批量统计每个样式关联的实际商品数量 -->
+    <select id="countRealProductsByStyleIds" resultType="map">
+        SELECT
+            psi.style_id AS styleId,
+            COUNT(DISTINCT p.product_id) AS productCount
+        FROM product_style_item psi
+        INNER JOIN product p ON (
+            (psi.item_type = 1 AND psi.ref_id = p.product_id)
+            OR (psi.item_type = 2 AND EXISTS (
+                SELECT 1 FROM product_group pg
+                WHERE pg.product_group_id = psi.ref_id
+                  AND JSON_CONTAINS(pg.product_ids, CAST(p.product_id AS JSON))
+            ))
+            OR (psi.item_type = 3 AND psi.ref_id = p.brand_id)
+        )
+        WHERE psi.style_id IN
+            <foreach collection="styleIds" item="sid" open="(" separator="," close=")">
+                #{sid}
+            </foreach>
+          AND p.is_delete = 0
+          AND p.product_status = 1
+        GROUP BY psi.style_id
+    </select>
+
+    <!-- 查询品牌列表及每个品牌下的上架商品数量 -->
+    <select id="selectBrandListWithProductCount" resultType="com.tigshop.bean.vo.product.BrandProductCountVO">
+        SELECT
+            b.brand_id AS brandId,
+            b.brand_name AS brandName,
+            COUNT(p.product_id) AS productCount
+        FROM brand b
+        LEFT JOIN product p ON b.brand_id = p.brand_id
+            AND p.is_delete = 0
+            AND p.product_status = 1
+        WHERE b.is_show = 1
+        <if test="keyword != null and keyword != ''">
+            AND b.brand_name LIKE CONCAT('%', #{keyword}, '%')
+        </if>
+        GROUP BY b.brand_id, b.brand_name
+        ORDER BY productCount DESC, b.sort_order ASC
+    </select>
+
+</mapper>

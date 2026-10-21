@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.salesman.SalesmanMaterialMapper">
+
+
+    <select id="apiPage" resultType="com.tigshop.bean.vo.salesman.SalesmanMaterialVO">
+        select sm.*,p.*, sm.pics as picsJson
+        from salesman_material sm
+        left join product p on sm.product_id = p.product_id
+        <where>
+            sm.is_available = 1
+            and sm.shop_id = #{pageQuery.shopId}
+            <if test="pageQuery.keyword != null and pageQuery.keyword != ''">
+                and (sm.content like concat('%',#{pageQuery.keyword},'%') or p.product_name like concat('%',#{pageQuery.keyword},'%'))
+            </if>
+            <if test="pageQuery.categoryId != null">
+                and sm.category_id = #{pageQuery.categoryId}
+            </if>
+        </where>
+    </select>
+
+</mapper>

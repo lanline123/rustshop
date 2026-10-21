@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.product.ProductPresaleMapper">
+
+    <!-- 通用查询映射结果 -->
+    <resultMap id="BaseResultMap" type="com.tigshop.bean.model.product.ProductPresale">
+        <id column="presale_id" property="presaleId"/>
+        <result column="product_id" property="productId"/>
+        <result column="sale_mode" property="saleMode"/>
+        <result column="deposit_type" property="depositType"/>
+        <result column="deposit_ratio" property="depositRatio"/>
+        <result column="is_round_down" property="isRoundDown"/>
+        <result column="deposit_fixed_amount" property="depositFixedAmount"/>
+        <result column="final_payment_type" property="finalPaymentType"/>
+        <result column="final_payment_relative_days" property="finalPaymentRelativeDays"/>
+        <result column="final_payment_duration_days" property="finalPaymentDurationDays"/>
+        <result column="final_payment_duration_hours" property="finalPaymentDurationHours"/>
+        <result column="final_payment_start_time" property="finalPaymentStartTime"/>
+        <result column="final_payment_end_time" property="finalPaymentEndTime"/>
+        <result column="delivery_type" property="deliveryType"/>
+        <result column="delivery_relative_days" property="deliveryRelativeDays"/>
+        <result column="delivery_relative_hours" property="deliveryRelativeHours"/>
+        <result column="delivery_date" property="deliveryDate"/>
+        <result column="status" property="status"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <!-- 根据商品ID查询预售信息 -->
+    <select id="selectByProductId" resultMap="BaseResultMap">
+        SELECT *
+        FROM product_presale
+        WHERE product_id = #{productId}
+        LIMIT 1
+    </select>
+
+    <!-- 根据商品ID删除预售信息 -->
+    <delete id="deleteByProductId">
+        DELETE FROM product_presale
+        WHERE product_id = #{productId}
+    </delete>
+
+</mapper>

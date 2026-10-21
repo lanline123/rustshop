@@ -154,6 +154,7 @@ fn default_return_type() -> i32 {
 pub struct OrderVO {
     pub order_id: i32,
     pub order_sn: String,
+    pub shop_id: i32,
     pub order_status: i32,
     pub status_label: String,
     pub pay_status: i32,

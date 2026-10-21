@@ -1,0 +1,1 @@
+import{a6 as s}from"./index-B6WS-doS.js";const a=e=>s({url:"wholesale/grade/list",method:"get",params:e}),o=e=>s({url:"wholesale/grade/save",method:"post",data:e}),r=e=>s({url:"wholesale/grade/setStatus",method:"post",params:e}),d=e=>s({url:"wholesale/grade/delete",method:"post",params:e});export{o as a,d,a as g,r as s};

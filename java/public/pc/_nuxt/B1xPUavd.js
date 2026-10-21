@@ -1,0 +1,1 @@
+import{b as o}from"./Ds3lmlnP.js";import{f as t,l as n,o as a}from"./ntmrFmLd.js";const m=t({__name:"PageHeaderNew",props:{isWhite:{type:Boolean,default:!0}},setup(r){return(_,p)=>{const e=o;return a(),n(e)}}});export{m as _};

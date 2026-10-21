@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.im.ImConversationMapper">
+
+
+    <select id="consultHistory" resultType="com.tigshop.bean.vo.im.ConsultHistoryListVO">
+        select
+            ic.*
+        from im_conversation ic
+        left join user u on ic.user_id = u.user_id
+        <where>
+            ic.is_delete = 0 and ic.shop_id = #{pageQuery.shopId}
+
+            <if test="pageQuery.timeType != null and pageQuery.timeType == 1">
+                <if test="pageQuery.searchStartTime != null and pageQuery.searchEndTime != null">
+                    and ic.add_time between #{pageQuery.searchStartTime} and #{pageQuery.searchEndTime}
+                </if>
+                <if test="pageQuery.searchStartTime != null and pageQuery.searchEndTime == null">
+                    and ic.add_time &gt;= #{pageQuery.searchStartTime}
+                </if>
+                <if test="pageQuery.searchStartTime == null and pageQuery.searchEndTime != null">
+                    and ic.add_time &lt;= #{pageQuery.searchEndTime}
+                </if>
+            </if>
+
+            <!-- 最后会话时间：按 last_update_time（会话最后一次消息往来时间）筛选 -->
+            <if test="pageQuery.timeType != null and pageQuery.timeType == 3">
+                <if test="pageQuery.searchStartTime != null and pageQuery.searchEndTime != null">
+                    and ic.last_update_time between #{pageQuery.searchStartTime} and #{pageQuery.searchEndTime}
+                </if>
+                <if test="pageQuery.searchStartTime != null and pageQuery.searchEndTime == null">
+                    and ic.last_update_time &gt;= #{pageQuery.searchStartTime}
+                </if>
+                <if test="pageQuery.searchStartTime == null and pageQuery.searchEndTime != null">
+                    and ic.last_update_time &lt;= #{pageQuery.searchEndTime}
+                </if>
+            </if>
+
+            <if test="pageQuery.username != null and pageQuery.username != ''">
+                and u.username like concat('%', #{pageQuery.username}, '%')
+            </if>
+
+            <if test="pageQuery.lastServantId != null and pageQuery.lastServantId != '-1'">
+                and ic.last_servant_id = #{pageQuery.lastServantId}
+            </if>
+
+            <if test="pageQuery.userFrom != null">
+                and ic.user_from = #{pageQuery.userFrom}
+            </if>
+
+            <if test="pageQuery.status != null">
+                and ic.status = #{pageQuery.status}
+            </if>
+
+            <if test="pageQuery.remark != null">
+                and ic.remark like concat('%', #{pageQuery.remark}, '%')
+            </if>
+        </where>
+    </select>
+
+</mapper>

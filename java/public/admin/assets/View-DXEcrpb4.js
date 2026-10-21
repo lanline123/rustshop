@@ -1,0 +1,1 @@
+import{aU as s,af as e,ag as c}from"./index-B6WS-doS.js";const t="/admin/assets/pc_index_tips-CC2wDREf.jpg",a={},n={class:"img",src:t};function o(_,r){return e(),c("img",n)}const f=s(a,[["render",o]]);export{f as default};

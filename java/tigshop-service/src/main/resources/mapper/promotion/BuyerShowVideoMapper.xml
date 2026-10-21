@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.promotion.BuyerShowVideoMapper">
+
+    <resultMap id="BaseResultMap" type="com.tigshop.bean.model.promotion.BuyerShowVideo">
+            <id property="id" column="id" />
+            <result property="videoId" column="video_id" />
+            <result property="buyerShowId" column="buyer_show_id" />
+            <result property="videoUrl" column="video_url" />
+            <result property="videoCover" column="video_cover" />
+            <result property="format" column="format" />
+    </resultMap>
+
+
+</mapper>

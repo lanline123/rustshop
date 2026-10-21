@@ -1,0 +1,1 @@
+function a(l,o){const n={...l};for(const r in o)if(Object.prototype.hasOwnProperty.call(o,r)){const e=o[r],t=l[r];e!==null&&typeof e=="object"&&!Array.isArray(e)&&t!==null&&typeof t=="object"&&!Array.isArray(t)?n[r]=a(t,e):e!==void 0&&(n[r]=e)}return n}export{a as d};

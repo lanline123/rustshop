@@ -1,0 +1,501 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<groupId>com.shop</groupId>
+	<artifactId>TigShop</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<description>TigShop</description>
+
+	<!---父模块的打包方式-->
+	<packaging>pom</packaging>
+
+	<repositories>
+		<!-- 项目内置仓库：随源码分发私有依赖（anji-plus 验证码），客户无需配置任何远程私有仓库地址 -->
+		<repository>
+			<id>in-project-repo</id>
+			<url>file://${project.basedir}/repository</url>
+			<releases>
+				<enabled>true</enabled>
+			</releases>
+			<snapshots>
+				<enabled>false</enabled>
+			</snapshots>
+		</repository>
+	</repositories>
+
+	<modules>
+		<module>tigshop-adminapi</module>
+		<module>tigshop-common</module>
+		<module>tigshop-api</module>
+		<module>tigshop-bean</module>
+		<module>tigshop-service</module>
+		<module>tigshop-security</module>
+        <module>tigshop-feign</module>
+    </modules>
+
+	<properties>
+		<java.version>21</java.version>
+		<spring-boot.version>3.3.4</spring-boot.version>
+		<spring-framework.version>6.1.13</spring-framework.version>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<tigshop.version>0.0.1-SNAPSHOT</tigshop.version>
+		<feign.version>13.5</feign.version>
+		<excel.version>3.4.0</excel.version>
+		<ijpay.version>2.9.12.1</ijpay.version>
+		<yop-sdk.version>4.4.15</yop-sdk.version>
+		<mcp-sdk.version>2.0.1</mcp-sdk.version>
+	</properties>
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>3.3.4</version>
+	</parent>
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.springframework.cloud</groupId>
+				<artifactId>spring-cloud-dependencies</artifactId>
+				<version>2023.0.4</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+			<!-- MCP 官方 Java SDK：core 自带 Servlet 传输，不依赖 Spring AI。
+			     Spring AI 1.0 要求 Boot 3.4/3.5、2.0 要求 Boot 4.x，均与本项目的 3.3.4 不兼容。
+			     必须搭配 jackson2 模块：便捷包 mcp 捆绑的是 Jackson 3，会与本项目的 Jackson 2 冲突。 -->
+			<dependency>
+				<groupId>io.modelcontextprotocol.sdk</groupId>
+				<artifactId>mcp-core</artifactId>
+				<version>${mcp-sdk.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.modelcontextprotocol.sdk</groupId>
+				<artifactId>mcp-json-jackson2</artifactId>
+				<version>${mcp-sdk.version}</version>
+			</dependency>
+			<!-- SpringFramework的依赖配置-->
+			<dependency>
+				<groupId>org.springframework</groupId>
+				<artifactId>spring-framework-bom</artifactId>
+				<version>${spring-framework.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+			<!-- Spring Boot 依赖 -->
+			<dependency>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-dependencies</artifactId>
+				<version>${spring-boot.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+			<dependency>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-starter-jdbc</artifactId>
+				<version>${spring-boot.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-starter-amqp</artifactId>
+				<version>${spring-boot.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.mysql</groupId>
+				<artifactId>mysql-connector-j</artifactId>
+				<version>9.0.0</version>
+			</dependency>
+			<!-- Jackson依赖 -->
+			<dependency>
+				<groupId>io.github.openfeign</groupId>
+				<artifactId>feign-jackson</artifactId>
+				<version>${feign.version}</version>
+			</dependency>
+			<!--微信支付-->
+			<dependency>
+				<groupId>com.github.binarywang</groupId>
+				<artifactId>weixin-java-pay</artifactId>
+				<version>4.7.0</version>
+			</dependency>
+			<!-- 支付宝 -->
+			<dependency>
+				<groupId>com.alipay.sdk</groupId>
+				<artifactId>alipay-sdk-java-v3</artifactId>
+				<version>3.1.35.ALL</version>
+			</dependency>
+			<!-- Antom (蚂蚁国际) 跨境聚合支付 -->
+			<dependency>
+				<groupId>com.alipay.global.sdk</groupId>
+				<artifactId>global-open-sdk-java</artifactId>
+				<version>2.1.16</version>
+			</dependency>
+			<!-- 拉卡拉开放平台 Java SDK（官方，随源码内置于 repository/，validate 阶段 install-file） -->
+			<dependency>
+				<groupId>com.lkl.laop.sdk</groupId>
+				<artifactId>lkl-laop-java-sdk</artifactId>
+				<version>1.0.8</version>
+			</dependency>
+			<!-- 易宝支付 YOP 开放平台官方 Java SDK（Maven 中央仓库；国际软算法 RSA 走 crypto-inter） -->
+			<dependency>
+				<groupId>com.yeepay.yop.sdk</groupId>
+				<artifactId>yop-java-sdk</artifactId>
+				<version>${yop-sdk.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.yeepay.yop.sdk</groupId>
+				<artifactId>yop-java-sdk-crypto-inter</artifactId>
+				<version>${yop-sdk.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.github.openfeign</groupId>
+				<artifactId>feign-core</artifactId>
+				<version>${feign.version}</version>  <!-- 或者使用兼容的版本 -->
+			</dependency>
+			<!-- 支持 SLF4J 日志 -->
+			<dependency>
+				<groupId>io.github.openfeign</groupId>
+				<artifactId>feign-slf4j</artifactId>
+				<version>${feign.version}</version>
+			</dependency>
+			<!-- MyBatis Plus Starter -->
+			<dependency>
+				<groupId>com.baomidou</groupId>
+				<artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+				<version>3.5.7</version>
+			</dependency>
+			<dependency>
+				<groupId>com.github.yulichang</groupId>
+				<artifactId>mybatis-plus-join-boot-starter</artifactId>
+				<version>1.5.2</version>
+			</dependency>
+			<!-- lombok -->
+			<dependency>
+				<groupId>org.projectlombok</groupId>
+				<artifactId>lombok</artifactId>
+				<version>1.18.46</version>
+				<scope>provided</scope>
+			</dependency>
+			<!-- knife4j -->
+			<dependency>
+				<groupId>com.github.xiaoymin</groupId>
+				<artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>
+				<version>4.5.0</version>
+			</dependency>
+			<!-- jwt -->
+			<dependency>
+				<groupId>com.auth0</groupId>
+				<artifactId>java-jwt</artifactId>
+				<version>4.4.0</version>
+			</dependency>
+			<dependency>
+				<groupId>io.jsonwebtoken</groupId>
+				<artifactId>jjwt</artifactId>
+				<version>0.12.1</version>
+			</dependency>
+			<!-- 阿里云 oss -->
+			<dependency>
+				<groupId>com.aliyun.oss</groupId>
+				<artifactId>aliyun-sdk-oss</artifactId>
+				<version>3.17.4</version>
+			</dependency>
+			<!-- EasyExcel 依赖 -->
+			<dependency>
+				<groupId>com.alibaba</groupId>
+				<artifactId>easyexcel</artifactId>
+				<version>4.0.2</version>
+			</dependency>
+			<dependency>
+				<groupId>javax.xml.bind</groupId>
+				<artifactId>jaxb-api</artifactId>
+				<version>2.3.1</version>
+			</dependency>
+			<dependency>
+				<groupId>javax.activation</groupId>
+				<artifactId>activation</artifactId>
+				<version>1.1.1</version>
+			</dependency>
+			<!-- glassfish 2.3.3-->
+			<dependency>
+				<groupId>org.glassfish.jaxb</groupId>
+				<artifactId>jaxb-runtime</artifactId>
+				<version>2.3.3</version>
+			</dependency>
+			<!-- AJ-Captcha滑动验证 -->
+			<dependency>
+				<groupId>com.anji-plus</groupId>
+				<artifactId>captcha</artifactId>
+				<version>1.4.0</version>
+			</dependency>
+			<dependency>
+				<groupId>com.anji-plus</groupId>
+				<artifactId>spring-boot-starter-captcha</artifactId>
+				<version>1.4.0</version>
+			</dependency>
+			<!-- hu tool -->
+			<dependency>
+				<groupId>cn.hutool</groupId>
+				<artifactId>hutool-all</artifactId>
+				<version>5.8.26</version>
+			</dependency>
+			<!-- jbcrypt校验 -->
+			<dependency>
+				<groupId>org.mindrot</groupId>
+				<artifactId>jbcrypt</artifactId>
+				<version>0.4</version>
+			</dependency>
+		<!--腾讯云cos-->
+		<dependency>
+			<groupId>com.qcloud</groupId>
+			<artifactId>cos_api</artifactId>
+			<version>5.6.227</version>
+		</dependency>
+		<!-- 七牛云 Kodo -->
+		<dependency>
+			<groupId>com.qiniu</groupId>
+			<artifactId>qiniu-java-sdk</artifactId>
+			<version>7.19.0</version>
+		</dependency>
+		<!-- 分词查询 -->
+			<dependency>
+				<groupId>com.huaban</groupId>
+				<artifactId>jieba-analysis</artifactId>
+				<version>1.0.2</version>
+			</dependency>
+			<!-- https://mvnrepository.com/artifact/com.sun.mail/javax.mail -->
+			<dependency>
+				<groupId>com.sun.mail</groupId>
+				<artifactId>javax.mail</artifactId>
+				<version>1.6.2</version>
+			</dependency>
+			<!-- 火山翻译 -->
+<!--			<dependency>-->
+<!--				<groupId>com.volcengine</groupId>-->
+<!--				<artifactId>volc-sdk-java</artifactId>-->
+<!--				<version>1.0.199</version>-->
+<!--			</dependency>-->
+			<!-- javax.annotation -->
+			<dependency>
+				<groupId>javax.annotation</groupId>
+				<artifactId>javax.annotation-api</artifactId>
+				<version>1.3.2</version>
+			</dependency>
+			<!-- 二维码 -->
+			<dependency>
+				<groupId>com.google.zxing</groupId>
+				<artifactId>core</artifactId>
+				<version>3.5.3</version>
+			</dependency>
+			<!-- https://mvnrepository.com/artifact/com.aliyun/dysmsapi20170525 （国内短信 API，仅支持中国大陆） -->
+			<dependency>
+				<groupId>com.aliyun</groupId>
+				<artifactId>dysmsapi20170525</artifactId>
+				<version>3.1.1</version>
+			</dependency>
+			<!-- https://mvnrepository.com/artifact/com.aliyun/dysmsapi20180501 （国际/港澳台短信 API，SendMessageToGlobe） -->
+			<dependency>
+				<groupId>com.aliyun</groupId>
+				<artifactId>dysmsapi20180501</artifactId>
+				<version>1.0.12</version>
+			</dependency>
+			<!-- 腾讯云短信 SDK -->
+			<dependency>
+				<groupId>com.tencentcloudapi</groupId>
+				<artifactId>tencentcloud-sdk-java-sms</artifactId>
+				<version>3.1.1280</version>
+			</dependency>
+			<!-- 火山引擎 SDK -->
+			<dependency>
+				<groupId>com.volcengine</groupId>
+				<artifactId>volc-sdk-java</artifactId>
+				<version>1.0.226</version>
+			</dependency>
+			<!-- ip查询地址 -->
+			<dependency>
+				<groupId>org.lionsoul</groupId>
+				<artifactId>ip2region</artifactId>
+				<version>2.6.4</version>
+			</dependency>
+			<dependency>
+				<groupId>me.zhyd.oauth</groupId>
+				<artifactId>JustAuth</artifactId>
+				<version>1.16.7</version>
+			</dependency>
+
+			<dependency>
+				<groupId>com.github.wechatpay-apiv3</groupId>
+				<artifactId>wechatpay-java</artifactId>
+				<version>0.2.16</version>
+			</dependency>
+			<dependency>
+				<groupId>org.jcodec</groupId>
+				<artifactId>jcodec</artifactId>
+				<version>0.2.5</version>
+			</dependency>
+			<!-- JavaCV + FFmpeg：视频首帧截图，支持 H.264/H.265 等编码 -->
+			<!-- 固定在 1.5.11：1.5.12+ 的 Linux native 要求 glibc>=2.35，
+			     而部署服务器(Alibaba Cloud Linux 3)仅 glibc 2.32，会导致 native 加载失败。 -->
+			<dependency>
+				<groupId>org.bytedeco</groupId>
+				<artifactId>javacv</artifactId>
+				<version>1.5.11</version>
+			</dependency>
+			<dependency>
+				<groupId>org.bytedeco</groupId>
+				<artifactId>ffmpeg-platform</artifactId>
+				<version>7.1-1.5.11</version>
+			</dependency>
+
+			<!-- 导入子模块 -->
+			<dependency>
+				<groupId>com.shop</groupId>
+				<artifactId>tigshop-api</artifactId>
+				<version>${tigshop.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.shop</groupId>
+				<artifactId>tigshop-adminapi</artifactId>
+				<version>${tigshop.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.shop</groupId>
+				<artifactId>tigshop-common</artifactId>
+				<version>${tigshop.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.shop</groupId>
+				<artifactId>tigshop-bean</artifactId>
+				<version>${tigshop.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.shop</groupId>
+				<artifactId>tigshop-security</artifactId>
+				<version>${tigshop.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.shop</groupId>
+				<artifactId>tigshop-service</artifactId>
+				<version>${tigshop.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.shop</groupId>
+				<artifactId>tigshop-feign</artifactId>
+				<version>${tigshop.version}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>com.pig4cloud.excel</groupId>
+				<artifactId>excel-spring-boot-starter</artifactId>
+				<version>${excel.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.github.javen205</groupId>
+				<artifactId>IJPay-PayPal</artifactId>
+				<version>${ijpay.version}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>io.github.biezhi</groupId>
+				<artifactId>TinyPinyin</artifactId>
+				<version>2.0.3.RELEASE</version>
+			</dependency>
+			<!-- Elasticsearch Java Client -->
+			<dependency>
+				<groupId>co.elastic.clients</groupId>
+				<artifactId>elasticsearch-java</artifactId>
+				<version>8.15.0</version>
+			</dependency>
+			<!-- AWS S3 SDK -->
+			<dependency>
+				<groupId>software.amazon.awssdk</groupId>
+				<artifactId>s3</artifactId>
+				<version>2.25.0</version>
+			</dependency>
+			<dependency>
+				<groupId>com.fasterxml.jackson.core</groupId>
+				<artifactId>jackson-databind</artifactId>
+				<version>2.17.2</version>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
+	<build>
+		<plugins>
+			<!-- 根聚合模块最先进入 reactor，在 validate 阶段把随源码内置的私有依赖（anji-plus 验证码）
+			     装入本地仓库，后续模块解析时本地命中，不经任何远程地址或镜像（含 mirrorOf=*），
+			     客户零配置一步 mvn package 即可编译打包。inherited=false：只在根模块执行一次。 -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-install-plugin</artifactId>
+				<version>3.1.3</version>
+				<inherited>false</inherited>
+				<executions>
+					<execution>
+						<id>install-anji-captcha</id>
+						<phase>validate</phase>
+						<goals>
+							<goal>install-file</goal>
+						</goals>
+						<configuration>
+							<file>${project.basedir}/repository/com/anji-plus/captcha/1.4.0/captcha-1.4.0.jar</file>
+							<pomFile>${project.basedir}/repository/com/anji-plus/captcha/1.4.0/captcha-1.4.0.pom</pomFile>
+						</configuration>
+					</execution>
+					<execution>
+						<id>install-anji-starter-captcha</id>
+						<phase>validate</phase>
+						<goals>
+							<goal>install-file</goal>
+						</goals>
+						<configuration>
+							<file>${project.basedir}/repository/com/anji-plus/spring-boot-starter-captcha/1.4.0/spring-boot-starter-captcha-1.4.0.jar</file>
+							<pomFile>${project.basedir}/repository/com/anji-plus/spring-boot-starter-captcha/1.4.0/spring-boot-starter-captcha-1.4.0.pom</pomFile>
+						</configuration>
+					</execution>
+					<execution>
+						<id>install-lakala-sdk</id>
+						<phase>validate</phase>
+						<goals>
+							<goal>install-file</goal>
+						</goals>
+						<configuration>
+							<file>${project.basedir}/repository/com/lkl/laop/sdk/lkl-laop-java-sdk/1.0.8/lkl-laop-java-sdk-1.0.8.jar</file>
+							<pomFile>${project.basedir}/repository/com/lkl/laop/sdk/lkl-laop-java-sdk/1.0.8/lkl-laop-java-sdk-1.0.8.pom</pomFile>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+		<pluginManagement>
+			<plugins>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-compiler-plugin</artifactId>
+					<version>3.13.0</version>
+					<configuration>
+						<source>${java.version}</source>
+						<target>${java.version}</target>
+						<annotationProcessorPaths>
+							<path>
+								<groupId>org.projectlombok</groupId>
+								<artifactId>lombok</artifactId>
+								<version>1.18.46</version>
+							</path>
+						</annotationProcessorPaths>
+					</configuration>
+				</plugin>
+				<plugin>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-maven-plugin</artifactId>
+					<executions>
+						<execution>
+							<goals>
+								<goal>repackage</goal>
+							</goals>
+						</execution>
+					</executions>
+				</plugin>
+			</plugins>
+		</pluginManagement>
+	</build>
+
+</project>

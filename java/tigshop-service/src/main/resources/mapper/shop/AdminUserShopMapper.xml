@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.shop.AdminUserShopMapper">
+
+
+    <select id="selectShopCountByAdminIdAndType" resultType="java.lang.Long">
+        SELECT COUNT(1)
+        FROM admin_user_shop
+                 LEFT JOIN shop ON shop.shop_id = admin_user_shop.shop_id
+        WHERE admin_id = #{adminId}
+          AND shop_type = #{shopType}
+          AND admin_user_shop.is_admin = 1
+    </select>
+</mapper>

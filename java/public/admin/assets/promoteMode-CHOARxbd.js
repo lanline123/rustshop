@@ -1,0 +1,1 @@
+import{a6 as e}from"./index-B6WS-doS.js";const n=()=>e({url:"salesman/config/detail?code=salesmanConfig",method:"get"}),o=s=>e({url:"salesman/config/save?code=salesmanConfig",method:"post",data:s});export{n as g,o as s};

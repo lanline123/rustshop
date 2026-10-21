@@ -1,0 +1,1 @@
+import{E as o}from"./D_ZF7rEC.js";import{f as p,c as n,b as s,o as c,_}from"./ntmrFmLd.js";const r={class:"app-empty"},a=p({__name:"AppEmpty",props:{description:{type:String,default:""}},setup(t){return(i,m)=>{const e=o;return c(),n("div",r,[s(e,{description:t.description},null,8,["description"])])}}}),l=_(a,[["__scopeId","data-v-fd3f3954"]]);export{l as _};

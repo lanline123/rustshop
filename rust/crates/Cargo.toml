@@ -194,25 +194,16 @@ missing_panics_doc = "allow"
 struct_excessive_fields = "allow"
 too_many_lines = "allow"
 
-# ===== 低内存构建配置（2026-10-21）=====
-# 背景：7.3G 内存机器上 `tigshop-admin-api` 单 crate 编译时 rustc 峰值 >6G，会被内核 OOM kill。
-# 下面通过「无 debug 信息 + 单 codegen-unit + 关闭 LTO + opt-level=1」显著降低 rustc 内存；
-# 代价是调试符号缺失、内联/优化变少（二进制稍大、运行略慢），功能不受影响。
-# 需要完整优化/调试符号时，在内存充足的机器上把这几项改回：debug=1、lto="fat"、opt-level=3。
 [profile.dev]
-debug = 0 # 不生成调试信息（debug=1 会大幅增加 rustc 内存/耗时）
-incremental = false # 关闭增量编译（增量缓存同样吃内存）
-codegen-units = 16 # 拆成多个小代码生成单元：单模块更小、LLVM 峰值更低、编译更快
-opt-level = 0
+debug = 1 # Limited debug info for faster builds
 
 [profile.dev.package."*"]
-debug = 0
+debug = 0 # Prevent LLVM out of memory on Windows MSVC
+
 
 [profile.release]
-debug = 0
-lto = "off" # 关闭 LTO（fat/thin LTO 在链接阶段额外吃 1-2G）
-codegen-units = 16 # 默认值；比 1 更快、单模块更小，LLVM 侧内存峰值更低
-opt-level = 1 # 1 比 3 编译内存低很多，性能约为 release 的 70-85%
+lto = "fat"
+codegen-units = 1
 panic = "abort"
 strip = true
 

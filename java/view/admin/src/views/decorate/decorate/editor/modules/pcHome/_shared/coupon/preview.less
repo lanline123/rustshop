@@ -1,0 +1,447 @@
+.dec-pc-coupon-outer {
+    box-sizing: border-box;
+    container-type: inline-size;
+    container-name: pc-coupon;
+}
+
+.dec-pc-coupon {
+    box-sizing: border-box;
+
+    // 使用统一的 CSS 变量命名
+    padding-left: var(--dec-box-padding, 10px);
+    padding-right: var(--dec-box-padding, 10px);
+    padding-top: var(--dec-box-padding-top, 5px);
+    padding-bottom: var(--dec-box-padding-bottom, 5px);
+
+    /* 内容容器：圆角作用在最外层（含标题+领券中心条），overflow 裁切让圆角生效 */
+    &__content {
+        border-radius: var(--dec-box-radius, 0);
+        overflow: hidden;
+    }
+
+    &__header {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: center;
+        padding: 10px 0;
+        box-sizing: border-box;
+    }
+
+    &__header-title {
+        line-height: 20px;
+        font-size: 16px;
+        font-weight: bold;
+        color: #2a3145;
+        word-break: break-all;
+    }
+
+    &__header-desc {
+        margin-left: 5px;
+        line-height: 18px;
+        color: #8c8c8c;
+        font-size: 12px;
+        word-break: break-all;
+        position: relative;
+        top: 1px;
+    }
+
+    &__main {
+        height: 106px;
+        display: flex;
+        min-width: 0;
+        /* 组件铺满：不要右侧留白 */
+        width: 100%;
+        background: transparent;
+        box-sizing: border-box;
+    }
+
+    &__tit {
+        display: flex;
+        flex-shrink: 0;
+    }
+
+    &__tit-link {
+        width: 153px;
+        // height: 94px;
+        padding: 12px 0 0 18px;
+        border-radius: 2px 0 0 2px;
+        background-color: #ec3639;
+        color: #fff;
+        box-sizing: border-box;
+        text-decoration: none;
+    }
+
+    &__tit-zh {
+        height: 30px;
+        line-height: 30px;
+        font-size: 22px;
+        font-weight: normal;
+        margin: 0;
+    }
+
+    &__tit-en {
+        font-size: 14px;
+        line-height: 28px;
+        color: #f7afb0;
+        margin: 0;
+    }
+
+    &__tit-go {
+        margin: 8px 0 0;
+        font-size: 12px;
+        font-family: "Microsoft YaHei", "微软雅黑";
+        transition: transform 0.4s ease;
+    }
+
+    &__tit-link:hover {
+        color: #fff;
+    }
+
+    &__tit-link:hover .dec-pc-coupon__tit-go {
+        transform: translate3d(5px, 0, 0);
+    }
+
+    &__list {
+        display: flex;
+        flex: 1;
+        height: 106px;
+        overflow: hidden;
+        min-width: 0;
+    }
+
+    &__item {
+        display: flex;
+        /* 券项宽度限制：避免被 flex 拉伸（图二效果：内容偏左，右侧留白） */
+        flex: none;
+        width: 246px;
+        max-width: 246px;
+        overflow: hidden;
+        min-width: 0;
+    }
+
+    &__item-link {
+        display: block;
+        height: 106px;
+        padding: 0 5px;
+        box-shadow: 1px 0 2px #ccc;
+        color: #999;
+        box-sizing: border-box;
+        width: 100%;
+        min-width: 0;
+        text-decoration: none;
+        background: #fff url("@/assets/decorate/dotbg_repeat.png") repeat 55px 1px;
+    }
+
+    &__detail {
+        padding-top: 15px;
+        display: flex;
+        box-sizing: border-box;
+    }
+
+    &__price {
+        min-width: 95px;
+        margin-top: 3px;
+        color: #ff7070;
+        line-height: 32px;
+        font-weight: bold;
+        font-size: 32px;
+        justify-content: center;
+        box-sizing: border-box;
+    }
+
+    &__price-row {
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        line-height: 32px;
+        height: 32px;
+    }
+
+    &__currency {
+        font-size: 18px;
+        position: relative;
+        bottom: -7px;
+        line-height: 32px;
+    }
+
+    &__integer {
+        font-size: 32px;
+        font-weight: 700;
+        line-height: 32px;
+    }
+
+    &__decimals {
+        font-size: 16px;
+        position: relative;
+        bottom: -5px;
+        line-height: 32px;
+    }
+
+    &__discount {
+        font-weight: bold;
+        text-align: center;
+        line-height: 32px;
+
+        & > span {
+            font-size: 12px;
+            margin-left: 5px;
+        }
+    }
+
+    &__direction {
+        color: #999;
+        line-height: 20px;
+        flex: 1;
+        overflow: hidden;
+        padding-right: 10px;
+        box-sizing: border-box;
+    }
+
+    &__direction p {
+        height: 20px;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        overflow: hidden;
+        margin: 0;
+    }
+
+    &__sort {
+        font-size: 14px;
+        font-weight: bold;
+        color: #ff7070;
+    }
+
+    &__use-btn {
+        border-top: 1px solid #f3f3f3;
+        text-align: center;
+        line-height: 30px;
+        margin-top: 15px;
+        color: #999;
+
+        em {
+            vertical-align: middle;
+        }
+    }
+
+    &__use-btn:hover {
+        color: var(--main-bg, #ec3639);
+    }
+
+    &__more {
+        position: relative;
+        width: 20px;
+        flex-shrink: 0;
+    }
+
+    &__more-link {
+        height: 100%;
+        position: absolute;
+        top: -5px;
+        left: -9px;
+        overflow: hidden;
+        padding-top: 30px;
+        padding-left: 10px;
+        padding-right: 10px;
+        text-align: left;
+        line-height: 14px;
+        color: #ccc;
+        writing-mode: vertical-lr;
+        text-decoration: none;
+        background: url("@/assets/decorate/indexbody_sprite.png") repeat -250px 0;
+    }
+
+    &__edge {
+        width: 15px;
+        height: 106px;
+        flex-shrink: 0;
+    }
+
+    &__edge--left {
+        background: url("@/assets/decorate/indexbody_sprite.png") no-repeat 0 0;
+    }
+
+    &__edge--item {
+        background: url("@/assets/decorate/indexbody_sprite.png") no-repeat -30px 0;
+    }
+
+    &--style-1 {
+        .dec-pc-coupon__tit-link {
+            background-color: #ec3639;
+        }
+
+        .dec-pc-coupon__price,
+        .dec-pc-coupon__sort {
+            color: #ff7070;
+        }
+    }
+
+    &--style-2 {
+        .dec-pc-coupon__tit-link {
+            background-color: #ec3639;
+        }
+
+        .dec-pc-coupon__price,
+        .dec-pc-coupon__sort {
+            color: #ff7070;
+        }
+    }
+
+    &--style-3 {
+        .dec-pc-coupon__tit-link {
+            background-color: #ec3639;
+        }
+
+        .dec-pc-coupon__price,
+        .dec-pc-coupon__sort {
+            color: #ff7070;
+        }
+    }
+
+    &--style-4 {
+        .dec-pc-coupon__tit-link {
+            background-color: #ec3639;
+        }
+
+        .dec-pc-coupon__price,
+        .dec-pc-coupon__sort {
+            color: #ff7070;
+        }
+    }
+
+    &__empty {
+        padding: 40px 20px;
+        text-align: center;
+        background: #f5f7fa;
+        border-radius: 4px;
+    }
+
+    &__empty-bg {
+        width: 60px;
+        height: 40px;
+        margin: 0 auto 10px;
+        background-color: #ec3639;
+        border-radius: 4px;
+    }
+
+    &__empty-text {
+        color: #999;
+        font-size: 12px;
+    }
+}
+
+/* ==================== 响应式适配（Container Query） ==================== */
+
+/*
+   断点逻辑：
+   - > 1100px：完整布局，券项 246px 固定宽度
+   - 800px ~ 1100px：券项改为弹性宽度，自适应填充
+   - 600px ~ 800px：左侧"领券中心"缩窄，券项继续弹性
+   - < 600px：左侧"领券中心"隐藏，券项堆叠为两行
+*/
+
+@container pc-coupon (max-width: 1100px) {
+    /* 券项改为弹性宽度 */
+    .dec-pc-coupon__item {
+        flex: 1 1 0;
+        width: auto;
+        max-width: none;
+        min-width: 160px;
+    }
+}
+
+@container pc-coupon (max-width: 800px) {
+    /* 左侧"领券中心"缩窄 */
+    .dec-pc-coupon__tit-link {
+        width: 110px;
+        padding: 10px 0 0 12px;
+    }
+
+    .dec-pc-coupon__tit-zh {
+        font-size: 18px;
+        height: 26px;
+        line-height: 26px;
+    }
+
+    .dec-pc-coupon__tit-en {
+        font-size: 12px;
+        line-height: 22px;
+    }
+
+    .dec-pc-coupon__tit-go {
+        margin-top: 4px;
+    }
+
+    /* 券项内部紧凑 */
+    .dec-pc-coupon__item {
+        min-width: 130px;
+    }
+
+    .dec-pc-coupon__price {
+        min-width: 70px;
+    }
+
+    .dec-pc-coupon__integer {
+        font-size: 26px;
+    }
+
+    .dec-pc-coupon__currency {
+        font-size: 14px;
+    }
+
+    .dec-pc-coupon__decimals {
+        font-size: 14px;
+    }
+
+    .dec-pc-coupon__discount {
+        font-size: 26px;
+    }
+}
+
+@container pc-coupon (max-width: 600px) {
+    /* 隐藏左侧"领券中心"区域 */
+    .dec-pc-coupon__tit {
+        display: none;
+    }
+
+    /* 主容器改为自适应高度 + 换行 */
+    .dec-pc-coupon__main {
+        height: auto;
+    }
+
+    .dec-pc-coupon__list {
+        height: auto;
+        flex-wrap: wrap;
+    }
+
+    .dec-pc-coupon__item {
+        flex: 1 1 calc(50% - 10px);
+        min-width: 140px;
+    }
+
+    .dec-pc-coupon__item-link {
+        height: auto;
+        padding: 0 5px 5px;
+    }
+
+    .dec-pc-coupon__edge {
+        display: none;
+    }
+
+    /* "查看更多"改为底部横排 */
+    .dec-pc-coupon__more {
+        width: 100%;
+        flex-basis: 100%;
+        height: auto;
+    }
+
+    .dec-pc-coupon__more-link {
+        position: static;
+        display: block;
+        writing-mode: horizontal-tb;
+        text-align: center;
+        padding: 8px 0;
+        line-height: 20px;
+        overflow: visible;
+    }
+}

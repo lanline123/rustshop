@@ -1,0 +1,1 @@
+import{a6 as o}from"./index-B6WS-doS.js";const s=t=>o({url:"o2o/tip/selectAllTip",method:"get",params:t}),p=(t,e)=>o({url:"o2o/tip/"+t,method:"post",data:e}),l=(t,e)=>o({url:"o2o/tip/"+t,method:"get",params:e});export{l as g,s,p as u};

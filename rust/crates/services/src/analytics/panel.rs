@@ -52,6 +52,10 @@ impl PanelService {
         let yesterday_amount_f = yesterday_amount.parse::<f64>().unwrap_or(0.0);
         Ok(json!({
             "consoleData": {
+                "awaitPay": await_pay,
+                "awaitShip": await_ship,
+                "awaitAfterSale": 0,
+                "awaitComment": 0,
                 "todayOrderNum": today_num,
                 "todayOrderAmount": today_amount_f,
                 "todayBuyerNum": today_buyer,
@@ -61,10 +65,21 @@ impl PanelService {
                 "todayVisitNum": 0,
             },
             "realTimeData": {
-                "awaitPay": await_pay,
-                "awaitShip": await_ship,
-                "awaitAfterSale": 0,
-                "awaitComment": 0,
+                "todayOrderAmount": today_amount_f,
+                "yesterdayOrderAmount": yesterday_amount_f,
+                "orderAmountGrowthRate": growth_rate(today_amount_f, yesterday_amount_f),
+                "todayVisitNum": 0,
+                "yesterdayVisitNum": 0,
+                "visitGrowthRate": 0.0,
+                "todayBuyerNum": today_buyer,
+                "yesterdayBuyerNum": yesterday_buyer,
+                "buyerGrowthRate": growth_rate(today_buyer as f64, yesterday_buyer as f64),
+                "todayViewNum": 0,
+                "yesterdayViewNum": 0,
+                "viewGrowthRate": 0.0,
+                "todayOrderNum": today_num,
+                "yesterdayOrderNum": yesterday_num,
+                "orderGrowthRate": growth_rate(today_num as f64, yesterday_num as f64),
             },
             "panelStatisticalData": {
                 "todayOrderAmount": today_amount_f,

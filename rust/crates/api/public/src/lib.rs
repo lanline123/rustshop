@@ -452,7 +452,13 @@ async fn order_detail(
     Query(q): Query<IdQuery>,
 ) -> ApiResult<serde_json::Value> {
     let (vo, items) = state.trade.order.detail(q.id, Some(auth.id)).await?;
-    ok(serde_json::json!({ "order": vo, "items": items }))
+    // 原版 `OrderDetailVO` 是「订单字段平铺 + items」，不是 { order, items }。
+    let mut value = serde_json::to_value(vo)
+        .map_err(|e| AppError(tigshop_core::Error::Internal(format!("订单详情序列化失败: {e}"))))?;
+    if let Some(map) = value.as_object_mut() {
+        map.insert("items".to_string(), serde_json::json!(items));
+    }
+    ok(value)
 }
 
 #[derive(Debug, Deserialize)]

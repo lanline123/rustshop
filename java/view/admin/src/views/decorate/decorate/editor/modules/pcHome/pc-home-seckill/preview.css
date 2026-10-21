@@ -1,0 +1,364 @@
+/**
+ * PC 首页秒杀模块 - 预览样式
+ * 说明：一比一还原前台 SeckillNew.vue 的样式
+ */
+.dec-pc-home-seckill {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: auto;
+  padding-left: var(--dec-box-padding, 0);
+  padding-right: var(--dec-box-padding, 0);
+  padding-bottom: 20px;
+  margin-top: var(--dec-box-padding-top, 0);
+  margin-bottom: var(--dec-box-padding-bottom, 0);
+  border-radius: var(--dec-box-radius, 8px);
+  background-color: var(--dec-bg-color, #fafafa);
+  overflow: hidden;
+}
+.dec-pc-home-seckill__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0;
+}
+.dec-pc-home-seckill__title-wrapper {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.dec-pc-home-seckill__title-line {
+  width: 4px;
+  height: 16px;
+  background-color: #1a1a1a;
+  border-radius: 8px;
+  align-self: center;
+}
+.dec-pc-home-seckill__title-bg-pic {
+  width: 30px;
+  height: 30px;
+  margin-left: 10px;
+}
+.dec-pc-home-seckill__title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1a1a;
+  text-transform: capitalize;
+}
+.dec-pc-home-seckill__desc {
+  font-size: 12px;
+  color: #1a1a1a;
+}
+.dec-pc-home-seckill__desc.is-big {
+  font-size: 16px;
+}
+.dec-pc-home-seckill__countdown {
+  display: flex;
+  align-items: center;
+  font-size: 18px;
+  color: #1a1a1a;
+}
+.dec-pc-home-seckill__countdown-box {
+  display: flex;
+  align-items: center;
+}
+.dec-pc-home-seckill__countdown-box:hover .dec-pc-home-seckill__countdown-text {
+  color: var(--main-bg, #ee0a24);
+}
+.dec-pc-home-seckill__countdown-box:hover .dec-pc-home-seckill__countdown-item {
+  background-color: var(--primary-dark-2, #be081d);
+}
+.dec-pc-home-seckill__countdown-box span {
+  margin: 0 1px;
+}
+.dec-pc-home-seckill__countdown-text {
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 24px;
+  color: inherit;
+  text-transform: capitalize;
+}
+.dec-pc-home-seckill__countdown-separator-text {
+  font-size: 18px;
+  color: inherit;
+}
+.dec-pc-home-seckill__countdown-item {
+  display: inline-block;
+  padding: 2px 0;
+  width: 32px;
+  text-align: center;
+  background-color: #1a1a1a;
+  color: #fff;
+  border-radius: 4px;
+}
+.dec-pc-home-seckill__countdown-item.days {
+  width: auto;
+  min-width: 32px;
+  padding: 0 5px;
+}
+.dec-pc-home-seckill__countdown-separator {
+  color: inherit;
+}
+.dec-pc-home-seckill__arrow {
+  margin-left: 8px;
+  color: #1a1a1a;
+}
+.dec-pc-home-seckill__more-link {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  color: #1a1a1a;
+  cursor: pointer;
+}
+.dec-pc-home-seckill__more-link .dec-pc-home-seckill__arrow {
+  margin-left: 4px;
+  color: inherit;
+}
+.dec-pc-home-seckill__list-wrap {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  height: 100%;
+  width: 100%;
+}
+.dec-pc-home-seckill__list {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  width: 100%;
+  display: flex;
+  padding: 0 calc(var(--dec-inner-padding, 0px));
+  gap: var(--dec-goods-gap, 10px);
+  box-sizing: border-box;
+  scroll-behavior: smooth;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.dec-pc-home-seckill__list::-webkit-scrollbar {
+  display: none;
+}
+.dec-pc-home-seckill__list--skeleton .dec-pc-home-seckill__item--skeleton .dec-pc-home-seckill__img--skeleton {
+  width: 200px;
+  height: 200px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+}
+.dec-pc-home-seckill__list--skeleton .dec-pc-home-seckill__item--skeleton .dec-pc-home-seckill__name--skeleton {
+  height: 30px;
+  margin-top: 10px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+  border-radius: 4px;
+}
+.dec-pc-home-seckill__item {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1;
+  width: calc((100% - (var(--dec-goods-gap, 10px) * 5)) / 6);
+  background: #ffffff;
+  border-radius: 4px;
+}
+.dec-pc-home-seckill__item a {
+  display: block;
+}
+.dec-pc-home-seckill__item:hover .dec-pc-home-seckill__img img {
+  filter: brightness(105%);
+}
+.dec-pc-home-seckill__item--skeleton {
+  width: calc((100% - (var(--dec-goods-gap, 10px) * 5)) / 6);
+}
+.dec-pc-home-seckill__img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+}
+.dec-pc-home-seckill__img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease, -webkit-transform 0.4s ease, -moz-transform 0.4s ease, -o-transform 0.4s ease;
+}
+.dec-pc-home-seckill__discount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 5px;
+  width: fit-content;
+  height: 24px;
+  line-height: 24px;
+  padding: 0 6px;
+  color: #fff;
+  font-size: 14px;
+  border-radius: 2px;
+  background-color: var(--main-bg, #ee0a24);
+}
+.dec-pc-home-seckill__name {
+  height: 20px;
+  margin-top: 5px;
+  margin-bottom: 8px;
+  padding: 0 5px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #1a1a1a;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 18px;
+  cursor: pointer;
+}
+.dec-pc-home-seckill__name:hover {
+  color: var(--main-bg);
+}
+.dec-pc-home-seckill__price-row {
+  display: flex;
+  align-items: center;
+  padding: 0 5px;
+}
+.dec-pc-home-seckill__price {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  margin-right: 8px;
+  color: #1a1a1a;
+  line-height: 28px;
+}
+.dec-pc-home-seckill__price-currency {
+  font-size: 16px;
+  font-weight: 400;
+}
+.dec-pc-home-seckill__price-int {
+  font-size: 24px;
+  font-weight: 700;
+}
+.dec-pc-home-seckill__price-dec {
+  font-size: 16px;
+  font-weight: 700;
+}
+.dec-pc-home-seckill__price-origin {
+  margin-bottom: 10px;
+  padding: 0 5px;
+  height: 19px;
+  color: #888b94;
+  font-size: 16px;
+  text-decoration: line-through;
+  line-height: 22px;
+  box-sizing: border-box;
+}
+.dec-pc-home-seckill__buy {
+  margin-left: auto;
+}
+.dec-pc-home-seckill__buy-btn {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 63, 79, 0.12);
+  color: #ff3f4f;
+  flex-shrink: 0;
+  position: relative;
+  cursor: pointer;
+}
+.dec-pc-home-seckill__buy-btn:hover {
+  background: rgba(255, 63, 79, 0.16);
+  color: #ff3f4f;
+}
+.dec-pc-home-seckill__add-icon {
+  width: 18px;
+  height: 18px;
+  position: relative;
+  display: block;
+}
+.dec-pc-home-seckill__add-icon::before,
+.dec-pc-home-seckill__add-icon::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: currentColor;
+  border-radius: 1px;
+}
+.dec-pc-home-seckill__add-icon::before {
+  width: 14px;
+  height: 2px;
+}
+.dec-pc-home-seckill__add-icon::after {
+  width: 2px;
+  height: 14px;
+}
+.dec-pc-home-seckill__switch-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+}
+.dec-pc-home-seckill__switch-btn.swiper-button-prev {
+  box-sizing: border-box;
+  left: var(--dec-inner-padding, 0px);
+  background-color: rgba(0, 0, 0, 0.122);
+  width: 40px;
+  height: 48px;
+  padding-right: 7px;
+  line-height: 35px;
+  border-radius: 0 24px 24px 0 !important;
+  outline: none;
+  transition: background-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.dec-pc-home-seckill__switch-btn.swiper-button-prev:hover {
+  background-color: rgba(0, 0, 0, 0.239);
+}
+.dec-pc-home-seckill__switch-btn.swiper-button-next {
+  box-sizing: border-box;
+  right: var(--dec-inner-padding, 0px);
+  background-color: rgba(0, 0, 0, 0.122);
+  width: 40px;
+  height: 48px;
+  padding-left: 7px;
+  line-height: 35px;
+  border-radius: 24px 0 0 24px !important;
+  outline: none;
+  transition: background-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.dec-pc-home-seckill__switch-btn.swiper-button-next:hover {
+  background-color: rgba(0, 0, 0, 0.239);
+}
+.dec-pc-home-seckill__switch-btn.swiper-button-prev:after,
+.dec-pc-home-seckill__switch-btn.swiper-button-next:after {
+  content: "" !important;
+  display: block;
+  width: 14px;
+  height: 14px;
+  background-color: #fff;
+  font-family: initial !important;
+  font-size: 0 !important;
+  color: transparent !important;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Cpath fill='black' d='M238.016 179.008C227.776 168.832 220.16 157.312 215.04 144.64c-5.12-12.736-7.616-25.856-7.616-39.296 0-13.44 2.56-26.752 7.616-39.808 5.12-13.12 12.736-24.768 22.912-34.944C258.368 10.176 282.752 0 311.104 0c28.352 0 52.736 10.176 73.152 30.528l404.928 408.192c10.176 8.704 17.472 19.84 21.824 33.28 4.352 13.44 6.208 27.456 5.44 42.048-0.704 14.528-4.032 28.928-9.792 43.136-5.824 14.208-13.824 26.368-24 36.544l-398.336 401.664c-20.352 21.12-44.736 31.68-73.152 31.68-28.352 0-52.736-10.56-73.088-31.68-10.176-10.176-17.856-21.632-22.912-34.368-5.12-12.736-7.616-25.856-7.616-39.296 0-13.44 2.56-26.752 7.616-39.872 5.12-13.12 12.736-24.768 22.912-34.944l329.6-333.952L238.016 179.008 238.016 179.008zM238.016 179.008'/%3E%3C/svg%3E") no-repeat center / contain;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Cpath fill='black' d='M238.016 179.008C227.776 168.832 220.16 157.312 215.04 144.64c-5.12-12.736-7.616-25.856-7.616-39.296 0-13.44 2.56-26.752 7.616-39.808 5.12-13.12 12.736-24.768 22.912-34.944C258.368 10.176 282.752 0 311.104 0c28.352 0 52.736 10.176 73.152 30.528l404.928 408.192c10.176 8.704 17.472 19.84 21.824 33.28 4.352 13.44 6.208 27.456 5.44 42.048-0.704 14.528-4.032 28.928-9.792 43.136-5.824 14.208-13.824 26.368-24 36.544l-398.336 401.664c-20.352 21.12-44.736 31.68-73.152 31.68-28.352 0-52.736-10.56-73.088-31.68-10.176-10.176-17.856-21.632-22.912-34.368-5.12-12.736-7.616-25.856-7.616-39.296 0-13.44 2.56-26.752 7.616-39.872 5.12-13.12 12.736-24.768 22.912-34.944l329.6-333.952L238.016 179.008 238.016 179.008zM238.016 179.008'/%3E%3C/svg%3E") no-repeat center / contain;
+  transform-origin: center;
+}
+.dec-pc-home-seckill__switch-btn.swiper-button-prev:after {
+  transform: rotate(180deg);
+}
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}

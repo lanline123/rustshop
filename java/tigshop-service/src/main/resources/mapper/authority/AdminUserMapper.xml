@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.authority.AdminUserMapper">
+
+    <select id="getBindMainShopIds" resultType="java.lang.Integer">
+        SELECT
+            admin_user_shop.shop_id
+        FROM
+            admin_user
+                LEFT JOIN admin_user_shop ON admin_user.admin_id = admin_user_shop.admin_id
+        WHERE
+            admin_user.username LIKE CONCAT('%',#{mainAccount},'%')
+        <if test="onlyAdmin != null and onlyAdmin">
+            AND admin_user_shop.is_admin = 1
+        </if>
+    </select>
+
+    <select id="getBindMainVendorIds" resultType="java.lang.Integer">
+        SELECT
+            admin_user_vendor.vendor_id
+        FROM
+            admin_user
+                LEFT JOIN admin_user_vendor ON admin_user.admin_id = admin_user_vendor.admin_id
+        WHERE
+            admin_user.username LIKE CONCAT('%',#{mainAccount},'%')
+        <if test="onlyAdmin != null and onlyAdmin">
+          AND admin_user_vendor.is_admin = 1
+        </if>
+    </select>
+</mapper>

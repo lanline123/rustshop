@@ -1,0 +1,1 @@
+const s=e=>Number(e?.productType??0)===7,T=e=>{const r=Number(e?.orderType??0);return r===12?!0:r!==11?!1:!(e?.items??[]).some(s)},_=(e,r)=>{const t=Number(e?.orderType??0);return t===12?!1:t!==11?!0:s(r)};export{_ as c,T as i};

@@ -1,0 +1,1 @@
+import{a6 as a}from"./index-B6WS-doS.js";const n=t=>a({url:"lang/translations/createTranslations",method:"post",data:t}),s=t=>a({url:"lang/translations/getTranslations",method:"post",data:t});export{s as g,n as u};

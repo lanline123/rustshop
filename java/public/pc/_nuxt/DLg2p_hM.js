@@ -1,0 +1,1 @@
+import{aV as o,aU as e}from"./ntmrFmLd.js";const c=t=>o({url:"user/collectProduct/list",method:"get",params:t}),s=t=>e({url:"user/collectProduct/cancel",method:"post",data:t}),u=t=>e({url:"user/collectProduct/save",method:"post",data:t});export{s as d,c as g,u};

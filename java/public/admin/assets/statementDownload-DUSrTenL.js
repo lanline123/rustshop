@@ -1,0 +1,1 @@
+import{a6 as e}from"./index-B6WS-doS.js";const a=t=>e({url:"finance/statement/getStatementStatisticsList",method:"get",params:t}),s=()=>e({url:"finance/statement/getStatementQueryConfig",method:"get"}),r=t=>e({url:"finance/statement/exportStatementStatistics",method:"get",responseType:"arraybuffer",params:t});export{a,r as e,s as g};

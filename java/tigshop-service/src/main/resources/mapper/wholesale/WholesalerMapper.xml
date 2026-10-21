@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.wholesale.WholesalerMapper">
+
+    <resultMap id="BaseResultMap" type="com.tigshop.bean.model.wholesale.Wholesaler">
+        <id     property="wholesalerId" column="wholesaler_id"/>
+        <result property="userId"       column="user_id"/>
+        <result property="gradeId"      column="grade_id"/>
+        <result property="status"       column="status"/>
+        <result property="source"       column="source"/>
+        <result property="shopId"       column="shop_id"/>
+        <result property="remark"       column="remark"/>
+        <result property="isDelete"     column="is_delete"/>
+        <result property="createTime"   column="create_time"/>
+        <result property="updateTime"   column="update_time"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        wholesaler_id, user_id, grade_id, status, source, shop_id, remark,
+        is_delete, create_time, update_time
+    </sql>
+
+    <!-- 按 grade_id 分组统计批发商数量（仅未删除） -->
+    <select id="countByGradeIds" resultType="java.util.Map">
+        SELECT grade_id AS gradeId, COUNT(*) AS userCount
+        FROM wholesaler
+        WHERE is_delete = 0
+          AND grade_id IN
+          <foreach collection="gradeIds" item="gid" open="(" separator="," close=")">
+              #{gid}
+          </foreach>
+        GROUP BY grade_id
+    </select>
+
+    <!-- 批量变更批发商等级（仅未删除） -->
+    <update id="updateGradeByUserIds">
+        UPDATE wholesaler
+           SET grade_id    = #{gradeId},
+               update_time = #{updateTime}
+         WHERE is_delete = 0
+           AND user_id IN
+           <foreach collection="userIds" item="uid" open="(" separator="," close=")">
+               #{uid}
+           </foreach>
+    </update>
+
+    <!-- 查询某等级下待移除的批发商（仅未删除）；wholesalerIds 非空时限定 IN -->
+    <select id="selectByGradeForRemove" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM wholesaler
+        WHERE is_delete = 0
+          AND grade_id = #{gradeId}
+          <if test="wholesalerIds != null and wholesalerIds.size() > 0">
+              AND wholesaler_id IN
+              <foreach collection="wholesalerIds" item="wid" open="(" separator="," close=")">
+                  #{wid}
+              </foreach>
+          </if>
+    </select>
+
+    <!-- 按等级软删批发商（is_delete=1 + update_time，仅未删除）；wholesalerIds 非空时限定 IN -->
+    <update id="softDeleteByGrade">
+        UPDATE wholesaler
+           SET is_delete   = 1,
+               update_time = #{updateTime}
+         WHERE is_delete = 0
+           AND grade_id = #{gradeId}
+           <if test="wholesalerIds != null and wholesalerIds.size() > 0">
+               AND wholesaler_id IN
+               <foreach collection="wholesalerIds" item="wid" open="(" separator="," close=")">
+                   #{wid}
+               </foreach>
+           </if>
+    </update>
+
+    <!-- 按 ID 查询待移除批发商（仅未删除，不限等级） -->
+    <select id="selectByIdsForRemove" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM wholesaler
+        WHERE is_delete = 0
+          AND wholesaler_id IN
+          <foreach collection="wholesalerIds" item="wid" open="(" separator="," close=")">
+              #{wid}
+          </foreach>
+    </select>
+
+    <!-- 按 ID 软删批发商身份（is_delete=1 + update_time，仅未删除，不限等级） -->
+    <update id="softDeleteByIds">
+        UPDATE wholesaler
+           SET is_delete   = 1,
+               update_time = #{updateTime}
+         WHERE is_delete = 0
+           AND wholesaler_id IN
+           <foreach collection="wholesalerIds" item="wid" open="(" separator="," close=")">
+               #{wid}
+           </foreach>
+    </update>
+
+    <!-- 按 user_id 查询批发商（含软删行，绕过 @TableLogic）；user_id 唯一，至多一行 -->
+    <select id="selectByUserIdIncludeDeleted" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM wholesaler
+        WHERE user_id = #{userId}
+        LIMIT 1
+    </select>
+
+    <!-- 按 user_id 列表批量查询批发商（含软删行，绕过 @TableLogic） -->
+    <select id="selectByUserIdsIncludeDeleted" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM wholesaler
+        WHERE user_id IN
+        <foreach collection="userIds" item="uid" open="(" separator="," close=")">
+            #{uid}
+        </foreach>
+    </select>
+
+    <!-- 复活单个批发商身份（按 wholesaler_id，含软删行）：重置为有效并更新等级/来源/备注 -->
+    <update id="reviveById">
+        UPDATE wholesaler
+           SET is_delete   = 0,
+               status      = 1,
+               grade_id    = #{gradeId},
+               source      = #{source},
+               remark      = #{remark},
+               update_time = #{updateTime}
+         WHERE wholesaler_id = #{wholesalerId}
+    </update>
+
+    <!-- 批量复活批发商身份（按 user_id，仅复活已软删行）：重置为有效并更新等级/来源 -->
+    <update id="reviveByUserIds">
+        UPDATE wholesaler
+           SET is_delete   = 0,
+               status      = 1,
+               grade_id    = #{gradeId},
+               source      = #{source},
+               update_time = #{updateTime}
+         WHERE is_delete = 1
+           AND user_id IN
+           <foreach collection="userIds" item="uid" open="(" separator="," close=")">
+               #{uid}
+           </foreach>
+    </update>
+
+</mapper>

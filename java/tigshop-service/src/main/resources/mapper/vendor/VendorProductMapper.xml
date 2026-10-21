@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.vendor.product.VendorProductMapper">
+
+
+    <select id="platformPageList" resultType="com.tigshop.bean.vo.vendor.product.VendorProductPlatformPageVO">
+        select
+            vp.id, vp.product_brand_id, vp.product_category_id, vp.pic_thumb, vp.product_name, vp.product_state, vp.audit_state, vp.vendor_id,
+            min(vps.supply_price) as supplyPrice, sum(vps.sku_stock) as sumSkuStock, sum(vps.sales_volume) as sumSalesVolume
+        from vendor_product vp
+        inner join vendor v on v.vendor_id = vp.vendor_id and v.source_type = 1
+        left join vendor_product_sku vps on vp.id = vps.vendor_product_id
+        <where>
+            vp.is_del = 0
+            <if test="pageQuery.keyword != null and pageQuery.keyword != ''">
+                and vp.product_name like concat('%', #{pageQuery.keyword}, '%')
+            </if>
+            <if test="pageQuery.productBrandId != null">
+                and vp.product_brand_id = #{pageQuery.productBrandId}
+            </if>
+            <if test="pageQuery.categoryId != null">
+                and vp.product_category_id = #{pageQuery.categoryId}
+            </if>
+            <if test="pageQuery.productState != null">
+                and vp.product_state = #{pageQuery.productState}
+            </if>
+            <if test="pageQuery.auditState != null">
+                and vp.audit_state = #{pageQuery.auditState}
+            </if>
+            <if test="pageQuery.isRecycle != null and pageQuery.isRecycle != ''">
+                AND vp.is_recycle = #{pageQuery.isRecycle}
+            </if>
+            <if test="pageQuery.vendorId != null">
+                and vp.vendor_id = #{pageQuery.vendorId}
+            </if>
+            <if test="pageQuery.startCreateTime != null">
+                and vp.create_time >= #{pageQuery.startCreateTime}
+            </if>
+            <if test="pageQuery.endCreateTime != null">
+                and vp.create_time &lt;= #{pageQuery.endCreateTime}
+            </if>
+        </where>
+        group by vp.id
+    </select>
+    <select id="pageList" resultType="com.tigshop.bean.model.vendor.product.VendorProduct">
+        SELECT
+        vp.*
+        FROM vendor_product vp
+        INNER JOIN vendor v ON v.vendor_id = vp.vendor_id AND v.source_type = 1
+        LEFT JOIN vendor_product_sku vps ON vp.id = vps.vendor_product_id
+        WHERE vp.is_del = 0 AND vp.vendor_id = #{vendorId}
+        <if test="query.ids != null and query.ids.size() > 0">
+            AND vp.id IN
+            <foreach collection="query.ids" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        <if test="query.keyword != null and query.keyword != ''">
+            AND vp.product_name LIKE CONCAT('%', #{query.keyword}, '%')
+        </if>
+        <if test="query.brandId != null">
+            AND vp.product_brand_id = #{query.brandId}
+        </if>
+        <if test="query.categoryId != null">
+            AND vp.product_category_id = #{query.categoryId}
+        </if>
+        <if test="query.productState != null">
+            AND vp.product_state = #{query.productState}
+        </if>
+        <if test="query.auditState != null">
+            AND vp.audit_state = #{query.auditState}
+        </if>
+        <if test="query.isRecycle != null">
+            AND vp.is_recycle = #{query.isRecycle}
+        </if>
+        <if test="query.startCreateTime != null">
+            AND vp.create_time >= #{query.startCreateTime}
+        </if>
+        <if test="query.endCreateTime != null">
+            AND vp.create_time &lt;= #{query.endCreateTime}
+        </if>
+        GROUP BY vp.id
+        ORDER BY
+        <choose>
+            <when test="query.sortField == 'supplyPrice'">
+                MIN(vps.supply_price)
+            </when>
+            <when test="query.sortField == 'sumSkuStock'">
+                SUM(vps.sku_stock)
+            </when>
+            <when test="query.sortField == 'sumSalesVolume'">
+                SUM(vps.sales_volume)
+            </when>
+            <otherwise>
+                vp.id
+            </otherwise>
+        </choose>
+        <choose>
+            <when test="query.sortOrder == 'asc'">ASC</when>
+            <when test="query.sortOrder == 'desc'">DESC</when>
+            <otherwise>DESC</otherwise>
+        </choose>
+    </select>
+</mapper>

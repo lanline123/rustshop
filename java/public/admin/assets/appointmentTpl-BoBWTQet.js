@@ -1,0 +1,1 @@
+import{a6 as o}from"./index-B6WS-doS.js";const s=e=>o({url:"o2o/reservationTpl/list",method:"get",params:e}),a=(e,t)=>o({url:"o2o/reservationTpl/"+e,method:"get",params:t}),l=(e,t)=>o({url:"o2o/reservationTpl/"+e,method:"post",data:t});export{a,s as g,l as u};

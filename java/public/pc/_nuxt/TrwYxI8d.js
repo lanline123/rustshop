@@ -1,0 +1,1 @@
+import{aU as e,aV as r}from"./ntmrFmLd.js";const a=s=>e({url:"user/address/list",method:"get",params:s}),u=s=>e({url:"user/address/del",method:"post",data:s}),o=(s,t)=>e({url:"user/address/"+s,method:"get",params:t}),n=(s,t)=>e({url:"user/address/"+s,method:"post",data:t}),l=s=>r({url:"user/address/setSelected",method:"post",data:{id:s}});export{a,u as d,o as g,l as s,n as u};

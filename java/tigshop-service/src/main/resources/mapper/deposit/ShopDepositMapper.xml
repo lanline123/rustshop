@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tigshop.mapper.deposit.ShopDepositMapper">
+
+
+    <select id="selectForUpdateByOwner" resultType="com.tigshop.bean.model.deposit.ShopDeposit">
+        SELECT * FROM shop_deposit WHERE owner_type = #{ownerType} AND owner_id = #{ownerId} FOR UPDATE
+    </select>
+
+    <select id="selectOnSaleCategoryIds" resultType="java.lang.Integer">
+        SELECT DISTINCT category_id FROM product
+        WHERE shop_id = #{shopId} AND product_status = 1 AND is_delete = 0 AND category_id > 0
+    </select>
+
+    <!-- 供应商在售商品类目来源：audit_state=1 即 VendorProductAuditStateEnum.PASS_AUDIT(审核通过) -->
+    <select id="selectVendorOnSaleCategoryIds" resultType="java.lang.Integer">
+        SELECT DISTINCT product_category_id FROM vendor_product
+        WHERE vendor_id = #{vendorId} AND product_state = 1 AND audit_state = 1 AND is_del = 0 AND product_category_id > 0
+          AND EXISTS (SELECT 1 FROM vendor v WHERE v.vendor_id = #{vendorId} AND v.source_type = 1)
+    </select>
+
+    <!-- W5 全店下架：供应商在售商品id（vendor_product 主键 id），与 selectVendorOnSaleCategoryIds 口径一致 -->
+    <select id="selectVendorOnSaleProductIds" resultType="java.lang.Integer">
+        SELECT id FROM vendor_product
+        WHERE vendor_id = #{vendorId} AND product_state = 1 AND audit_state = 1 AND is_del = 0
+          AND EXISTS (SELECT 1 FROM vendor v WHERE v.vendor_id = #{vendorId} AND v.source_type = 1)
+    </select>
+
+    <!-- W5 全店下架：物理下架供应商商品（product_state=0），仅 SQL 不引用 vendor 模块 Java 类型 -->
+    <update id="offShelfVendorProducts">
+        UPDATE vendor_product SET product_state = 0
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+
+    <!-- W5 恢复上架：恢复被惩罚下架的供应商商品（product_state=1），仅恢复未删商品 -->
+    <update id="onShelfVendorProducts">
+        UPDATE vendor_product SET product_state = 1
+        WHERE is_del = 0 AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+</mapper>
