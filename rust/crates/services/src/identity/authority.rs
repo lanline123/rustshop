@@ -180,14 +180,11 @@ impl EditionFlags {
     }
 
     /// Java `filterReceiptPrintMenuByEdition(list, o2oEnabled)`：
-    /// O2O 版本移除旧版小票打印菜单，非 O2O 移除整组收银菜单。
+    /// 当前部署要求展示全部菜单，因此不按版本下架收银/小票入口。
     #[must_use]
     pub fn keep_receipt_or_pos(&self, authority_sn: &str) -> bool {
-        if self.is_o2o == 1 {
-            !LEGACY_RECEIPT_MENU_SN.contains(&authority_sn)
-        } else {
-            !Self::is_pos_menu(authority_sn)
-        }
+        let _ = (self, authority_sn, LEGACY_RECEIPT_MENU_SN, Self::is_pos_menu);
+        true
     }
 
     /// 该权限是否应下架（返回 `true` 表示移除）。flags 的公共部分。
@@ -199,9 +196,6 @@ impl EditionFlags {
         {
             return true;
         }
-        if self.is_overseas == 1 && sn == "mobileUserManage" {
-            return true;
-        }
         if self.is_merchant == 0
             && (sn == "shop"
                 || sn == "shopManagement"
@@ -211,9 +205,6 @@ impl EditionFlags {
             return true;
         }
         if self.is_pro == 0 && (sn == "salesman" || sn == "eCardManage" || sn == "userLevelProManage") {
-            return true;
-        }
-        if self.is_pro == 1 && sn == "levelManageManage" {
             return true;
         }
         if !(self.is_o2o == 1 || self.is_overseas == 1 || self.is_vendor == 1 || self.is_b2b == 1)
