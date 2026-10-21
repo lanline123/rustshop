@@ -1,4 +1,4 @@
-﻿//! 首页面板域仓储（analytics::panel）。
+//! 首页面板域仓储（analytics::panel）。
 //!
 //! 真实 SQL 聚合：订单（`order`）/订单项（`order_item`）/会员（`user`）/商品（`product`）/
 //! 面板菜单（`panel_shortcut_menu`）/权限（`authority`）。
@@ -175,22 +175,25 @@ impl PanelRepository {
     ///
     /// # Errors
     /// 数据库失败 → `Error::Database`。
-    pub async fn search_authority(&self, keyword: Option<&str>) -> Result<Vec<(i32, String, Option<String>)>> {
+    pub async fn search_authority(
+        &self,
+        keyword: Option<&str>,
+    ) -> Result<Vec<(i32, String, String, Option<String>)>> {
         let like = keyword
             .map(str::trim)
             .filter(|s| !s.is_empty())
             .map(|s| format!("%{s}%"));
         if let Some(v) = like.as_deref() {
-            sqlx::query_as::<_, (i32, String, Option<String>)>(
-                "SELECT authority_id, authority_name, route_link FROM authority WHERE authority_name LIKE ? AND is_show = 1 LIMIT 50",
+            sqlx::query_as::<_, (i32, String, String, Option<String>)>(
+                "SELECT authority_id, authority_sn, authority_name, route_link FROM authority WHERE authority_name LIKE ? AND is_show = 1 LIMIT 50",
             )
             .bind(v)
             .fetch_all(&self.pool)
             .await
             .map_err(map_err)
         } else {
-            sqlx::query_as::<_, (i32, String, Option<String>)>(
-                "SELECT authority_id, authority_name, route_link FROM authority WHERE is_show = 1 LIMIT 50",
+            sqlx::query_as::<_, (i32, String, String, Option<String>)>(
+                "SELECT authority_id, authority_sn, authority_name, route_link FROM authority WHERE is_show = 1 LIMIT 50",
             )
             .fetch_all(&self.pool)
             .await
