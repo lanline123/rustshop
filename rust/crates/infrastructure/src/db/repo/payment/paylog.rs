@@ -170,8 +170,8 @@ impl PaylogRepository {
              (pay_sn, pay_name, order_id, order_sn, order_amount, order_type,
               pay_amount, pay_status, pay_code, profit_sharing_channel,
               add_time, transaction_id, notify_data, refund_amount,
-              token_code, appid)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+              token_code)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&p.pay_sn)
         .bind(&p.pay_name)
@@ -188,7 +188,6 @@ impl PaylogRepository {
         .bind(&p.notify_data)
         .bind(p.refund_amount)
         .bind(&p.token_code)
-        .bind(&p.appid)
         .execute(&self.pool)
         .await
         .map_err(map_err)?;

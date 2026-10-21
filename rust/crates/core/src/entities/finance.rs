@@ -349,7 +349,8 @@ pub struct Paylog {
     pub refund_amount: Decimal,
     /// [NOT NULL]
     pub token_code: String,
-    /// 微信支付返回的appid
+    /// 微信支付返回的appid（当前部署库没有此列，允许 FromRow 缺省）
+    #[sqlx(default)]
     pub appid: Option<String>,
 }
 
