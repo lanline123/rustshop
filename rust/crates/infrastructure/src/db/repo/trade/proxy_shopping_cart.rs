@@ -246,7 +246,21 @@ impl ProxyShoppingCartRepository {
 
     /// 商品快照（Java `productService.getById`）。
     pub async fn product_snapshot(&self, product_id: i32) -> Result<Option<ProductSnapshot>> {
-        let row = sqlx::query_as::<_, (i32, String, String, String, Decimal, i32, i32, i32, i32, i32)>(
+        let row = sqlx::query_as::<
+            _,
+            (
+                i32,
+                String,
+                String,
+                Option<String>,
+                Decimal,
+                i32,
+                Option<i32>,
+                i32,
+                i32,
+                i32,
+            ),
+        >(
             "SELECT product_id, product_name, product_sn, pic_thumb, product_price,
                     product_status, product_type, product_stock, shop_id, is_delete
              FROM product WHERE product_id = ? LIMIT 1",
@@ -259,10 +273,10 @@ impl ProxyShoppingCartRepository {
             product_id: r.0,
             product_name: r.1,
             product_sn: r.2,
-            pic_thumb: r.3,
+            pic_thumb: r.3.unwrap_or_default(),
             product_price: r.4,
             product_status: r.5,
-            product_type: r.6,
+            product_type: r.6.unwrap_or(1),
             product_stock: r.7,
             shop_id: r.8,
             is_delete: r.9,
