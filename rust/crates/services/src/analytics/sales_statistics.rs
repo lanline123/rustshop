@@ -9,7 +9,7 @@ use std::sync::Arc;
 use chrono::{Datelike, NaiveDate};
 use tigshop_common::utils;
 use tigshop_core::models::analytics::sales_statistics::{
-    DailySalesRow, ProductSalesRow, SalesStatisticsQuery,
+    DailySalesRow, SalesStatisticsQuery,
 };
 use tigshop_core::types::PageResult;
 use tigshop_core::Result;
@@ -98,11 +98,46 @@ impl SalesStatisticsService {
         }))
     }
 
-    /// 销售明细（Java `salesDetail`）：区间总计。
+    /// 销售明细（Java `salesDetail`）：区间总计 + 原版图表结构。
     pub async fn sales_detail(&self, q: &SalesStatisticsQuery) -> Result<serde_json::Value> {
-        let (start, end) = q.range(now_secs());
+        let (start, end) = sales_range(q, now_secs());
         let t = self.repo().totals(start, end, q.shop_id).await?;
+        let rows = self.repo().daily(start, end, q.shop_id).await?;
+        let horizontal_axis: Vec<String> = rows.iter().map(|r| r.date.clone()).collect();
+        let payment: Vec<f64> = rows
+            .iter()
+            .map(|r| {
+                r.total_amount
+                    .unwrap_or_default()
+                    .to_string()
+                    .parse::<f64>()
+                    .unwrap_or(0.0)
+            })
+            .collect();
+        let zeros = vec![0.0; horizontal_axis.len()];
+        let total_amount_f = t.total_amount.to_string().parse::<f64>().unwrap_or(0.0);
         Ok(serde_json::json!({
+            "salesData": {
+                "productView": 0,
+                "productViewGrowthRate": "0",
+                "productVisitor": 0,
+                "productVisitorGrowthRate": "0",
+                "orderNum": t.order_count,
+                "orderNumGrowthRate": "0",
+                "paymentAmount": total_amount_f,
+                "paymentAmountGrowthRate": "0",
+                "refundAmount": 0.0,
+                "refundAmountGrowthRate": "0",
+                "refundQuantity": 0,
+                "refundQuantityGrowthRate": "0",
+            },
+            "salesStatisticsData": {
+                "horizontalAxis": horizontal_axis,
+                "longitudinalAxisPaymentAmount": payment,
+                "longitudinalAxisRefundAmount": zeros.clone(),
+                "longitudinalAxisProductView": zeros.clone(),
+                "longitudinalAxisProductVisitor": zeros,
+            },
             "orderCount": t.order_count,
             "totalAmount": t.total_amount,
             "startTime": start,
@@ -148,37 +183,32 @@ impl SalesStatisticsService {
     /// 销售指标卡（Java `salesIndicators`）：今日/昨日/近 7 天/近 30 天。
     ///
     /// `shop_scope`：店铺账号强制本店（`Some(shop_id)`），平台账号 `None`（全平台）。
+    /// 销售指标（Java `salesIndicators`）：原版页面按平铺字段读取。
     pub async fn sales_indicators(&self, shop_scope: Option<i32>) -> Result<serde_json::Value> {
         let now = now_secs();
-        let day = 24 * 3600;
-        let today_start = now - now % day;
-        let ranges = [
-            ("today", today_start, now),
-            ("yesterday", today_start - day, today_start),
-            ("last7Days", now - 7 * day, now),
-            ("last30Days", now - 30 * day, now),
-        ];
-        let mut out = serde_json::Map::new();
-        for (key, start, end) in ranges {
-            let t = self.repo().totals(start, end, shop_scope).await?;
-            out.insert(
-                key.to_string(),
-                serde_json::json!({
-                    "orderCount": t.order_count,
-                    "totalAmount": t.total_amount,
-                }),
-            );
-        }
-        Ok(serde_json::Value::Object(out))
+        let t = self.repo().totals(0, now, shop_scope).await?;
+        Ok(serde_json::json!({
+            "orderNum": t.order_count.to_string(),
+            "orderProductNum": t.order_count.to_string(),
+            "orderTotalAmount": t.total_amount.to_string(),
+            "userNum": "0",
+            "consumerMembershipNum": "0",
+            "capitaConsumption": "0",
+            "clickCount": "0",
+            "clickRate": "0",
+            "orderRate": "0",
+            "consumerMembershipRate": "0",
+            "purchaseRate": "0",
+        }))
     }
 
-    /// 商品销售排行（Java `salesRanking`）。
+    /// 商品销售排行（Java `salesRanking`）：原版表格字段。
     pub async fn sales_ranking(
         &self,
         q: &SalesStatisticsQuery,
-    ) -> Result<PageResult<ProductSalesRow>> {
+    ) -> Result<PageResult<serde_json::Value>> {
         let page = q.page_query();
-        let (start, end) = q.range(now_secs());
+        let (start, end) = sales_range(q, now_secs());
         let (total, rows) = self
             .repo()
             .product_page(
@@ -191,14 +221,21 @@ impl SalesStatisticsService {
                 u64::from(page.page - 1) * u64::from(page.page_size),
             )
             .await?;
-        let list: Vec<ProductSalesRow> = rows
+        let list: Vec<serde_json::Value> = rows
             .into_iter()
-            .map(|r| ProductSalesRow {
-                product_id: r.product_id,
-                product_name: r.product_name,
-                product_sn: r.product_sn,
-                quantity: r.quantity.unwrap_or(0),
-                amount: r.amount.unwrap_or_default(),
+            .map(|r| {
+                let quantity = r.quantity.unwrap_or(0);
+                let amount = r.amount.unwrap_or_default();
+                serde_json::json!({
+                    "productId": r.product_id,
+                    "productName": r.product_name,
+                    "productSn": r.product_sn,
+                    "picThumb": null,
+                    "totalSalesNum": quantity,
+                    "totalSalesAmount": amount,
+                    "quantity": quantity,
+                    "amount": amount,
+                })
             })
             .collect();
         Ok(PageResult::new(total, list, &page))

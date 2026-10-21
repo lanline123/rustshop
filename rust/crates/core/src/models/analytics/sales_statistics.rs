@@ -20,9 +20,11 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SalesStatisticsQuery {
-    /// 开始时间（秒级时间戳）
+    /// 开始时间（秒级时间戳；也接受 `YYYY-MM-DD` / `YYYY-MM-DD HH:MM:SS`）
+    #[serde(default, deserialize_with = "de_opt_i64_flexible")]
     pub start_time: Option<i64>,
-    /// 结束时间（秒级时间戳）
+    /// 结束时间（秒级时间戳；也接受 `YYYY-MM-DD` / `YYYY-MM-DD HH:MM:SS`）
+    #[serde(default, deserialize_with = "de_opt_i64_flexible")]
     pub end_time: Option<i64>,
     /// 原版前端筛选值：按年 `YYYY` 或按月 `YYYY-MM`
     pub start_end_time: Option<String>,
@@ -111,9 +113,57 @@ pub fn format_time(ts: i64) -> String {
         .unwrap_or_default()
 }
 
+/// 兼容前端把 `startTime`/`endTime` 传成日期字符串；数字仍按秒。
+fn de_opt_i64_flexible<'de, D>(deserializer: D) -> Result<Option<i64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use chrono::NaiveDate;
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(match value {
+        Some(serde_json::Value::Number(n)) => n.as_i64(),
+        Some(serde_json::Value::String(s)) => {
+            let raw = s.trim();
+            if let Ok(secs) = raw.parse::<i64>() {
+                Some(secs)
+            } else if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(raw, "%Y-%m-%d %H:%M:%S") {
+                Some(dt.and_utc().timestamp())
+            } else {
+                NaiveDate::parse_from_str(raw, "%Y-%m-%d")
+                    .ok()
+                    .and_then(|d| d.and_hms_opt(0, 0, 0))
+                    .map(|dt| dt.and_utc().timestamp())
+            }
+        }
+        _ => None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn accepts_original_date_strings_for_sales_detail() {
+        let q: SalesStatisticsQuery = serde_json::from_value(serde_json::json!({
+            "startTime": "2026-10-01", "endTime": "2026-10-21 23:59:59"
+        }))
+        .expect("原版日期字符串必须可解析");
+        let start = q.start_time.expect("start");
+        let end = q.end_time.expect("end");
+        assert!(start > 1_700_000_000);
+        assert!(end > start);
+    }
+
+    #[test]
+    fn accepts_original_string_statistic_and_date_type() {
+        let q: SalesStatisticsQuery = serde_json::from_value(serde_json::json!({
+            "dateType": "1", "statisticType": "0", "startEndTime": "2026"
+        }))
+        .expect("原版字符串枚举必须可解析");
+        assert_eq!(q.date_type.as_deref(), Some("1"));
+        assert_eq!(q.statistic_type.as_deref(), Some("0"));
+    }
 
     #[test]
     fn range_defaults_to_last_30_days() {

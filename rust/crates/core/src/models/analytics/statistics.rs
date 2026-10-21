@@ -132,6 +132,8 @@ where
     let value = Option::<serde_json::Value>::deserialize(deserializer)?;
     Ok(match value {
         Some(serde_json::Value::Number(n)) => n.as_i64().and_then(|v| i32::try_from(v).ok()),
+        // 原版前端把 dateType/isExport 作为字符串传（"1"/"0"）。
+        Some(serde_json::Value::String(s)) => s.trim().parse::<i32>().ok(),
         _ => None,
     })
 }
@@ -782,12 +784,12 @@ mod tests {
                 .expect("应能解析");
         assert_eq!(q.start_end_time.as_deref(), Some("2024"));
         assert_eq!(q.date_type, Some(1));
-        // 前端把 isExport 传成字符串 "1"；Rust 侧期望整数，因此这里解析失败为 None。
-        assert_eq!(q.is_export, None);
+        // 原版前端把 isExport / dateType 传成字符串，宽松解析后应保留数值。
+        assert_eq!(q.is_export, Some(1));
 
         let q2: UserTrendsQuery =
             serde_json::from_str(r#"{"startEndTime":"2024","dateType":"1"}"#).expect("应能解析");
-        assert_eq!(q2.date_type, None, "前端传字符串 dateType 时无法反序列化为整数");
+        assert_eq!(q2.date_type, Some(1), "前端传字符串 dateType 时也应解析");
     }
 
     /// 排行 DTO 的分页字段是**平铺**的。

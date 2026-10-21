@@ -96,7 +96,7 @@ async fn sales_ranking(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
     Query(mut q): Query<SalesStatisticsQuery>,
-) -> ApiResult<PageResult<tigshop_core::models::analytics::sales_statistics::ProductSalesRow>> {
+) -> ApiResult<PageResult<serde_json::Value>> {
     q.shop_id = auth.resolve_shop_scope(q.shop_id)?;
     ok(state.analytics.sales_statistics.sales_ranking(&q).await?)
 }
