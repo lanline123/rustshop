@@ -953,7 +953,7 @@ impl OrderService {
         }
 
         let items = self.repos.trade.order.find_items(order_id).await?;
-        Ok((to_vo(&order, items.len() as i32), items))
+        Ok((to_vo(&order, &items), items))
     }
 
     /// 订单分页。
@@ -968,10 +968,11 @@ impl OrderService {
             .repos.trade.order
             .paginate(user_id, order_status, keyword, page.page, page.page_size)
             .await?;
-        let list = orders
-            .iter()
-            .map(|o| to_vo(o, 0))
-            .collect();
+        let mut list = Vec::with_capacity(orders.len());
+        for o in &orders {
+            let items = self.repos.trade.order.find_items(o.order_id).await?;
+            list.push(to_vo(o, &items));
+        }
         Ok(PageResult::new(total, list, page))
     }
 
@@ -1202,13 +1203,50 @@ fn client_status_label(status: i32) -> String {
     .to_string()
 }
 
-fn to_vo(o: &Order, item_count: i32) -> OrderVO {
+fn to_vo(o: &Order, items: &[OrderItem]) -> OrderVO {
+    let status_label = client_status_label(o.order_status);
+    let item_values: Vec<serde_json::Value> = items
+        .iter()
+        .map(|it| {
+            serde_json::json!({
+                "itemId": it.item_id,
+                "orderId": it.order_id,
+                "productId": it.product_id,
+                "productName": it.product_name,
+                "productSn": it.product_sn,
+                "picThumb": it.pic_thumb,
+                "quantity": it.quantity,
+                "price": it.price,
+                "productType": it.product_type,
+                "shopId": it.shop_id,
+                "skuId": it.sku_id,
+                "skuData": serde_json::from_str::<serde_json::Value>(&it.sku_data)
+                    .unwrap_or(serde_json::Value::Array(Vec::new())),
+                "seoLink": serde_json::Value::Null,
+                "aftersalesItem": serde_json::Value::Null,
+                "isGift": it.is_gift,
+            })
+        })
+        .collect();
+    let order_type = o.order_type.unwrap_or(0);
+    let to_pay = o.order_status == 0;
+    let to_comment = o.order_status == 5;
+    let available_actions = serde_json::json!({
+        "toPay": to_pay,
+        "cancelOrder": to_pay,
+        "delOrder": matches!(o.order_status, 3 | 4 | 5 | 40 | 50),
+        "confirmReceipt": o.order_status == 2,
+        "toAftersales": matches!(o.order_status, 2 | 5),
+        "rebuy": true,
+        "toComment": to_comment,
+    });
     OrderVO {
         order_id: o.order_id,
         order_sn: o.order_sn.clone(),
         shop_id: o.shop_id,
         order_status: o.order_status,
-        status_label: client_status_label(o.order_status),
+        order_status_name: status_label.clone(),
+        status_label,
         pay_status: o.pay_status,
         shipping_status: o.shipping_status,
         total_amount: o.total_amount,
@@ -1216,7 +1254,18 @@ fn to_vo(o: &Order, item_count: i32) -> OrderVO {
         consignee: o.consignee.clone(),
         mobile: o.mobile.clone(),
         add_time: o.add_time,
-        item_count,
+        item_count: i32::try_from(items.len()).unwrap_or(0),
+        items: item_values,
+        available_actions,
+        cancel_remark: o.cancel_remark.clone(),
+        order_type: o.order_type,
+        parent_order_sn: o.parent_order_sn.clone(),
+        is_card_order: false,
+        is_cycle_order: false,
+        is_pickup: matches!(o.shipping_method, 2),
+        presale_info: None,
+        order_source: Some(o.order_source.clone()),
+        cycle_card_info: None,
     }
 }
 
