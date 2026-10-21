@@ -117,8 +117,28 @@ async fn optional_auth(
 async fn get_product(
     State(state): State<PublicState>,
     Json(dto): Json<ProductSearchClientQuery>,
-) -> ApiResult<PageResult<ProductVO>> {
-    ok(state.catalog.search_admin.search_products(&dto).await?)
+) -> ApiResult<PageResult<serde_json::Value>> {
+    let page = state.catalog.search_admin.search_products(&dto).await?;
+    let total = page.total;
+    let list = page
+        .list
+        .into_iter()
+        .map(|p| {
+            // 原版 ProductListResDTO 同时返回 productPrice 和 price；
+            // 商品卡读 `price`，销量读 `virtualSales`。
+            let price = serde_json::to_value(p.product_price).unwrap_or_default();
+            let mut value = serde_json::to_value(&p).unwrap_or_else(|_| serde_json::json!({}));
+            if let Some(obj) = value.as_object_mut() {
+                obj.insert("price".into(), price.clone());
+                obj.insert("orgProductPrice".into(), price);
+                obj.insert("virtualSales".into(), serde_json::json!(p.sales));
+                obj.entry("productSku").or_insert_with(|| serde_json::json!([]));
+                obj.entry("deliveryMode").or_insert_with(|| serde_json::json!(1));
+            }
+            value
+        })
+        .collect();
+    ok(PageResult::new(total, list, &dto.page_query()))
 }
 
 /// `POST /api/search/search/getFilter`：商品筛选（分类 / 品牌 / 最高价 + 已选）。
