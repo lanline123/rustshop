@@ -89,10 +89,40 @@
 
 已巡检 89 个后台页面，除 A8、A9 外均无 4xx/5xx/控制台异常（忽略浏览器 ORB/Tracking Prevention 噪声）。
 
+## PC
+
+### P1. `/item/SN000002` 商品详情 400
+
+- 接口：`GET /api/product/product/detail?sn=SN000002`
+- 返回：`{"code":400,"msg":"商品不存在"}`
+- 判断：新库 `tigshopmall` 中没有 `SN000002` 这个商品，属于数据问题，不是 Rust 路由/解析错误。
+- 需要换一个当前库存在的商品编号复测。
+
+### P2. `/coupon` 优惠券详情 400/401
+
+- 接口：`GET /api/user/coupon/detail`
+- 未带 token 时返回 `401 缺少 Authorization 头`。
+- 判断：该页面可能要求登录；需要用有效会员 token 复测。若登录后仍 400，再查 DTO/参数。
+
+### P3. `/join/plan` Mixed Content
+
+- 页面通过 HTTPS 加载，但配置里有 HTTP 图片：
+  ```text
+  http://oss.tigshop.com/...
+  ```
+- 判断：配置数据/存储 URL 不是 HTTPS，属于配置问题。
+
+### P4. 其它出现的浏览器噪声
+
+- `ERR_BLOCKED_BY_ORB`
+- `Tracking Prevention blocked access to storage`
+- `AbortError: AsyncData request cancelled by unmount/deduplication`
+- `net::ERR_ABORTED`
+
+以上不是业务接口失败，先不作为 Rust bug 处理。
+
 ## 待继续巡检
 
-- PC：首页、分类、搜索、商品、购物车、结算、订单、会员、文章、活动
-- 记录每个页面的：
-  - HTTP 4xx/5xx
-  - 控制台异常
-  - 接口错误码/错误信息
+- PC 交互流程：登录、加购、结算、支付、售后申请
+- Admin 交互流程：商品新增/编辑、订单发货、装修保存/发布、设置提交
+
