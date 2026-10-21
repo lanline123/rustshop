@@ -11,7 +11,6 @@ on:
       - '.github/workflows/build-rust.yml'
   workflow_dispatch:
 
-# 需要写权限：创建 Release 并上传资产
 permissions:
   contents: write
 
@@ -22,24 +21,30 @@ jobs:
     steps:
       - name: Install git & build deps
         run: |
-          dnf install -y git gcc gcc-c++ make pkgconfig openssl-devel perl which tar xz curl
+          dnf install -y git gcc gcc-c++ make pkgconfig openssl-devel perl which tar xz curl jq
           dnf clean all
 
       - uses: actions/checkout@v4
 
-      - name: Install Rust 1.99.0
+      - name: Install Rust (follows rust/crates/rust-toolchain.toml)
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-            | sh -s -- -y --profile minimal --default-toolchain 1.99.0
+            | sh -s -- -y --profile minimal
           . "$HOME/.cargo/env"
           rustc --version
           cargo --version
+
+      # 缓存 ~/.cargo 与 target/：依赖不重复编译，改动后只重编工作区 crate
+      - name: Cargo build cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust/crates -> target
+          cache-on-failure: true
 
       - name: Build release binary
         working-directory: rust/crates
         env:
           PKG_CONFIG_PATH: /usr/lib64/pkgconfig:/usr/share/pkgconfig
-          CARGO_BUILD_JOBS: "4"
         run: |
           . "$HOME/.cargo/env"
           cargo build --release -p tigshop-server
@@ -55,16 +60,15 @@ jobs:
           sha256sum /tmp/out/tigshop | tee /tmp/out/tigshop.sha256
           ls -lh /tmp/out
 
-      # 先上传 artifact（不依赖 contents 写权限），保证一定有可下载产物
+      # 先上传 artifact（不依赖写权限），保证一定有可下载产物
       - uses: actions/upload-artifact@v4
         with:
           name: rustshop-linux-x86_64
           path: /tmp/out/
           if-no-files-found: error
 
-      # 再发布 Release（失败不影响 artifact；rockylinux:8 的 curl 7.61 不支持 --fail-with-body，只能用 -f）
+      # 发布 Release：上传资产必须用 release ID 路径（tags 路径会 400）
       - name: Publish release
-        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -79,16 +83,27 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             "${API}/releases" \
             -d "{\"tag_name\":\"${TAG}\",\"name\":\"${TAG}\",\"body\":\"commit ${GITHUB_SHA} / rockylinux:8 glibc 2.28\"}" \
-            -o /tmp/release.json || { echo "release create failed"; cat /tmp/release.json 2>/dev/null; exit 1; }
+            -o /tmp/release.json
           cat /tmp/release.json
+          RID=$(jq -r .id /tmp/release.json)
+          echo "release id: ${RID}"
 
-          echo "uploading asset"
+          echo "uploading binary"
           curl -fsS -X POST \
             -H "${AUTH}" \
             -H "Content-Type: application/octet-stream" \
             --data-binary @/tmp/out/tigshop \
-            "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}/assets?name=tigshop" \
-            -o /tmp/asset.json || { echo "asset upload failed"; cat /tmp/asset.json 2>/dev/null; exit 1; }
+            "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${RID}/assets?name=tigshop" \
+            -o /tmp/asset.json
           cat /tmp/asset.json
 
-          echo "done: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}"
+          echo "uploading checksum"
+          curl -fsS -X POST \
+            -H "${AUTH}" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @/tmp/out/tigshop.sha256 \
+            "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${RID}/assets?name=tigshop.sha256" \
+            -o /tmp/asset2.json
+          cat /tmp/asset2.json
+
+          echo "download: https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/tigshop"
