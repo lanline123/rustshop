@@ -155,20 +155,33 @@ impl PanelService {
     /// `shop_scope`：店铺账号仅统计本店订单；平台 `None`。
     pub async fn statistical_data(&self, days: i64, shop_scope: Option<i32>) -> Result<Value> {
         let now = now_seconds();
+        let days = days.clamp(1, 365);
         let (t0, _tn, _y0, _y1) = day_windows(now);
-        let from = t0 - (days.clamp(1, 365) - 1) * 86_400;
+        let from = t0 - (days - 1) * 86_400;
         let rows = self.repo().order_trend(from, now, shop_scope, None).await?;
+        // 数据库只返回有订单的日期；前端趋势图需要完整日期轴，缺失日期补 0。
+        let mut by_day = std::collections::HashMap::new();
+        for (day, n, amt) in rows {
+            by_day.insert(day, (n, amt));
+        }
         let mut horizontal: Vec<String> = Vec::new();
         let mut order_num: Vec<i64> = Vec::new();
         let mut order_amount: Vec<f64> = Vec::new();
-        for (day, n, amt) in rows {
+        let start_day = from.div_euclid(86_400);
+        let end_day = now.div_euclid(86_400);
+        for day in start_day..=end_day {
             horizontal.push(day_key(day * 86_400));
+            let (n, amt) = by_day
+                .get(&day)
+                .cloned()
+                .unwrap_or((0, "0".to_string()));
             order_num.push(n);
             order_amount.push(amt.parse::<f64>().unwrap_or(0.0));
         }
+        let access = vec![0i64; horizontal.len()];
         Ok(json!({
             "horizontalAxis": horizontal,
-            "longitudinalAxisAccess": [],
+            "longitudinalAxisAccess": access,
             "longitudinalAxisOrderNum": order_num,
             "longitudinalAxisOrderAmount": order_amount,
         }))
@@ -184,17 +197,28 @@ impl PanelService {
         vendor_scope: Option<i32>,
     ) -> Result<Value> {
         let now = now_seconds();
+        let days = days.clamp(1, 365);
         let (t0, _tn, _y0, _y1) = day_windows(now);
-        let from = t0 - (days.clamp(1, 365) - 1) * 86_400;
+        let from = t0 - (days - 1) * 86_400;
         let rows = self
             .repo()
             .order_trend(from, now, None, vendor_scope)
             .await?;
+        let mut by_day = std::collections::HashMap::new();
+        for (day, n, amt) in rows {
+            by_day.insert(day, (n, amt));
+        }
         let mut horizontal: Vec<String> = Vec::new();
         let mut income: Vec<f64> = Vec::new();
         let mut order_num: Vec<i64> = Vec::new();
-        for (day, n, amt) in rows {
+        let start_day = from.div_euclid(86_400);
+        let end_day = now.div_euclid(86_400);
+        for day in start_day..=end_day {
             horizontal.push(day_key(day * 86_400));
+            let (n, amt) = by_day
+                .get(&day)
+                .cloned()
+                .unwrap_or((0, "0".to_string()));
             income.push(amt.parse::<f64>().unwrap_or(0.0));
             order_num.push(n);
         }
