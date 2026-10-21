@@ -341,11 +341,32 @@ struct CartAddDTO {
     #[serde(default = "default_one", alias = "number")]
     quantity: i32,
     /// 立即购买：取消其它购物车勾选，结算只带当前商品
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_boolish")]
     is_quick: Option<bool>,
     /// 拼团上下文（加购自拼团页时携带）
     #[serde(default)]
     groupon_data: Option<serde_json::Value>,
+}
+
+/// 兼容原版前端的 `isQuick: 1/0`、字符串 `"1"/"true"` 和布尔值。
+fn de_boolish<'de, D>(deserializer: D) -> std::result::Result<Option<bool>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize;
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    match value {
+        serde_json::Value::Bool(v) => Ok(Some(v)),
+        serde_json::Value::Number(n) => Ok(Some(n.as_i64().unwrap_or(0) != 0)),
+        serde_json::Value::String(s) => Ok(Some(matches!(
+            s.trim().to_ascii_lowercase().as_str(),
+            "1" | "true" | "yes"
+        ))),
+        _ => Ok(None),
+    }
 }
 
 fn default_one() -> i32 {
