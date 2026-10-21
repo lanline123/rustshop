@@ -331,15 +331,19 @@ impl GiftCardGroupsRepository {
         }
         let mut qb: QueryBuilder<'_, MySql> =
             QueryBuilder::new("INSERT INTO gift_card_products (card_groups_id, product_id, sku_id) VALUES ");
-        let mut sep = qb.separated(", ");
-        for (group_id, product_id, sku_id) in items {
-            sep.push("(");
-            sep.push_bind(*group_id);
-            sep.push(", ");
-            sep.push_bind(*product_id);
-            sep.push(", ");
-            sep.push_bind(*sku_id);
-            sep.push(")");
+        // 不要用 separated()：它会在每次 push 前自动加分隔符，再手动 push(", ")
+        // 会得到 `?, , , ?, , , ?, )` 这种非法 SQL。
+        for (idx, (group_id, product_id, sku_id)) in items.iter().enumerate() {
+            if idx > 0 {
+                qb.push(", ");
+            }
+            qb.push("(")
+                .push_bind(*group_id)
+                .push(", ")
+                .push_bind(*product_id)
+                .push(", ")
+                .push_bind(*sku_id)
+                .push(")");
         }
         let res = qb.build().execute(&self.pool).await.map_err(map_err)?;
         Ok(res.rows_affected())
