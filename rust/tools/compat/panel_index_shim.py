@@ -32,6 +32,28 @@ def backend_for(path):
     return BACKEND_API if path in API_PATHS else BACKEND_ADMIN
 
 
+ORDER_STATUS_LABELS = {
+    0: "待付款",
+    1: "已确认，待发货",
+    2: "处理中，已发货",
+    3: "已取消",
+    4: "无效",
+    5: "已完成",
+    10: "待发货",
+    20: "已发货",
+    30: "已完成",
+    40: "已取消",
+    50: "已关闭",
+}
+
+
+def normalize_order_status(row):
+    if isinstance(row, dict):
+        status = row.get("orderStatus")
+        if isinstance(status, int):
+            row["statusLabel"] = ORDER_STATUS_LABELS.get(status, "未知状态")
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -83,6 +105,7 @@ class Handler(BaseHTTPRequestHandler):
                     merged = dict(order)
                     merged["items"] = data.get("items", [])
                     merged.setdefault("shopId", 0)
+                    normalize_order_status(merged)
                     obj["data"] = merged
                 else:
                     records = data.get("records")
@@ -90,6 +113,7 @@ class Handler(BaseHTTPRequestHandler):
                         for row in records:
                             if isinstance(row, dict):
                                 row.setdefault("shopId", 0)
+                                normalize_order_status(row)
                     obj["data"] = data
                 body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
             elif path in LOGISTICS_PATHS and isinstance(data, list):
