@@ -136,16 +136,15 @@ pub struct EditionFlags {
 
 impl Default for EditionFlags {
     fn default() -> Self {
-        // 与 Java 源码中可见的常量取值一一对应（见上方文档）。
-        // 当前部署为 Pro 版（授权信息 licensedType=b2c-pro）；Java 原常量默认
-        // 取 0 会把电子卡券 / 分销 / 付费会员菜单错误下架。
+        // 当前部署需要展示授权表中的全部菜单：多商户、O2O、供应商、B2B、
+        // 跨境、Pro 能力全部打开，避免菜单被版本常量过滤。
         Self {
-            is_overseas: 0,
-            is_merchant: 0,
+            is_overseas: 1,
+            is_merchant: 1,
             is_pro: 1,
-            is_o2o: 0,
-            is_vendor: 0,
-            is_b2b: 0,
+            is_o2o: 1,
+            is_vendor: 1,
+            is_b2b: 1,
             is_demo: 0,
         }
     }
