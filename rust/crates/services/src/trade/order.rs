@@ -1266,6 +1266,12 @@ fn to_vo(o: &Order, items: &[OrderItem]) -> OrderVO {
         presale_info: None,
         order_source: Some(o.order_source.clone()),
         cycle_card_info: None,
+        invoice_data: o
+            .invoice_data
+            .as_deref()
+            .and_then(|s| serde_json::from_str(s).ok()),
+        balance: o.balance,
+        shipping_fee: o.shipping_fee,
     }
 }
 
