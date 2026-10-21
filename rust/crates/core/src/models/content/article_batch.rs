@@ -1,4 +1,4 @@
-﻿//! 文章批量操作/前台文章域（content::article_batch）DTO / 纯函数。
+//! 文章批量操作/前台文章域（content::article_batch）DTO / 纯函数。
 //!
 //! 对应 Java `ArticleController` 与文章域服务的 3 个端点：
 //! - `POST /adminapi/content/article/batch`（批量删除）
@@ -30,6 +30,8 @@ pub struct BatchDTO {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ArticleIssueQuery {
+    /// 原版 PC 文章详情页使用 `?articleId=`，同时兼容 `?id=`。
+    #[serde(alias = "articleId")]
     pub id: Option<i32>,
 }
 
