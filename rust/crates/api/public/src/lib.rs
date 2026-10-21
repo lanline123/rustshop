@@ -292,15 +292,25 @@ async fn user_login(
     ))
 }
 
-/// `GET /api/user/profile`：个人资料。
+/// `GET /api/user/user/detail`：当前会员资料（顶部导航/个人中心共用）。
 async fn profile(
     State(state): State<PublicState>,
     Extension(auth): Extension<AuthUser>,
 ) -> ApiResult<Option<serde_json::Value>> {
     let user = state.member.user.find(auth.id).await?.map(|u| {
+        // 原版顶部导航优先读取 nickname；昵称为空时回退用户名，避免只显示“会员”。
+        let nickname = u
+            .nickname
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| u.display_name());
         serde_json::json!({
             "userId": u.user_id,
             "username": u.display_name(),
+            "nickname": nickname,
+            "memberName": nickname,
             "mobile": u.mobile,
             "avatar": u.avatar,
             "balance": u.available_balance(),
