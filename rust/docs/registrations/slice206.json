@@ -1,7 +1,0 @@
-{
-  "slice_id": "slice206",
-  "tag": "部分通用功能的控制器",
-  "has_admin": false,
-  "has_public": true,
-  "core_models_mod": "pub mod slice206;"
-}

@@ -1,7 +1,0 @@
-{
-  "slice_id": "slice136",
-  "tag": "文章分类",
-  "has_admin": true,
-  "has_public": false,
-  "core_models_mod": "pub mod slice136;"
-}

@@ -7,3 +7,11 @@ __pycache__/
 *.pyc
 _diag/
 _page.html
+# 本地保留的内部迁移/交接/巡检文档，不提交
+rust/docs/
+rust/Rust-重构分阶段迁移计划.md
+rust/java电商系统Rust重写审计报告 V1.0.md
+rust/Java-to-Rust-Realistic-Tools-Guide.md
+rust/MIGRATION-TOOLS-SUMMARY.md
+rust/rust-migration-assessment.md
+rust/rust-migration-plan.md

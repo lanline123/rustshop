@@ -1,7 +1,0 @@
-{
-  "slice_id": "slice170",
-  "tag": "行为验证",
-  "has_admin": false,
-  "has_public": true,
-  "core_models_mod": "pub mod slice170;"
-}

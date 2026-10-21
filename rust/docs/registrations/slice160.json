@@ -1,7 +1,0 @@
-{
-  "slice_id": "slice160",
-  "tag": "积分兑换",
-  "has_admin": false,
-  "has_public": true,
-  "core_models_mod": "pub mod slice160;"
-}

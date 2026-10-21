@@ -1,7 +1,0 @@
-{
-  "slice_id": "slice181",
-  "tag": "订单商品",
-  "has_admin": true,
-  "has_public": false,
-  "core_models_mod": "pub mod slice181;"
-}

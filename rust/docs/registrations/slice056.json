@@ -1,7 +1,0 @@
-{
-  "slice_id": "slice056",
-  "tag": "分账结算",
-  "has_admin": true,
-  "has_public": false,
-  "core_models_mod": "pub mod slice056;"
-}
