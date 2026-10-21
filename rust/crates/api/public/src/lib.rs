@@ -339,6 +339,9 @@ struct CartAddDTO {
     sku_id: Option<i32>,
     #[serde(default = "default_one", alias = "number")]
     quantity: i32,
+    /// 立即购买：取消其它购物车勾选，结算只带当前商品
+    #[serde(default)]
+    is_quick: Option<bool>,
     /// 拼团上下文（加购自拼团页时携带）
     #[serde(default)]
     groupon_data: Option<serde_json::Value>,
@@ -366,7 +369,14 @@ async fn cart_add(
     let cart_id = state
         .trade
         .cart
-        .add(auth.id, dto.product_id, sku_id, dto.quantity, groupon.as_ref())
+        .add(
+            auth.id,
+            dto.product_id,
+            sku_id,
+            dto.quantity,
+            groupon.as_ref(),
+            dto.is_quick.unwrap_or(false),
+        )
         .await?;
     ok(cart_id)
 }

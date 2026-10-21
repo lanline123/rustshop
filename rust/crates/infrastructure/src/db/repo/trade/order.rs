@@ -150,7 +150,8 @@ impl OrderRepository {
         .bind(order.discount_amount)
         .bind(order.tax_rate)
         .bind(order.tax_rate_amount)
-        .bind(order.parent_order_id)
+        // 该库 `parent_order_id` 为非空列（默认 0），主订单没有父单时写 0 而不是 NULL。
+        .bind(order.parent_order_id.unwrap_or(0))
         .bind(&order.parent_order_sn)
         .bind(order.is_store_splited)
         .bind(order.pos_user_id)

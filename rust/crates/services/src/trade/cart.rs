@@ -54,6 +54,9 @@ impl CartService {
     }
 
     /// 加入购物车（同款累加数量；拼团上下文以独立行保存）。
+    ///
+    /// `is_quick = true` 表示“立即购买”：先取消该会员其它购物车行的勾选，
+    /// 保证结算页只带当前这一件商品。
     pub async fn add(
         &self,
         user_id: i32,
@@ -61,12 +64,17 @@ impl CartService {
         sku_id: Option<i32>,
         quantity: i32,
         groupon_data: Option<&tigshop_core::models::trade::check::GrouponCartData>,
+        is_quick: bool,
     ) -> Result<i32> {
         if quantity <= 0 {
             return Err(Error::Validation("数量必须大于0".into()));
         }
         // 校验商品可购
         self.product.check_purchasable(product_id, sku_id, quantity).await?;
+
+        if is_quick {
+            self.repos.trade.cart.uncheck_all(user_id).await?;
+        }
 
         // 已存在同款则累加（拼团商品不与普通购物车行合并）
         if groupon_data.is_none() {
@@ -79,6 +87,9 @@ impl CartService {
                 self.product.check_purchasable(product_id, sku_id, new_qty).await?;
                 let cart_id = existing.cart_id;
                 self.repos.trade.cart.update_quantity(cart_id, user_id, new_qty).await?;
+                if is_quick {
+                    self.repos.trade.cart.update_checked(cart_id, user_id, true).await?;
+                }
                 return Ok(cart_id);
             }
         }
