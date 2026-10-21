@@ -66,6 +66,12 @@
   - `/`、`/cart`、`/member`、`/member/order/list`、`/member/coupon/list`、
     `/member/address/list`、`/item/SN000002` 均无 JS 异常。
 - `GET /api/common/log?click=1` → 200（DATE 修复后）。
+- `GET /api/user/login/getWxLoginUrl` → 200，返回真实公众号二维码 URL + ticket。
+- 管理端支付设置接口：
+  - `GET /adminapi/setting/config/wechatPaySettings` → 200（微信支付已配置）；
+  - `GET /adminapi/setting/config/aliPaySettings` → 200（支付宝 AppID 已配置）。
+- 服务器 ES：`GET https://127.0.0.1:9200/_cluster/health` → `status=green`。
+- `GET /api/order/check/getAvailablePaymentType` → 200（在线支付可用）。
 
 ## 6. GitHub 编译
 
