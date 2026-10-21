@@ -60,11 +60,24 @@ impl ProductRepository {
             None => String::new(),
         };
 
+        // 分类筛选：服务层展开后的 category_ids 优先（包含子分类）；
+        // 没有展开时保持原来的精确 category_id 语义。
+        let category_ids: Vec<i32> = if q.category_ids.is_empty() {
+            q.category_id.into_iter().collect()
+        } else {
+            q.category_ids.clone()
+        };
+        let category_clause = if category_ids.is_empty() {
+            " AND (? IS NULL OR category_id = ?)".to_string()
+        } else {
+            format!(" AND category_id IN ({})", vec!["?"; category_ids.len()].join(", "))
+        };
+
         let total_sql = format!(
             "SELECT COUNT(*) FROM product
              WHERE is_delete = 0
                AND (? IS NULL OR product_name LIKE ? OR product_sn LIKE ?)
-               AND (? IS NULL OR category_id = ?)
+               {category_clause}
                AND (? IS NULL OR brand_id = ?)
                AND (? IS NULL OR shop_id = ?)
                AND (? IS NULL OR product_status = ?)
@@ -72,8 +85,15 @@ impl ProductRepository {
                AND (? IS NULL OR product_price <= ?){id_clause}"
         );
         let mut total_q = sqlx::query_as::<_, (i64,)>(&total_sql)
-            .bind(&keyword).bind(&keyword).bind(&keyword)
-            .bind(q.category_id).bind(q.category_id)
+            .bind(&keyword).bind(&keyword).bind(&keyword);
+        if category_ids.is_empty() {
+            total_q = total_q.bind(q.category_id).bind(q.category_id);
+        } else {
+            for id in &category_ids {
+                total_q = total_q.bind(*id);
+            }
+        }
+        total_q = total_q
             .bind(q.brand_id).bind(q.brand_id)
             .bind(q.shop_id).bind(q.shop_id)
             .bind(q.product_status).bind(q.product_status)
@@ -113,7 +133,7 @@ impl ProductRepository {
             "SELECT * FROM product
              WHERE is_delete = 0
                AND (? IS NULL OR product_name LIKE ? OR product_sn LIKE ?)
-               AND (? IS NULL OR category_id = ?)
+               {category_clause}
                AND (? IS NULL OR brand_id = ?)
                AND (? IS NULL OR shop_id = ?)
                AND (? IS NULL OR product_status = ?)
@@ -124,8 +144,15 @@ impl ProductRepository {
         );
 
         let mut rows_q = sqlx::query_as::<_, Product>(&sql)
-            .bind(&keyword).bind(&keyword).bind(&keyword)
-            .bind(q.category_id).bind(q.category_id)
+            .bind(&keyword).bind(&keyword).bind(&keyword);
+        if category_ids.is_empty() {
+            rows_q = rows_q.bind(q.category_id).bind(q.category_id);
+        } else {
+            for id in &category_ids {
+                rows_q = rows_q.bind(*id);
+            }
+        }
+        rows_q = rows_q
             .bind(q.brand_id).bind(q.brand_id)
             .bind(q.shop_id).bind(q.shop_id)
             .bind(q.product_status).bind(q.product_status)

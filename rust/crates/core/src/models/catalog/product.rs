@@ -10,6 +10,9 @@ pub struct ProductListQuery {
     /// 关键词（商品名/编号）
     pub keyword: Option<String>,
     pub category_id: Option<i32>,
+    /// 服务层展开后的分类 ID 集合（含自身与子分类）；不参与 JSON 反序列化。
+    #[serde(skip)]
+    pub category_ids: Vec<i32>,
     pub brand_id: Option<i32>,
     pub shop_id: Option<i32>,
     pub product_status: Option<i32>,

@@ -112,6 +112,24 @@
   ```
 - 判断：配置数据/存储 URL 不是 HTTPS，属于配置问题。
 
+### P5. 首页商品模块只显示部分商品（用户反馈）
+
+- 首页装饰数据里的商品模块按分类查询：
+  ```text
+  /api/product/product/list?categoryId=979&size=10
+  /api/product/product/list?categoryId=930&size=10
+  /api/product/product/list?categoryId=958&size=10
+  ...
+  ```
+- 新库商品实际挂在子分类下（如 979 的子分类 971/972/974/975），后台按父分类能查到 8 条。
+- Rust 公开商品列表此前只做精确 `category_id = ?`，没有展开子分类，导致父分类返回 0 条，首页大部分模块为空。
+- 代码已改：
+  - `ProductListQuery` 增加内部 `category_ids`；
+  - 服务层用 `descendant_category_ids` 展开父分类；
+  - 仓储 SQL 优先按展开后的 `category_id IN (...)` 查询；
+  - 未展开时保持原精确分类语义。
+- 待 GitHub 编译验证。
+
 ### P4. 其它出现的浏览器噪声
 
 - `ERR_BLOCKED_BY_ORB`
