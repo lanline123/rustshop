@@ -83,6 +83,8 @@ pub struct PublicState {
     pub system: std::sync::Arc<tigshop_services::system::Services>,
     pub im: std::sync::Arc<tigshop_services::im::Services>,
     pub jwt: JwtService,
+    /// 本地上传/H5 静态资源目录（config.yaml `file.upload_dir`）。
+    pub upload_dir: String,
 }
 
 /// 构建商城前台路由。
@@ -147,9 +149,7 @@ pub fn router(state: PublicState) -> Router {
         // 其静态资源由 nginx / Vite 自行托管，不再经过本服务。
         .nest_service(
             "/static",
-            ServeDir::new(
-                std::env::var("TIG_FILE__UPLOAD_DIR").unwrap_or_else(|_| "./uploads".to_string()),
-            ),
+            ServeDir::new(state.upload_dir.clone()),
         )
         .with_state(state)
         // —— 契约与覆盖率（重写期间对照用）——

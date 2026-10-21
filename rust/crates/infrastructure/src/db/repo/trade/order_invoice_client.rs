@@ -88,7 +88,7 @@ impl OrderInvoiceClientRepository {
             "SELECT id, user_id, order_id, invoice_type, status, apply_reply, title_type,
                     company_code, company_name, company_address, company_phone, company_bank,
                     company_account, invoice_content, invoice_no, amount, mobile, email,
-                    add_time, invoice_attachment, invoicing_time
+                    add_time, NULL AS invoice_attachment, invoicing_time
              FROM order_invoice WHERE id = ? AND user_id = ? LIMIT 1",
         )
         .bind(id)
