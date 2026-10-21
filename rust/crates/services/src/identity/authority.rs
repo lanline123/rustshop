@@ -164,10 +164,10 @@ impl EditionFlags {
         true
     }
 
-    /// Java `isSupplyChainMenuEnabled()`：`supplyChainCompiled = false` → 恒 `false`。
+    /// Java `isSupplyChainMenuEnabled()`：当前部署要求展示供应链菜单。
     #[must_use]
     pub fn supply_chain_menu_enabled(&self) -> bool {
-        false
+        true
     }
 
     /// Java `isPosMenuAuthority(authoritySn)`。
@@ -1221,13 +1221,13 @@ mod tests {
     }
 
     #[test]
-    fn supply_chain_menu_always_disabled() {
+    fn supply_chain_menu_enabled() {
         let f = EditionFlags::default();
-        assert!(!f.supply_chain_menu_enabled());
+        assert!(f.supply_chain_menu_enabled());
         let remove = MenuFilter::for_get_authority(f);
-        assert!(remove("supplyChain"));
-        assert!(remove("purchaseOrderManage"));
-        assert!(remove("supplyChainSetting"));
+        assert!(!remove("supplyChain"));
+        assert!(!remove("purchaseOrderManage"));
+        assert!(!remove("supplyChainSetting"));
     }
 
     #[test]
