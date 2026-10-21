@@ -312,9 +312,10 @@ async fn cart_list(
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CartAddDTO {
+    #[serde(alias = "id")]
     product_id: i32,
     sku_id: Option<i32>,
-    #[serde(default = "default_one")]
+    #[serde(default = "default_one", alias = "number")]
     quantity: i32,
     /// 拼团上下文（加购自拼团页时携带）
     #[serde(default)]
@@ -338,10 +339,12 @@ async fn cart_add(
             tigshop_core::models::trade::check::GrouponCartData,
         >(v.clone()).ok())
         .filter(|g| g.is_valid());
+    // 原版前端无 SKU 商品传 skuId: 0，按“无 SKU”处理。
+    let sku_id = dto.sku_id.filter(|&id| id > 0);
     let cart_id = state
         .trade
         .cart
-        .add(auth.id, dto.product_id, dto.sku_id, dto.quantity, groupon.as_ref())
+        .add(auth.id, dto.product_id, sku_id, dto.quantity, groupon.as_ref())
         .await?;
     ok(cart_id)
 }
