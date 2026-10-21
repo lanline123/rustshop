@@ -18,10 +18,10 @@ use std::sync::Arc;
 
 use tigshop_core::models::marketing::salesman_customer_transaction::{
     format_time, parse_time, CustomerTransactionQuery, CustomerTransactionVO, DEFAULT_PAGE_SIZE,
-    MAX_PAGE_SIZE, MSG_SALESMAN_ID_REQUIRED,
+    MAX_PAGE_SIZE,
 };
 use tigshop_core::types::{PageQuery, PageResult};
-use tigshop_core::{Error, Result};
+use tigshop_core::Result;
 use tigshop_infrastructure::db::repo::marketing::salesman_customer_transaction::SalesmanCustomerTransactionRepository;
 use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
 use tigshop_infrastructure::db::Repositories;
@@ -44,24 +44,29 @@ impl SalesmanCustomerTransactionService {
 
     /// 客户交易分页（Java `listCustomerTransaction`）。
     ///
+    /// `salesmanId` **可选**：Java `CustomerTransactionPageQuery` 没有 `@NotNull`，
+    /// 服务层直接透传（为空即查全部成交记录）。原版 admin 页面把该字段初始化为
+    /// 空字符串提交，Jackson 绑定成 `null` → 正常返回；Rust 早期实现强制必填
+    /// 导致页面 400（2026-10-21 巡检 `/admin/salesman/customer-transactions/list`）。
+    ///
     /// # Errors
-    /// 缺 `salesmanId` → `Validation(salesmanId不能为空)`；数据库错误 → `Database`。
+    /// 数据库错误 → `Database`；店铺账号越权 → `Forbidden`。
     pub async fn list(
         &self,
         q: &CustomerTransactionQuery,
     ) -> Result<PageResult<CustomerTransactionVO>> {
-        let salesman_id = q
-            .salesman_id
-            .ok_or_else(|| Error::Validation(MSG_SALESMAN_ID_REQUIRED.into()))?;
+        let salesman_id = q.salesman_id.filter(|id| *id > 0);
         // 多租户：店铺账号只能查看本店分销员的客户交易
-        if let Some(salesman) = self
-            .repos
-            .marketing
-            .salesman_admin
-            .find_salesman(salesman_id)
-            .await?
-        {
-            TenantScope::current_ensure_access(salesman.shop_id.unwrap_or(0))?;
+        if let Some(id) = salesman_id {
+            if let Some(salesman) = self
+                .repos
+                .marketing
+                .salesman_admin
+                .find_salesman(id)
+                .await?
+            {
+                TenantScope::current_ensure_access(salesman.shop_id.unwrap_or(0))?;
+            }
         }
         let page = PageQuery {
             page: q.page.unwrap_or(1),
@@ -77,9 +82,13 @@ impl SalesmanCustomerTransactionService {
         if rows.is_empty() {
             return Ok(PageResult::new(total, Vec::new(), &page));
         }
+        // 分销员名按**结果集里出现的** salesman_id 批量回填（未指定过滤时为多值）。
+        let mut salesman_ids: Vec<i32> = rows.iter().map(|r| r.salesman_id).collect();
+        salesman_ids.sort_unstable();
+        salesman_ids.dedup();
         let salesman_names: HashMap<i32, Option<String>> = self
             .repo()
-            .salesman_names(&[salesman_id])
+            .salesman_names(&salesman_ids)
             .await?
             .into_iter()
             .collect();
@@ -90,12 +99,11 @@ impl SalesmanCustomerTransactionService {
             .await?
             .into_iter()
             .collect();
-        let salesman_name = salesman_names.get(&salesman_id).cloned().flatten();
         let list: Vec<CustomerTransactionVO> = rows
             .iter()
             .map(|r| CustomerTransactionVO {
                 salesman_id: r.salesman_id,
-                salesman_name: salesman_name.clone(),
+                salesman_name: salesman_names.get(&r.salesman_id).cloned().flatten(),
                 order_id: r.order_id,
                 order_sn: r.order_sn.clone(),
                 user_id: r.user_id,
@@ -116,23 +124,34 @@ mod tests {
 
     #[tokio::test]
     async fn tenant_scope_blocks_cross_shop_transaction() {
-        use tigshop_infrastructure::db::repo::marketing::tenant::{
-            with_tenant_scope, TenantScope,
-        };
+        use tigshop_infrastructure::db::repo::marketing::tenant::{with_tenant_scope, TenantScope};
         let shop = TenantScope::for_shop(8);
-        assert!(with_tenant_scope(shop, async { TenantScope::current_ensure_access(9) })
-            .await
-            .is_err());
-        assert!(with_tenant_scope(shop, async { TenantScope::current_ensure_access(8) })
-            .await
-            .is_ok());
+        assert!(
+            with_tenant_scope(shop, async { TenantScope::current_ensure_access(9) })
+                .await
+                .is_err()
+        );
+        assert!(
+            with_tenant_scope(shop, async { TenantScope::current_ensure_access(8) })
+                .await
+                .is_ok()
+        );
     }
 
+    /// `salesmanId` 不再是必填：Java `CustomerTransactionPageQuery` 无 `@NotNull`，
+    /// 原版页面把该字段以空字符串提交，Jackson 绑成 null → 查全部。
+    /// 这里验证「缺失 / 空串 / 非法串」都解析成 `None`，不再抛校验错误。
     #[test]
-    fn missing_salesman_id_is_validation_error() {
-        let err = Error::Validation(MSG_SALESMAN_ID_REQUIRED.into());
-        assert!(matches!(err, Error::Validation(_)));
-        assert_eq!(MSG_SALESMAN_ID_REQUIRED, "salesmanId不能为空");
+    fn empty_salesman_id_means_no_filter() {
+        let q: CustomerTransactionQuery =
+            serde_json::from_str(r#"{"page":1,"size":10,"salesmanId":""}"#).unwrap();
+        assert_eq!(q.salesman_id, None);
+        let q2: CustomerTransactionQuery = serde_json::from_str(r#"{"salesmanId":"abc"}"#).unwrap();
+        assert_eq!(q2.salesman_id, None);
+        let q3: CustomerTransactionQuery = serde_json::from_str(r#"{"salesmanId":"7"}"#).unwrap();
+        assert_eq!(q3.salesman_id, Some(7));
+        let q4 = CustomerTransactionQuery::default();
+        assert_eq!(q4.salesman_id, None);
     }
 
     #[test]

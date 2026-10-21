@@ -159,8 +159,29 @@ impl ProxyShoppingCartService {
             Some(product.product_stock)
         };
         let cart_type = cart_type_from_product_type(product.product_type);
+        // ⚠️ 落库类型必须是 `TYPE_ADMIN_SHOPPING = 15`，**不是** `cart_type`。
+        //
+        // Java 落地顺序（`ProxyShoppingCartController#addProductToCart` +
+        // `CartServiceImpl#addProductToCart`）：
+        // 1. `addToCartDTO.setType(adminShopping2CartType(product))` —— 只是加购前的
+        //    「中间类型」；
+        // 2. 组装 `Cart` 时先取 `dto.getType()`；
+        // 3. **最后一步** `if (adminType != null && dto.getFinalCartType() != null)`
+        //    `addCarts.forEach(cart -> cart.setType(dto.getFinalCartType()))`
+        //    把类型统一覆盖成 `finalCartType = TYPE_ADMIN_SHOPPING(15)`。
+        //
+        // 而 `list` / `getCount` / `clearCart` / 冲突校验全部按 `type = 15` 过滤。
+        // 早期 Rust 实现把中间类型（普通商品 = 1）直接写库，导致
+        // 「加购成功但已选商品永远为空、代客下单商品混进 C 端购物车」
+        // （2026-10-21 线上 bug）。
+        let stored_cart_type = CART_TYPE_ADMIN_SHOPPING;
+        debug_assert_eq!(
+            cart_type,
+            cart_type_from_product_type(product.product_type),
+            "中间类型仅用于调试，落库类型恒为 15"
+        );
         let existing = repo
-            .find_same_cart(user_id, product.product_id, sku_id, cart_type)
+            .find_same_cart(user_id, product.product_id, sku_id, stored_cart_type)
             .await?;
         let want = number + existing.as_ref().map(|row| row.quantity).unwrap_or(0);
         if let Some(stock) = stock {
@@ -191,7 +212,7 @@ impl ProxyShoppingCartService {
                     sku_id,
                     sku.as_ref(),
                     number,
-                    cart_type,
+                    stored_cart_type,
                     now,
                 )
                 .await?;

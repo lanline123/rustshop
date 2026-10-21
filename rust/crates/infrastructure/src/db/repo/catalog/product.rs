@@ -25,7 +25,7 @@ impl ProductRepository {
             .map_err(map_err)
     }
 
-    /// 商品分页查询（关键词/分类/品牌/状态/价格过滤 + 排序）。
+    /// 商品分页查询（关键词/分类/品牌/状态/价格/ids 过滤 + 排序）。
     pub async fn paginate(
         &self,
         q: &ProductListQuery,
@@ -37,7 +37,30 @@ impl ProductRepository {
         let keyword = q.keyword.as_ref().map(|k| format!("%{k}%"));
         let (price_min, price_max) = (q.price_min, q.price_max);
 
-        let total: (i64,) = sqlx::query_as(
+        // —— `ids` 精确筛选（Java `ProductListDTO.ids`）——
+        // 原版前端首页楼层 / 推荐位用 `?ids=322,321,320` 指定商品；
+        // Java 同时用它做 IN 过滤 + `ORDER BY FIELD(product_id, ids)` 排序。
+        // 只接受「数字 + 逗号」（同 Java `ids.matches("^[0-9,]+$")`）；
+        // 非法输入降级为「无筛选」而不是放宽成全表，避免楼层串货。
+        let id_list: Option<Vec<i32>> = q.ids.as_deref().and_then(|raw| {
+            let raw = raw.trim();
+            if raw.is_empty() || !raw.chars().all(|c| c.is_ascii_digit() || c == ',') {
+                return None;
+            }
+            let ids: Vec<i32> = raw
+                .split(',')
+                .filter(|s| !s.is_empty())
+                .filter_map(|s| s.parse::<i32>().ok())
+                .collect();
+            if ids.is_empty() { None } else { Some(ids) }
+        });
+        // `ids` 非空时追加 `AND product_id IN (...)`（占位符个数与 id 数一致）。
+        let id_clause = match id_list.as_ref().map(Vec::len) {
+            Some(n) => format!(" AND product_id IN ({})", vec!["?"; n].join(", ")),
+            None => String::new(),
+        };
+
+        let total_sql = format!(
             "SELECT COUNT(*) FROM product
              WHERE is_delete = 0
                AND (? IS NULL OR product_name LIKE ? OR product_sn LIKE ?)
@@ -46,27 +69,42 @@ impl ProductRepository {
                AND (? IS NULL OR shop_id = ?)
                AND (? IS NULL OR product_status = ?)
                AND (? IS NULL OR product_price >= ?)
-               AND (? IS NULL OR product_price <= ?)",
-        )
-        .bind(&keyword).bind(&keyword).bind(&keyword)
-        .bind(q.category_id).bind(q.category_id)
-        .bind(q.brand_id).bind(q.brand_id)
-        .bind(q.shop_id).bind(q.shop_id)
-        .bind(q.product_status).bind(q.product_status)
-        .bind(price_min).bind(price_min)
-        .bind(price_max).bind(price_max)
-        .fetch_one(&self.pool)
-        .await
-        .map_err(map_err)?;
+               AND (? IS NULL OR product_price <= ?){id_clause}"
+        );
+        let mut total_q = sqlx::query_as::<_, (i64,)>(&total_sql)
+            .bind(&keyword).bind(&keyword).bind(&keyword)
+            .bind(q.category_id).bind(q.category_id)
+            .bind(q.brand_id).bind(q.brand_id)
+            .bind(q.shop_id).bind(q.shop_id)
+            .bind(q.product_status).bind(q.product_status)
+            .bind(price_min).bind(price_min)
+            .bind(price_max).bind(price_max);
+        if let Some(ids) = &id_list {
+            for id in ids {
+                total_q = total_q.bind(*id);
+            }
+        }
+        let total: (i64,) = total_q.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        // 排序白名单，防止 SQL 注入
-        let order_by = match q.sort_by.as_deref() {
-            Some("price") => "product_price",
-            Some("sales") => "(virtual_sales + click_count)",
-            Some("add_time") | None => "add_time",
-            Some(_) => "add_time",
+        // 排序白名单，防止 SQL 注入。
+        // 传了 `ids` 时按 IDs 给定顺序排序（Java `ORDER BY FIELD(product_id, ...)`），
+        // 否则前端楼层里「第一个位置」的商品会随机换人。
+        let order_by = match id_list.as_ref() {
+            Some(ids) => format!(
+                "FIELD(product_id, {})",
+                ids.iter().map(i32::to_string).collect::<Vec<_>>().join(", ")
+            ),
+            None => match q.sort_by.as_deref() {
+                Some("price") => "product_price",
+                Some("sales") => "(virtual_sales + click_count)",
+                _ => "add_time",
+            }
+            .to_string(),
         };
-        let dir = if q.sort_order.as_deref() == Some("asc") {
+        // `FIELD()` 返回期望顺序，必须 ASC 才是按 ids 顺序。
+        let dir = if id_list.is_some() {
+            "ASC"
+        } else if q.sort_order.as_deref() == Some("asc") {
             "ASC"
         } else {
             "DESC"
@@ -80,19 +118,25 @@ impl ProductRepository {
                AND (? IS NULL OR shop_id = ?)
                AND (? IS NULL OR product_status = ?)
                AND (? IS NULL OR product_price >= ?)
-               AND (? IS NULL OR product_price <= ?)
+               AND (? IS NULL OR product_price <= ?){id_clause}
              ORDER BY {order_by} {dir}, product_id DESC
              LIMIT ? OFFSET ?"
         );
 
-        let rows = sqlx::query_as::<_, Product>(&sql)
+        let mut rows_q = sqlx::query_as::<_, Product>(&sql)
             .bind(&keyword).bind(&keyword).bind(&keyword)
             .bind(q.category_id).bind(q.category_id)
             .bind(q.brand_id).bind(q.brand_id)
             .bind(q.shop_id).bind(q.shop_id)
             .bind(q.product_status).bind(q.product_status)
             .bind(price_min).bind(price_min)
-            .bind(price_max).bind(price_max)
+            .bind(price_max).bind(price_max);
+        if let Some(ids) = &id_list {
+            for id in ids {
+                rows_q = rows_q.bind(*id);
+            }
+        }
+        let rows = rows_q
             .bind(page_size)
             .bind(offset)
             .fetch_all(&self.pool)

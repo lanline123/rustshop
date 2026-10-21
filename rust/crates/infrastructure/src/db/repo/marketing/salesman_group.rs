@@ -13,7 +13,11 @@ use tigshop_core::models::marketing::salesman_group::MSG_GROUP_NOT_FOUND;
 use tigshop_core::{Error, Result};
 
 /// `salesman_group` 固定 SELECT 列（5 列）。
-pub const GROUP_COLUMNS: &str = "group_id, group_name, describe, add_time, shop_id";
+///
+/// ⚠️ `describe` 是 **MySQL 保留字**，必须加反引号；否则
+/// `SELECT ... FROM salesman_group` 直接 1064 语法错误
+/// （2026-10-21 线上 `/adminapi/salesman/group/list` 500 的根因）。
+pub const GROUP_COLUMNS: &str = "group_id, group_name, `describe`, add_time, shop_id";
 
 /// 分组仓储。
 #[derive(Clone)]
@@ -111,7 +115,7 @@ impl SalesmanGroupRepository {
     /// 新增，返回主键。
     pub async fn insert(&self, g: &SalesmanGroup) -> Result<i32> {
         let res = sqlx::query(
-            "INSERT INTO salesman_group (group_name, describe, add_time, shop_id) VALUES (?, ?, ?, ?)",
+            "INSERT INTO salesman_group (group_name, `describe`, add_time, shop_id) VALUES (?, ?, ?, ?)",
         )
         .bind(&g.group_name)
         .bind(&g.describe)
@@ -126,7 +130,7 @@ impl SalesmanGroupRepository {
     /// 整行更新。
     pub async fn update(&self, g: &SalesmanGroup) -> Result<bool> {
         let res = sqlx::query(
-            "UPDATE salesman_group SET group_name = ?, describe = ?, add_time = ?, shop_id = ? WHERE group_id = ?",
+            "UPDATE salesman_group SET group_name = ?, `describe` = ?, add_time = ?, shop_id = ? WHERE group_id = ?",
         )
         .bind(&g.group_name)
         .bind(&g.describe)
@@ -192,6 +196,9 @@ mod tests {
     fn sort_default_is_add_time_asc() {
         assert_eq!(resolve_sort_column(None), "add_time");
         assert_eq!(resolve_sort_column(Some("groupId")), "group_id");
-        assert_eq!(resolve_sort_column(Some("1;DROP TABLE salesman_group")), "add_time");
+        assert_eq!(
+            resolve_sort_column(Some("1;DROP TABLE salesman_group")),
+            "add_time"
+        );
     }
 }

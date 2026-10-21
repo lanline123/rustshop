@@ -246,18 +246,31 @@ fn validate_optional_len(value: Option<&str>, max: usize, msg: &str) -> Result<(
 // ——————————————————————————————————————————————
 
 /// 分页查询（Java `CategoryFeeRulePageDTO extends BasePage`）。
+///
+/// ⚠️ 原版 admin 页面（`views/finance/categoryServiceFeeRule/List.vue`）的
+/// `defaultParams` 把 `status` 初始化成**空字符串** `""`，整包原样 POST：
+/// ```json
+/// {"page":1,"size":10,"sortField":"","sortOrder":"","keyword":"","status":"","targetType":1}
+/// ```
+/// Jackson 绑 `Integer` 时把 `""` 当 `null`；serde 严格解析则会让整个请求
+/// **422**（2026-10-21 巡检 `/admin/finance/category-service-fee-rule` 的根因）。
+/// 故可选数值字段统一走宽松解析——空串/非法串 → `None`。
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct CategoryFeeRulePageQuery {
     /// 适用对象类型：1 店铺 2 供应商（`@NotNull`）
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub target_type: Option<i32>,
-    /// 状态 1 启用 0 禁用
+    /// 状态 1 启用 0 禁用（前端可能传 `""`）
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub status: Option<i32>,
     /// 规则名称关键字（`LIKE`）
     pub keyword: Option<String>,
     /// 页码
+    #[serde(default, deserialize_with = "de_opt_i64_lenient")]
     pub page: Option<i64>,
     /// 每页条数（Java `size`）
+    #[serde(default, deserialize_with = "de_opt_i64_lenient")]
     pub size: Option<i64>,
     /// 排序字段
     pub sort_field: Option<String>,
@@ -265,10 +278,40 @@ pub struct CategoryFeeRulePageQuery {
     pub sort_order: Option<String>,
 }
 
+/// 宽松地把 JSON 值解析为 `Option<i32>`：`""` / 非数字串 / 其它类型 → `None`。
+///
+/// 与 Java Jackson 的 `ACCEPT_EMPTY_STRING_AS_NULL_OBJECT` 行为对齐
+/// （见 `CategoryFeeRulePageQuery` 注释）。
+fn de_opt_i32_lenient<'de, D>(deserializer: D) -> Result<Option<i32>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(match value {
+        Some(serde_json::Value::Number(n)) => n.as_i64().and_then(|v| i32::try_from(v).ok()),
+        Some(serde_json::Value::String(s)) => s.trim().parse::<i32>().ok(),
+        _ => None,
+    })
+}
+
+/// 宽松地把 JSON 值解析为 `Option<i64>`（同上，用于 `page` / `size`）。
+fn de_opt_i64_lenient<'de, D>(deserializer: D) -> Result<Option<i64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(match value {
+        Some(serde_json::Value::Number(n)) => n.as_i64(),
+        Some(serde_json::Value::String(s)) => s.trim().parse::<i64>().ok(),
+        _ => None,
+    })
+}
+
 impl CategoryFeeRulePageQuery {
     /// 校验 `targetType` 必填（`@NotNull(message = "适用对象类型不能为空")`）。
     pub fn target_type_required(&self) -> Result<i32, String> {
-        self.target_type.ok_or_else(|| MSG_TARGET_TYPE_REQUIRED.to_string())
+        self.target_type
+            .ok_or_else(|| MSG_TARGET_TYPE_REQUIRED.to_string())
     }
 
     /// `(LIMIT, OFFSET)`（Java `BasePage` 口径：page null→1，size null→15、>100→100）。
@@ -330,7 +373,8 @@ impl CategoryFeeRuleSaveDTO {
     /// Java `validateSaveDto` + Bean Validation（顺序：注解先于服务层校验）。
     pub fn validate(&self) -> Result<(), String> {
         validate_rule_name(self.rule_name.as_deref())?;
-        self.target_type.ok_or_else(|| MSG_TARGET_TYPE_REQUIRED.to_string())?;
+        self.target_type
+            .ok_or_else(|| MSG_TARGET_TYPE_REQUIRED.to_string())?;
         let scope_type = self
             .scope_type
             .ok_or_else(|| MSG_SCOPE_TYPE_REQUIRED.to_string())?;
@@ -345,21 +389,14 @@ impl CategoryFeeRuleSaveDTO {
         }
         validate_optional_len(self.remark.as_deref(), 200, MSG_REMARK_TOO_LONG)?;
         self.status.ok_or_else(|| MSG_STATUS_REQUIRED.to_string())?;
-        if self
-            .category_ids
-            .as_deref()
-            .is_none_or(|v| v.is_empty())
-        {
+        if self.category_ids.as_deref().is_none_or(|v| v.is_empty()) {
             return Err(MSG_CATEGORY_IDS_REQUIRED.to_string());
         }
-        if scope_type == SCOPE_SPECIFIED
-            && self.target_ids.as_deref().is_none_or(|v| v.is_empty())
+        if scope_type == SCOPE_SPECIFIED && self.target_ids.as_deref().is_none_or(|v| v.is_empty())
         {
             return Err(MSG_SPECIFIED_TARGET_REQUIRED.to_string());
         }
-        if scope_type == SCOPE_EXCLUDE
-            && self.target_ids.as_deref().is_none_or(|v| v.is_empty())
-        {
+        if scope_type == SCOPE_EXCLUDE && self.target_ids.as_deref().is_none_or(|v| v.is_empty()) {
             return Err(MSG_EXCLUDE_TARGET_REQUIRED.to_string());
         }
         Ok(())
@@ -435,8 +472,12 @@ impl CategoryFeeRuleConflictCheckDTO {
     /// 注解校验（注意：Java 冲突预检不校验「指定/不包含必须有 targetIds」，
     /// 该规则只在 save/update 的 `validateSaveDto` 里）。
     pub fn validate(&self) -> Result<(i32, i32, Vec<i32>), String> {
-        let target_type = self.target_type.ok_or_else(|| MSG_TARGET_TYPE_REQUIRED.to_string())?;
-        let scope_type = self.scope_type.ok_or_else(|| MSG_SCOPE_TYPE_REQUIRED.to_string())?;
+        let target_type = self
+            .target_type
+            .ok_or_else(|| MSG_TARGET_TYPE_REQUIRED.to_string())?;
+        let scope_type = self
+            .scope_type
+            .ok_or_else(|| MSG_SCOPE_TYPE_REQUIRED.to_string())?;
         let category_ids = match self.category_ids.clone() {
             Some(ids) if !ids.is_empty() => ids,
             _ => return Err(MSG_CATEGORY_IDS_REQUIRED.to_string()),
@@ -544,24 +585,51 @@ mod tests {
         assert!(has_target_overlap(SCOPE_ALL, &[], SCOPE_SPECIFIED, &[1]));
         assert!(has_target_overlap(SCOPE_EXCLUDE, &[1], SCOPE_ALL, &[]));
         // 指定 vs 指定 ⇒ 有交集才冲突
-        assert!(has_target_overlap(SCOPE_SPECIFIED, &[1, 2], SCOPE_SPECIFIED, &[2, 3]));
-        assert!(!has_target_overlap(SCOPE_SPECIFIED, &[1], SCOPE_SPECIFIED, &[2]));
+        assert!(has_target_overlap(
+            SCOPE_SPECIFIED,
+            &[1, 2],
+            SCOPE_SPECIFIED,
+            &[2, 3]
+        ));
+        assert!(!has_target_overlap(
+            SCOPE_SPECIFIED,
+            &[1],
+            SCOPE_SPECIFIED,
+            &[2]
+        ));
         // 不包含 vs 不包含 ⇒ 恒相交
         assert!(has_target_overlap(SCOPE_EXCLUDE, &[1], SCOPE_EXCLUDE, &[2]));
         // 指定 vs 不包含 ⇒ 存在「不在排除名单里的指定对象」
-        assert!(has_target_overlap(SCOPE_SPECIFIED, &[1, 2], SCOPE_EXCLUDE, &[2]));
-        assert!(!has_target_overlap(SCOPE_SPECIFIED, &[2], SCOPE_EXCLUDE, &[2]));
+        assert!(has_target_overlap(
+            SCOPE_SPECIFIED,
+            &[1, 2],
+            SCOPE_EXCLUDE,
+            &[2]
+        ));
+        assert!(!has_target_overlap(
+            SCOPE_SPECIFIED,
+            &[2],
+            SCOPE_EXCLUDE,
+            &[2]
+        ));
         // 不包含 vs 指定 ⇒ 对称分支
-        assert!(has_target_overlap(SCOPE_EXCLUDE, &[2], SCOPE_SPECIFIED, &[1, 2]));
-        assert!(!has_target_overlap(SCOPE_EXCLUDE, &[2], SCOPE_SPECIFIED, &[2]));
+        assert!(has_target_overlap(
+            SCOPE_EXCLUDE,
+            &[2],
+            SCOPE_SPECIFIED,
+            &[1, 2]
+        ));
+        assert!(!has_target_overlap(
+            SCOPE_EXCLUDE,
+            &[2],
+            SCOPE_SPECIFIED,
+            &[2]
+        ));
     }
 
     #[test]
     fn conflict_message_limits_to_five_names() {
-        assert_eq!(
-            conflict_message(["规则A"]),
-            "存在冲突规则，无法保存：规则A"
-        );
+        assert_eq!(conflict_message(["规则A"]), "存在冲突规则，无法保存：规则A");
         assert_eq!(
             conflict_message(["A", "B", "A"]),
             "存在冲突规则，无法保存：A、B"
@@ -643,7 +711,9 @@ mod tests {
     #[test]
     fn update_status_and_ids_validation() {
         assert_eq!(
-            CategoryFeeRuleUpdateStatusDTO::default().validate().unwrap_err(),
+            CategoryFeeRuleUpdateStatusDTO::default()
+                .validate()
+                .unwrap_err(),
             MSG_RULE_ID_REQUIRED
         );
         let dto = CategoryFeeRuleUpdateStatusDTO {

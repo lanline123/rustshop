@@ -27,8 +27,7 @@ pub const MSG_PRODUCT_NOT_EXIST: &str = "商品不存在";
 pub const MSG_PRODUCT_TYPE_UNSUPPORTED: &str = "代客下单不支持该商品类型";
 /// `购物车内已有商品不可与此商品同时加入购物车，请分开结算`
 /// （i18n `error.cart.product.conflict`）。
-pub const MSG_CART_CONFLICT: &str =
-    "购物车内已有商品不可与此商品同时加入购物车，请分开结算";
+pub const MSG_CART_CONFLICT: &str = "购物车内已有商品不可与此商品同时加入购物车，请分开结算";
 /// `购物车不存在此商品`（i18n `error.cart.item.not.exist`）。
 pub const MSG_CART_ITEM_NOT_EXIST: &str = "购物车不存在此商品";
 /// `请选择购买数量`（`Assert.notNull(quantity, ...)`）。
@@ -209,6 +208,17 @@ pub struct ProxyCartCountQuery {
 // ——————————————————————————————————————————————
 
 /// 购物车商品行（Java `CartVO` 的 DB 可提供子集）。
+///
+/// ⚠️ 原版 admin 页面 `views/order/proxyShopping/Index.vue` 的「已选商品」表格
+/// 直接读 `row.price` 与 `row.subtotal`：
+/// ```text
+/// 单价：{{ !row.price ? "-" : priceFormat(Number(row.price), false) }}
+/// 小计：{{ !row.subtotal ? "-" : priceFormat(Number(row.subtotal), false) }}
+/// ```
+/// Java `CartVO` 也确实同时返回 `price` / `subtotal`（`buildCartPromotion`
+/// 里 `cart.setPrice(...)` + `cart.setSubtotal(price * quantity)`）。
+/// Rust 早期只返回 `originalPrice`，导致「已选商品」两列恒为 `-`
+/// （2026-10-21 代客下单页显示空的问题之一）。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct CartItemVO {
@@ -222,6 +232,10 @@ pub struct CartItemVO {
     pub pic_thumb: Option<String>,
     pub market_price: Option<Decimal>,
     pub original_price: Decimal,
+    /// 当前单价（Java `CartVO.price`）：本实现取 DB 快照价（价格/活动引擎未迁移）。
+    pub price: Decimal,
+    /// 行小计（Java `CartVO.subtotal` = `price * quantity`）。
+    pub subtotal: Decimal,
     pub product_type: i32,
     pub shop_id: i32,
     pub sku_data: Option<String>,
@@ -342,8 +356,7 @@ mod tests {
             serde_json::from_str(r#"{"userId":3,"data":[{"cartId":1,"isChecked":1}]}"#).unwrap();
         assert_eq!(dto.user_id, Some(3));
         assert_eq!(dto.data.unwrap()[0].is_checked, Some(1));
-        let q: ProxyCartCountQuery =
-            serde_json::from_str(r#"{"shopId":2,"userId":3}"#).unwrap();
+        let q: ProxyCartCountQuery = serde_json::from_str(r#"{"shopId":2,"userId":3}"#).unwrap();
         assert_eq!(q.user_id, Some(3));
     }
 

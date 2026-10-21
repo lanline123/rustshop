@@ -3,7 +3,7 @@
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
-/// 商品分页查询参数，对应原 Java `ProductPageQuery`。
+/// 商品分页查询参数，对应原 Java `ProductPageQuery` / `ProductListDTO`。
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ProductListQuery {
@@ -22,6 +22,16 @@ pub struct ProductListQuery {
     pub page: Option<u64>,
     #[serde(alias = "size")]
     pub page_size: Option<u64>,
+    /// 商品 ID 组，**逗号分隔字符串**（Java `ProductListDTO.ids`）。
+    ///
+    /// 原版前端首页楼层 / 推荐位用 `?ids=322,321,320` 精确指定商品：
+    /// Java 侧同时用它做两件事——
+    /// 1. `queryWrapper.in(Product::getProductId, ids)` **过滤**；
+    /// 2. `ORDER BY FIELD(product_id, ids)` **按给定顺序排序**。
+    ///
+    /// Rust 早期实现缺这个字段，serde 直接丢弃 → 查询退化成「全表按时间倒序」，
+    /// 于是所有楼层显示同一批商品（2026-10-21 首页楼层商品不符的根因）。
+    pub ids: Option<String>,
 }
 
 /// 商品列表 VO（含原 Java `@TableField(exist = false)` 的门店扩展字段）。
@@ -49,4 +59,23 @@ pub struct ProductVO {
     pub store_pic_url: Option<String>,
     pub store_product_status: Option<i32>,
     pub store_product_stock: Option<i32>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 原版前端首页楼层传 `?ids=322,321,320`：必须被解析进 `ids` 字段，
+    /// 否则查询会退化成「全表按时间倒序」→ 所有楼层显示同一批商品。
+    #[test]
+    fn product_list_query_accepts_ids_from_original_frontend() {
+        let q: ProductListQuery =
+            serde_json::from_str(r#"{"ids":"322,321,320","page":1,"size":20}"#).unwrap();
+        assert_eq!(q.ids.as_deref(), Some("322,321,320"));
+        assert_eq!(q.page, Some(1));
+        assert_eq!(q.page_size, Some(20));
+        // 未传 ids 时保持 None（不改变默认语义）
+        let q2: ProductListQuery = serde_json::from_str(r#"{"page":1}"#).unwrap();
+        assert!(q2.ids.is_none());
+    }
 }

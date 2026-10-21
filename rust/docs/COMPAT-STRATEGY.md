@@ -43,13 +43,15 @@ rust/数据库兼容修正.sql
 整数 UNSIGNED  → 有符号整数
 JSON           → TEXT
 DATE           → VARCHAR(10)
+DATETIME       → VARCHAR(19)     ← 2026-10-21 新增
 ```
 
 要求：
 
 - 执行前备份
 - 可重复执行
-- 末尾三个 `remaining_*` 校验值必须为 `0`
+- 末尾的 `remaining_*` 校验值必须为 `0`
+  （`unsigned_integer` / `json` / `date` / `datetime` 四项）
 - `DECIMAL UNSIGNED` 不影响 Rust i32/i64，保持原样
 
 数据库只负责 schema 和数据，不承担以下兼容：
