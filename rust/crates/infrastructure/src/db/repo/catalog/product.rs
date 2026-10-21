@@ -210,6 +210,12 @@ impl ProductRepository {
         sku_id: Option<i32>,
         quantity: i32,
     ) -> Result<bool> {
+        if let Some(p) = self.find_by_id(product_id).await? {
+            if p.is_virtual_product() {
+                // 虚拟/卡密/付费内容/礼品卡不扣库存。
+                return Ok(true);
+            }
+        }
         let affected = match sku_id {
             Some(sku) => {
                 let r = sqlx::query(
@@ -280,6 +286,9 @@ impl ProductRepository {
             if !p.is_on_sale() {
                 return Ok(false);
             }
+            if p.is_virtual_product() {
+                return Ok(true);
+            }
             if let Some(sku) = sku_id {
                 let skus = self.find_skus(product_id).await?;
                 let found = skus.iter().find(|s| s.sku_id == sku);                return Ok(match found {
@@ -333,6 +342,11 @@ impl ProductRepository {
         sku_id: Option<i32>,
         quantity: i32,
     ) -> Result<bool> {
+        if let Some(p) = self.find_by_id(product_id).await? {
+            if p.is_virtual_product() {
+                return Ok(true);
+            }
+        }
         let affected = match sku_id {
             Some(sku) => {
                 sqlx::query(

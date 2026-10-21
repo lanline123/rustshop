@@ -89,12 +89,27 @@ impl SignInSettingListQuery {
     }
 }
 
+/// 兼容原版后台把数字字段作为字符串提交（`"10"`）。
+fn de_opt_i32_lenient<'de, D>(deserializer: D) -> Result<Option<i32>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(match value {
+        Some(serde_json::Value::Number(n)) => n.as_i64().and_then(|v| i32::try_from(v).ok()),
+        Some(serde_json::Value::String(s)) => s.trim().parse::<i32>().ok(),
+        _ => None,
+    })
+}
+
 /// 创建入参（Java `SignInSettingCreateDTO`）。
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SignInSettingCreateDTO {
     pub name: Option<String>,
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub points: Option<i32>,
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub sort_order: Option<i32>,
 }
 
@@ -138,9 +153,12 @@ impl SignInSettingCreateDTO {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SignInSettingUpdateDTO {
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub id: Option<i32>,
     pub name: Option<String>,
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub points: Option<i32>,
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub sort_order: Option<i32>,
 }
 

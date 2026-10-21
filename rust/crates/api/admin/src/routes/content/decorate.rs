@@ -19,6 +19,7 @@
 
 use axum::{
     extract::{Query, State},
+    http::HeaderMap,
     routing::{get, post},
     Json, Router,
 };
@@ -258,8 +259,24 @@ async fn decorate_detail(
 /// `POST /adminapi/decorate/decorate/create`：新建装修页，返回 `{decorateId}`。
 async fn decorate_create(
     State(state): State<AdminState>,
-    Json(dto): Json<DecorateCreateDTO>,
+    headers: HeaderMap,
+    Json(mut dto): Json<DecorateCreateDTO>,
 ) -> ApiResult<serde_json::Value> {
+    // 原版前端“添加页面”不提交 decorateType；根据来源页补默认类型，
+    // 避免在 PC 装修页新建的页面落成 H5（type=1）后从列表消失。
+    if dto.decorate_type.is_none() {
+        let referer = headers
+            .get(axum::http::header::REFERER)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default();
+        dto.decorate_type = if referer.contains("mobile-decorate") {
+            Some(1)
+        } else if referer.contains("pc-decorate") {
+            Some(2)
+        } else {
+            None
+        };
+    }
     let id = state.content.decorate.create(&dto).await?;
     ok(serde_json::json!({ "decorateId": id }))
 }
