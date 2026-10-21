@@ -88,8 +88,11 @@ mysql -h 127.0.0.1 -u root -p 数据库名 < rust/数据库兼容修正.sql
   - 带 `Authorization: Bearer null` 的公共接口 → 200（登录页不再 401）；
   - `/member/login`、`/member/register` 无 401 / 网络错误；
   - `/list/?cat=17` 正常显示商品；`cat=34`（水墨画）数据库本身无商品；
+  - `/list/?cat=17` 价格 `70.00`、`已售 1`，`price/virtualSales` 已返回；
   - `/admin/statistics-order|sale|goods|sale-targets|new-members` 无 JS 异常；
-  - `sendMobileCode` → HTTP 200 + code 1001「短信通道未配置」。
+  - 第二轮审计页（直播/留言/客服/服务费率/客户成交/分销员/代客下单）无 JS 异常；
+  - `sendMobileCode` → HTTP 200 + code 1001「短信通道未配置」；
+  - DB 复核：unsigned/json/date/datetime 剩余均为 0。
 
 ## 6. GitHub 编译
 
