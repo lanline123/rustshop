@@ -148,7 +148,9 @@ pub struct PromotionCreateDTO {
     /// 平台账号创建时指定归属店铺；店铺账号只能落本店（多租户，见
     /// `infrastructure::db::repo::marketing::tenant::TenantScope`）。
     pub shop_id: Option<i32>,
+    #[serde(default, deserialize_with = "crate::models::serde_helpers::deserialize_opt_i32")]
     pub start_time: Option<i32>,
+    #[serde(default, deserialize_with = "crate::models::serde_helpers::deserialize_opt_i32")]
     pub end_time: Option<i32>,
     #[serde(rename = "type")]
     pub r#type: Option<i32>,
@@ -168,7 +170,9 @@ pub struct PromotionCreateDTO {
 pub struct PromotionUpdateDTO {
     pub promotion_id: Option<i32>,
     pub promotion_name: Option<String>,
+    #[serde(default, deserialize_with = "crate::models::serde_helpers::deserialize_opt_i32")]
     pub start_time: Option<i32>,
+    #[serde(default, deserialize_with = "crate::models::serde_helpers::deserialize_opt_i32")]
     pub end_time: Option<i32>,
     #[serde(rename = "type")]
     pub r#type: Option<i32>,

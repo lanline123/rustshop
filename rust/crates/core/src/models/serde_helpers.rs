@@ -18,6 +18,18 @@ where
     Ok(value.map(value_to_string))
 }
 
+pub fn deserialize_opt_i32<'de, D>(deserializer: D) -> Result<Option<i32>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(match value {
+        Some(serde_json::Value::Number(n)) => n.as_i64().and_then(|v| i32::try_from(v).ok()),
+        Some(serde_json::Value::String(s)) => s.trim().parse::<i32>().ok(),
+        _ => None,
+    })
+}
+
 fn value_to_string(value: serde_json::Value) -> String {
     match value {
         serde_json::Value::String(s) => s,

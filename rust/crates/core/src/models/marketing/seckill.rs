@@ -28,7 +28,9 @@ pub struct SeckillItemDTO {
     pub sku_id: Option<i32>,
     pub seckill_price: Option<Decimal>,
     pub seckill_stock: Option<i32>,
+    #[serde(default, deserialize_with = "crate::models::serde_helpers::deserialize_opt_i32")]
     pub seckill_start_time: Option<i32>,
+    #[serde(default, deserialize_with = "crate::models::serde_helpers::deserialize_opt_i32")]
     pub seckill_end_time: Option<i32>,
 }
 
@@ -37,7 +39,9 @@ pub struct SeckillItemDTO {
 #[serde(rename_all = "camelCase", default)]
 pub struct SeckillCreateDTO {
     pub seckill_name: Option<String>,
+    #[serde(default, deserialize_with = "crate::models::serde_helpers::deserialize_opt_i32")]
     pub seckill_start_time: Option<i32>,
+    #[serde(default, deserialize_with = "crate::models::serde_helpers::deserialize_opt_i32")]
     pub seckill_end_time: Option<i32>,
     /// 每人限购数量（0 或空表示不限）
     pub seckill_limit_num: Option<i32>,
