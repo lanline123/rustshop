@@ -295,6 +295,7 @@ pub struct UpdateFieldDTO {
     /// 字段名（必填；驼峰属性名或数据库列名）
     pub field: Option<String>,
     /// 值（必填；按字符串传入，由 MySQL 按列类型转换）
+    #[serde(default, deserialize_with = "crate::models::serde_helpers::deserialize_opt_stringish")]
     pub val: Option<String>,
 }
 

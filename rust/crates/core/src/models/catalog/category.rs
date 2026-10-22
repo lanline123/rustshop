@@ -113,6 +113,7 @@ pub struct UpdateFieldDTO {
     pub field: Option<String>,
     /// 新值（Java 侧为 `String`）
     #[serde(default)]
+    #[serde(deserialize_with = "crate::models::serde_helpers::deserialize_opt_stringish")]
     pub val: Option<String>,
 }
 

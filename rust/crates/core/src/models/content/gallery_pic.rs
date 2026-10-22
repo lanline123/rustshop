@@ -383,6 +383,7 @@ pub struct OperateDTO {
 pub struct UpdateFieldDTO {
     pub id: i32,
     pub field: String,
+    #[serde(deserialize_with = "crate::models::serde_helpers::deserialize_stringish")]
     pub val: String,
 }
 

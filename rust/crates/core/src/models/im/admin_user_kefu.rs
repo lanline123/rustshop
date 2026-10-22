@@ -142,6 +142,7 @@ pub struct KefuUpdateFieldDTO {
     /// 字段名
     pub field: String,
     /// 字段值
+    #[serde(deserialize_with = "crate::models::serde_helpers::deserialize_stringish")]
     pub val: String,
 }
 

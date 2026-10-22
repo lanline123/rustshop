@@ -367,6 +367,7 @@ pub struct OperateDTO {
 pub struct UpdateFieldDTO {
     pub id: Option<i32>,
     pub field: Option<String>,
+    #[serde(default, deserialize_with = "crate::models::serde_helpers::deserialize_opt_stringish")]
     pub val: Option<String>,
 }
 
@@ -375,6 +376,7 @@ pub struct UpdateFieldDTO {
 pub struct WithdrawFieldUpdate {
     pub id: i32,
     pub column: &'static str,
+    #[serde(deserialize_with = "crate::models::serde_helpers::deserialize_stringish")]
     pub val: String,
 }
 

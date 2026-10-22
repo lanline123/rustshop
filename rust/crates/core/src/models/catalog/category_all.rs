@@ -112,6 +112,7 @@ pub struct UpdateFieldDTO {
     #[serde(default)]
     pub field: Option<String>,
     #[serde(default)]
+    #[serde(deserialize_with = "crate::models::serde_helpers::deserialize_opt_stringish")]
     pub val: Option<String>,
 }
 
