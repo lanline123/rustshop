@@ -59,7 +59,7 @@ impl HuifuConfigRepository {
             }
             None => {
                 sqlx::query(
-                    "INSERT INTO config (biz_code, biz_val, create_time, update_time) VALUES (?,?,?,?)",
+                    "INSERT INTO config (biz_code, biz_val, create_time, update_time, is_del) VALUES (?,?,?,?,0)",
                 )
                 .bind(biz_code)
                 .bind(biz_val)
