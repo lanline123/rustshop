@@ -24,9 +24,12 @@ pub struct SeckillListQuery {
 pub struct SeckillItemDTO {
     /// 更新场景下已有明细的主键；新增时为空
     pub rec_id: Option<i32>,
+    #[serde(default, deserialize_with = "crate::models::serde_helpers::deserialize_opt_i32")]
     pub product_id: Option<i32>,
+    #[serde(default, deserialize_with = "crate::models::serde_helpers::deserialize_opt_i32")]
     pub sku_id: Option<i32>,
     pub seckill_price: Option<Decimal>,
+    #[serde(default, deserialize_with = "crate::models::serde_helpers::deserialize_opt_i32")]
     pub seckill_stock: Option<i32>,
     #[serde(default, deserialize_with = "crate::models::serde_helpers::deserialize_opt_i32")]
     pub seckill_start_time: Option<i32>,
@@ -44,8 +47,11 @@ pub struct SeckillCreateDTO {
     #[serde(default, deserialize_with = "crate::models::serde_helpers::deserialize_opt_i32")]
     pub seckill_end_time: Option<i32>,
     /// 每人限购数量（0 或空表示不限）
+    #[serde(default, deserialize_with = "crate::models::serde_helpers::deserialize_opt_i32")]
     pub seckill_limit_num: Option<i32>,
+    #[serde(default, deserialize_with = "crate::models::serde_helpers::deserialize_opt_i32")]
     pub product_id: Option<i32>,
+    #[serde(default, deserialize_with = "crate::models::serde_helpers::deserialize_opt_i32")]
     pub shop_id: Option<i32>,
     #[serde(default)]
     pub seckill_item: Vec<SeckillItemDTO>,
