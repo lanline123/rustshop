@@ -1172,12 +1172,13 @@ impl DecorateService {
 
     /// H5 商城首页装修，对应 `HomeController#index`。
     pub async fn home_index(&self, q: &HomeDecorateQuery) -> Result<DecorateModuleListVO> {
-        if let Some(preview_id) = q.preview_id.filter(|v| *v > 0) {
-            return self
-                .preview_decorate(Some(1), preview_id, None, 1)
-                .await;
-        }
-        self.decorate_module(Some(1), Some(1), true, Some(1)).await
+        let mut vo = if let Some(preview_id) = q.preview_id.filter(|v| *v > 0) {
+            self.preview_decorate(Some(1), preview_id, None, 1).await?
+        } else {
+            self.decorate_module(Some(1), Some(1), true, Some(1)).await?
+        };
+        convert_legacy_h5_modules(&mut vo);
+        Ok(vo)
     }
 
     /// PC 商城首页装修，对应 `HomeController#pcIndex`。
@@ -1557,5 +1558,45 @@ impl DecorateService {
             serde_json::Value::Number(n) => n.as_i64() != Some(0),
             _ => true,
         }
+    }
+}
+
+/// 当前 H5 首页渲染器仍使用旧装修模块类型；后台新类型需要降级转换，
+/// 否则整块被忽略（例如 `mixedNotice` 不会渲染）。
+fn convert_legacy_h5_modules(vo: &mut DecorateModuleListVO) {
+    let Some(modules) = vo.module_list.as_mut() else {
+        return;
+    };
+    for item in modules.iter_mut() {
+        if item.get("type").and_then(serde_json::Value::as_str) != Some("mixedNotice") {
+            continue;
+        }
+        let Some(module) = item.get("module") else {
+            continue;
+        };
+        let mut texts = Vec::new();
+        if let Some(groups) = module.get("noticeGroups").and_then(serde_json::Value::as_array) {
+            for group in groups {
+                for notice in group
+                    .get("notices")
+                    .and_then(serde_json::Value::as_array)
+                    .into_iter()
+                    .flatten()
+                {
+                    let text = notice
+                        .get("picDesc")
+                        .or_else(|| notice.get("picTitle"))
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or_default();
+                    if !text.is_empty() {
+                        texts.push(serde_json::Value::String(text.to_string()));
+                    }
+                }
+            }
+        }
+        let mut new_module = module.clone();
+        new_module["text"] = serde_json::Value::Array(texts);
+        item["type"] = serde_json::Value::String("notice".into());
+        item["module"] = new_module;
     }
 }
