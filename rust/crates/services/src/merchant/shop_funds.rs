@@ -88,6 +88,13 @@ impl ShopFundsService {
     /// # Errors
     /// 数据库失败 → `Error::Database`。
     pub async fn create(&self, dto: &ShopFundsCreateDTO) -> Result<()> {
+        let shop_id = dto
+            .shop_id
+            .filter(|id| *id > 0)
+            .ok_or_else(|| Error::Validation("店铺ID不能为空".into()))?;
+        if self.repo().find_by_id(shop_id).await?.is_some() {
+            return Err(Error::biz(500, "店铺账户已存在"));
+        }
         let id = self.repo().insert_shop_funds(dto).await?;
         tracing::info!("创建店铺资金记录: shop_id={id}");
         Ok(())
