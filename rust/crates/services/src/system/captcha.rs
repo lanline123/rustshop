@@ -17,7 +17,7 @@ use aes::cipher::generic_array::GenericArray;
 use aes::cipher::{BlockDecrypt, KeyInit};
 use aes::Aes128;
 use base64::Engine;
-use image::{Rgba, RgbaImage};
+use image::{GenericImage, Rgba, RgbaImage};
 use tigshop_core::models::member::captcha_api::CaptchaVO;
 use tigshop_core::{Error, Result};
 
@@ -104,70 +104,88 @@ fn random_secret(rng: &mut Rng) -> String {
     key
 }
 
-/// 生成一张滑块验证码（背景图 + 拼图块）。
+/// 内置验证码背景图（真实照片，避免纯渐变看起来像样式损坏）。
+static CAPTCHA_BACKGROUND: OnceLock<image::DynamicImage> = OnceLock::new();
+
+/// 拼图形状：圆角方块 + 顶部凸起 + 右侧缺口，接近参考图的拼图块。
+fn piece_contains(px: u32, py: u32) -> bool {
+    let x = px as i32 - (PIECE_SIZE as i32 / 2);
+    let y = py as i32 - (PIECE_SIZE as i32 / 2);
+    let corner = 7_i32;
+    let in_rounded_square = x.abs() <= 17
+        && y.abs() <= 17
+        && !(x.abs() > 17 - corner && y.abs() > 17 - corner
+            && (x.abs() - (17 - corner)).pow(2) + (y.abs() - (17 - corner)).pow(2)
+                > corner * corner);
+    let top_tab = x * x + (y + 17) * (y + 17) <= 36;
+    let right_notch = (x - 17) * (x - 17) + y * y < 25;
+    (in_rounded_square || top_tab) && !right_notch
+}
+
+/// 生成一张滑块验证码（真实照片背景 + 拼图块）。
 pub fn new_captcha() -> Result<CaptchaVO> {
     let mut rng = Rng::new();
 
-    // 背景：渐变 + 噪点，避免纯色让拼图块过于显眼
-    let mut bg = RgbaImage::new(BG_W, BG_H);
-    let base_r = 60 + rng.range(0, 120) as u8;
-    let base_g = 80 + rng.range(0, 100) as u8;
-    let base_b = 120 + rng.range(0, 100) as u8;
-    for y in 0..BG_H {
-        for x in 0..BG_W {
-            let t = (x as f64 / BG_W as f64 * 120.0) as u8;
-            let noise = rng.range(0, 24) as u8;
-            bg.put_pixel(
-                x,
-                y,
-                Rgba([
-                    base_r.saturating_add(t / 2).saturating_add(noise),
-                    base_g.saturating_add(t / 3).saturating_add(noise / 2),
-                    base_b.saturating_sub(t / 2).saturating_add(noise / 3),
-                    255,
-                ]),
-            );
-        }
-    }
+    let source = CAPTCHA_BACKGROUND.get_or_init(|| {
+        image::load_from_memory(include_bytes!("captcha_bg.jpg"))
+            .unwrap_or_else(|_| image::DynamicImage::new_rgb8(BG_W, BG_H))
+    });
+    let original = source
+        .resize_to_fill(BG_W, BG_H, image::imageops::FilterType::Triangle)
+        .to_rgba8();
+    let mut bg = original.clone();
 
     let piece_x = rng.range(80, BG_W - PIECE_SIZE - 20);
     let piece_y = rng.range(20, BG_H - PIECE_SIZE - 20);
 
-    // 拼图块：透明条（宽=47、高=155），把背景对应区域复制到顶部 y 偏移处
+    // 拼图块：透明画布高 155，把照片中对应区域复制到真实 y 位置。
     let mut jigsaw = RgbaImage::new(PIECE_SIZE, BG_H);
     for py in 0..PIECE_SIZE {
         for px in 0..PIECE_SIZE {
-            let rgb = *bg.get_pixel(piece_x + px, piece_y + py);
-            // 圆角蒙版（半径 6）让拼图块更像滑块形状
-            let corner = 6_i32;
-            let (dx, dy) = if px < corner as u32 && py < corner as u32 {
-                (corner - px as i32, corner - py as i32)
-            } else if px >= PIECE_SIZE - corner as u32 && py < corner as u32 {
-                (px as i32 - (PIECE_SIZE - corner as u32 - 1) as i32, corner - py as i32)
-            } else if px < corner as u32 && py >= PIECE_SIZE - corner as u32 {
-                (corner - px as i32, py as i32 - (PIECE_SIZE - corner as u32 - 1) as i32)
-            } else if px >= PIECE_SIZE - corner as u32 && py >= PIECE_SIZE - corner as u32 {
-                (
-                    px as i32 - (PIECE_SIZE - corner as u32 - 1) as i32,
-                    py as i32 - (PIECE_SIZE - corner as u32 - 1) as i32,
-                )
-            } else {
-                (0, 0)
-            };
-            if dx * dx + dy * dy as i32 > corner * corner {
+            if !piece_contains(px, py) {
                 continue;
             }
-            jigsaw.put_pixel(px, py, rgb);
+            jigsaw.put_pixel(px, piece_y + py, *original.get_pixel(piece_x + px, piece_y + py));
+        }
+    }
+    // 拼图块白边，增强可见性
+    for py in 0..PIECE_SIZE {
+        for px in 0..PIECE_SIZE {
+            if !piece_contains(px, py) {
+                continue;
+            }
+            let edge = !piece_contains(px.saturating_sub(1), py)
+                || !piece_contains((px + 1).min(PIECE_SIZE - 1), py)
+                || !piece_contains(px, py.saturating_sub(1))
+                || !piece_contains(px, (py + 1).min(PIECE_SIZE - 1));
+            if edge {
+                jigsaw.put_pixel(px, piece_y + py, Rgba([255, 255, 255, 230]));
+            }
         }
     }
 
-    // 背景上画出拼图缺口轮廓
-    for i in 0..PIECE_SIZE {
-        let border = Rgba([255, 255, 255, 200]);
-        bg.put_pixel(piece_x + i, piece_y, border);
-        bg.put_pixel(piece_x + i, piece_y + PIECE_SIZE - 1, border);
-        bg.put_pixel(piece_x, piece_y + i, border);
-        bg.put_pixel(piece_x + PIECE_SIZE - 1, piece_y + i, border);
+    // 背景缺口：压暗 + 白色描边，和参考图一致
+    for py in 0..PIECE_SIZE {
+        for px in 0..PIECE_SIZE {
+            let gx = piece_x + px;
+            let gy = piece_y + py;
+            if piece_contains(px, py) {
+                let p = bg.get_pixel_mut(gx, gy);
+                *p = Rgba([
+                    (u16::from(p[0]) * 45 / 100) as u8,
+                    (u16::from(p[1]) * 45 / 100) as u8,
+                    (u16::from(p[2]) * 45 / 100) as u8,
+                    255,
+                ]);
+                let edge = !piece_contains(px.saturating_sub(1), py)
+                    || !piece_contains((px + 1).min(PIECE_SIZE - 1), py)
+                    || !piece_contains(px, py.saturating_sub(1))
+                    || !piece_contains(px, (py + 1).min(PIECE_SIZE - 1));
+                if edge {
+                    bg.put_pixel(gx, gy, Rgba([255, 255, 255, 235]));
+                }
+            }
+        }
     }
 
     let token = uuid::Uuid::new_v4().to_string();
