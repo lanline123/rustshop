@@ -8,7 +8,6 @@ pub mod config_basic;
 pub mod config_client;
 pub mod example;
 pub mod files;
-pub mod licensed;
 pub mod log;
 pub mod mail_templates;
 pub mod message_type;
