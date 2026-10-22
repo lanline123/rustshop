@@ -1229,15 +1229,24 @@ fn to_vo(o: &Order, items: &[OrderItem]) -> OrderVO {
                 "productName": it.product_name,
                 "productSn": it.product_sn,
                 "picThumb": it.pic_thumb,
+                "productImage": it.pic_thumb,
                 "quantity": it.quantity,
                 "price": it.price,
+                "subtotal": it.price * Decimal::from(it.quantity),
                 "productType": it.product_type,
                 "shopId": it.shop_id,
                 "skuId": it.sku_id,
                 "skuData": serde_json::from_str::<serde_json::Value>(&it.sku_data)
                     .unwrap_or(serde_json::Value::Array(Vec::new())),
+                "extraSkuData": it
+                    .extra_sku_data
+                    .as_deref()
+                    .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok())
+                    .unwrap_or(serde_json::Value::Array(Vec::new())),
                 "seoLink": serde_json::Value::Null,
                 "aftersalesItem": serde_json::Value::Null,
+                "aftersalesNumber": 0,
+                "eCard": serde_json::Value::Array(Vec::new()),
                 "isGift": it.is_gift,
             })
         })
@@ -1254,6 +1263,29 @@ fn to_vo(o: &Order, items: &[OrderItem]) -> OrderVO {
         "rebuy": true,
         "toComment": to_comment,
     });
+    let pay_status_name = match o.pay_status {
+        0 => "未支付",
+        1 => "支付中",
+        2 => "已支付",
+        3 => "退款中",
+        4 => "已退款",
+        _ => "未知状态",
+    }
+    .to_string();
+    let shipping_status_name = match o.shipping_status {
+        0 => "未发货",
+        1 => "部分发货",
+        2 => "已发货",
+        3 => "已收货",
+        _ => "未知状态",
+    }
+    .to_string();
+    let user_address = {
+        let regions = serde_json::from_str::<Vec<String>>(&o.region_names)
+            .map(|v| v.join(""))
+            .unwrap_or_else(|_| o.region_names.clone());
+        format!("{regions}{}", o.address)
+    };
     OrderVO {
         order_id: o.order_id,
         order_sn: o.order_sn.clone(),
@@ -1274,8 +1306,8 @@ fn to_vo(o: &Order, items: &[OrderItem]) -> OrderVO {
         cancel_remark: o.cancel_remark.clone(),
         order_type: o.order_type,
         parent_order_sn: o.parent_order_sn.clone(),
-        is_card_order: false,
-        is_cycle_order: false,
+        is_card_order: o.is_card_order != 0,
+        is_cycle_order: o.is_cycle_order != 0,
         is_pickup: matches!(o.shipping_method, 2),
         presale_info: None,
         order_source: Some(o.order_source.clone()),
@@ -1286,6 +1318,30 @@ fn to_vo(o: &Order, items: &[OrderItem]) -> OrderVO {
             .and_then(|s| serde_json::from_str(s).ok()),
         balance: o.balance,
         shipping_fee: o.shipping_fee,
+        pay_status_name,
+        shipping_status_name,
+        pay_end_time: None,
+        shipping_type_name: o.shipping_type_name.clone(),
+        tracking_no: o.tracking_no.clone(),
+        logistics_name: o.logistics_name.clone(),
+        user_address,
+        pay_type_id: o.pay_type_id,
+        product_amount: o.product_amount,
+        coupon_amount: o.coupon_amount,
+        points_amount: o.points_amount,
+        discount_amount: o.discount_amount,
+        service_fee: o.service_fee,
+        unpaid_amount: o.unpaid_amount,
+        is_presale: o.is_presale != 0,
+        auto_delivery_days: None,
+        join_status: None,
+        join_status_desc: None,
+        after_sales_ing: false,
+        pickup_detail: None,
+        delivery_order_info: None,
+        order_reservation: None,
+        is_reservation_home: false,
+        shop: None,
     }
 }
 
