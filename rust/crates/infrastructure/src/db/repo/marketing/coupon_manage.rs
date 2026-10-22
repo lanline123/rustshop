@@ -329,7 +329,7 @@ impl CouponManageRepository {
         let res = sqlx::query(
             "INSERT INTO promotion
                (promotion_name, start_time, end_time, type, shop_id, relation_id,
-                range, range_data, is_available, member_range, member_marks, member_scope)
+                `range`, range_data, is_available, member_range, member_marks, member_scope)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&row.promotion_name)

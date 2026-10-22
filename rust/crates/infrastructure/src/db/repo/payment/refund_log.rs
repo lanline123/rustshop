@@ -238,7 +238,7 @@ impl RefundLogRepository {
     /// 新增（Java `save`；`add_time` 由服务层覆盖为当前秒）。
     pub async fn insert(&self, entity: &RefundLog) -> Result<i32> {
         let sql = format!(
-            "INSERT INTO refund_log ({}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO refund_log ({}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             REFUND_LOG_COLUMNS[1..].join(", ")
         );
         let res = sqlx::query(&sql)

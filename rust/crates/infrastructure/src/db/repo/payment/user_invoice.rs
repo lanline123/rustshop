@@ -180,7 +180,7 @@ impl UserInvoiceRepository {
     /// 新增（Java `save`；`add_time` 由服务层覆盖为当前秒）。
     pub async fn insert(&self, entity: &UserInvoice) -> Result<i32> {
         let sql = format!(
-            "INSERT INTO user_invoice ({}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO user_invoice ({}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             USER_INVOICE_COLUMNS[1..].join(", ")
         );
         let res = sqlx::query(&sql)
