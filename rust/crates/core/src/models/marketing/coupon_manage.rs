@@ -248,11 +248,15 @@ pub struct CouponDTO {
     pub send_range: Option<i32>,
     pub send_range_data: Option<Vec<i32>>,
     pub min_order_amount: Option<Decimal>,
+    #[serde(default, deserialize_with = "deserialize_opt_date")]
     pub send_start_date: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_opt_date")]
     pub send_end_date: Option<String>,
     pub send_type: Option<i32>,
     pub use_day: Option<i32>,
+    #[serde(default, deserialize_with = "deserialize_opt_date")]
     pub use_start_date: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_opt_date")]
     pub use_end_date: Option<String>,
     pub is_show: Option<i32>,
     pub is_global: Option<i32>,
@@ -266,6 +270,7 @@ pub struct CouponDTO {
     pub max_order_amount: Option<Decimal>,
     pub coupon_unit: Option<i32>,
     pub reduce_type: Option<i32>,
+    #[serde(default, deserialize_with = "deserialize_opt_date")]
     pub add_time: Option<String>,
     pub member_range: Option<i32>,
     pub member_marks: Option<Vec<i32>>,
@@ -273,6 +278,20 @@ pub struct CouponDTO {
     pub member_audience: Option<serde_json::Value>,
     /// 参与人群（优先生效）
     pub send_user_target: Option<serde_json::Value>,
+}
+
+fn deserialize_opt_date<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(match value {
+        None | Some(serde_json::Value::Null) => None,
+        Some(serde_json::Value::String(s)) => Some(s),
+        Some(serde_json::Value::Number(n)) => Some(n.to_string()),
+        Some(serde_json::Value::Bool(b)) => Some((if b { "1" } else { "0" }).to_string()),
+        Some(other) => Some(other.to_string()),
+    })
 }
 
 /// 更新字段（Java `UpdateFieldDTO`，三字段均 `@NotNull`）。
