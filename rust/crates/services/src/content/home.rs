@@ -223,8 +223,11 @@ impl HomeService {
 
     /// `GET /api/home/home/h5Member`：H5 个人中心装修。
     pub async fn h5_member(&self, q: &DecoratePreviewQuery) -> Result<DecorateModuleListVO> {
-        self.decorate_module(DECORATE_TYPE_H5, PAGE_MEMBER, q.preview_id)
-            .await
+        let mut vo = self
+            .decorate_module(DECORATE_TYPE_H5, PAGE_MEMBER, q.preview_id)
+            .await?;
+        normalize_member_account_module(&mut vo);
+        Ok(vo)
     }
 
     /// `GET /api/home/home/h5Search`：移动端搜索页装修。
@@ -476,6 +479,57 @@ fn cfg_int(map: &std::collections::HashMap<String, Option<String>>, key: &str) -
     map.get(key)
         .and_then(|v| v.as_deref())
         .and_then(|v| v.trim().parse::<i32>().ok())
+}
+
+/// 当前 H5 包没有 `account` 组件，把账号装修模块降级为 `myService` 列表，
+/// 避免后台已配置“账号”但个人中心整块不渲染。
+fn normalize_member_account_module(vo: &mut DecorateModuleListVO) {
+    let Some(modules) = vo.module_list.as_mut() else {
+        return;
+    };
+    for item in modules.iter_mut() {
+        if item.get("type").and_then(Value::as_str) != Some("account") {
+            continue;
+        }
+        let Some(module) = item.get("module") else {
+            continue;
+        };
+        let account_list = module
+            .get("accountList")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let service_list: Vec<Value> = account_list
+            .into_iter()
+            .map(|mut entry| {
+                let title = entry
+                    .get("picTitle")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                let link = match title {
+                    "账号详情" => "/pages/user/account/index",
+                    "国家/地区和语言" => "/pages/user/language/index",
+                    "地址" => "/pages/address/list",
+                    "设置" => "/pages/user/setting/index",
+                    _ => "/pages/user/account/index",
+                };
+                entry["picLink"] = Value::String(link.to_string());
+                entry
+            })
+            .collect();
+        let title = module
+            .get("moduleTitle")
+            .cloned()
+            .unwrap_or_else(|| Value::String("账号信息".into()));
+        item["type"] = Value::String("myService".into());
+        item["label"] = Value::String("账号".into());
+        item["module"] = json!({
+            "moduleTitle": title,
+            "serviceList": service_list,
+            "layoutStyle": 1,
+            "iconRadius": 0,
+        });
+    }
 }
 
 #[cfg(test)]
