@@ -163,10 +163,11 @@ impl ShopFundsRepository {
         dto: &tigshop_core::models::merchant::shop_funds::ShopFundsCreateDTO,
     ) -> Result<i32> {
         let now = tigshop_common::utils::now_seconds() as i32;
-        let sql = "INSERT INTO shop (shop_title, shop_logo, status, merchant_id, shop_money, \
+        let sql = "INSERT INTO shop (shop_id, shop_title, shop_logo, status, merchant_id, shop_money, \
                    frozen_money, contact_mobile, description, add_time) \
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         let res = sqlx::query(sql)
+            .bind(dto.shop_id.unwrap_or(0))
             .bind(dto.shop_title.as_deref().unwrap_or(""))
             .bind(dto.shop_logo.as_deref().unwrap_or(""))
             .bind(dto.status.unwrap_or(0))
