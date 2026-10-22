@@ -151,7 +151,7 @@ impl PayService {
                 }
                 order_sn = order.order_sn.clone();
                 let mut vo = to_order_vo(&order);
-                if let Some(user) = self.repos.member.user.find(user_id).await? {
+                if let Some(user) = self.repos.member.user.find_by_id(user_id).await? {
                     vo.balance_amount = user.available_balance();
                 }
                 order_vo = Some(vo);
