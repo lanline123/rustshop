@@ -1595,7 +1595,26 @@ fn convert_legacy_h5_modules(vo: &mut DecorateModuleListVO) {
             }
         }
         let mut new_module = module.clone();
-        new_module["text"] = serde_json::Value::Array(texts);
+        let text_value = texts
+            .iter()
+            .filter_map(serde_json::Value::as_str)
+            .collect::<Vec<_>>()
+            .join("  ");
+        new_module["text"] = serde_json::Value::String(text_value);
+        // H5 notice 组件会直接读取 icoPic / frame / nociceEffect，缺任一都会渲染失败。
+        new_module["icoPic"] = serde_json::json!({ "picUrl": "", "picThumb": "" });
+        new_module["frame"] = serde_json::json!({
+            "backgroundColor": "transparent",
+            "boxPadding": 0,
+            "boxPaddingTop": 8,
+            "boxPaddingBottom": 8,
+            "boxRadius": 0,
+            "itemBackgroundColor": "",
+            "itemRadius": 0,
+            "itemHeight": 35,
+            "textColor": "#333333",
+        });
+        new_module["nociceEffect"] = serde_json::Value::String("still".into());
         item["type"] = serde_json::Value::String("notice".into());
         item["module"] = new_module;
     }
