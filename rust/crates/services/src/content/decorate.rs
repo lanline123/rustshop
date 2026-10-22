@@ -1568,54 +1568,93 @@ fn convert_legacy_h5_modules(vo: &mut DecorateModuleListVO) {
         return;
     };
     for item in modules.iter_mut() {
-        if item.get("type").and_then(serde_json::Value::as_str) != Some("mixedNotice") {
-            continue;
-        }
-        let Some(module) = item.get("module") else {
+        let Some(kind) = item.get("type").and_then(serde_json::Value::as_str) else {
             continue;
         };
-        let mut texts = Vec::new();
-        if let Some(groups) = module.get("noticeGroups").and_then(serde_json::Value::as_array) {
-            for group in groups {
-                for notice in group
-                    .get("notices")
-                    .and_then(serde_json::Value::as_array)
-                    .into_iter()
-                    .flatten()
-                {
-                    let text = notice
-                        .get("picDesc")
-                        .or_else(|| notice.get("picTitle"))
-                        .and_then(serde_json::Value::as_str)
-                        .unwrap_or_default();
-                    if !text.is_empty() {
-                        texts.push(serde_json::Value::String(text.to_string()));
+        match kind {
+            "mixedNotice" => {
+                let Some(module) = item.get("module") else {
+                    continue;
+                };
+                let mut texts = Vec::new();
+                if let Some(groups) = module.get("noticeGroups").and_then(serde_json::Value::as_array) {
+                    for group in groups {
+                        for notice in group
+                            .get("notices")
+                            .and_then(serde_json::Value::as_array)
+                            .into_iter()
+                            .flatten()
+                        {
+                            let text = notice
+                                .get("picDesc")
+                                .or_else(|| notice.get("picTitle"))
+                                .and_then(serde_json::Value::as_str)
+                                .unwrap_or_default();
+                            if !text.is_empty() {
+                                texts.push(serde_json::Value::String(text.to_string()));
+                            }
+                        }
                     }
                 }
+                let mut new_module = module.clone();
+                let text_value = texts
+                    .iter()
+                    .filter_map(serde_json::Value::as_str)
+                    .collect::<Vec<_>>()
+                    .join("  ");
+                new_module["text"] = serde_json::Value::String(text_value);
+                // H5 notice 组件会直接读取 icoPic / frame / nociceEffect，缺任一都会渲染失败。
+                new_module["icoPic"] = serde_json::json!({ "picUrl": "", "picThumb": "" });
+                new_module["frame"] = serde_json::json!({
+                    "backgroundColor": "transparent",
+                    "boxPadding": 0,
+                    "boxPaddingTop": 8,
+                    "boxPaddingBottom": 8,
+                    "boxRadius": 0,
+                    "itemBackgroundColor": "",
+                    "itemRadius": 0,
+                    "itemHeight": 35,
+                    "textColor": "#333333",
+                });
+                new_module["nociceEffect"] = serde_json::Value::String("still".into());
+                item["type"] = serde_json::Value::String("notice".into());
+                item["module"] = new_module;
             }
+            // 新版装修类型 → H5 仍只识别的旧类型
+            "searchBar2" => item["type"] = serde_json::Value::String("searchBar".into()),
+            "imageAd2" => item["type"] = serde_json::Value::String("imageAd".into()),
+            "seckill2" => {
+                if let Some(module) = item.get_mut("module") {
+                    if module.get("title").is_none() {
+                        module["title"] = serde_json::json!({ "title": "限时秒杀" });
+                    }
+                }
+                item["type"] = serde_json::Value::String("seckill".into());
+            }
+            "product2" => {
+                if let Some(module) = item.get_mut("module") {
+                    if module.get("title").is_none() {
+                        module["title"] = serde_json::json!({ "title": "商品推荐" });
+                    }
+                    if module.get("frame").is_none() {
+                        module["frame"] = serde_json::json!({
+                            "backgroundColor": "",
+                            "boxPadding": 0,
+                            "boxPaddingTop": 8,
+                            "boxPaddingBottom": 8,
+                            "boxRadius": 0,
+                            "innerPadding": 0,
+                            "itemBackgroundColor": "",
+                            "itemHeight": 35,
+                            "itemRadius": 3,
+                            "leftAndRightPadding": 0,
+                            "textColor": "",
+                        });
+                    }
+                }
+                item["type"] = serde_json::Value::String("product".into());
+            }
+            _ => {}
         }
-        let mut new_module = module.clone();
-        let text_value = texts
-            .iter()
-            .filter_map(serde_json::Value::as_str)
-            .collect::<Vec<_>>()
-            .join("  ");
-        new_module["text"] = serde_json::Value::String(text_value);
-        // H5 notice 组件会直接读取 icoPic / frame / nociceEffect，缺任一都会渲染失败。
-        new_module["icoPic"] = serde_json::json!({ "picUrl": "", "picThumb": "" });
-        new_module["frame"] = serde_json::json!({
-            "backgroundColor": "transparent",
-            "boxPadding": 0,
-            "boxPaddingTop": 8,
-            "boxPaddingBottom": 8,
-            "boxRadius": 0,
-            "itemBackgroundColor": "",
-            "itemRadius": 0,
-            "itemHeight": 35,
-            "textColor": "#333333",
-        });
-        new_module["nociceEffect"] = serde_json::Value::String("still".into());
-        item["type"] = serde_json::Value::String("notice".into());
-        item["module"] = new_module;
     }
 }
