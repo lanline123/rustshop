@@ -22,14 +22,11 @@ pub struct ShippingTplListQuery {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ShippingTplVO {
-    /// 库列 `shipping_tpl_id`，前端字段 `tplId`
-    #[serde(rename = "tplId")]
+    /// 库列 `shipping_tpl_id`，前端字段 `shippingTplId`
     pub shipping_tpl_id: i32,
-    /// 库列 `shipping_tpl_name`，前端字段 `tplName`
-    #[serde(rename = "tplName")]
+    /// 库列 `shipping_tpl_name`，前端字段 `shippingTplName`
     pub shipping_tpl_name: String,
-    /// 库列 `pricing_type`（1 按件 2 按重量），前端字段 `calcType`
-    #[serde(rename = "calcType")]
+    /// 库列 `pricing_type`（1 按件 2 按重量），前端字段 `pricingType`
     pub pricing_type: i32,
     /// 库列 `shipping_time`（配送时间说明）
     pub shipping_time: String,
@@ -67,9 +64,9 @@ mod tests {
             ..Default::default()
         };
         let v = serde_json::to_value(ShippingTplVO::from(&t)).unwrap();
-        // 结构体字段对齐库列，但对外 JSON 仍是原前端字段名
-        assert_eq!(v["tplId"], 7);
-        assert_eq!(v["tplName"], "默认模板");
-        assert_eq!(v["calcType"], 2);
+        // 与当前后台前端字段名一致
+        assert_eq!(v["shippingTplId"], 7);
+        assert_eq!(v["shippingTplName"], "默认模板");
+        assert_eq!(v["pricingType"], 2);
     }
 }
