@@ -196,6 +196,7 @@ pub struct UpdateFieldDTO {
     /// 字段名（驼峰或下划线）
     pub field: Option<String>,
     /// 值
+    #[serde(default, deserialize_with = "crate::models::serde_helpers::deserialize_opt_stringish")]
     pub val: Option<String>,
 }
 

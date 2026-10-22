@@ -199,6 +199,7 @@ pub struct UpdateFieldDTO {
     /// 字段名（属性名或列名）
     pub field: String,
     /// 值（Java 为 `String`，由 MySQL 隐式转换到目标列类型）
+    #[serde(deserialize_with = "crate::models::serde_helpers::deserialize_stringish")]
     pub val: String,
 }
 

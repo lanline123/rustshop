@@ -397,6 +397,7 @@ pub struct UpdateFieldDTO {
     /// 字段名（属性名或列名皆可）。
     pub field: Option<String>,
     /// 字段值。
+    #[serde(default, deserialize_with = "crate::models::serde_helpers::deserialize_opt_stringish")]
     pub val: Option<String>,
 }
 

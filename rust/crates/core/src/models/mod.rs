@@ -51,6 +51,7 @@ pub mod trade;
 pub mod payment;
 pub mod marketing;
 pub mod member;
+pub mod serde_helpers;
 pub mod logistics;
 pub mod content;
 pub mod system;
