@@ -170,7 +170,7 @@ impl DecorateService {
             shop_id: media_write_shop_id(dto.shop_id)?,
             status: Some(dto.status.unwrap_or(0)),
             update_time: Some(now_seconds() as i32),
-            locale_id: dto.locale_id,
+            locale_id: Some(dto.locale_id.unwrap_or(0)),
             parent_id: Some(dto.parent_id.unwrap_or(0)),
             sort_order: dto.sort_order,
             ..Decorate::default()
