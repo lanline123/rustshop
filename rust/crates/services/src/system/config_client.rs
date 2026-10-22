@@ -85,7 +85,8 @@ use tigshop_core::models::system::config_client::{
     BIZ_SHOP_ICP_NO, BIZ_SHOP_LOGO, BIZ_SHOP_NAME, BIZ_SHOP_KEYWORDS, BIZ_SHOP_TITLE,
     BIZ_SHOP_TITLE_SUFFIX, BIZ_SHOP_DESC, BIZ_SHOW_TEMPLATE_CONTENT, BIZ_STORAGE_TYPE,
     BIZ_TEMPLATE_CONTENT, BIZ_THEME_STYLE, BIZ_CAN_INVOICE, BIZ_INVOICE_ADDED, BIZ_USE_SURPLUS,
-    BIZ_USE_POINTS, BIZ_USE_COUPON,
+    BIZ_USE_POINTS, BIZ_USE_COUPON, BIZ_AUTO_REDIRECT, BIZ_H5_DOMAIN, BIZ_PC_DOMAIN,
+    BIZ_ADMIN_DOMAIN, DEFAULT_AUTO_REDIRECT,
     DEFAULT_HEADER_STYLE, MOBILE_SEARCH_STYLE_DEFAULT_RAW,
 };
 use tigshop_core::{Error, Result};
@@ -555,6 +556,11 @@ pub fn assemble_init_config_settings(configs: &ConfigIndex) -> InitConfigSetting
     vo.use_coupon = get_int(configs, BIZ_USE_COUPON);
     vo.show_selled_count = get_int(configs, "showSelledCount");
     vo.show_marketprice = get_int(configs, "showMarketprice");
+    // 域名与移动端自动跳转：PC 首页初始化配置依赖这几个字段决定是否跳 H5。
+    vo.auto_redirect = Some(get_int(configs, BIZ_AUTO_REDIRECT).unwrap_or(DEFAULT_AUTO_REDIRECT));
+    vo.h5_domain = get_str(configs, BIZ_H5_DOMAIN);
+    vo.pc_domain = get_str(configs, BIZ_PC_DOMAIN);
+    vo.admin_domain = get_str(configs, BIZ_ADMIN_DOMAIN);
     // ⚠️ `themeStyle` 在 `InitConfigSettingsVO` 里**没有**对应字段
     // （它只出现在 `ThemeSettingsVO` 与 `getBase` 的 Map 里），
     // 故此处不写入 VO。翻译切面（Java 的 `@JsonTranslate`）未迁移，
