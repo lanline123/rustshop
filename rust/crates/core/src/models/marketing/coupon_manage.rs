@@ -276,12 +276,30 @@ pub struct CouponDTO {
 }
 
 /// 更新字段（Java `UpdateFieldDTO`，三字段均 `@NotNull`）。
+///
+/// 后台开关组件可能把 `val` 传成 boolean/number（如公开显示开关），
+/// 这里统一接受并转成列值字符串，避免直接 422。
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateFieldDTO {
     pub id: i32,
     pub field: String,
+    #[serde(deserialize_with = "deserialize_field_val")]
     pub val: String,
+}
+
+fn deserialize_field_val<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(match value {
+        serde_json::Value::String(s) => s,
+        serde_json::Value::Bool(b) => (if b { "1" } else { "0" }).to_string(),
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::Null => String::new(),
+        other => other.to_string(),
+    })
 }
 
 /// 批量操作（Java `BatchDTO`）。
