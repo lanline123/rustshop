@@ -514,13 +514,11 @@ async fn order_detail(
     Extension(auth): Extension<AuthUser>,
     Query(q): Query<IdQuery>,
 ) -> ApiResult<serde_json::Value> {
-    let (vo, items) = state.trade.order.detail(q.id, Some(auth.id)).await?;
+    let (vo, _items) = state.trade.order.detail(q.id, Some(auth.id)).await?;
     // 原版 `OrderDetailVO` 是「订单字段平铺 + items」，不是 { order, items }。
-    let mut value = serde_json::to_value(vo)
+    // `OrderVO.items` 已经是前端需要的 camelCase 结构，不要再覆盖成数据库实体。
+    let value = serde_json::to_value(vo)
         .map_err(|e| AppError(tigshop_core::Error::Internal(format!("订单详情序列化失败: {e}"))))?;
-    if let Some(map) = value.as_object_mut() {
-        map.insert("items".to_string(), serde_json::json!(items));
-    }
     ok(value)
 }
 
