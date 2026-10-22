@@ -91,8 +91,9 @@ pub struct DecorateListQuery {
     pub sort_field: Option<String>,
     pub sort_order: Option<String>,
     pub page: Option<u64>,
+    /// 前端“装修页面”选择器会传 `size=-1` 表示取全部，故用 i64 接收。
     #[serde(alias = "size")]
-    pub page_size: Option<u64>,
+    pub page_size: Option<i64>,
 }
 
 impl DecorateListQuery {
@@ -118,8 +119,12 @@ impl DecorateListQuery {
     #[must_use]
     pub fn page_query(&self) -> PageQuery {
         PageQuery {
-            page: self.page.unwrap_or(1),
-            page_size: self.page_size.unwrap_or(20),
+            page: self.page.unwrap_or(1).max(1),
+            // size=-1（选择链接“装修页面”tab）表示取全部
+            page_size: match self.page_size {
+                Some(v) if v > 0 => u64::try_from(v).unwrap_or(20),
+                _ => 200,
+            },
         }
     }
 }
