@@ -53,6 +53,15 @@ pub struct ArticleVO {
     pub is_show: Option<i32>,
 }
 
+/// 文章详情页数据（原版 `issueInfo` 返回 `{ item, prev, next }`）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ArticleIssueInfoVO {
+    pub item: ArticleVO,
+    pub prev: Option<ArticleBriefVO>,
+    pub next: Option<ArticleBriefVO>,
+}
+
 /// 文章摘要（分类下文章列表）。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]

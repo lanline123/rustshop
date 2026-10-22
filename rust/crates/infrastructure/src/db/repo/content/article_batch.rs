@@ -1,4 +1,4 @@
-﻿//! 文章批量操作/前台文章域仓储（content::article_batch）。
+//! 文章批量操作/前台文章域仓储（content::article_batch）。
 //!
 //! 表：`article` / `article_category`；查询使用运行时 `sqlx::query_as`。
 
@@ -84,6 +84,35 @@ impl ArticleBatchRepository {
         }
     }
 
+    /// 同分类上一篇 / 下一篇（按 article_id 顺序）。
+    pub async fn find_adjacent_articles(
+        &self,
+        article_id: i32,
+        category_id: i32,
+    ) -> Result<(Option<ArticleBriefVO>, Option<ArticleBriefVO>)> {
+        let prev: Option<(i32, String, String, String)> = sqlx::query_as(
+            "SELECT article_id, article_title, article_thumb, article_sn FROM article
+             WHERE article_category_id = ? AND article_id < ? AND is_show = 1
+             ORDER BY article_id DESC LIMIT 1",
+        )
+        .bind(category_id)
+        .bind(article_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        let next: Option<(i32, String, String, String)> = sqlx::query_as(
+            "SELECT article_id, article_title, article_thumb, article_sn FROM article
+             WHERE article_category_id = ? AND article_id > ? AND is_show = 1
+             ORDER BY article_id ASC LIMIT 1",
+        )
+        .bind(category_id)
+        .bind(article_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok((prev.map(brief_from_row), next.map(brief_from_row)))
+    }
+
     /// 全部分类（按 sort_order 升序）。
     pub async fn list_categories(&self) -> Result<Vec<(i32, String, String, i32)>> {
         let rows: Vec<(i32, String, String, i32)> = sqlx::query_as(
@@ -139,6 +168,15 @@ impl ArticleBatchRepository {
             });
         }
         Ok(result)
+    }
+}
+
+fn brief_from_row(row: (i32, String, String, String)) -> ArticleBriefVO {
+    ArticleBriefVO {
+        article_id: row.0,
+        article_title: row.1,
+        article_thumb: row.2,
+        article_sn: row.3,
     }
 }
 

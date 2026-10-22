@@ -150,7 +150,11 @@ impl PayService {
                     payment_list.retain(|m| m == "offline");
                 }
                 order_sn = order.order_sn.clone();
-                order_vo = Some(to_order_vo(&order));
+                let mut vo = to_order_vo(&order);
+                if let Some(user) = self.repos.member.user.find(user_id).await? {
+                    vo.balance_amount = user.available_balance();
+                }
+                order_vo = Some(vo);
             }
         }
         let offline = offline_payment_list(&configs, &payment_list, &order_sn);
@@ -483,6 +487,7 @@ fn to_order_vo(order: &PayOrderRow) -> PayOrderVO {
         paid_amount: order.paid_amount,
         unpaid_amount: order.unpaid_amount,
         balance: order.balance,
+        balance_amount: rust_decimal::Decimal::ZERO,
         pay_status: order.pay_status,
         order_status: order.order_status,
         is_presale: order.is_presale,

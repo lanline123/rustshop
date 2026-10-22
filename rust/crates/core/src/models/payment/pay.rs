@@ -370,6 +370,8 @@ pub struct PayOrderVO {
     pub paid_amount: Decimal,
     pub unpaid_amount: Decimal,
     pub balance: Decimal,
+    /// 会员可用余额（前端支付页余额抵扣读取 `balanceAmount`）
+    pub balance_amount: Decimal,
     pub pay_status: i32,
     pub order_status: i32,
     pub is_presale: i32,
