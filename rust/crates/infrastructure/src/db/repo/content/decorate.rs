@@ -318,7 +318,13 @@ impl DecorateRepository {
             push_cond(&mut wh, &mut params, "status = ?", &[Bind::I(status)]);
         }
         if let Some(locale_id) = locale_id {
-            push_cond(&mut wh, &mut params, "locale_id = ?", &[Bind::I(locale_id)]);
+            if locale_id == 0 {
+                // 历史/新建页面 locale_id 可能为 NULL，语义等同默认语言 0
+                wh.push_str(" AND (locale_id = ? OR locale_id IS NULL)");
+                params.push(Bind::I(locale_id));
+            } else {
+                push_cond(&mut wh, &mut params, "locale_id = ?", &[Bind::I(locale_id)]);
+            }
         }
         wh.push_str(" ORDER BY is_home DESC, update_time DESC, decorate_id DESC LIMIT 1");
         fetch_one(&self.pool, &format!("SELECT * FROM decorate{wh}"), &params).await
