@@ -7,8 +7,8 @@
 use std::sync::Arc;
 
 use tigshop_core::models::content::article_batch::{
-    is_delete_batch, ArticleIssueQuery, ArticleVO, BatchDTO, CategoryWithArticlesVO,
-    CATEGORY_ARTICLES_LIMIT, MSG_UNSELECTED_ITEM,
+    is_delete_batch, ArticleIssueInfoVO, ArticleIssueQuery, ArticleVO, BatchDTO,
+    CategoryWithArticlesVO, CATEGORY_ARTICLES_LIMIT, MSG_UNSELECTED_ITEM,
 };
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::content::article_batch::ArticleBatchRepository;
@@ -50,6 +50,21 @@ impl ArticleBatchService {
             Some(id) => repo.find_article(id).await,
             None => repo.find_latest_article().await,
         }
+    }
+
+    /// 文章详情页数据：`item + prev + next`（原版 `issueInfo` 返回结构）。
+    pub async fn issue_info_page(
+        &self,
+        q: &ArticleIssueQuery,
+    ) -> Result<Option<ArticleIssueInfoVO>> {
+        let Some(item) = self.issue_info(q).await? else {
+            return Ok(None);
+        };
+        let (prev, next) = self
+            .repo()
+            .find_adjacent_articles(item.article_id, item.article_category_id)
+            .await?;
+        Ok(Some(ArticleIssueInfoVO { item, prev, next }))
     }
 
     /// 分类 + 文章列表（Java `childrenArticleListWithCategory`）。

@@ -317,7 +317,9 @@ async fn profile(
             "email": u.email,
             "emailValidated": u.email_validated,
             "avatar": u.avatar,
+            "birthday": u.birthday,
             "balance": u.available_balance(),
+            "totalBalance": u.balance + u.frozen_balance,
             "points": u.points,
             "rankId": u.rank_id,
         })

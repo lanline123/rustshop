@@ -13,7 +13,7 @@ use axum::{
     Router,
 };
 use tigshop_core::models::content::article_batch::{
-    ArticleIssueQuery, ArticleVO, CategoryWithArticlesVO,
+    ArticleIssueInfoVO, ArticleIssueQuery, CategoryWithArticlesVO,
 };
 use tigshop_core::Error;
 use tigshop_openapi::RouteDoc;
@@ -82,8 +82,8 @@ async fn optional_auth(
 async fn issue_info(
     State(state): State<PublicState>,
     Query(q): Query<ArticleIssueQuery>,
-) -> ApiResult<Option<ArticleVO>> {
-    ok(state.content.article_batch.issue_info(&q).await?)
+) -> ApiResult<Option<ArticleIssueInfoVO>> {
+    ok(state.content.article_batch.issue_info_page(&q).await?)
 }
 
 /// `GET /api/article/category/indexBzzxList` 查询参数。
