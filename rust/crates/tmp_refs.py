@@ -1,15 +1,49 @@
-﻿import re,os
-t=open("api/admin/src/routes/content/decorate.rs",encoding="utf-8",errors="replace").read()
-print("pcNavigation routes in decorate:",len(re.findall(r'\.route\(\s*"/decorate/pcNavigation',t)))
-# references to pc_cat_floor / pc_navigation modules outside their own files
-for name in ("pc_cat_floor","pc_navigation"):
-    refs=[]
-    for dp,_,fs in os.walk("."):
-        if "target" in dp.split(os.sep): continue
-        for f in fs:
-            if not f.endswith(".rs"): continue
-            p=os.path.join(dp,f)
-            if name in p: continue
-            tx=open(p,encoding="utf-8",errors="replace").read()
-            if re.search(r"\b%s\b"%name,tx): refs.append(p)
-    print(name,"external refs:",refs[:8])
+//! system 领域服务。
+
+pub mod admin_msg;
+pub mod app_version_admin;
+pub mod area_code;
+pub mod cache_manage;
+pub mod config_basic;
+pub mod config_client;
+pub mod csrf;
+pub mod example;
+pub mod captcha;
+pub mod excel;
+pub mod files;
+pub mod log;
+pub mod mail_templates;
+pub mod message_type;
+pub mod pc;
+pub mod recommend;
+pub mod region;
+pub mod notify;
+pub mod scheduler;
+pub mod region_client;
+pub mod tips_manage;
+pub mod util;
+
+use std::sync::Arc;
+
+/// system 领域服务集合（由组合根装配一次，api 层只持有 `Arc<Services>`）。
+#[derive(Clone)]
+pub struct Services {
+    pub app_version_admin: Arc<app_version_admin::AppVersionAdminService>,
+    pub area_code: Arc<area_code::AreaCodeService>,
+    pub cache_manage: Arc<cache_manage::CacheManageService>,
+    pub config_client: Arc<config_client::ConfigClientService>,
+    pub example: Arc<example::ExampleService>,
+    pub files: Arc<files::FilesService>,
+    pub mail_templates: Arc<mail_templates::MailTemplatesService>,
+    pub message_type: Arc<message_type::MessageTypeService>,
+    pub pc: Arc<pc::PcService>,
+    pub region: Arc<region::RegionService>,
+    pub region_client: Arc<region_client::RegionClientService>,
+    pub csrf: Arc<csrf::CsrfService>,
+    pub config_basic: Arc<config_basic::ConfigBasicService>,
+    pub tips_manage: Arc<tips_manage::TipsManageService>,
+    pub log: Arc<log::LogService>,
+    pub util: Arc<util::UtilService>,
+    pub admin_msg: Arc<admin_msg::AdminMsgService>,
+    pub recommend: Arc<recommend::RecommendService>,
+}

@@ -145,7 +145,6 @@ use tigshop_services::payment::yeepay_config::YeepayConfigService;
 use tigshop_services::system::admin_msg::AdminMsgService;
 use tigshop_services::system::config_basic::ConfigBasicService;
 use tigshop_services::system::csrf::CsrfService;
-use tigshop_services::system::licensed::LicensedService;
 use tigshop_services::system::log::LogService;
 use tigshop_services::system::recommend::RecommendService;
 use tigshop_services::system::tips_manage::TipsManageService;
@@ -761,7 +760,6 @@ async fn main() -> anyhow::Result<()> {
     let config_basic = Arc::new(ConfigBasicService::new(repos.clone()));
     let tips_manage = Arc::new(TipsManageService::new(repos.clone()));
     let log = Arc::new(LogService::new(repos.clone()));
-    let licensed = Arc::new(LicensedService::new(repos.clone()));
     let util = Arc::new(UtilService::new(repos.clone()));
     let admin_msg = Arc::new(AdminMsgService::new(repos.clone()));
     let recommend = Arc::new(RecommendService::new(repos.clone()));
@@ -782,7 +780,6 @@ async fn main() -> anyhow::Result<()> {
         config_basic: config_basic.clone(),
         tips_manage: tips_manage.clone(),
         log: log.clone(),
-        licensed: licensed.clone(),
         util: util.clone(),
         admin_msg: admin_msg.clone(),
         recommend: recommend.clone(),

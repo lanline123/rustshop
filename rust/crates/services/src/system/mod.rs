@@ -11,7 +11,6 @@ pub mod example;
 pub mod captcha;
 pub mod excel;
 pub mod files;
-pub mod licensed;
 pub mod log;
 pub mod mail_templates;
 pub mod message_type;
@@ -44,7 +43,6 @@ pub struct Services {
     pub config_basic: Arc<config_basic::ConfigBasicService>,
     pub tips_manage: Arc<tips_manage::TipsManageService>,
     pub log: Arc<log::LogService>,
-    pub licensed: Arc<licensed::LicensedService>,
     pub util: Arc<util::UtilService>,
     pub admin_msg: Arc<admin_msg::AdminMsgService>,
     pub recommend: Arc<recommend::RecommendService>,

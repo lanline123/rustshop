@@ -8,7 +8,6 @@ pub mod config_basic;
 pub mod config_client;
 pub mod example;
 pub mod files;
-pub mod licensed;
 pub mod log;
 pub mod mail_templates;
 pub mod message_type;
@@ -37,7 +36,6 @@ pub struct Repositories {
     pub region: region::RegionRepository,
     pub region_client: region_client::RegionClientRepository,
     pub tips_manage: tips_manage::TipsManageRepository,
-    pub licensed: licensed::LicensedRepository,
     pub util: util::UtilRepository,
     pub admin_msg: admin_msg::AdminMsgRepository,
     pub recommend: recommend::RecommendRepository,
@@ -61,7 +59,6 @@ impl Repositories {
             region: region::RegionRepository::new(pool.clone()),
             region_client: region_client::RegionClientRepository::new(pool.clone()),
             tips_manage: tips_manage::TipsManageRepository::new(pool.clone()),
-            licensed: licensed::LicensedRepository::new(pool.clone()),
             util: util::UtilRepository::new(pool.clone()),
             admin_msg: admin_msg::AdminMsgRepository::new(pool.clone()),
             recommend: recommend::RecommendRepository::new(pool.clone()),
