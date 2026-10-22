@@ -197,7 +197,6 @@ pub struct UpdateFieldDTO {
 pub struct FieldUpdate {
     pub id: i32,
     pub column: &'static str,
-    #[serde(deserialize_with = "crate::models::serde_helpers::deserialize_stringish")]
     pub val: String,
 }
 
