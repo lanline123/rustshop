@@ -644,19 +644,19 @@ impl DecorateService {
 
     /// 导航可选链接列表，对应 `PcNavigationController#selectLink`。
     ///
-    /// TODO(域实现者)：Java 侧为模板内配置的静态列表，这里给出通用入口链接。
+    /// 前端 `LinkBase` 读取 `name` / `link`，必须返回该结构；不能返回
+    /// `label` / `value`，否则“其他页面”标签会渲染为空。
     pub fn pc_navigation_select_link(&self) -> Vec<serde_json::Value> {
-        [
-            ("首页", "/"),
-            ("商品分类", "/category"),
-            ("购物车", "/cart"),
-            ("个人中心", "/user"),
-            ("搜索页", "/search"),
-            ("帮助中心", "/help"),
-        ]
-        .into_iter()
-        .map(|(label, value)| serde_json::json!({ "label": label, "value": value }))
-        .collect()
+        crate::content::pc_navigation::select_link_entries(false)
+            .into_iter()
+            .map(|e| {
+                serde_json::json!({
+                    "name": e.name,
+                    "app_link": e.app_link,
+                    "link": e.link,
+                })
+            })
+            .collect()
     }
 
     /// 上级导航树，对应 `PcNavigationController#getParentNav(type, 0)`。
