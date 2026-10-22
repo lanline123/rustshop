@@ -72,6 +72,9 @@ pub struct AdminProductListQuery {
     /// 商品 ID 集合
     #[serde(default, deserialize_with = "de_i32_list_opt")]
     pub id_list: Option<Vec<i32>>,
+    /// 装修选品组件使用的商品 ID 集合（`productIds`）
+    #[serde(default, deserialize_with = "de_i32_list_opt")]
+    pub product_ids: Option<Vec<i32>>,
     /// 排除的商品 ID 集合
     #[serde(default, deserialize_with = "de_i32_list_opt")]
     pub extra_product_ids: Option<Vec<i32>>,

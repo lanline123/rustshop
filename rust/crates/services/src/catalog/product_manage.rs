@@ -200,6 +200,11 @@ impl ProductManageService {
                     .collect();
             }
         }
+        if id_list.is_empty() {
+            if let Some(ids) = &q.product_ids {
+                id_list = ids.clone();
+            }
+        }
         Ok(ProductListFilter {
             keyword_like,
             id_list,
