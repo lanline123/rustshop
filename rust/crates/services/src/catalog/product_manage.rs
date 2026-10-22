@@ -191,9 +191,18 @@ impl ProductManageService {
         };
 
         let (limit, offset) = page.limit_offset();
+        let mut id_list = q.id_list.clone().unwrap_or_default();
+        if id_list.is_empty() {
+            if let Some(raw) = q.ids.as_deref() {
+                id_list = raw
+                    .split(',')
+                    .filter_map(|s| s.trim().parse::<i32>().ok())
+                    .collect();
+            }
+        }
         Ok(ProductListFilter {
             keyword_like,
-            id_list: q.id_list.clone().unwrap_or_default(),
+            id_list,
             // Java：isDelete 合法值（0/1）用之，否则强制 0
             is_delete: match q.is_delete {
                 Some(v) if v == 0 || v == 1 => v,
