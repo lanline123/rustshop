@@ -165,13 +165,13 @@ impl DecorateService {
             draft_data: dto.draft_data.clone(),
             decorate_type: Some(decorate_type),
             page_type: dto.page_type.unwrap_or(1),
-            is_home: dto.is_home,
+            is_home: Some(dto.is_home.unwrap_or(0)),
             // 多租户：店铺账号强制落本店；平台账号请求值优先，缺省平台（0）
             shop_id: media_write_shop_id(dto.shop_id)?,
-            status: dto.status,
+            status: Some(dto.status.unwrap_or(0)),
             update_time: Some(now_seconds() as i32),
             locale_id: dto.locale_id,
-            parent_id: dto.parent_id,
+            parent_id: Some(dto.parent_id.unwrap_or(0)),
             sort_order: dto.sort_order,
             ..Decorate::default()
         };
