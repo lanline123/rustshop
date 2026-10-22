@@ -93,6 +93,7 @@ async fn update(
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DelDTO {
+    #[serde(alias = "id")]
     seckill_id: i32,
 }
 

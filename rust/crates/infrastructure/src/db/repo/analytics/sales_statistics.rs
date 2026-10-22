@@ -142,7 +142,7 @@ impl SalesStatisticsRepository {
         let dir = if ascending { "ASC" } else { "DESC" };
         let rows_sql = format!(
             "SELECT i.product_id, MAX(i.product_name) AS product_name, MAX(i.product_sn) AS product_sn, \
-             SUM(i.quantity) AS quantity, SUM(i.price * i.quantity) AS amount{where_sql} \
+             CAST(SUM(i.quantity) AS SIGNED) AS quantity, SUM(i.price * i.quantity) AS amount{where_sql} \
              GROUP BY i.product_id ORDER BY {col} {dir} LIMIT ? OFFSET ?"
         );
         let mut rq = sqlx::query_as::<_, ProductSalesSqlRow>(&rows_sql)

@@ -134,11 +134,10 @@ impl StatisticsService {
         // 横轴固定 dateType = 0（自定义 / 逐日）
         let horizontal = build_horizontal_axis(0, start, end)?;
 
-        // shopId == null ⇒ Java 生成 `shop_id = NULL` ⇒ 无行 ⇒ 全 0 轴
-        let rows = match q.shop_id {
-            Some(shop_id) => self.repo().fetch_daily_visits(start, end, shop_id).await?,
-            None => Vec::new(),
-        };
+        // 平台管理员前端不传 shopId（Java HeaderUtils 默认 0），
+        // statistics_base 的平台行 shop_id=0；None 不能直接当空结果。
+        let shop_id = q.shop_id.unwrap_or(0);
+        let rows = self.repo().fetch_daily_visits(start, end, shop_id).await?;
 
         let use_click = q.is_hits.unwrap_or(0) > 0;
         let items: Vec<(String, Decimal)> = rows
