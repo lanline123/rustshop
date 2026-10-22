@@ -164,6 +164,16 @@ impl CartService {
         for c in carts {
             let pid = c.product_id;
             let qty = c.quantity;
+            // 购物车行本身不存商品名/图，列表必须回填，否则前端会当成空行。
+            let product = self.repos.catalog.product.find_by_id(pid).await.ok().flatten();
+            let product_name = product
+                .as_ref()
+                .map(|p| p.product_name.clone())
+                .unwrap_or_default();
+            let pic_thumb = product
+                .as_ref()
+                .map(|p| p.pic_thumb.clone())
+                .unwrap_or_else(|| c.pic_thumb.clone().unwrap_or_default());
             // original_price 为 NOT NULL；market_price 可空，仅作兜底
             let price = if c.original_price > Decimal::ZERO {
                 c.original_price
@@ -187,8 +197,8 @@ impl CartService {
             items.push(CartItemVO {
                 cart_id: c.cart_id,
                 product_id: pid,
-                product_name: String::new(), // 需要时通过商品详情补充
-                pic_thumb: c.pic_thumb.unwrap_or_default(),
+                product_name,
+                pic_thumb,
                 sku_id: c.sku_id,
                 sku_data: c.sku_data,
                 price,
