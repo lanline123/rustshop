@@ -100,7 +100,7 @@ macro_rules! del_ids {
     ($fn_name:ident, $table:literal, $key:literal) => {
         async fn $fn_name(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<()> {
             let ids = q.ids.clone().or_else(|| q.id.map(|v| vec![v])).unwrap_or_default();
-            if ids.is_empty() { return Err(Error::Validation("缺少 id".into())); }
+            if ids.is_empty() { return Err(tigshop_security::web::AppError(Error::Validation("缺少 id".into()))); }
             let list = ids.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(",");
             sqlx::query(&format!("DELETE FROM `{}` WHERE `{}` IN ({})", $table, $key, list))
                 .execute(&pool(&state)).await.map_err(db)?;
@@ -129,7 +129,7 @@ macro_rules! cfg_set {
 /// 通用状态更新：body {id 或 ids, status?}（缺省 0=撤回待处理）。
 async fn set_status(state: &AdminState, table: &str, key: &str, q: &Pg, status: i32) -> Result<(), Error> {
     let ids = q.ids.clone().or_else(|| q.id.map(|v| vec![v])).unwrap_or_default();
-    if ids.is_empty() { return Err(tigshop_security::web::AppError(Error::Validation("缺少 id".into()))); }
+    if ids.is_empty() { return Err(Error::Validation("缺少 id".into())); }
     let list = ids.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(",");
     sqlx::query(&format!("UPDATE `{}` SET status = ? WHERE `{}` IN ({})", table, key, list))
         .bind(status).execute(&pool(state)).await.map_err(db)?;
