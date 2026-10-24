@@ -239,6 +239,33 @@ impl PosCashierService {
         Ok(serde_json::json!({ "records": rows }))
     }
 
+    /// 线下充值单落库（POS 收银）。
+    pub async fn recharge_insert(
+        &self,
+        e: tigshop_core::entities::finance::UserRechargeOrder,
+    ) -> Result<i32> {
+        self.repos.payment.user_recharge_order.insert(&e).await
+    }
+
+    /// 最近订单备注（POS 收银台展示）。
+    pub async fn order_remark(&self, user_id: i32) -> Result<Option<String>> {
+        self.repos.pos.cashier.order_remark(user_id).await
+    }
+
+    /// 该管理员的 API Token 列表。
+    pub async fn api_tokens(
+        &self,
+        admin_id: i32,
+    ) -> Result<Vec<tigshop_core::entities::AdminApiToken>> {
+        self.repos.identity.admin_user.find_api_tokens(admin_id).await
+    }
+
+    /// 吊销 Token。
+    pub async fn api_token_revoke(&self, id: i32) -> Result<()> {
+        self.repos.identity.admin_user.revoke_api_token(id).await?;
+        Ok(())
+    }
+
     pub async fn recharge_setting(&self) -> Result<serde_json::Value> {
         let raw = self
             .repos

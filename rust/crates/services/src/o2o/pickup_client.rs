@@ -9,6 +9,8 @@ use tigshop_infrastructure::db::repo::o2o::pickup_client::{
     OrderPickupShipmentVO, ShopPickupTplVO, StockDayVO, UserPickupVO,
 };
 
+pub use tigshop_infrastructure::db::repo::o2o::pickup_client::StockDayVO;
+
 #[derive(Clone)]
 pub struct PickupClientService {
     repos: std::sync::Arc<Repositories>,

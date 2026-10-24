@@ -407,7 +407,7 @@ async fn recharge_create(
         status: 1,
         ..Default::default()
     };
-    ok(state.repos.payment.user_recharge_order.insert(&e).await?)
+    ok(state.pos.cashier.recharge_insert(e).await?)
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -554,7 +554,7 @@ async fn cart_update(
 }
 
 #[must_use]
-fn ok_generic<T>(v: T) -> ApiResult<T> {
+fn ok_generic<T: serde::Serialize>(v: T) -> ApiResult<T> {
     ok(v)
 }
 
@@ -892,7 +892,7 @@ async fn pos_order_remark(
     State(state): State<AdminState>,
     Query(q): Query<PosUserIdQuery>,
 ) -> ApiResult<serde_json::Value> {
-    let remark = state.repos.pos.cashier.order_remark(q.user_id.unwrap_or(0)).await?;
+    let remark = state.pos.cashier.order_remark(q.user_id.unwrap_or(0)).await?;
     ok(serde_json::json!({ "orderRemark": remark }))
 }
 
@@ -1018,9 +1018,9 @@ async fn api_token_revoke(
     Json(dto): Json<ApiTokenDTO>,
 ) -> ApiResult<()> {
     // 兼容桩：按管理员吊销其最新一枚令牌
-    let tokens = state.repos.identity.admin_user.find_api_tokens(dto.admin_id).await?;
+    let tokens = state.pos.cashier.api_tokens(dto.admin_id).await?;
     if let Some(t) = tokens.first() {
-        state.repos.identity.admin_user.revoke_api_token(t.id).await?;
+        state.pos.cashier.api_token_revoke(t.id).await?;
     }
     ok(())
 }
