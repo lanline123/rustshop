@@ -1,5 +1,6 @@
 //! 管理端 vendor 路由（挂载于 `/adminapi`）。
 
+pub mod lowfreq;
 pub mod vendor;
 pub mod vendor_product;
 
@@ -11,6 +12,7 @@ use super::super::AdminState;
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new()
+        .merge(lowfreq::routes(state))
         .merge(vendor::routes(state))
         .merge(vendor_product::routes(state))
 }
