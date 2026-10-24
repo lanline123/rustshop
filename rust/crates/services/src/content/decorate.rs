@@ -1737,6 +1737,94 @@ fn convert_legacy_h5_modules(vo: &mut DecorateModuleListVO) {
                 }
                 item["type"] = serde_json::Value::String("categoryNavA2".into());
             }
+            // storeOrderCard（点单卡片，mobilePro/门店专业版）→ imageNav：
+            // H5 渲染器（uniapp customPage v-if 链）没有该组件，未知 type 整块
+            // 跳过。降级为图片导航网格（picUrl + picTitle + picLink），
+            // desc/卡片背景/卡片模板细节不渲染。cardList.link 与 picList.picLink
+            // 同为 admin 链接选择器的 {path,data} 对象，直接透传。
+            "storeOrderCard" => {
+                if let Some(module) = item.get_mut("module") {
+                    let cards = module
+                        .get("cardList")
+                        .and_then(serde_json::Value::as_array)
+                        .cloned()
+                        .unwrap_or_default();
+                    let pic_list: Vec<serde_json::Value> = cards
+                        .iter()
+                        .filter_map(|c| {
+                            let url = ["picUrl", "picThumb"].iter().find_map(|k| {
+                                c.get(*k)
+                                    .and_then(serde_json::Value::as_str)
+                                    .filter(|s| !s.is_empty())
+                            })?;
+                            Some(serde_json::json!({
+                                "picUrl": url,
+                                "picThumb": url,
+                                "picTitle": c.get("title").cloned().unwrap_or_default(),
+                                "picLink": c.get("link").cloned().unwrap_or(serde_json::Value::Null),
+                            }))
+                        })
+                        .collect();
+                    // 编辑器模板 1~6 对应 1/2/3/3/4/5 张卡；按实际张数映射
+                    // imageNav 网格的 rowNum × colNum
+                    let (row, col) = match pic_list.len() {
+                        0 | 1 => (1, 1),
+                        2 => (2, 1),
+                        3 => (3, 1),
+                        4 => (2, 2),
+                        _ => (3, 2),
+                    };
+                    let card_gap = module
+                        .get("cardGap")
+                        .cloned()
+                        .unwrap_or_else(|| serde_json::json!(8));
+                    let frame_default = serde_json::json!({
+                        "textColor": "",
+                        "itemBackgroundColor": "",
+                        "backgroundColor": "",
+                        "innerPadding": 10,
+                        "itemHeight": 35,
+                        "itemRadius": 3,
+                        "boxRadius": 8,
+                        "boxPadding": 10,
+                        "leftAndRightPadding": 0,
+                        "boxPaddingTop": 5,
+                        "boxPaddingBottom": 5,
+                    });
+                    let defaults = serde_json::json!({
+                        "picList": pic_list,
+                        "navType": 1,
+                        "navStyle": 1,
+                        "rowNum": row,
+                        "colNum": col,
+                        "picPageType": 1,
+                        "radioStyle": 1,
+                        "imgPadding": card_gap,
+                        "swiperPageColor": "#333333",
+                        "frame": frame_default,
+                    });
+                    if let (Some(dst), Some(src)) = (module.as_object_mut(), defaults.as_object()) {
+                        for (k, v) in src {
+                            if k == "frame" {
+                                // 编辑器保存的 frame 已含完整样式，仅回填缺失键
+                                if let (Some(dst_f), Some(src_f)) = (
+                                    dst.get_mut("frame").and_then(serde_json::Value::as_object_mut),
+                                    v.as_object(),
+                                ) {
+                                    for (fk, fv) in src_f {
+                                        dst_f.entry(fk.clone()).or_insert(fv.clone());
+                                    }
+                                } else {
+                                    dst.insert(k.clone(), v.clone());
+                                }
+                            } else {
+                                dst.insert(k.clone(), v.clone());
+                            }
+                        }
+                    }
+                }
+                item["type"] = serde_json::Value::String("imageNav".into());
+            }
             _ => {}
         }
     }
@@ -1762,4 +1850,74 @@ fn legacy_default_title(title_text: &str, show_title: bool) -> serde_json::Value
         "countdownLabel": "",
         "moreLink": [],
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn vo_with(module: serde_json::Value) -> DecorateModuleListVO {
+        DecorateModuleListVO {
+            module_list: Some(vec![module]),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn store_order_card_downgrades_to_image_nav() {
+        let mut vo = vo_with(serde_json::json!({
+            "type": "storeOrderCard",
+            "isShow": true,
+            "module": {
+                "picType": 2,
+                "cardStyle": 1,
+                "cardGap": 6,
+                "frame": { "boxRadius": 8 },
+                "cardList": [
+                    {
+                        "picUrl": "/a.jpg",
+                        "picThumb": "/a_t.jpg",
+                        "title": "堂食点单",
+                        "desc": "ignored",
+                        "link": { "path": "store", "data": { "id": 3 } }
+                    },
+                    {
+                        "picUrl": "",
+                        "picThumb": "/b_t.jpg",
+                        "title": "外带点单",
+                        "link": {}
+                    }
+                ]
+            }
+        }));
+        convert_legacy_h5_modules(&mut vo);
+        let item = &vo.module_list.unwrap()[0];
+        assert_eq!(item["type"], "imageNav");
+        let m = &item["module"];
+        // picUrl 为空时回退 picThumb
+        assert_eq!(m["picList"][0]["picUrl"], "/a.jpg");
+        assert_eq!(m["picList"][1]["picUrl"], "/b_t.jpg");
+        assert_eq!(m["picList"][0]["picTitle"], "堂食点单");
+        assert_eq!(m["picList"][0]["picLink"]["path"], "store");
+        // 2 张卡 → 2 列 1 行；cardGap 透传 imgPadding；编辑器 frame 保留
+        assert_eq!(m["rowNum"], 2);
+        assert_eq!(m["colNum"], 1);
+        assert_eq!(m["imgPadding"], 6);
+        assert_eq!(m["frame"]["boxRadius"], 8);
+        // frame 缺失键被回填
+        assert_eq!(m["frame"]["boxPadding"], 10);
+    }
+
+    #[test]
+    fn store_order_card_without_pics_gets_empty_list() {
+        let mut vo = vo_with(serde_json::json!({
+            "type": "storeOrderCard",
+            "module": { "cardList": [ { "title": "no pic" } ] }
+        }));
+        convert_legacy_h5_modules(&mut vo);
+        let item = &vo.module_list.unwrap()[0];
+        assert_eq!(item["type"], "imageNav");
+        // imageNav 对空 picList 不渲染（v-if length > 0），安全降级
+        assert_eq!(item["module"]["picList"].as_array().map(Vec::len), Some(0));
+    }
 }
