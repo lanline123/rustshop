@@ -870,6 +870,7 @@ async fn main() -> anyhow::Result<()> {
         pos: pos.clone(),
         o2o: o2o.clone(),
         jwt: (*jwt).clone(),
+        repos: repos.clone(),
     };
     let public_state = PublicState {
         merchant: merchant.clone(),

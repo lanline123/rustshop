@@ -80,6 +80,8 @@ pub struct AdminState {
     pub vendor: std::sync::Arc<tigshop_services::vendor::Services>,
     pub pos: std::sync::Arc<tigshop_services::pos::Services>,
     pub o2o: std::sync::Arc<tigshop_services::o2o::Services>,
+    /// 仓储聚合直通（少量收银辅助 handler 直接读库）。
+    pub repos: std::sync::Arc<tigshop_infrastructure::db::Repositories>,
     pub jwt: JwtService,
 }
 
