@@ -104,6 +104,11 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/user/user/delHistoryProduct", post(del_history_product))
         .route("/user/user/modifyAvatar", post(modify_avatar))
         .route("/user/user/collectionShop", get(collection_shop))
+        .route("/user/user/collectionShop/save", post(collection_shop_save))
+        .route(
+            "/user/user/collectionShop/cancel",
+            post(collection_shop_cancel),
+        )
         .route("/user/user/logout", post(logout))
         .route("/user/user/close", post(close))
         .layer(middleware::from_fn_with_state(
@@ -180,6 +185,16 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
         ("POST", "/api/user/user/uploadVideo", "UserController.uploadVideo"),
         ("POST", "/api/user/user/modifyAvatar", "UserController.modifyAvatar"),
         ("GET", "/api/user/user/collectionShop", "UserController.collectionShop"),
+        (
+            "POST",
+            "/api/user/user/collectionShop/save",
+            "UserController.collectionShopSave",
+        ),
+        (
+            "POST",
+            "/api/user/user/collectionShop/cancel",
+            "UserController.collectionShopCancel",
+        ),
         ("GET", "/api/user/user/levelList", "UserController.levelList"),
         ("GET", "/api/user/user/levelInfo", "UserController.levelInfo"),
         ("POST", "/api/user/user/logout", "UserController.logout"),
@@ -512,6 +527,48 @@ async fn collection_shop(
     Query(q): Query<CollectShopQuery>,
 ) -> ApiResult<PageResult<CollectShopVO>> {
     ok(state.member.user_center.collection_shop(auth.id, &q).await?)
+}
+
+/// `POST /api/user/user/collectionShop/save`：收藏店铺（b2b2b 5.8.57 前端新增，
+/// 无 Java 对应；payload `{shopId}`，幂等）。
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct CollectShopSaveDTO {
+    shop_id: Option<i32>,
+}
+
+async fn collection_shop_save(
+    State(state): State<PublicState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(dto): Json<CollectShopSaveDTO>,
+) -> ApiResult<()> {
+    state
+        .member
+        .user_center
+        .save_collect_shop(auth.id, dto.shop_id.unwrap_or(0))
+        .await?;
+    ok(())
+}
+
+/// `POST /api/user/user/collectionShop/cancel`：取消收藏（payload `{id}` 或 `{shopId}`）。
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct CollectShopCancelDTO {
+    id: Option<i32>,
+    shop_id: Option<i32>,
+}
+
+async fn collection_shop_cancel(
+    State(state): State<PublicState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(dto): Json<CollectShopCancelDTO>,
+) -> ApiResult<()> {
+    state
+        .member
+        .user_center
+        .cancel_collect_shop(auth.id, dto.id, dto.shop_id)
+        .await?;
+    ok(())
 }
 
 /// `GET /api/user/user/levelList`：会员等级列表。

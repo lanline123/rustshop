@@ -1,6 +1,7 @@
 //! 商城端路由，按限界上下文分组。
 
 pub mod merchant;
+pub mod o2o_client;
 pub mod wholesale;
 pub mod catalog;
 pub mod trade;
@@ -21,6 +22,7 @@ pub fn merge_public(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
         .merge(merchant::routes(state))
+        .merge(o2o_client::routes(state))
         .merge(merchant::public_routes())
         .merge(merchant::anonymous_routes(state))
         .merge(wholesale::routes(state))
@@ -76,6 +78,7 @@ pub fn merge_authorized(_state: &PublicState) -> Router<PublicState> {
 pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     let mut out = Vec::new();
     out.extend(merchant::implemented_routes());
+    out.extend(o2o_client::implemented_routes());
     out.extend(wholesale::implemented_routes());
     out.extend(catalog::implemented_routes());
     out.extend(trade::implemented_routes());

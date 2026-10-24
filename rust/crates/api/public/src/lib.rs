@@ -81,6 +81,8 @@ pub struct PublicState {
     pub logistics: std::sync::Arc<tigshop_services::logistics::Services>,
     pub content: std::sync::Arc<tigshop_services::content::Services>,
     pub system: std::sync::Arc<tigshop_services::system::Services>,
+    /// o2o（本地生活）前台域：自提人/自提模板/预约库存日历。
+    pub o2o: std::sync::Arc<tigshop_services::o2o::Services>,
     pub im: std::sync::Arc<tigshop_services::im::Services>,
     pub jwt: JwtService,
     /// 本地上传/H5 静态资源目录（config.yaml `file.upload_dir`）。

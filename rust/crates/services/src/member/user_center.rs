@@ -1165,6 +1165,29 @@ impl UserCenterService {
 
     // ————————————————————— collectionShop —————————————————————
 
+    /// 收藏店铺（b2b2b 5.8.57 前端新增 `collectionShop/save`，无 Java 对应；
+    /// payload `{shopId}`，幂等）。
+    pub async fn save_collect_shop(&self, user_id: i32, shop_id: i32) -> Result<()> {
+        if shop_id <= 0 {
+            return Err(tigshop_core::Error::Validation("缺少店铺ID".into()));
+        }
+        self.repos.member.user_center.save_collect_shop(user_id, shop_id).await
+    }
+
+    /// 取消收藏店铺（payload `{id}` 或 `{shopId}`）。
+    pub async fn cancel_collect_shop(
+        &self,
+        user_id: i32,
+        collect_id: Option<i32>,
+        shop_id: Option<i32>,
+    ) -> Result<()> {
+        self.repos
+            .member
+            .user_center
+            .cancel_collect_shop(user_id, collect_id, shop_id)
+            .await
+    }
+
     /// 收藏店铺分页（Java `collectionShop` → `CollectShopServiceImpl.list`）。
     pub async fn collection_shop(
         &self,

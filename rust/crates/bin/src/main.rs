@@ -839,11 +839,13 @@ async fn main() -> anyhow::Result<()> {
     let o2o_reservation_tpl_service = Arc::new(tigshop_services::o2o::reservation_tpl::ReservationTplService::new(repos.clone()));
     let o2o_stock_calendar_service = Arc::new(tigshop_services::o2o::stock_calendar::StockCalendarService::new(repos.clone()));
     let o2o_store_product_service = Arc::new(tigshop_services::o2o::store_product::StoreProductService::new(repos.clone()));
+    let o2o_pickup_client_service = Arc::new(tigshop_services::o2o::pickup_client::PickupClientService::new(repos.clone()));
     let o2o = Arc::new(tigshop_services::o2o::Services {
         config: o2o_config_service.clone(),
         reservation_tpl: o2o_reservation_tpl_service.clone(),
         stock_calendar: o2o_stock_calendar_service.clone(),
         store_product: o2o_store_product_service.clone(),
+        pickup_client: o2o_pickup_client_service.clone(),
     });
 
     let admin_state = AdminState {
@@ -879,6 +881,7 @@ async fn main() -> anyhow::Result<()> {
         system: system.clone(),
         im: im.clone(),
         wholesale: wholesale.clone(),
+        o2o: o2o.clone(),
         jwt: (*jwt).clone(),
         upload_dir: cfg.file.upload_dir.clone(),
     };

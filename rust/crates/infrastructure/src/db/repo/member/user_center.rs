@@ -482,6 +482,50 @@ impl UserCenterRepository {
         Ok((total.max(0).unsigned_abs(), rows))
     }
 
+    /// 收藏店铺（幂等：已存在则忽略；Java `CollectShopServiceImpl#save`）。
+    pub async fn save_collect_shop(&self, user_id: i32, shop_id: i32) -> Result<()> {
+        sqlx::query(
+            "INSERT IGNORE INTO collect_shop (user_id, shop_id, add_time) VALUES (?, ?, ?)",
+        )
+        .bind(user_id)
+        .bind(shop_id)
+        .bind(std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i32)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
+    /// 取消收藏（按收藏记录 id 或店铺 id；Java `CollectShopServiceImpl#cancel`）。
+    pub async fn cancel_collect_shop(
+        &self,
+        user_id: i32,
+        collect_id: Option<i32>,
+        shop_id: Option<i32>,
+    ) -> Result<()> {
+        if let Some(id) = collect_id.filter(|v| *v > 0) {
+            sqlx::query("DELETE FROM collect_shop WHERE user_id = ? AND collect_id = ?")
+                .bind(user_id)
+                .bind(id)
+                .execute(&self.pool)
+                .await
+                .map_err(map_err)?;
+            return Ok(());
+        }
+        if let Some(sid) = shop_id.filter(|v| *v > 0) {
+            sqlx::query("DELETE FROM collect_shop WHERE user_id = ? AND shop_id = ?")
+                .bind(user_id)
+                .bind(sid)
+                .execute(&self.pool)
+                .await
+                .map_err(map_err)?;
+        }
+        Ok(())
+    }
+
     /// 收藏列表排序片段（Java `BaseServiceImpl#buildSortOrder`）。
     ///
     /// `sortField` 为空或等于主键属性名时回落主键列；顺序为空或 `desc` 一律降序。

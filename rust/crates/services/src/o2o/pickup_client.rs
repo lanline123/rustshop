@@ -1,0 +1,119 @@
+//! o2o H5 前台服务（o2o::pickup_client）。
+//!
+//! b2b2b 5.8.57 移动端新增接口（无 Java 控制器对应）：自提人信息 CRUD、
+//! 门店自提模板/订单自提单读取、到店预约库存日历。
+
+use tigshop_core::Result;
+use tigshop_infrastructure::db::Repositories;
+use tigshop_infrastructure::db::repo::o2o::pickup_client::{
+    OrderPickupShipmentVO, ShopPickupTplVO, StockDayVO, UserPickupVO,
+};
+
+#[derive(Clone)]
+pub struct PickupClientService {
+    repos: std::sync::Arc<Repositories>,
+}
+
+impl PickupClientService {
+    pub fn new(repos: std::sync::Arc<Repositories>) -> Self {
+        Self { repos }
+    }
+
+    /// 当前会员自提人列表。
+    pub async fn list_pickups(&self, user_id: i32) -> Result<Vec<UserPickupVO>> {
+        self.repos.o2o.pickup_client.list_by_user(user_id).await
+    }
+
+    /// 自提人详情（校验归属）。
+    pub async fn pickup_detail(&self, user_id: i32, id: i32) -> Result<Option<UserPickupVO>> {
+        self.repos.o2o.pickup_client.find_owned(user_id, id).await
+    }
+
+    /// 新增自提人。
+    pub async fn create_pickup(
+        &self,
+        user_id: i32,
+        consignee: &str,
+        mobile: &str,
+        area_code: &str,
+        is_default: bool,
+    ) -> Result<i32> {
+        if consignee.trim().is_empty() || mobile.trim().is_empty() {
+            return Err(tigshop_core::Error::Validation("联系人与手机号不能为空".into()));
+        }
+        self.repos
+            .o2o
+            .pickup_client
+            .create(user_id, consignee.trim(), mobile.trim(), area_code.trim(), is_default)
+            .await
+    }
+
+    /// 更新自提人。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn update_pickup(
+        &self,
+        user_id: i32,
+        id: i32,
+        consignee: Option<&str>,
+        mobile: Option<&str>,
+        area_code: Option<&str>,
+        is_default: Option<bool>,
+    ) -> Result<()> {
+        if self.repos.o2o.pickup_client.find_owned(user_id, id).await?.is_none() {
+            return Err(tigshop_core::Error::NotFound("自提人信息不存在".into()));
+        }
+        self.repos
+            .o2o
+            .pickup_client
+            .update(user_id, id, consignee, mobile, area_code, is_default)
+            .await
+    }
+
+    /// 删除自提人。
+    pub async fn delete_pickup(&self, user_id: i32, id: i32) -> Result<()> {
+        self.repos.o2o.pickup_client.delete(user_id, id).await
+    }
+
+    /// 门店自提模板（门店级 → 平台默认回退）。
+    pub async fn shop_pickup_tpl(&self, shop_id: i64) -> Result<Option<ShopPickupTplVO>> {
+        self.repos.o2o.pickup_client.find_pickup_tpl(shop_id).await
+    }
+
+    /// 订单自提配送单。
+    pub async fn order_shipment(
+        &self,
+        order_id: i32,
+    ) -> Result<Option<OrderPickupShipmentVO>> {
+        self.repos.o2o.pickup_client.find_shipment_by_order(order_id).await
+    }
+
+    /// 门店商品搜索（分页）。
+    pub async fn store_product_search(
+        &self,
+        shop_id: i64,
+        keyword: &str,
+        page: u64,
+        size: u64,
+    ) -> Result<(i64, Vec<serde_json::Value>)> {
+        let offset = (page.max(1) - 1) * size;
+        self.repos
+            .o2o
+            .pickup_client
+            .store_product_search(shop_id, keyword, size, offset)
+            .await
+    }
+
+    /// 到店预约库存日历（未来 days 天）。
+    pub async fn stock_calendar(
+        &self,
+        product_id: i32,
+        shop_id: Option<i64>,
+        days: u32,
+    ) -> Result<Vec<StockDayVO>> {
+        self.repos
+            .o2o
+            .pickup_client
+            .stock_calendar(product_id, shop_id, days)
+            .await
+    }
+}
