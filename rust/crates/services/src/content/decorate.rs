@@ -1604,6 +1604,14 @@ fn convert_legacy_h5_modules(vo: &mut DecorateModuleListVO) {
                         }
                     }
                 }
+                // 演示装修数据里同一条公告可能重复多遍；旧 notice 组件
+                // scroll 模式还会再复制 3 份，同句连刷观感异常 —— 去重（保序）
+                let mut seen = std::collections::HashSet::new();
+                texts.retain(|t| {
+                    t.as_str()
+                        .map(|s| seen.insert(s.to_string()))
+                        .unwrap_or(true)
+                });
                 let scroll = texts.len() > 1;
                 let module_style = module.get("moduleStyle").cloned().unwrap_or_default();
                 let content_style = module.get("contentStyle").cloned().unwrap_or_default();

@@ -8,6 +8,7 @@ pub mod config_basic;
 pub mod config_extra;
 pub mod csrf;
 pub mod example;
+pub mod lowfreq_extra;
 pub mod mail_templates;
 pub mod message_type;
 pub mod region;
@@ -29,6 +30,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(config_basic::routes(state))
         .merge(config_extra::routes(state))
         .merge(example::routes(state))
+        .merge(lowfreq_extra::routes(state))
         .merge(mail_templates::routes(state))
         .merge(message_type::routes(state))
         .merge(region::routes(state))

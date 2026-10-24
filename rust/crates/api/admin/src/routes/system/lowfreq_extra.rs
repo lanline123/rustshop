@@ -129,7 +129,7 @@ macro_rules! cfg_set {
 /// 通用状态更新：body {id 或 ids, status?}（缺省 0=撤回待处理）。
 async fn set_status(state: &AdminState, table: &str, key: &str, q: &Pg, status: i32) -> Result<(), Error> {
     let ids = q.ids.clone().or_else(|| q.id.map(|v| vec![v])).unwrap_or_default();
-    if ids.is_empty() { return Err(tigshop_security::web::AppError(Error::Validation("缺少 id".into()))); }
+    if ids.is_empty() { return Err(Error::Validation("缺少 id".into())); }
     let list = ids.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(",");
     sqlx::query(&format!("UPDATE `{}` SET status = ? WHERE `{}` IN ({})", table, key, list))
         .bind(status).execute(&pool(state)).await.map_err(db)?;
@@ -244,7 +244,7 @@ async fn h_23(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<i
     use tigshop_core::models::pos::cashier::PosCartAddDTO;
     ok(state.pos.cashier.add_to_cart(0, &PosCartAddDTO {
         product_id: q.product_id.unwrap_or(0),
-        table_id: q.id,
+        table_id: q.id.map(|v| v as i32),
         ..Default::default()
     }).await?)
 }
@@ -364,14 +364,8 @@ async fn h_49(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<(
     ok(())
 }
 
-// post /order/aftersales/rejectReceive
-async fn h_50(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<()> {
-    sqlx::query("UPDATE aftersales SET status = 3 WHERE aftersales_id = ?").bind(q.id.unwrap_or(0)).execute(&pool(&state)).await.map_err(db)?;
-    ok(())
-}
-
-// get /order/aftersales/returnGoodsStatus
-cfg_get!(h_51, "returnGoodsStatus");
+// post /order/aftersales/rejectReceive —— 见 trade::aftersales（重复，未挂载）
+// get /order/aftersales/returnGoodsStatus —— 见 trade::aftersales（重复，未挂载）
 
 // post /order/aftersales/updateField
 upd_field!(h_52, "aftersales", "aftersale_id", ["status", "adminRemark"]);
@@ -497,8 +491,8 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/merchant/merchant/userCount", get(h_47))
         .route("/merchant/shop/isPlatformAllocation", get(h_48))
         .route("/order/aftersales/batch", post(h_49))
-        .route("/order/aftersales/rejectReceive", post(h_50))
-        .route("/order/aftersales/returnGoodsStatus", get(h_51))
+        // rejectReceive / returnGoodsStatus 已由 trade::aftersales 完整实现
+        // （Java 对照版），此处不再重复注册（同方法同路径 = 启动 panic）
         .route("/order/aftersales/updateField", post(h_52))
         .route("/order/order/updateField", post(h_53))
         .route("/product/eCardGroup/cardList", get(h_54))

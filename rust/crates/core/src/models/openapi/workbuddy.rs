@@ -3103,16 +3103,14 @@ pub fn analysis_ratio(numerator: i32, denominator: i32) -> Decimal {
         .map_or(Decimal::ZERO, |v| round2(v).normalize())
 }
 
-/// Java `ProductAnalysisServiceImpl.normalizeNumber`：去尾零；
-/// 若 `scale() < 0` 则取整到 0 位。
+/// Java `ProductAnalysisServiceImpl.normalizeNumber`：去尾零。
+///
+/// Java `BigDecimal.stripTrailingZeros()` 可产生负 scale（如 100 → 1E+2），
+/// 需再取整；rust_decimal 的 `scale()` 是 `u32` 且 `normalize()` 不会产生
+/// 负 scale，故无需该分支。
 #[must_use]
 pub fn normalize_number(value: Decimal) -> Decimal {
-    let n = value.normalize();
-    if n.scale() < 0 {
-        n.round_dp(0)
-    } else {
-        n
-    }
+    value.normalize()
 }
 
 /// Java `ProductAnalysisServiceImpl.confidence`：

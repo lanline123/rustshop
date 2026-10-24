@@ -289,11 +289,11 @@ async fn ensure_aftersales_access(
     state: &AdminState,
     auth: &AuthUser,
     id: Option<i32>,
-) -> ApiResult<()> {
+) -> std::result::Result<(), tigshop_security::web::AppError> {
     let id = id.ok_or_else(|| tigshop_core::Error::Validation("售后ID不能为空".into()))?;
     let vo = state.trade.aftersales.detail(id).await?;
     auth.ensure_shop_access(vo.shop_id)?;
-    ok(())
+    Ok(())
 }
 
 // ——————————————————————————————————————————————

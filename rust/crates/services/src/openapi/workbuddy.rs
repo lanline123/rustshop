@@ -1431,7 +1431,7 @@ impl WorkbuddyService {
 
         let preview_id = new_uuid();
         let fingerprint = batch_fingerprint(&operation, &ids);
-        self.batch_snapshots.lock().map_or((), |mut m| {
+        if let Ok(mut m) = self.batch_snapshots.lock() {
             evict_expired_batch(&mut m);
             m.insert(
                 preview_id.clone(),
@@ -1441,7 +1441,7 @@ impl WorkbuddyService {
                     created_at_ms: Self::now_ms(),
                 },
             );
-        });
+        }
 
         Ok(BatchPreviewVO {
             preview_id: Some(preview_id),
@@ -1669,7 +1669,7 @@ impl WorkbuddyService {
         let preview_id = new_uuid();
 
         // Java 把校验结果按 previewId 存起来供 import 复用。
-        self.previews.lock().map_or((), |mut m| {
+        if let Ok(mut m) = self.previews.lock() {
             evict_expired_previews(&mut m);
             m.insert(
                 preview_id.clone(),
@@ -1684,7 +1684,7 @@ impl WorkbuddyService {
                     confirmed: false,
                 },
             );
-        });
+        }
 
         Ok(ProductValidationVO {
             preview_id: Some(preview_id),
@@ -2669,7 +2669,7 @@ impl WorkbuddyService {
             "requiresConfirmation": true,
             "message": format!("即将执行 {operation}，影响 {impact} 项素材，请确认后调用 media/execute"),
         });
-        self.media_previews.lock().map_or((), |mut m| {
+        if let Ok(mut m) = self.media_previews.lock() {
             evict_expired_media(&mut m);
             m.insert(
                 preview_id.clone(),
@@ -2682,7 +2682,7 @@ impl WorkbuddyService {
                     created_at_ms: Self::now_ms(),
                 },
             );
-        });
+        }
         Ok(result)
     }
 
@@ -3127,7 +3127,7 @@ impl WorkbuddyService {
         }
 
         let file_token = format!("ft_{}", new_uuid().replace('-', ""));
-        self.staged_tokens.lock().map_or((), |mut m| {
+        if let Ok(mut m) = self.staged_tokens.lock() {
             evict_expired_tokens(&mut m);
             m.insert(
                 file_token.clone(),
@@ -3140,7 +3140,7 @@ impl WorkbuddyService {
                     created_at_ms: Self::now_ms(),
                 },
             );
-        });
+        }
 
         let upload_url = "/adminapi/openapi/mcp/v1/media/upload";
         Ok(json!({
@@ -3295,7 +3295,7 @@ impl WorkbuddyService {
         let summary = category_preview_summary(&preview);
 
         let preview_id = preview.preview_id.clone().unwrap_or_default();
-        self.category_previews.lock().map_or((), |mut m| {
+        if let Ok(mut m) = self.category_previews.lock() {
             evict_expired_category_previews(&mut m);
             m.insert(
                 preview_id.clone(),
@@ -3309,7 +3309,7 @@ impl WorkbuddyService {
                     created_at_ms: Self::now_ms(),
                 },
             );
-        });
+        }
 
         let mut preview_json = serde_json::to_value(&preview).unwrap_or_default();
         if let Some(obj) = preview_json.as_object_mut() {
@@ -3520,7 +3520,7 @@ impl WorkbuddyService {
     }
 
     fn remember_category_result(&self, preview_id: &str, result: &serde_json::Value) {
-        self.category_results.lock().map_or((), |mut m| {
+        if let Ok(mut m) = self.category_results.lock() {
             evict_expired_category_results(&mut m);
             m.insert(
                 preview_id.to_string(),
@@ -3529,7 +3529,7 @@ impl WorkbuddyService {
                     created_at_ms: Self::now_ms(),
                 },
             );
-        });
+        }
     }
 }
 

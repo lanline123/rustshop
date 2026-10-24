@@ -659,7 +659,7 @@ fn day_range(text: Option<&str>, end: bool) -> Result<Option<i64>> {
         .from_local_datetime(&naive)
         .single()
         .map(|dt| dt.timestamp())
-        .unwrap_or_else(|| naive.timestamp());
+        .unwrap_or_else(|| naive.and_utc().timestamp());
     Ok(Some(ts))
 }
 

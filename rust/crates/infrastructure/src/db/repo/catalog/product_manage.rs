@@ -114,16 +114,28 @@ pub struct SelectProductRow {
     pub sku_price: Option<Decimal>,
 }
 
-/// 地址：`AND ( (? IS NULL OR 关键词组) OR product_id IN (...) )` 分组。
+/// keyword / id_list 组合条件，对应 Java `buildQueryWrapper`：
+/// - 仅 keyword：关键词模糊组；
+/// - 仅 idList：`product_id IN (...)`（独立 AND 条件，装修选品依赖）；
+/// - 两者都有：同一 nested 块内 OR（关键词命中或 id 命中均可）。
 ///
+/// 注意不能写成 `( (? IS NULL OR 关键词组) OR id IN )`：keyword 为 NULL 时
+/// `? IS NULL` 恒真会把整个分组短路，id 过滤失效。
 /// 抽成函数便于单测（拼串规格化）。
-fn keyword_group_sql(id_count: usize) -> String {
-    let base = "AND ( (? IS NULL OR (product_name LIKE ? OR keywords LIKE ? OR product_sn LIKE ? OR product_tsn LIKE ?))";
-    if id_count == 0 {
-        format!("{base} )")
-    } else {
-        let ph = vec!["?"; id_count].join(", ");
-        format!("{base} OR product_id IN ({ph}) )")
+fn keyword_group_sql(has_keyword: bool, id_count: usize) -> String {
+    const KEYWORD_LIKES: &str =
+        "(product_name LIKE ? OR keywords LIKE ? OR product_sn LIKE ? OR product_tsn LIKE ?)";
+    match (has_keyword, id_count) {
+        (false, 0) => String::new(),
+        (true, 0) => format!(" AND {KEYWORD_LIKES}"),
+        (false, n) => {
+            let ph = vec!["?"; n].join(", ");
+            format!(" AND product_id IN ({ph})")
+        }
+        (true, n) => {
+            let ph = vec!["?"; n].join(", ");
+            format!(" AND ({KEYWORD_LIKES} OR product_id IN ({ph}))")
+        }
     }
 }
 
@@ -150,13 +162,14 @@ fn not_in_clause(column: &str, count: usize) -> String {
 macro_rules! bind_product_filters {
     ($q:expr, $f:expr) => {{
         let mut q = $q;
-        // keyword_group_sql: `(? IS NULL OR (product_name LIKE ? OR keywords LIKE ?
-        // OR product_sn LIKE ? OR product_tsn LIKE ?))` → 5 个占位符
-        q = q.bind(&$f.keyword_like);
-        q = q.bind(&$f.keyword_like);
-        q = q.bind(&$f.keyword_like);
-        q = q.bind(&$f.keyword_like);
-        q = q.bind(&$f.keyword_like);
+        // keyword_group_sql：仅 keyword 存在时生成 4 个 LIKE 占位符；
+        // 随后 id_list 的 IN 占位符（两者同组时 keyword 在前）
+        if $f.keyword_like.is_some() {
+            q = q.bind(&$f.keyword_like);
+            q = q.bind(&$f.keyword_like);
+            q = q.bind(&$f.keyword_like);
+            q = q.bind(&$f.keyword_like);
+        }
         for id in &$f.id_list {
             q = q.bind(id);
         }
@@ -358,7 +371,10 @@ impl ProductManageRepository {
         f: &ProductListFilter,
     ) -> Result<(u64, Vec<Product>)> {
         let mut where_sql = String::from("WHERE 1 = 1 ");
-        where_sql.push_str(&keyword_group_sql(f.id_list.len()));
+        where_sql.push_str(&keyword_group_sql(
+            f.keyword_like.is_some(),
+            f.id_list.len(),
+        ));
         where_sql.push_str(" AND is_delete = ? AND (? IS NULL OR shop_id = ?) AND (? IS NULL OR product_status = ?) AND (? IS NULL OR check_status = ?) AND (? IS NULL OR product_id = ?) AND (? IS NULL OR product_type = ?) AND (? IS NULL OR brand_id = ?) AND (? IS NULL OR shop_category_id = ?) AND (? IS NULL OR product_price >= ?) AND (? IS NULL OR product_price <= ?) AND (? IS NULL OR virtual_sales >= ?) AND (? IS NULL OR virtual_sales <= ?) AND (? IS NULL OR add_time >= ?) AND (? IS NULL OR add_time <= ?) AND (? IS NULL OR product_stock >= ?) AND (? IS NULL OR product_stock <= ?) AND (? IS NULL OR is_new = ?) AND (? IS NULL OR suppliers_id = ?) AND (? IS NULL OR sale_mode = ?)");
         where_sql.push_str(&in_clause("category_id", f.category_ids.len()));
         where_sql.push_str(&in_clause("product_type", f.product_types.len()));
@@ -1940,19 +1956,24 @@ impl ProductManageRepository {
         max_rows: i64,
     ) -> Result<Vec<i32>> {
         let mut where_sql = String::from("WHERE 1 = 1 ");
-        where_sql.push_str(&keyword_group_sql(f.id_list.len()));
-        where_sql.push_str(" AND is_delete = ? AND (? IS NULL OR shop_id = ?) AND (? IS NULL OR product_status = ?) AND (? IS NULL OR check_status = ?) AND (? IS NULL OR product_price >= ?) AND (? IS NULL OR product_price <= ?) AND (? IS NULL OR is_new = ?) AND (? IS NULL OR is_hot = ?) AND (? IS NULL OR is_best = ?)");
+        where_sql.push_str(&keyword_group_sql(
+            f.keyword_like.is_some(),
+            f.id_list.len(),
+        ));
+        where_sql.push_str(" AND is_delete = ? AND (? IS NULL OR shop_id = ?) AND (? IS NULL OR product_status = ?) AND (? IS NULL OR check_status = ?) AND (? IS NULL OR product_price >= ?) AND (? IS NULL OR product_price <= ?) AND (? IS NULL OR is_new = ?)");
         where_sql.push_str(&in_clause("category_id", f.category_ids.len()));
         where_sql.push_str(&in_clause("brand_id", f.brand_ids.len()));
         let sql = format!(
             "SELECT product_id FROM product {where_sql} ORDER BY product_id DESC LIMIT ?",
         );
         let mut q = sqlx::query_as::<_, (i32,)>(&sql);
-        q = q
-            .bind(&f.keyword_like)
-            .bind(&f.keyword_like)
-            .bind(&f.keyword_like)
-            .bind(&f.keyword_like);
+        if f.keyword_like.is_some() {
+            q = q
+                .bind(&f.keyword_like)
+                .bind(&f.keyword_like)
+                .bind(&f.keyword_like)
+                .bind(&f.keyword_like);
+        }
         for id in &f.id_list {
             q = q.bind(id);
         }
@@ -1968,10 +1989,6 @@ impl ProductManageRepository {
             .bind(f.min_price)
             .bind(f.max_price)
             .bind(f.max_price)
-            .bind(f.is_new)
-            .bind(f.is_new)
-            .bind(f.is_new)
-            .bind(f.is_new)
             .bind(f.is_new)
             .bind(f.is_new);
         for id in &f.category_ids {
@@ -2086,17 +2103,32 @@ mod tests {
 
     #[test]
     fn keyword_group_without_ids() {
+        // 仅 keyword：4 个 LIKE 占位符，独立分组
         assert_eq!(
-            keyword_group_sql(0),
-            "AND ( (? IS NULL OR (product_name LIKE ? OR keywords LIKE ? OR product_sn LIKE ? OR product_tsn LIKE ?)) )"
+            keyword_group_sql(true, 0),
+            " AND (product_name LIKE ? OR keywords LIKE ? OR product_sn LIKE ? OR product_tsn LIKE ?)"
         );
+        // 两者皆无：不生成任何片段
+        assert_eq!(keyword_group_sql(false, 0), "");
     }
 
     #[test]
     fn keyword_group_with_ids_ors_product_id() {
-        let sql = keyword_group_sql(3);
-        assert!(sql.ends_with("OR product_id IN (?, ?, ?) )"));
-        assert!(sql.starts_with("AND ( (? IS NULL OR"));
+        // 两者都有：同一 nested 块内 OR（Java buildQueryWrapper 语义）
+        assert_eq!(
+            keyword_group_sql(true, 3),
+            " AND ((product_name LIKE ? OR keywords LIKE ? OR product_sn LIKE ? OR product_tsn LIKE ?) OR product_id IN (?, ?, ?))"
+        );
+    }
+
+    #[test]
+    fn keyword_group_ids_only_is_standalone_in() {
+        // 仅 ids：独立 AND IN —— 装修选品（keyword 为空）必须走这条，
+        // 不能被 keyword 分组短路
+        assert_eq!(
+            keyword_group_sql(false, 2),
+            " AND product_id IN (?, ?)"
+        );
     }
 
     #[test]
