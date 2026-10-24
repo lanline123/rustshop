@@ -245,7 +245,7 @@ impl PickupClientRepository {
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
-        let rows = sqlx::query_as::<_, serde_json::Value>(
+        let rows = sqlx::query_as::<_, (serde_json::Value,)>(
             "SELECT JSON_OBJECT('productId', product_id, 'productName', product_name,              'picThumb', pic_thumb, 'productPrice', product_price, 'marketPrice', market_price,              'productStock', product_stock)              FROM product WHERE shop_id = ? AND product_status = 1 AND product_name LIKE ?              ORDER BY product_id DESC LIMIT ? OFFSET ?",
         )
         .bind(shop_id)
@@ -255,7 +255,8 @@ impl PickupClientRepository {
         .fetch_all(&self.pool)
         .await
         .map_err(map_err)?;
-        Ok((total.max(0).unsigned_abs(), rows))
+        let rows = rows.into_iter().map(|(v,)| v).collect::<Vec<_>>();
+        Ok((total.max(0), rows))
     }
 
     /// 到店预约库存日历：某商品（+可选门店）未来 `days` 天的余量。

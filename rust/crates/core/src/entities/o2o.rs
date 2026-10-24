@@ -654,3 +654,106 @@ impl UserPickupInfo {
     /// 数据库表名。
     pub const TABLE: &'static str = "user_pickup_info";
 }
+
+/// POS 桌台区
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct PosTableArea {
+    pub area_id: i32,
+    pub shop_id: i32,
+    pub area_name: String,
+    pub sort: i32,
+    pub add_time: Option<i32>,
+}
+
+impl PosTableArea {
+    pub const TABLE: &'static str = "pos_table_area";
+}
+
+/// POS 桌台
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct PosTable {
+    pub table_id: i32,
+    pub shop_id: i32,
+    pub area_id: i32,
+    pub table_name: String,
+    pub capacity: i32,
+    /// 0 空闲 1 占用
+    pub status: i32,
+    pub order_id: i32,
+    pub user_id: i32,
+    pub remark: Option<String>,
+    pub add_time: Option<i32>,
+    pub update_time: Option<i32>,
+}
+
+impl PosTable {
+    pub const TABLE: &'static str = "pos_table";
+}
+
+/// POS 挂单（复用线上 pos_pending_order，扩展 kind/table_id 两列）
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct PosPendingOrder {
+    pub pending_id: i32,
+    pub user_id: i32,
+    pub admin_id: i32,
+    pub shop_id: Option<i32>,
+    pub remark: Option<String>,
+    /// 0 挂单中 / 1 已取单 / 2 已取消 / 3 已过期
+    pub status: i32,
+    pub add_time: Option<i32>,
+    pub update_time: Option<i32>,
+    /// 0 工作草稿 1 已保存挂单（002 迁移新增列）
+    #[sqlx(default)]
+    pub kind: i32,
+    #[sqlx(default)]
+    pub table_id: i32,
+}
+
+impl PosPendingOrder {
+    pub const TABLE: &'static str = "pos_pending_order";
+}
+
+/// POS 挂单明细（002 迁移新增表）
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct PosPendingOrderItem {
+    pub item_id: i64,
+    pub pending_id: i32,
+    pub product_id: i64,
+    pub sku_id: i64,
+    pub product_name: Option<String>,
+    pub pic_thumb: Option<String>,
+    pub price: Decimal,
+    pub origin_price: Decimal,
+    pub quantity: i32,
+    pub is_checked: i32,
+    pub sku_data: Option<String>,
+    pub add_time: Option<i32>,
+}
+
+impl PosPendingOrderItem {
+    pub const TABLE: &'static str = "pos_pending_order_item";
+}
+
+/// POS 收银员（线上 admin_user_pos 表）
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct AdminUserPos {
+    pub id: i32,
+    pub admin_id: i32,
+    pub shop_id: i32,
+    pub username: String,
+    pub email: String,
+    pub avatar: Option<String>,
+    pub auth_list: Option<String>,
+    pub is_using: i32,
+    pub add_time: Option<i32>,
+    pub role_id: i32,
+}
+
+impl AdminUserPos {
+    pub const TABLE: &'static str = "admin_user_pos";
+}
