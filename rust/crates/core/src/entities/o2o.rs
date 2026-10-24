@@ -241,32 +241,6 @@ impl PosDevice {
 }
 
 
-/// 挂单记录表
-#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
-#[sqlx(rename_all = "snake_case")]
-pub struct PosPendingOrder {
-    /// 挂单ID [NOT NULL]
-    pub pending_id: i32,
-    /// 用户id [NOT NULL]
-    pub user_id: i32,
-    /// 收银员id [NOT NULL]
-    pub admin_id: i32,
-    /// 店铺id
-    pub shop_id: Option<i32>,
-    /// 挂单备注
-    pub remark: Option<String>,
-    /// 状态：0=挂单中，1=已取单(生成订单)，2=已取消，3=已过期
-    pub status: Option<i32>,
-    /// 创建时间
-    pub add_time: Option<i32>,
-    /// 更新时间
-    pub update_time: Option<i32>,
-}
-
-impl PosPendingOrder {
-    /// 数据库表名。
-    pub const TABLE: &'static str = "pos_pending_order";
-}
 
 
 /// 产品预约日历库存
@@ -702,7 +676,7 @@ pub struct PosPendingOrder {
     pub shop_id: Option<i32>,
     pub remark: Option<String>,
     /// 0 挂单中 / 1 已取单 / 2 已取消 / 3 已过期
-    pub status: i32,
+    pub status: Option<i32>,
     pub add_time: Option<i32>,
     pub update_time: Option<i32>,
     /// 0 工作草稿 1 已保存挂单（002 迁移新增列）
