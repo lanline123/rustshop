@@ -40,6 +40,10 @@ pub const CODE_SHOW_SETTINGS: &str = "showSettings";
 pub const CODE_API_SETTINGS: &str = "apiSettings";
 /// `layoutThemeSwitch` 配置项的 `biz_code`。
 pub const CODE_LAYOUT_THEME_SWITCH: &str = "layoutThemeSwitch";
+/// `paySettings` 配置项的 `biz_code`。
+pub const CODE_PAY_SETTINGS: &str = "paySettings";
+/// `storeEntryRule` 配置项的 `biz_code`。
+pub const CODE_STORE_ENTRY_RULE: &str = "storeEntryRule";
 
 /// 本域 5 条路由（去掉 `/adminapi` 前缀后的路径 + 原 Java handler）。
 const ROUTE_TABLE: [(&str, &str, &str); 5] = [
@@ -74,6 +78,22 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
             "/setting/config/saveLayoutThemeSwitch",
             post(save_layout_theme_switch),
         )
+        .route(
+            "/setting/config/layoutThemeSwitchSettings",
+            get(get_layout_theme_switch_settings),
+        )
+        .route("/setting/config/paySettings", get(get_pay_settings))
+        .route("/setting/config/savePay", post(save_pay))
+        .route(
+            "/setting/config/storeEntryRuleSettings",
+            get(get_store_entry_rule_settings),
+        )
+        .route(
+            "/setting/config/saveStoreEntryRule",
+            post(save_store_entry_rule),
+        )
+        .route("/setting/config/save", post(generic_save))
+        .route("/setting/config/update", post(generic_save))
 }
 
 /// 本域已实现路由（覆盖率统计，完整契约路径）。
@@ -151,6 +171,58 @@ async fn save_layout_theme_switch(
     Json(body): Json<Map<String, Value>>,
 ) -> ApiResult<()> {
     write_group(&state, CODE_LAYOUT_THEME_SWITCH, body).await?;
+    ok(())
+}
+
+/// `GET /adminapi/setting/config/layoutThemeSwitchSettings`：主题切换配置读取。
+async fn get_layout_theme_switch_settings(State(state): State<AdminState>) -> ApiResult<Value> {
+    ok(read_group(&state, CODE_LAYOUT_THEME_SWITCH).await?)
+}
+
+/// `GET /adminapi/setting/config/paySettings`：支付配置读取。
+async fn get_pay_settings(State(state): State<AdminState>) -> ApiResult<Value> {
+    ok(read_group(&state, CODE_PAY_SETTINGS).await?)
+}
+
+/// `POST /adminapi/setting/config/savePay`：保存支付配置。
+async fn save_pay(
+    State(state): State<AdminState>,
+    Json(body): Json<Map<String, Value>>,
+) -> ApiResult<()> {
+    write_group(&state, CODE_PAY_SETTINGS, body).await?;
+    ok(())
+}
+
+/// `GET /adminapi/setting/config/storeEntryRuleSettings`：店铺入驻规则读取。
+async fn get_store_entry_rule_settings(State(state): State<AdminState>) -> ApiResult<Value> {
+    ok(read_group(&state, CODE_STORE_ENTRY_RULE).await?)
+}
+
+/// `POST /adminapi/setting/config/saveStoreEntryRule`：保存店铺入驻规则。
+async fn save_store_entry_rule(
+    State(state): State<AdminState>,
+    Json(body): Json<Map<String, Value>>,
+) -> ApiResult<()> {
+    write_group(&state, CODE_STORE_ENTRY_RULE, body).await?;
+    ok(())
+}
+
+/// `POST /adminapi/setting/config/save|update`：通用保存（body 携带 `code`
+/// 指定 `biz_code`，其余字段为配置内容；b2b2b 前端通用落库入口）。
+async fn generic_save(
+    State(state): State<AdminState>,
+    Json(mut body): Json<Map<String, Value>>,
+) -> ApiResult<()> {
+    let code = body
+        .remove("code")
+        .and_then(|v| v.as_str().map(str::to_string))
+        .unwrap_or_default();
+    if code.is_empty() {
+        return Err(tigshop_security::web::AppError(
+            tigshop_core::Error::Validation("缺少配置 code".into()),
+        ));
+    }
+    write_group(&state, &code, body).await?;
     ok(())
 }
 
