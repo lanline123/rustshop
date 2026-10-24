@@ -150,7 +150,7 @@ async fn del(
     let id = q
         .id
         .filter(|id| *id > 0)
-        .ok_or_else(|| AppError(Error::Validation(MSG_ID_REQUIRED.into())))?;
+        .ok_or_else(|| AppError(Error::Validation("缺少发票ID".into())))?;
     state.trade.order_invoice_client.del(user_id, id).await?;
     ok(())
 }

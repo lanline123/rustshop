@@ -50,7 +50,8 @@ async fn get_code(
     State(state): State<PublicState>,
     Json(dto): Json<RegisterSmsDTO>,
 ) -> ApiResult<()> {
-    send_code(&state, dto).await
+    send_code(&state, dto).await?;
+    ok(())
 }
 
 /// GET 形态（query 兜底，H5 部分页面用 GET）。
@@ -66,7 +67,8 @@ async fn get_code_query(
             ..Default::default()
         },
     )
-    .await
+    .await?;
+    ok(())
 }
 
 /// GET query 形态。
