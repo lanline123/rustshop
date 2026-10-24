@@ -49,9 +49,10 @@ impl PosCashierService {
             .repo()
             .cashier_paginate(q.keyword.as_deref(), q.status, size, (page - 1) * size)
             .await?;
-        let total_page = if size > 0 { (total + size - 1) / size } else { 0 };
+        let total_u = total.max(0) as u64;
+        let total_page = if size > 0 { (total_u + size - 1) / size } else { 0 };
         Ok(tigshop_core::types::PageResult {
-            total,
+            total: total_u,
             total_page,
             list: rows
                 .into_iter()
@@ -461,7 +462,7 @@ impl PosCashierService {
 
     // ————————————————————— 桌台 —————————————————————
 
-    pub async fn areas(&self, shop_id: i32) -> Result<Vec<PosTableArea>> {
+    pub async fn areas(&self, shop_id: i32) -> Result<Vec<tigshop_core::entities::o2o::PosTableArea>> {
         self.repo().areas(shop_id).await
     }
 
@@ -567,7 +568,7 @@ impl PosCashierService {
 
     pub async fn receipt_list(&self, admin_id: i32) -> Result<serde_json::Value> {
         let rows = self.repo().pending_list(admin_id, None).await?;
-        Ok(rows)
+        Ok(serde_json::to_value(rows).unwrap_or_else(|_| serde_json::json!([])))
     }
 
     // ————————————————————— 商品 / 订单辅助 —————————————————————
