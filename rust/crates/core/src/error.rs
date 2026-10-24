@@ -23,7 +23,7 @@ pub enum Error {
     #[error("参数校验失败: {0}")]
     Validation(String),
 
-    /// 未登录 / Token 失效，HTTP 401。
+    /// 未登录 / Token 失效，HTTP 200 + 业务码 401（对齐 Java JwtAuthenticationEntryPoint）。
     #[error("未登录或会话已过期: {0}")]
     Unauthorized(String),
 
@@ -76,15 +76,18 @@ impl Error {
     }
 
     /// 转换为 HTTP 状态码。
+    ///
+    /// 未登录对齐原 Java `JwtAuthenticationEntryPoint`：HTTP 200 + 业务码 401
+    /// （PC/后台前端只在 body code==401 时跳登录页，HTTP 401 会走 $fetch 错误分支）。
     pub fn status_code(&self) -> StatusCode {
         match self {
-            Self::Unauthorized(_) => StatusCode::UNAUTHORIZED,
+            Self::Unauthorized(_) => StatusCode::OK,
             Self::Forbidden(_) => StatusCode::FORBIDDEN,
             Self::NotFound(_) => StatusCode::NOT_FOUND,
             Self::Validation(_) => StatusCode::BAD_REQUEST,
             Self::Conflict(_) | Self::InsufficientStock { .. } => StatusCode::CONFLICT,
             Self::Biz { code, .. } => match code {
-                401 => StatusCode::UNAUTHORIZED,
+                401 => StatusCode::OK,
                 403 => StatusCode::FORBIDDEN,
                 404 => StatusCode::NOT_FOUND,
                 400..=499 => StatusCode::BAD_REQUEST,

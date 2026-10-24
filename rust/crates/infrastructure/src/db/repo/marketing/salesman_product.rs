@@ -162,6 +162,23 @@ impl SalesmanProductRepository {
         Ok(res.rows_affected())
     }
 
+    /// 按主键批量删除（Java `BaseServiceImpl#batch(type=del)` → `removeByIds`）。
+    pub async fn delete_many(&self, ids: &[i32]) -> Result<u64> {
+        if ids.is_empty() {
+            return Ok(0);
+        }
+        let placeholders = vec!["?"; ids.len()].join(", ");
+        let sql = format!(
+            "DELETE FROM salesman_product WHERE salesman_product_id IN ({placeholders})"
+        );
+        let mut q = sqlx::query(&sql);
+        for id in ids {
+            q = q.bind(*id);
+        }
+        let res = q.execute(&self.pool).await.map_err(map_err)?;
+        Ok(res.rows_affected())
+    }
+
     /// 商品详情（`SELECT *` 映射实体，用于客户端详情 / 分析）。
     pub async fn product_by_id(&self, product_id: i32) -> Result<Option<Product>> {
         sqlx::query_as::<_, Product>("SELECT * FROM product WHERE product_id = ? LIMIT 1")

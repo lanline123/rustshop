@@ -44,9 +44,12 @@ use tigshop_security::web::{ok, ApiResult};
 
 use crate::AdminState;
 
-/// 本域 14 条路由（`/adminapi` 前缀之后的路径 + 原 Java 方法名）。
+/// 本域 17 条路由（`/adminapi` 前缀之后的路径 + 原 Java 方法名）。
 /// 路径参数使用契约写法 `{roomId}`（axum 注册时为 `{roomId}`）。
-const ROUTE_TABLE: [(&str, &str, &str); 14] = [
+/// 最后 3 条是新版管理端前端契约的 `promotion/wechatLive/*` 路径
+/// （`view/admin/src/api/promotion/live.ts`；Java 控制器只挂
+/// `content/wechatLive`，前端新版本改用 promotion 前缀）。
+const ROUTE_TABLE: [(&str, &str, &str); 17] = [
     ("GET", "/content/wechatLive/list", "WechatLiveController.list"),
     ("GET", "/content/wechatLive/detail", "WechatLiveController.detail"),
     ("POST", "/content/wechatLive/update", "WechatLiveController.update"),
@@ -93,6 +96,17 @@ const ROUTE_TABLE: [(&str, &str, &str); 14] = [
         "/content/wechatLive/finderLiveRecord",
         "WechatLiveController.getFinderLiveRecord",
     ),
+    ("GET", "/promotion/wechatLive/list", "WechatLiveController.list"),
+    (
+        "GET",
+        "/promotion/wechatLive/refresh",
+        "WechatLiveController.refresh",
+    ),
+    (
+        "POST",
+        "/promotion/wechatLive/refresh",
+        "WechatLiveController.refresh",
+    ),
 ];
 
 /// 微信直播路由（挂载于 `/adminapi` 下，外层统一套 `require_auth`）。
@@ -115,6 +129,12 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route(
             "/content/wechatLive/finderLiveRecord",
             get(finder_live_record),
+        )
+        // —— 新版前端 promotion 前缀（同一服务，路径别名） ——
+        .route("/promotion/wechatLive/list", get(list))
+        .route(
+            "/promotion/wechatLive/refresh",
+            get(refresh_noop).post(refresh_noop_post),
         )
 }
 
@@ -168,6 +188,21 @@ async fn update(
 async fn refresh(State(state): State<AdminState>) -> ApiResult<()> {
     state.content.wechat_live.refresh().await?;
     ok(())
+}
+
+/// `GET|POST /adminapi/promotion/wechatLive/refresh`：刷新直播间（兼容桩）。
+///
+/// Java 来源：新版管理端前端
+/// `view/admin/src/api/promotion/live.ts#getLiveRefresh`。无微信凭据时
+/// 返回 code:0 no-op（见 `services::content::wechat_live::refresh_noop`）。
+async fn refresh_noop(State(state): State<AdminState>) -> ApiResult<()> {
+    state.content.wechat_live.refresh_noop().await?;
+    ok(())
+}
+
+/// POST 形态的 [`refresh_noop`]（前端另有 POST 调用方）。
+async fn refresh_noop_post(State(state): State<AdminState>) -> ApiResult<()> {
+    refresh_noop(State(state)).await
 }
 
 /// `POST /adminapi/content/wechatLive/create`：创建直播间（本地记录）。
@@ -272,7 +307,7 @@ mod tests {
     #[test]
     fn implemented_routes_match_java_contract() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 14, "契约中微信直播域共 14 条接口");
+        assert_eq!(docs.len(), 17, "契约 14 条 + 前端契约 promotion 别名 3 条");
         assert_eq!(docs.len(), ROUTE_TABLE.len());
         for (method, path, handler) in ROUTE_TABLE.iter() {
             let full = if path.contains("{roomId}") {
@@ -307,6 +342,9 @@ mod tests {
             ("POST", "/content/wechatLive/removeFromRoom"),
             ("GET", "/content/wechatLive/room/{roomId}"),
             ("GET", "/content/wechatLive/finderLiveRecord"),
+            ("GET", "/promotion/wechatLive/list"),
+            ("GET", "/promotion/wechatLive/refresh"),
+            ("POST", "/promotion/wechatLive/refresh"),
         ];
         assert_eq!(registered.len(), ROUTE_TABLE.len());
         for (method, path) in registered {

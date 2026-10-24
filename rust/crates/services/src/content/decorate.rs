@@ -1563,6 +1563,10 @@ impl DecorateService {
 
 /// 当前 H5 首页渲染器仍使用旧装修模块类型；后台新类型需要降级转换，
 /// 否则整块被忽略（例如 `mixedNotice` 不会渲染）。
+///
+/// 字段映射依据：
+/// - 旧组件：`java/view/uniapp/src/pages/customPage/modules/<type>/index.vue`
+/// - 新编辑器默认值：`java/view/admin/src/views/decorate/decorate/editor/modules/*`
 fn convert_legacy_h5_modules(vo: &mut DecorateModuleListVO) {
     let Some(modules) = vo.module_list.as_mut() else {
         return;
@@ -1572,6 +1576,10 @@ fn convert_legacy_h5_modules(vo: &mut DecorateModuleListVO) {
             continue;
         };
         match kind {
+            // mixedNotice → notice：旧 notice 组件固定读取
+            // icoPic.picUrl / nociceEffect(scroll|still) / frame{...} / text。
+            // still 模式渲染 `$t(module.text)`（字符串），scroll 模式渲染
+            // `copyArray(module.text, 3)`（数组）——text 的类型必须跟随模式。
             "mixedNotice" => {
                 let Some(module) = item.get("module") else {
                     continue;
@@ -1596,27 +1604,46 @@ fn convert_legacy_h5_modules(vo: &mut DecorateModuleListVO) {
                         }
                     }
                 }
+                let scroll = texts.len() > 1;
+                let module_style = module.get("moduleStyle").cloned().unwrap_or_default();
+                let content_style = module.get("contentStyle").cloned().unwrap_or_default();
+                let module_color = module.get("moduleColor").cloned().unwrap_or_default();
+                let icon = module
+                    .pointer("/noticeGroups/0/notices/0/picThumb")
+                    .or_else(|| module.pointer("/noticeGroups/0/notices/0/picUrl"))
+                    .cloned()
+                    .unwrap_or_default();
                 let mut new_module = module.clone();
-                let text_value = texts
-                    .iter()
-                    .filter_map(serde_json::Value::as_str)
-                    .collect::<Vec<_>>()
-                    .join("  ");
-                new_module["text"] = serde_json::Value::String(text_value);
-                // H5 notice 组件会直接读取 icoPic / frame / nociceEffect，缺任一都会渲染失败。
-                new_module["icoPic"] = serde_json::json!({ "picUrl": "", "picThumb": "" });
-                new_module["frame"] = serde_json::json!({
-                    "backgroundColor": "transparent",
-                    "boxPadding": 0,
-                    "boxPaddingTop": 8,
-                    "boxPaddingBottom": 8,
-                    "boxRadius": 0,
-                    "itemBackgroundColor": "",
-                    "itemRadius": 0,
-                    "itemHeight": 35,
-                    "textColor": "#333333",
+                new_module["text"] = if scroll {
+                    serde_json::Value::Array(texts)
+                } else {
+                    texts
+                        .into_iter()
+                        .next()
+                        .unwrap_or_else(|| serde_json::Value::String(String::new()))
+                };
+                new_module["icoPic"] = serde_json::json!({
+                    "picUrl": icon,
+                    "picThumb": icon,
                 });
-                new_module["nociceEffect"] = serde_json::Value::String("still".into());
+                // 旧 formatFrame 还会读 innerPadding / titleFontSize / titleFontWeight，
+                // 缺省时避免出现 "padding:undefinedpx" 之类的脏样式。
+                new_module["frame"] = serde_json::json!({
+                    "backgroundColor": module_style.get("backgroundColor").cloned().unwrap_or_else(|| serde_json::json!("")),
+                    "innerPadding": content_style.get("padding").cloned().unwrap_or_else(|| serde_json::json!(0)),
+                    "boxPadding": module_style.get("boxPadding").cloned().unwrap_or_else(|| serde_json::json!(10)),
+                    "boxPaddingTop": module_style.get("boxPaddingTop").cloned().unwrap_or_else(|| serde_json::json!(5)),
+                    "boxPaddingBottom": module_style.get("boxPaddingBottom").cloned().unwrap_or_else(|| serde_json::json!(0)),
+                    "boxRadius": content_style.get("boxRadius").cloned().unwrap_or_else(|| serde_json::json!(0)),
+                    "itemBackgroundColor": content_style.get("backgroundColor").cloned().unwrap_or_else(|| serde_json::json!("")),
+                    "itemRadius": content_style.get("boxRadius").cloned().unwrap_or_else(|| serde_json::json!(0)),
+                    "itemHeight": 35,
+                    "textColor": module_color.get("titleColor").cloned().unwrap_or_else(|| serde_json::json!("#333333")),
+                    "titleFontSize": 14,
+                    "titleFontWeight": "normal",
+                });
+                new_module["nociceEffect"] =
+                    serde_json::Value::String(if scroll { "scroll" } else { "still" }.into());
                 item["type"] = serde_json::Value::String("notice".into());
                 item["module"] = new_module;
             }
@@ -1626,35 +1653,105 @@ fn convert_legacy_h5_modules(vo: &mut DecorateModuleListVO) {
             "seckill2" => {
                 if let Some(module) = item.get_mut("module") {
                     if module.get("title").is_none() {
-                        module["title"] = serde_json::json!({ "title": "限时秒杀" });
+                        // 旧 commonTitle 读取 title 对象（showTitle/titleText/...）
+                        module["title"] = legacy_default_title("限时秒杀", true);
                     }
                 }
                 item["type"] = serde_json::Value::String("seckill".into());
             }
+            // product2（新编辑器）只有 9 个字段；旧 product 组件额外读取
+            // style/goodsStyle/goodsRadioStyle/textAlign/textWeight/goodsNameRow/
+            // goodsNamePadding/showName/showBrief/showPrice/goodsPadding/imgPadding/
+            // waterfall/swiperPageColor/title 对象等，缺字段会导致名称/价格不渲染
+            // 或样式类为 undefined。
             "product2" => {
                 if let Some(module) = item.get_mut("module") {
-                    if module.get("title").is_none() {
-                        module["title"] = serde_json::json!({ "title": "商品推荐" });
-                    }
-                    if module.get("frame").is_none() {
-                        module["frame"] = serde_json::json!({
-                            "backgroundColor": "",
-                            "boxPadding": 0,
-                            "boxPaddingTop": 8,
-                            "boxPaddingBottom": 8,
-                            "boxRadius": 0,
-                            "innerPadding": 0,
+                    let round =
+                        module.get("goodsRadio").and_then(serde_json::Value::as_i64).unwrap_or(0) == 1;
+                    let defaults = serde_json::json!({
+                        "style": 1,
+                        "goodsStyle": 1,
+                        "goodsRadioStyle": if round { 2 } else { 1 },
+                        "textAlign": 1,
+                        "textWeight": 1,
+                        "goodsNameRow": 2,
+                        "goodsNamePadding": 1,
+                        "showName": 1,
+                        "showBrief": 0,
+                        "showPrice": 1,
+                        "goodsPadding": 5,
+                        "imgPadding": 1,
+                        "waterfall": 0,
+                        "swiperPageColor": "",
+                        "backgroundColor": "",
+                        "title": legacy_default_title("", false),
+                        "frame": {
+                            "textColor": "",
                             "itemBackgroundColor": "",
+                            "backgroundColor": "",
+                            "innerPadding": 0,
                             "itemHeight": 35,
                             "itemRadius": 3,
+                            "boxRadius": 0,
+                            "boxPadding": 10,
                             "leftAndRightPadding": 0,
-                            "textColor": "",
-                        });
+                            "boxPaddingTop": 5,
+                            "boxPaddingBottom": 5,
+                        },
+                    });
+                    if let (Some(dst), Some(src)) = (module.as_object_mut(), defaults.as_object()) {
+                        for (k, v) in src {
+                            dst.entry(k.clone()).or_insert(v.clone());
+                        }
                     }
                 }
                 item["type"] = serde_json::Value::String("product".into());
             }
+            // categoryNavA3 → categoryNavA2：旧组件额外读取指示条/动画相关字段，
+            // 缺省时 indicatorBar 关闭，避免 NaN 样式。
+            "categoryNavA3" => {
+                if let Some(module) = item.get_mut("module") {
+                    let defaults = serde_json::json!({
+                        "indicatorBar": 0,
+                        "animation": 0,
+                        "barColor": "#e6e6e6",
+                        "barColorOn": "#333333",
+                        "barWidth": 30,
+                        "barWidthOn": 20,
+                        "barHeight": 4,
+                        "rowPicPercent": 90,
+                    });
+                    if let (Some(dst), Some(src)) = (module.as_object_mut(), defaults.as_object()) {
+                        for (k, v) in src {
+                            dst.entry(k.clone()).or_insert(v.clone());
+                        }
+                    }
+                }
+                item["type"] = serde_json::Value::String("categoryNavA2".into());
+            }
             _ => {}
         }
     }
+}
+
+/// 旧版 commonTitle 组件要求的标题对象（对齐 admin 编辑器 `defaultTitle`）。
+fn legacy_default_title(title_text: &str, show_title: bool) -> serde_json::Value {
+    serde_json::json!({
+        "showTitle": if show_title { 1 } else { 0 },
+        "titleStyle": 1,
+        "titleAlign": 1,
+        "titleBackground": "",
+        "titleBackground2": "",
+        "titleBackgroundPic": { "picUrl": "", "picThumb": "" },
+        "titleRadius": 0,
+        "titleText": title_text,
+        "titleColor": "",
+        "titleWeight": "normal",
+        "descText": "",
+        "descColor": "#aaaaaa",
+        "showMore": 0,
+        "moreType": 1,
+        "countdownLabel": "",
+        "moreLink": [],
+    })
 }

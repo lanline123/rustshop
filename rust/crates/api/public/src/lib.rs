@@ -333,7 +333,7 @@ async fn profile(
 async fn cart_list(
     State(state): State<PublicState>,
     Extension(auth): Extension<AuthUser>,
-) -> ApiResult<tigshop_services::trade::cart::CartSummaryVO> {
+) -> ApiResult<tigshop_services::trade::cart::CartListByStoreVO> {
     ok(state.trade.cart.summary(auth.id).await?)
 }
 
@@ -408,11 +408,21 @@ async fn cart_add(
     ok(cart_id)
 }
 
+/// H5/PC 前端 `updateItem` 发 `{cartId, data:{quantity}}`（Java 契约嵌套），
+/// 兼容旧平铺 `{cartId, quantity}`。
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CartUpdateDTO {
     cart_id: i32,
-    quantity: i32,
+    #[serde(default)]
+    quantity: Option<i32>,
+    data: Option<CartUpdateNested>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CartUpdateNested {
+    quantity: Option<i32>,
 }
 
 /// `PUT /api/cart/update`：修改数量。
@@ -421,17 +431,35 @@ async fn cart_update(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<CartUpdateDTO>,
 ) -> ApiResult<&'static str> {
+    let quantity = dto
+        .quantity
+        .or(dto.data.and_then(|d| d.quantity))
+        .unwrap_or(1);
     state.trade.cart
-        .update_quantity(auth.id, dto.cart_id, dto.quantity)
+        .update_quantity(auth.id, dto.cart_id, quantity)
         .await?;
     ok("已更新")
 }
 
+/// H5/PC 前端 `updateCheck` 发 `{data:[{cartId,isChecked:number}...]}`
+/// （Java 契约数组，isChecked 0/1）；兼容旧单选 `{cartId, checked}`。
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CartCheckDTO {
+    #[serde(default)]
+    data: Vec<CartCheckItem>,
+    cart_id: Option<i32>,
+    #[serde(default, deserialize_with = "de_boolish")]
+    checked: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CartCheckItem {
     cart_id: i32,
-    checked: bool,
+    /// 0/1 数字（Java Integer），也可能是 true/false。
+    #[serde(default, deserialize_with = "de_boolish")]
+    is_checked: Option<bool>,
 }
 
 /// `POST /api/cart/check`：勾选/取消。
@@ -440,9 +468,19 @@ async fn cart_check(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<CartCheckDTO>,
 ) -> ApiResult<&'static str> {
-    state.trade.cart
-        .set_checked(auth.id, dto.cart_id, dto.checked)
-        .await?;
+    if dto.data.is_empty() {
+        if let Some(cart_id) = dto.cart_id {
+            state.trade.cart
+                .set_checked(auth.id, cart_id, dto.checked.unwrap_or(true))
+                .await?;
+        }
+        return ok("已更新");
+    }
+    for item in &dto.data {
+        state.trade.cart
+            .set_checked(auth.id, item.cart_id, item.is_checked.unwrap_or(true))
+            .await?;
+    }
     ok("已更新")
 }
 

@@ -764,7 +764,9 @@ async fn main() -> anyhow::Result<()> {
     let admin_msg = Arc::new(AdminMsgService::new(repos.clone()));
     let recommend = Arc::new(RecommendService::new(repos.clone()));
     // ---- system 域 ----
+    let locales_svc = Arc::new(tigshop_services::system::locales::LocalesService::new(repos.clone()));
     let system = Arc::new(tigshop_services::system::Services {
+        locales: locales_svc.clone(),
         app_version_admin: app_version_admin.clone(),
         area_code: area_code.clone(),
         cache_manage: cache_manage.clone(),
@@ -810,11 +812,39 @@ async fn main() -> anyhow::Result<()> {
         workbuddy: workbuddy.clone(),
     });
 
+    // ---- lang 域（多语言业务翻译） ----
+    let translations = Arc::new(tigshop_services::lang::translations::TranslationsService::new(repos.clone()));
+    let lang = Arc::new(tigshop_services::lang::Services {
+        translations: translations.clone(),
+    });
+
     // ---- 定时任务（替代 Java RabbitMQ 延迟队列 / Spring @Scheduled）----
     if std::env::var("TIG_SCHEDULER__ENABLED").map_or(true, |v| v != "false" && v != "0") {
         tigshop_services::system::scheduler::spawn_all(repos.clone(), (*order).clone());
         tracing::info!("定时任务已启动：订单超时取消（每分钟）/ 自动收货（每 5 分钟）");
     }
+
+    // ---- vendor / pos / o2o 域（供应商管理 / 收银设备 / 本地生活） ----
+    let vendor_service = Arc::new(tigshop_services::vendor::vendor::VendorService::new(repos.clone()));
+    let vendor_product_service = Arc::new(tigshop_services::vendor::vendor_product::VendorProductService::new(repos.clone()));
+    let vendor = Arc::new(tigshop_services::vendor::Services {
+        vendor: vendor_service.clone(),
+        vendor_product: vendor_product_service.clone(),
+    });
+    let pos_device_service = Arc::new(tigshop_services::pos::device::PosDeviceService::new(repos.clone()));
+    let pos = Arc::new(tigshop_services::pos::Services {
+        device: pos_device_service.clone(),
+    });
+    let o2o_config_service = Arc::new(tigshop_services::o2o::config::O2oConfigService::new(repos.clone()));
+    let o2o_reservation_tpl_service = Arc::new(tigshop_services::o2o::reservation_tpl::ReservationTplService::new(repos.clone()));
+    let o2o_stock_calendar_service = Arc::new(tigshop_services::o2o::stock_calendar::StockCalendarService::new(repos.clone()));
+    let o2o_store_product_service = Arc::new(tigshop_services::o2o::store_product::StoreProductService::new(repos.clone()));
+    let o2o = Arc::new(tigshop_services::o2o::Services {
+        config: o2o_config_service.clone(),
+        reservation_tpl: o2o_reservation_tpl_service.clone(),
+        stock_calendar: o2o_stock_calendar_service.clone(),
+        store_product: o2o_store_product_service.clone(),
+    });
 
     let admin_state = AdminState {
         identity: identity.clone(),
@@ -831,6 +861,10 @@ async fn main() -> anyhow::Result<()> {
         analytics: analytics.clone(),
         openapi: openapi.clone(),
         wholesale: wholesale.clone(),
+        lang: lang.clone(),
+        vendor: vendor.clone(),
+        pos: pos.clone(),
+        o2o: o2o.clone(),
         jwt: (*jwt).clone(),
     };
     let public_state = PublicState {

@@ -66,6 +66,9 @@ const LEVEL_PROVINCE: i32 = 2;
 /// 城市层级（Java `getCityRegion` / `getCityListByCityName` 的 `level = 3`）。
 const LEVEL_CITY: i32 = 3;
 
+/// 国家层级（o2o H5 `getCountryList` 的 `level = 1` 口径）。
+const LEVEL_COUNTRY: i32 = 1;
+
 pub struct RegionClientService {
     repos: Arc<Repositories>,
 }
@@ -291,6 +294,64 @@ impl RegionClientService {
     ) -> Vec<Region> {
         let regions = filter_selectable_regions(parent_id, regions, selected_region_id);
         sort_by_first_word(regions)
+    }
+
+    // ——————————————————————————————————————————————
+    // o2o H5 定位类接口（b2b2b 5.8.57 前端新增，无 Java 控制器对应，
+    // 按表结构 + 前端语义最小实现；高德 / ip2region 凭据未接入时降级）
+    // ——————————————————————————————————————————————
+
+    /// 国家列表（`getCountryList`：`region` 表 `level = 1`，
+    /// 本表无 `is_country` 列，按层级口径取）。
+    pub async fn country_list(&self) -> Result<Vec<Region>> {
+        self.regions().find_by_level(LEVEL_COUNTRY).await
+    }
+
+    /// 按 IP 定位（`getLocationByIp`）。
+    ///
+    /// 未接入 ip2region / 高德 IP 库 → 固定走 Java `getUserRegion` 的
+    /// 兜底分支（默认城市「北京」，查不到再取全表第一条）。
+    pub async fn location_by_ip(&self, _ip: Option<&str>) -> Result<Region> {
+        self.user_region().await
+    }
+
+    /// 按经纬度定位（`getLocationByLocation`）。
+    ///
+    /// 逆地理编码需高德 Key（未配置）→ 降级为默认城市，与
+    /// `getLocationByIp` 同一兜底口径。
+    pub async fn location_by_location(
+        &self,
+        _longitude: Option<&str>,
+        _latitude: Option<&str>,
+    ) -> Result<Region> {
+        self.user_region().await
+    }
+
+    /// 按 regionId 取定位详情（`getLocationByRegionId`：主键查询，
+    /// 缺行返回 `None`）。
+    pub async fn location_by_region_id(&self, region_id: i32) -> Result<Option<Region>> {
+        self.regions().find_by_id(region_id).await
+    }
+
+    /// 逆地理编码详情（`getRegeoDetail`：高德 regeo，需 Key）。
+    ///
+    /// 未配置凭据 → 返回默认城市的降级结果
+    /// （`{ regionId, regionName, ... }`，`regeo: false` 标记非真实逆编码）。
+    pub async fn regeo_detail(&self) -> Result<Region> {
+        self.user_region().await
+    }
+
+    /// 关键词搜索地区（`searchByKeywords`：`region_name LIKE`，
+    /// 不限层级，上限 50 条）。
+    pub async fn search_by_keywords(&self, keywords: &str) -> Result<Vec<Region>> {
+        self.regions().find_by_name_like(keywords, None).await
+    }
+
+    /// 共享仓储聚合（o2o H5 / 公共机器翻译等无独立服务聚合的公共路由复用；
+    /// `PublicState` 未挂 o2o / lang 服务，经本服务取 `Repositories`）。
+    #[must_use]
+    pub fn repos(&self) -> &Arc<Repositories> {
+        &self.repos
     }
 }
 

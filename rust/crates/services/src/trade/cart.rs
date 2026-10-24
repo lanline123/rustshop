@@ -11,35 +11,118 @@ use tigshop_infrastructure::db::Repositories;
 
 use crate::catalog::product::ProductService;
 
-/// 购物车行 VO。
+/// 购物车行 VO（Java `CartVO` 前端使用子集）。
+///
+/// H5/PC 购物车页直接读取：cartId/productStatus/stock/price/originPrice/
+/// quantity/isChecked(bool)/skuData(数组)/productName/picThumb/skuId 等
+/// （java/view/uniapp `pages/cart/index.vue`）。
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CartItemVO {
     pub cart_id: i32,
+    pub user_id: i32,
     pub product_id: i32,
-    pub product_name: String,
     pub pic_thumb: String,
-    pub sku_id: Option<i32>,
-    pub sku_data: Option<String>,
-    pub price: Decimal,
+    pub market_price: Decimal,
+    /// Java `originalPrice` 为 String（划线价展示）。
+    pub original_price: String,
     pub quantity: i32,
-    pub subtotal: Decimal,
-    pub checked: bool,
+    pub sku_id: Option<i32>,
     pub shop_id: i32,
-    /// 库存是否仍充足（下单前提示）
-    pub stock_enough: bool,
+    pub r#type: i32,
+    pub update_time: i64,
+    pub product_sn: String,
+    pub product_name: String,
+    pub product_type: Option<i32>,
+    pub product_stock: i32,
+    /// 1 上架 / 0 下架。
+    pub product_status: i32,
+    pub product_price: Decimal,
+    pub member_price: Decimal,
+    /// 行生效单价。
+    pub price: Decimal,
+    /// 划线原价。
+    pub origin_price: Decimal,
+    /// 当前可售库存。
+    pub stock: i32,
+    pub is_checked: bool,
+    /// 规格值数组（Java JSONArray；H5 `getSkuValueText` 按数组读）。
+    pub sku_data: serde_json::Value,
+    pub has_sku: bool,
+    pub subtotal: Decimal,
+    pub is_disabled: bool,
+    pub disabled_reason: String,
+    pub activity_info: Vec<serde_json::Value>,
+    pub extra_sku_data: Vec<serde_json::Value>,
+    pub service_fee: String,
+    pub wholesale_multiple: i32,
 }
 
-/// 购物车汇总。
+/// 店铺分组合计（Java `CartByStoreVO.CartStoreTotal`，未迁移优惠引擎的字段为 0）。
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CartSummaryVO {
-    pub items: Vec<CartItemVO>,
-    /// 勾选商品总数
-    pub checked_quantity: i32,
-    /// 勾选商品总额
-    pub checked_amount: Decimal,
-    pub total_quantity: i32,
+pub struct CartStoreTotalVO {
+    pub coupon_ids: Vec<i32>,
+    pub product_amount: Decimal,
+    pub total_count: i64,
+    pub checked_count: i64,
+    pub discounts: Decimal,
+    pub discount_after: Decimal,
+    pub service_fee: Decimal,
+}
+
+/// 店铺分组（Java `CartByStoreVO`）。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CartByStoreVO {
+    pub total: CartStoreTotalVO,
+    pub carts: Vec<CartItemVO>,
+    pub used_promotions: Vec<serde_json::Value>,
+    pub enable_use_promotion: Vec<serde_json::Value>,
+    pub gift: Vec<serde_json::Value>,
+    pub shop_id: i32,
+    pub shop_title: String,
+    pub no_shipping: i32,
+    pub is_not_reach_min_order_amount: bool,
+    pub min_order_amount_diff: Decimal,
+    pub wholesale_group_hint: String,
+    pub wholesale_configured: bool,
+    /// H5 店铺勾选框 v-model（Java 端由前端回填，这里直接给初值）。
+    pub is_checked: bool,
+    /// H5 列表 :key 用（Java 端无此字段，取 shopId 保证稳定）。
+    pub cart_id: i32,
+}
+
+/// 购物车总合计（Java `CartListByStoreVO.CartTotal`，未迁移优惠引擎的字段为 0）。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CartTotalVO {
+    pub product_amount: Decimal,
+    pub checked_count: i64,
+    pub discounts: Decimal,
+    pub discount_after: Decimal,
+    pub discount_change_price: Decimal,
+    pub pos_other_discount_amount: Decimal,
+    pub total_count: i64,
+    pub discount_coupon_amount: Decimal,
+    pub discount_seckill_amount: Decimal,
+    pub discount_product_promotion_amount: Decimal,
+    pub discount_time_discount_amount: Decimal,
+    pub discount_group_buy_amount: Decimal,
+    pub discount_discount_amount: Decimal,
+    pub round_off_cents_amount: Decimal,
+    pub round_off_dime_amount: Decimal,
+    pub service_fee: Decimal,
+}
+
+/// 购物车列表（Java `CartListByStoreVO`，按店铺分组）。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CartListByStoreVO {
+    pub total: CartTotalVO,
+    pub has_change_price: bool,
+    pub cart_list: Vec<CartByStoreVO>,
+    pub is_wholesale_buyer: bool,
 }
 
 #[derive(Clone)]
@@ -155,66 +238,201 @@ impl CartService {
         Ok(())
     }
 
-    /// 购物车汇总（实时校验库存/价格）。
-    pub async fn summary(&self, user_id: i32) -> Result<CartSummaryVO> {
+    /// 购物车列表（Java `CartServiceImpl#list` 契约：按店铺分组）。
+    ///
+    /// 实时回填商品名/图/状态/库存；优惠与活动引擎未迁移，相关字段为 0/空数组。
+    pub async fn summary(&self, user_id: i32) -> Result<CartListByStoreVO> {
         let carts = self.repos.trade.cart.find_by_user(user_id, None).await?;
-        let mut items = Vec::with_capacity(carts.len());
-        let (mut checked_qty, mut checked_amount, mut total_qty) = (0, Decimal::ZERO, 0);
+        let (mut checked_qty, mut checked_amount, mut total_qty) = (0i64, Decimal::ZERO, 0i64);
 
+        // 按店铺分组（保持首次出现顺序；shop_id=0 自营）
+        let mut shop_order: Vec<i32> = Vec::new();
+        let mut groups: std::collections::HashMap<i32, Vec<Cart>> = std::collections::HashMap::new();
         for c in carts {
-            let pid = c.product_id;
-            let qty = c.quantity;
-            // 购物车行本身不存商品名/图，列表必须回填，否则前端会当成空行。
-            let product = self.repos.catalog.product.find_by_id(pid).await.ok().flatten();
-            let product_name = product
-                .as_ref()
-                .map(|p| p.product_name.clone())
-                .unwrap_or_default();
-            let pic_thumb = product
-                .as_ref()
-                .map(|p| p.pic_thumb.clone())
-                .unwrap_or_else(|| c.pic_thumb.clone().unwrap_or_default());
-            // original_price 为 NOT NULL；market_price 可空，仅作兜底
-            let price = if c.original_price > Decimal::ZERO {
-                c.original_price
-            } else {
-                c.market_price.unwrap_or_default()
-            };
-            let subtotal = price * Decimal::from(qty);
-            let checked = c.is_checked();
-            let stock_enough = self
-                .product
-                .check_purchasable(pid, c.sku_id, qty.max(1))
-                .await
-                .is_ok();
-
-            if checked {
-                checked_qty += qty;
-                checked_amount += subtotal;
+            if !groups.contains_key(&c.shop_id) {
+                shop_order.push(c.shop_id);
             }
-            total_qty += qty;
+            groups.entry(c.shop_id).or_default().push(c);
+        }
 
-            items.push(CartItemVO {
-                cart_id: c.cart_id,
-                product_id: pid,
-                product_name,
-                pic_thumb,
-                sku_id: c.sku_id,
-                sku_data: c.sku_data,
-                price,
-                quantity: qty,
-                subtotal,
-                checked,
-                shop_id: c.shop_id,
-                stock_enough,
+        let mut cart_list = Vec::with_capacity(shop_order.len());
+        for shop_id in shop_order {
+            let rows = groups.remove(&shop_id).unwrap_or_default();
+            let shop_title = if shop_id > 0 {
+                self.repos
+                    .merchant
+                    .shop
+                    .find_by_id(shop_id)
+                    .await
+                    .ok()
+                    .flatten()
+                    .and_then(|s| s.shop_title)
+                    .unwrap_or_default()
+            } else {
+                String::new()
+            };
+
+            let mut lines = Vec::with_capacity(rows.len());
+            let (mut store_qty, mut store_checked_qty, mut store_amount) =
+                (0i64, 0i64, Decimal::ZERO);
+            let mut group_all_checked = !rows.is_empty();
+
+            for c in rows {
+                let pid = c.product_id;
+                let qty = c.quantity;
+                // 购物车行本身不存商品名/图，列表必须回填，否则前端会当成空行。
+                let product = self.repos.catalog.product.find_by_id(pid).await.ok().flatten();
+                let product_name = product
+                    .as_ref()
+                    .map(|p| p.product_name.clone())
+                    .unwrap_or_default();
+                let pic_thumb = product
+                    .as_ref()
+                    .map(|p| p.pic_thumb.clone())
+                    .unwrap_or_else(|| c.pic_thumb.clone().unwrap_or_default());
+                let product_sn = product
+                    .as_ref()
+                    .map(|p| p.product_sn.clone())
+                    .unwrap_or_default();
+                let (product_stock, product_status, product_type) = product
+                    .as_ref()
+                    .map(|p| (p.product_stock, p.product_status, p.product_type))
+                    .unwrap_or((0, 0, Some(0)));
+                let (product_price, market_price) = product
+                    .as_ref()
+                    .map(|p| (p.product_price, p.market_price))
+                    .unwrap_or((Decimal::ZERO, Decimal::ZERO));
+
+                // original_price 为 NOT NULL；market_price 可空，仅作兜底
+                let price = if c.original_price > Decimal::ZERO {
+                    c.original_price
+                } else {
+                    c.market_price.unwrap_or(product_price)
+                };
+                let origin_price = if market_price > Decimal::ZERO {
+                    market_price
+                } else {
+                    price
+                };
+                let subtotal = price * Decimal::from(qty);
+                let checked = c.is_checked();
+                let is_disabled = product_status == 0;
+                let disabled_reason = if is_disabled {
+                    "已下架".to_string()
+                } else if product_stock < qty {
+                    "库存不足".to_string()
+                } else {
+                    String::new()
+                };
+                // cart.sku_data 存 JSON 字符串；H5 按数组读取规格值
+                let sku_data: serde_json::Value = c
+                    .sku_data
+                    .as_deref()
+                    .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok())
+                    .filter(|v| v.is_array())
+                    .unwrap_or_else(|| serde_json::Value::Array(vec![]));
+                let extra_sku_data: Vec<serde_json::Value> = c
+                    .extra_sku_data
+                    .as_deref()
+                    .and_then(|s| serde_json::from_str::<Vec<serde_json::Value>>(s).ok())
+                    .unwrap_or_default();
+                let has_sku = c.sku_id.map(|id| id > 0).unwrap_or(false)
+                    || sku_data.as_array().is_some_and(|a| !a.is_empty());
+
+                if checked {
+                    checked_qty += i64::from(qty);
+                    checked_amount += subtotal;
+                    store_checked_qty += i64::from(qty);
+                    store_amount += subtotal;
+                } else {
+                    group_all_checked = false;
+                }
+                total_qty += i64::from(qty);
+                store_qty += i64::from(qty);
+
+                lines.push(CartItemVO {
+                    cart_id: c.cart_id,
+                    user_id: c.user_id,
+                    product_id: pid,
+                    pic_thumb,
+                    market_price,
+                    original_price: origin_price.to_string(),
+                    quantity: qty,
+                    sku_id: c.sku_id,
+                    shop_id: c.shop_id,
+                    r#type: c.r#type,
+                    update_time: i64::from(c.update_time),
+                    product_sn,
+                    product_name,
+                    product_type,
+                    product_stock,
+                    product_status,
+                    product_price,
+                    member_price: price,
+                    price,
+                    origin_price,
+                    stock: product_stock,
+                    is_checked: checked,
+                    sku_data,
+                    has_sku,
+                    subtotal,
+                    is_disabled,
+                    disabled_reason,
+                    activity_info: vec![],
+                    extra_sku_data,
+                    service_fee: "0".to_string(),
+                    wholesale_multiple: 1,
+                });
+            }
+
+            cart_list.push(CartByStoreVO {
+                total: CartStoreTotalVO {
+                    coupon_ids: vec![],
+                    product_amount: store_amount,
+                    total_count: store_qty,
+                    checked_count: store_checked_qty,
+                    discounts: Decimal::ZERO,
+                    discount_after: store_amount,
+                    service_fee: Decimal::ZERO,
+                },
+                carts: lines,
+                used_promotions: vec![],
+                enable_use_promotion: vec![],
+                gift: vec![],
+                shop_id,
+                shop_title,
+                no_shipping: 0,
+                is_not_reach_min_order_amount: false,
+                min_order_amount_diff: Decimal::ZERO,
+                wholesale_group_hint: String::new(),
+                wholesale_configured: false,
+                is_checked: group_all_checked,
+                cart_id: shop_id,
             });
         }
 
-        Ok(CartSummaryVO {
-            items,
-            checked_quantity: checked_qty,
-            checked_amount,
-            total_quantity: total_qty,
+        Ok(CartListByStoreVO {
+            total: CartTotalVO {
+                product_amount: checked_amount,
+                checked_count: checked_qty,
+                discounts: Decimal::ZERO,
+                discount_after: checked_amount,
+                discount_change_price: Decimal::ZERO,
+                pos_other_discount_amount: Decimal::ZERO,
+                total_count: total_qty,
+                discount_coupon_amount: Decimal::ZERO,
+                discount_seckill_amount: Decimal::ZERO,
+                discount_product_promotion_amount: Decimal::ZERO,
+                discount_time_discount_amount: Decimal::ZERO,
+                discount_group_buy_amount: Decimal::ZERO,
+                discount_discount_amount: Decimal::ZERO,
+                round_off_cents_amount: Decimal::ZERO,
+                round_off_dime_amount: Decimal::ZERO,
+                service_fee: Decimal::ZERO,
+            },
+            has_change_price: false,
+            cart_list,
+            is_wholesale_buyer: false,
         })
     }
 

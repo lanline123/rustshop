@@ -44,7 +44,7 @@ use tigshop_core::models::marketing::gift_card::{
     GiftCardExchangeInfoVO, GiftCardIdParam, GiftCardPayInfoVO, GiftCardUpdateStatusDTO,
     GiftCardUserAddressInfoVO, GiftCardsExportVO, GiftCardsImportVO, GiftCardsListQuery,
     GiftCardsTemplateVO, GiftCardsVO, CLAIMED_RECEIVED, CLAIMED_RECEIVABLE,
-    GROUP_TYPE_EXCHANGE, GROUP_TYPE_TOP_UP, MSG_CARD_ABNORMAL, MSG_CARD_ALREADY_CLAIMED,
+    CARD_TYPE_PHYSICAL, GROUP_TYPE_EXCHANGE, GROUP_TYPE_TOP_UP, MSG_CARD_ABNORMAL, MSG_CARD_ALREADY_CLAIMED,
     MSG_CARD_ALREADY_EXCHANGED, MSG_CARD_EXPIRED, MSG_CARD_GROUP_INVALID,
     MSG_CARD_GROUP_NOT_EXISTS, MSG_CARD_ID_REQUIRED, MSG_CARD_NOT_CLAIMABLE,
     MSG_CARD_NOT_EXISTS, MSG_CARD_SOLD_CANNOT_DELETE, MSG_EXCEL_IMPORT_UNMIGRATED,
@@ -312,6 +312,112 @@ impl GiftCardService {
             .await?;
         self.repo().update_available(gift_cards_id, is_available).await?;
         Ok(())
+    }
+
+    /// 批量生成礼品卡（Java `createGiftCardsBatch(cardGroupsId, count)`，
+    /// 端点 `POST /promotion/giftCards/createBatch`）。
+    ///
+    /// 语义逐条对齐 Java `GiftCardsServiceImpl#createGiftCardsBatch`：
+    /// 1. 卡组必须存在（`卡组不存在`）；
+    /// 2. 一次生成 `count` 个唯一卡号（内存级去重；格式
+    ///    `GC + yyyyMMdd + groupId + 4 位随机`，随机字符集
+    ///    `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`，与 Java `CHARSET` 一致）；
+    /// 3. 过滤数据库已存在的卡号；
+    /// 4. 逐张插入：`gift_card_sn = UUID`、`card_password = 8 位随机`、
+    ///    `is_available = 1`、`status = 0`、`add_time = now`；
+    ///    实体卡（`card_type = 2`）继承卡组 `expire_time`（缺失 0）；
+    /// 5. 卡组 `availability_stock += 实际插入张数`。
+    ///
+    /// # Errors
+    /// 卡组不存在 / 无归属权限 → 业务错误或 `Forbidden`；
+    /// 数据库错误 → `Error::Database`。
+    pub async fn create_batch(&self, card_groups_id: i32, count: i32) -> Result<()> {
+        if count <= 0 {
+            return Err(Error::Validation("生成数量必须大于0".into()));
+        }
+        let group = self
+            .repo()
+            .find_group(card_groups_id)
+            .await?
+            .ok_or_else(|| Error::biz(500, MSG_CARD_GROUP_NOT_EXISTS))?;
+        // 多租户：写操作必须校验卡组归属
+        TenantScope::current_ensure_access(group.shop_id.unwrap_or(0))?;
+
+        // ① 生成唯一卡号（内存去重 + 数据库去重，上限保护避免死循环）
+        let mut card_nos: Vec<String> = Vec::with_capacity(count as usize);
+        let mut attempts = 0u32;
+        while card_nos.len() < count as usize && attempts < (count as u32).saturating_mul(20) {
+            attempts += 1;
+            let no = generate_card_no(card_groups_id);
+            if !card_nos.contains(&no) {
+                card_nos.push(no);
+            }
+        }
+        let existing = self
+            .repo()
+            .find_existing_card_numbers(&card_nos)
+            .await?;
+        let fresh: Vec<String> = card_nos
+            .into_iter()
+            .filter(|no| !existing.contains(no))
+            .collect();
+
+        // ② 构造实体
+        let now = now_seconds();
+        let add_time = i32::try_from(now).unwrap_or(i32::MAX);
+        let expired_time = if group.card_type == CARD_TYPE_PHYSICAL {
+            group.expire_time.unwrap_or(0)
+        } else {
+            0
+        };
+        let cards: Vec<GiftCards> = fresh
+            .into_iter()
+            .map(|card_number| GiftCards {
+                gift_cards_id: 0,
+                card_groups_id,
+                card_number,
+                card_password: generate_card_password(),
+                gift_card_sn: Some(uuid::Uuid::new_v4().simple().to_string()),
+                is_available: Some(YES),
+                status: Some(0),
+                used_time: None,
+                user_id: None,
+                add_time: Some(add_time),
+                expired_time,
+                claimed_user_id: None,
+                claimed_status: None,
+                order_time: None,
+            })
+            .collect();
+
+        // ③ 批量写入 + 卡组库存
+        if !cards.is_empty() {
+            let inserted = self.repo().insert_many(&cards).await? as i32;
+            let stock = group.availability_stock.unwrap_or(0) + inserted;
+            self.repo()
+                .update_group_stock(card_groups_id, stock)
+                .await?;
+            tracing::info!("批量生成礼品卡: cardGroupsId={card_groups_id}, count={inserted}");
+        }
+        Ok(())
+    }
+
+    /// 查看卡密（端点 `GET /promotion/giftCards/showCardPassword?cardId=`）。
+    ///
+    /// Java 来源：新版管理端前端
+    /// `view/admin/src/api/promotion/giftCard.ts#getGiftCardPasswrod`
+    /// （返回 `string`；旧版 Java 控制器未含该端点）。管理端为明文查看，
+    /// 不做脱敏（与 Java 列表 `cardPassword` 直出一致）。
+    ///
+    /// # Errors
+    /// 卡不存在 → 业务错误 `礼品卡不存在`；数据库错误 → `Error::Database`。
+    pub async fn show_card_password(&self, card_id: i32) -> Result<String> {
+        let card = self
+            .repo()
+            .find_by_id(card_id)
+            .await?
+            .ok_or_else(|| Error::biz(500, MSG_CARD_NOT_EXISTS))?;
+        Ok(card.card_password)
     }
 
     /// 礼品卡兑换详情（Java `giftCardExchangeDetail`）。
@@ -601,6 +707,36 @@ fn list_vo(card: &GiftCards) -> GiftCardsVO {
         add_time: seconds_text(card.add_time),
         ..Default::default()
     }
+}
+
+/// 卡号/卡密随机字符集（Java `StringUtils.CHARSET`：
+/// 去掉易混淆的 `I/O/0/1`）。
+pub const CARD_RANDOM_CHARSET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+/// 生成卡号（Java `StringUtils.generateCardNo(groupId)`：
+/// `"GC" + yyyyMMdd + groupId + 4 位随机`）。
+#[must_use]
+pub fn generate_card_no(group_id: i32) -> String {
+    let date = chrono::Utc::now().format("%Y%m%d");
+    format!("GC{date}{group_id}{}", random_chars(4))
+}
+
+/// 生成卡密（Java `StringUtils.generatePassword()`：8 位随机）。
+#[must_use]
+pub fn generate_card_password() -> String {
+    random_chars(8)
+}
+
+/// 从 [`CARD_RANDOM_CHARSET`] 随机取 `len` 个字符。
+fn random_chars(len: usize) -> String {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    (0..len)
+        .map(|_| {
+            let idx = rng.gen_range(0..CARD_RANDOM_CHARSET.len());
+            CARD_RANDOM_CHARSET[idx] as char
+        })
+        .collect()
 }
 
 /// 过期判定（Java `isGiftCardExpired`）：`expiredTime == null` ⇒ true；

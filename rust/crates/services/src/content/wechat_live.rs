@@ -189,6 +189,19 @@ impl WechatLiveService {
         Err(wechat_api_error("access_token获取失败"))
     }
 
+    /// `GET|POST /adminapi/promotion/wechatLive/refresh`：刷新直播间（兼容桩）。
+    ///
+    /// Java 来源：新版管理端前端
+    /// `view/admin/src/api/promotion/live.ts#getLiveRefresh`
+    /// （列表页「API更新直播间」按钮）。本部署无微信凭据
+    /// （`WechatApiClient` 未迁移），按任务约定返回成功 no-op——
+    /// 前端点击后仅重拉本地列表，与「无远端可同步」语义一致。
+    /// [`WechatLiveService::refresh`]（`content/wechatLive/refresh` 契约路径）
+    /// 保持原语义（返回微信错误），不受影响。
+    pub async fn refresh_noop(&self) -> Result<()> {
+        Ok(())
+    }
+
     /// `POST /adminapi/content/wechatLive/create`：创建直播间（本地记录）。
     ///
     /// 对应 Java `create`：Java 尝试调微信接口创建远端房间（失败被 `catch` 吞掉），

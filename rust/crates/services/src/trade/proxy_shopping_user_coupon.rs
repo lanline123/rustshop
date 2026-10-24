@@ -105,6 +105,7 @@ use std::sync::Arc;
 use serde_json::Value;
 use tigshop_common::utils::now_seconds;
 use tigshop_core::entities::business::{NEW_USER_MEMBER, NEW_USER_ONLY};
+use tigshop_core::entities::Coupon;
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::trade::proxy_shopping_user_coupon::SOURCE_CLAIM;
 use tigshop_infrastructure::db::Repositories;
@@ -496,6 +497,33 @@ impl ProxyShoppingUserCouponService {
                 end_date as i32,
                 SOURCE_CLAIM,
             )
+            .await
+    }
+
+    /// 代客下单可领取（可见）优惠券列表。
+    ///
+    /// Java 来源：新版管理端前端
+    /// `view/admin/src/api/proxyShopping/cart.ts#getProxyShoppingCouponList`
+    /// （`POST /proxyShopping/coupon/visible-list`；对应 Java 控制器未随本仓
+    /// 提供，注释称「对齐收银台 pos/user/coupon/visible-list」）。
+    ///
+    /// `user_id` / `product_ids` 当前不参与过滤（Java 参考实现缺失，
+    /// 保留入参签名以便后续收紧：按会员人群/商品适用范围过滤），
+    /// 返回未删除、展示中、可点击领取且有效期末过的券定义列表，
+    /// 按添加时间倒序。
+    ///
+    /// # Errors
+    /// 数据库错误 → `Error::Database`。
+    pub async fn visible_list(
+        &self,
+        _user_id: Option<i32>,
+        _product_ids: &[i32],
+    ) -> Result<Vec<Coupon>> {
+        let now = now_seconds();
+        self.repos
+            .trade
+            .proxy_shopping_user_coupon
+            .find_visible_coupons(now)
             .await
     }
 }

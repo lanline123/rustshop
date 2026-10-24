@@ -19,7 +19,7 @@ use std::sync::Arc;
 
 use tigshop_core::entities::SalesmanGroup;
 use tigshop_core::models::marketing::salesman_group::{
-    format_time, validate_name, OperateDTO, SalesmanGroupEditDTO, SalesmanGroupListQuery,
+    format_time, validate_name, BatchDTO, OperateDTO, SalesmanGroupEditDTO, SalesmanGroupListQuery,
     SalesmanGroupSaveDTO, SalesmanGroupVO, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, MSG_GROUP_IN_USE,
     MSG_GROUP_NOT_FOUND, MSG_ID_REQUIRED,
 };
@@ -141,6 +141,30 @@ impl SalesmanGroupService {
         }
         self.repo().delete(id).await?;
         Ok(())
+    }
+
+    /// 批量操作（`POST /salesman/group/batch`）。
+    ///
+    /// Java 来源：新版管理端前端
+    /// `view/admin/src/api/salesman/subgroup.ts#batchSubmit`
+    /// （body `{ type, ids }`；Java `SalesmanGroupController` 未含 `batch`）。
+    /// 语义对齐各域 `BaseServiceImpl#batch`：`type = "del"` 时
+    /// `removeByIds`（**不做**单删的「组内有分销员」占用检查，
+    /// 与 Java 批量路径一致）；其它 `type` 静默返回 `false`。
+    ///
+    /// # Errors
+    /// 数据库错误 → `Error::Database`。
+    pub async fn batch(&self, dto: &BatchDTO) -> Result<bool> {
+        if dto.r#type != "del" || dto.ids.is_empty() {
+            return Ok(false);
+        }
+        let mut deleted = false;
+        for id in &dto.ids {
+            if self.repo().delete(*id).await? {
+                deleted = true;
+            }
+        }
+        Ok(deleted)
     }
 }
 

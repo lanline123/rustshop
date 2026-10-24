@@ -113,6 +113,9 @@ pub struct Repositories {
     pub pool: DbPool,
     pub identity: repo::identity::Repositories,
     pub merchant: repo::merchant::Repositories,
+    pub vendor: repo::vendor::Repositories,
+    pub pos: repo::pos::Repositories,
+    pub o2o: repo::o2o::Repositories,
     pub wholesale: repo::wholesale::Repositories,
     pub catalog: repo::catalog::Repositories,
     pub trade: repo::trade::Repositories,
@@ -125,6 +128,7 @@ pub struct Repositories {
     pub im: repo::im::Repositories,
     pub analytics: repo::analytics::Repositories,
     pub openapi: repo::openapi::Repositories,
+    pub lang: repo::lang::Repositories,
 }
 
 impl Repositories {
@@ -134,6 +138,9 @@ impl Repositories {
             pool: pool.clone(),
             identity: repo::identity::Repositories::new(pool.clone()),
             merchant: repo::merchant::Repositories::new(pool.clone()),
+            vendor: repo::vendor::Repositories::new(pool.clone()),
+            pos: repo::pos::Repositories::new(pool.clone()),
+            o2o: repo::o2o::Repositories::new(pool.clone()),
             wholesale: repo::wholesale::Repositories::new(pool.clone()),
             catalog: repo::catalog::Repositories::new(pool.clone()),
             trade: repo::trade::Repositories::new(pool.clone()),
@@ -146,6 +153,7 @@ impl Repositories {
             im: repo::im::Repositories::new(pool.clone()),
             analytics: repo::analytics::Repositories::new(pool.clone()),
             openapi: repo::openapi::Repositories::new(pool.clone()),
+            lang: repo::lang::Repositories::new(pool.clone()),
         }
     }
 }

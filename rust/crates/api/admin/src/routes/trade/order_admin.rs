@@ -74,8 +74,10 @@ use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 
 use crate::AdminState;
 
-/// 订单管理域全部 34 条路由（`/adminapi` 前缀之后 + 原 Java 方法名）。
-const ROUTE_TABLE: [(&str, &str, &str); 34] = [
+/// 订单管理域全部 35 条路由（`/adminapi` 前缀之后 + 原 Java 方法名）。
+/// 最后一条 `writeOff` 来自新版管理端前端契约（Java `OrderController`
+/// 未含该端点，见 `view/admin/src/api/order/order.ts#writeOffOrder`）。
+const ROUTE_TABLE: [(&str, &str, &str); 35] = [
     ("GET", "/order/order/list", "OrderController.list"),
     ("GET", "/order/order/statusCount", "OrderController.statusCount"),
     ("GET", "/order/order/detail", "OrderController.detail"),
@@ -126,6 +128,11 @@ const ROUTE_TABLE: [(&str, &str, &str); 34] = [
         "/order/order/downloadDeliverTemplate",
         "OrderController.downloadDeliverTemplate",
     ),
+    (
+        "POST",
+        "/order/order/writeOff",
+        "OrderController.writeOff",
+    ),
 ];
 
 /// 订单管理域路由（挂载于 `/adminapi` 下，外层统一套 `require_auth`）。
@@ -164,6 +171,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/order/order/remindDeliver", post(remind_deliver))
         .route("/order/order/cancelOrderByAdmin", post(order_cancel_by_admin))
         .route("/order/order/batchDeliverImport", post(batch_deliver_import))
+        .route("/order/order/writeOff", post(write_off))
         .route(
             "/order/order/getBatchDeliverImportErrorData",
             post(get_batch_deliver_import_error_data),
@@ -191,6 +199,13 @@ use tigshop_openapi::RouteDoc;
 #[derive(Debug, Deserialize)]
 struct IdQuery {
     id: i32,
+}
+
+/// `?pickupSn=` 查询参数（前端 `writeOffOrder({ pickupSn })` 以 query 传递）。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WriteOffQuery {
+    pickup_sn: Option<String>,
 }
 
 /// `?ids=1,2` 查询参数（Java `@RequestParam List<Integer> ids` / `String ids`）。
@@ -479,6 +494,23 @@ async fn confirm_receipt(
         .confirm_receipt(id, auth.id)
         .await?;
     ok(())
+}
+
+/// `POST /adminapi/order/order/writeOff?pickupSn=`：门店核销。
+///
+/// Java 来源：新版管理端前端
+/// `view/admin/src/api/order/order.ts#writeOffOrder`（ScanCode 扫码核销，
+/// `pickupSn` 经 query 传递），返回核销后的订单（前端 unshift 进列表）。
+async fn write_off(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Query(q): Query<WriteOffQuery>,
+) -> ApiResult<OrderVO> {
+    let pickup_sn = q
+        .pickup_sn
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| AppError(tigshop_core::Error::Validation("核销码不能为空".into())))?;
+    ok(state.trade.order_admin.write_off(&pickup_sn, auth.id).await?)
 }
 
 /// `POST /adminapi/order/order/modifyShipping`：修改配送信息。
@@ -772,11 +804,12 @@ async fn download_deliver_template(
 mod tests {
     use super::*;
 
-    /// `implemented_routes()` 必须与 Java 契约逐字符一致（34 条）。
+    /// `implemented_routes()` 必须与 Java 契约逐字符一致（34 条）
+    /// + 前端契约 1 条（writeOff）。
     #[test]
     fn implemented_routes_match_java_contract() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 34, "订单管理域共 34 条接口");
+        assert_eq!(docs.len(), 35, "订单管理域共 35 条接口");
         assert_eq!(docs.len(), ROUTE_TABLE.len());
 
         let expected = [
@@ -938,6 +971,11 @@ mod tests {
                 "/adminapi/order/order/downloadDeliverTemplate",
                 "OrderController.downloadDeliverTemplate",
             ),
+            (
+                "POST",
+                "/adminapi/order/order/writeOff",
+                "OrderController.writeOff",
+            ),
         ];
         for (method, path, handler) in expected {
             assert!(
@@ -956,7 +994,7 @@ mod tests {
         assert_eq!(unique.len(), docs.len(), "implemented_routes() 存在重复项");
     }
 
-    /// `routes()` 注册的路径必须与 [`ROUTE_TABLE`] 完全一致（34/34）。
+    /// `routes()` 注册的路径必须与 [`ROUTE_TABLE`] 完全一致（35/35）。
     #[test]
     fn routes_registers_all_table_paths() {
         let registered = [
@@ -994,6 +1032,7 @@ mod tests {
             ("POST", "/order/order/batchDeliverImport"),
             ("POST", "/order/order/getBatchDeliverImportErrorData"),
             ("GET", "/order/order/downloadDeliverTemplate"),
+            ("POST", "/order/order/writeOff"),
         ];
         assert_eq!(registered.len(), ROUTE_TABLE.len());
         for (method, path) in registered {

@@ -290,6 +290,31 @@ impl UserCompanyService {
             .ok_or_else(|| Error::biz_msg(MSG_USER_COMPANY_ID_NOT_NULL))?;
         self.repos.member.user_company.delete(id).await
     }
+
+    /// 批量操作（`POST /user/userCompany/batch`）。
+    ///
+    /// Java 来源：新版管理端前端
+    /// `view/admin/src/api/user/userCertification.ts#batchSubmit`
+    /// （body `{ type, ids }`；Java `UserCompanyController` 未含 `batch`，
+    /// 语义对齐各域 `BaseServiceImpl#batch`：`type = "del"` 逐条删除，
+    /// 其它 `type` 静默返回 `false`（HTTP 200，不报错））。
+    ///
+    /// `ids` 逐条走 [`UserCompanyService::del`] 的删除路径（硬删除）。
+    ///
+    /// # Errors
+    /// 数据库错误 → `Error::Database`；`type = "del"` 时单个 id 删除失败同 `del`。
+    pub async fn batch(&self, batch_type: &str, ids: &[i32]) -> Result<bool> {
+        if batch_type != "del" {
+            return Ok(false);
+        }
+        let mut deleted = false;
+        for id in ids {
+            if self.del(Some(*id)).await? {
+                deleted = true;
+            }
+        }
+        Ok(deleted)
+    }
 }
 
 /// 由实体 + 关联会员构造列表项 VO

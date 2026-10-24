@@ -3,10 +3,13 @@
 pub mod app_version_admin;
 pub mod config_client;
 pub mod csrf;
+pub mod locales_client;
 pub mod log;
 pub mod pc;
 pub mod recommend;
 pub mod region_client;
+pub mod sms_client;
+pub mod translate_client;
 pub mod util;
 
 use axum::Router;
@@ -19,9 +22,12 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
     Router::new()
         .merge(app_version_admin::routes(state))
         .merge(config_client::routes(state))
+        .merge(locales_client::routes(state))
         .merge(pc::routes(state))
         .merge(recommend::routes(state))
         .merge(region_client::routes(state))
+        .merge(sms_client::routes(state))
+        .merge(translate_client::routes(state))
         .merge(util::routes(state))
 }
 
@@ -49,11 +55,14 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     let mut out = Vec::new();
     out.extend(app_version_admin::implemented_routes());
     out.extend(config_client::implemented_routes());
+    out.extend(locales_client::implemented_routes());
     out.extend(csrf::implemented_routes());
     out.extend(log::implemented_routes());
     out.extend(pc::implemented_routes());
     out.extend(recommend::implemented_routes());
     out.extend(region_client::implemented_routes());
+    out.extend(sms_client::implemented_routes());
+    out.extend(translate_client::implemented_routes());
     out.extend(util::implemented_routes());
     out
 }

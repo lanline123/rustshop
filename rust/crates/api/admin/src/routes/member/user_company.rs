@@ -10,6 +10,7 @@
 //! | `GET  /user/userCompany/detail` | `UserCompanyController.detail` | `userCertificationManage` |
 //! | `POST /user/userCompany/audit` | `UserCompanyController.audit` | `userCertificationManage` |
 //! | `POST /user/userCompany/del` | `UserCompanyController.del` | `userCertificationManage` |
+//! | `POST /user/userCompany/batch` | 前端契约（新版管理端 `userCertification.ts`） | 登录 |
 //!
 //! > **路径说明**：`@RequestMapping` 是 `/adminapi/user/userCompany`，
 //! > 方法级只有 `/list` 这种短路径，**没有**控制器前缀重复。最终路径是
@@ -56,12 +57,13 @@ use crate::support::tenant::{platform_only, require_platform};
 
 use crate::AdminState;
 
-/// 本域全部 4 条路由（去掉 `/adminapi` 前缀后的路径 + 原 Java handler）。
+/// 本域全部 5 条路由（去掉 `/adminapi` 前缀后的路径 + 原 Java handler）。
 ///
 /// **这是 [`implemented_routes`] 的唯一来源**，与 [`routes`] 里的注册一一对应。
 /// ⚠️ 契约里的完整路径是 `ROUTE_TABLE` 的路径加 `/adminapi` 前缀，
 /// 必须逐字符一致（`userCompany` 小驼峰）。
-const ROUTE_TABLE: [(&str, &str, &str); 4] = [
+/// 最后一条 `batch` 来自新版管理端前端契约（Java 控制器未含）。
+const ROUTE_TABLE: [(&str, &str, &str); 5] = [
     // (HTTP method, 本模块路径, 原 Java handler)
     ("GET", "/user/userCompany/list", "UserCompanyController.list"),
     (
@@ -71,6 +73,11 @@ const ROUTE_TABLE: [(&str, &str, &str); 4] = [
     ),
     ("POST", "/user/userCompany/audit", "UserCompanyController.audit"),
     ("POST", "/user/userCompany/del", "UserCompanyController.del"),
+    (
+        "POST",
+        "/user/userCompany/batch",
+        "UserCompanyController.batch",
+    ),
 ];
 
 pub fn routes(state: &AdminState) -> Router<AdminState> {
@@ -80,6 +87,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/user/userCompany/detail", get(detail))
         .route("/user/userCompany/audit", post(audit))
         .route("/user/userCompany/del", post(del))
+        .route("/user/userCompany/batch", post(batch))
         .layer(axum::middleware::from_fn(platform_only))
 }
 
@@ -168,6 +176,29 @@ async fn del(State(state): State<AdminState>, Json(dto): Json<OperateDTO>) -> Ap
     ok(state.member.user_company.del(dto.id).await?)
 }
 
+/// 批量操作请求体（前端 `{ type, ids }`，与各域 `BatchDTO` 同构）。
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct UserCompanyBatchDTO {
+    /// 操作类型（仅 `del` 生效，其余静默返回 `false`）
+    #[serde(rename = "type")]
+    batch_type: String,
+    /// 主键列表
+    ids: Vec<i32>,
+}
+
+/// `POST /adminapi/user/userCompany/batch`：批量操作。
+///
+/// Java 来源：新版管理端前端
+/// `view/admin/src/api/user/userCertification.ts#batchSubmit`
+/// （`{ type: "del", ids: [...] }`，企业认证列表批量删除）。
+async fn batch(
+    State(state): State<AdminState>,
+    Json(dto): Json<UserCompanyBatchDTO>,
+) -> ApiResult<bool> {
+    ok(state.member.user_company.batch(&dto.batch_type, &dto.ids).await?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -184,6 +215,7 @@ mod tests {
             ("GET".into(), "/adminapi/user/userCompany/detail".into()),
             ("POST".into(), "/adminapi/user/userCompany/audit".into()),
             ("POST".into(), "/adminapi/user/userCompany/del".into()),
+            ("POST".into(), "/adminapi/user/userCompany/batch".into()),
         ];
         assert_eq!(got, want);
     }
@@ -191,7 +223,7 @@ mod tests {
     /// 路由表与 `implemented_routes` 一一对应（数量 + 顺序）。
     #[test]
     fn route_table_and_doc_agree() {
-        assert_eq!(ROUTE_TABLE.len(), 4);
+        assert_eq!(ROUTE_TABLE.len(), 5);
         let docs = implemented_routes();
         assert_eq!(docs.len(), ROUTE_TABLE.len());
         for (idx, (method, path, handler)) in ROUTE_TABLE.iter().enumerate() {
@@ -213,6 +245,7 @@ mod tests {
                 "UserCompanyController.detail",
                 "UserCompanyController.audit",
                 "UserCompanyController.del",
+                "UserCompanyController.batch",
             ]
         );
     }

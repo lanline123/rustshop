@@ -76,6 +76,10 @@ pub struct AdminState {
     pub analytics: std::sync::Arc<tigshop_services::analytics::Services>,
     pub openapi: std::sync::Arc<tigshop_services::openapi::Services>,
     pub wholesale: std::sync::Arc<tigshop_services::wholesale::Services>,
+    pub lang: std::sync::Arc<tigshop_services::lang::Services>,
+    pub vendor: std::sync::Arc<tigshop_services::vendor::Services>,
+    pub pos: std::sync::Arc<tigshop_services::pos::Services>,
+    pub o2o: std::sync::Arc<tigshop_services::o2o::Services>,
     pub jwt: JwtService,
 }
 

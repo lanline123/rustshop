@@ -130,6 +130,29 @@ impl OrderInvoiceClientService {
         repo.update_invoice(id, &patch).await?;
         Ok(())
     }
+
+    /// 删除发票申请（b2b2b 5.8.57 H5 前端新增，Java `OrderInvoiceClientController`
+    /// 无 `del` 端点；`order_invoice` 表无 `is_del` 列 → 物理删除）。
+    ///
+    /// 仅删除**当前会员**的申请（`id + user_id` 双条件）；不存在时按
+    /// Java 通用口径返回「发票不存在」业务错误。
+    /// 仓储文件由并行任务持有（禁改），此处经共享连接池直查。
+    pub async fn del(&self, user_id: i32, id: i32) -> Result<()> {
+        let repo = self.repo();
+        if repo.find_invoice(id, user_id).await?.is_none() {
+            return Err(Error::biz_msg(MSG_INVOICE_NOT_EXIST));
+        }
+        let res = sqlx::query("DELETE FROM order_invoice WHERE id = ? AND user_id = ?")
+            .bind(id)
+            .bind(user_id)
+            .execute(&self.repos.pool)
+            .await
+            .map_err(|e| Error::Database(e.to_string()))?;
+        if res.rows_affected() == 0 {
+            return Err(Error::biz_msg(MSG_INVOICE_NOT_EXIST));
+        }
+        Ok(())
+    }
 }
 
 /// 发票行 + 订单快照 → 详情 VO（展示名/地区名未迁移 → 空）。

@@ -4,6 +4,9 @@
 //! `GET /api/user/orderInvoice/detail`、`POST /api/user/orderInvoice/create`、
 //! `POST /api/user/orderInvoice/update`。
 //!
+//! 另有 `POST /api/user/orderInvoice/del`（b2b2b 5.8.57 H5 前端新增，
+//! Java 无对应：会员删除自己的发票申请，物理删除）。
+//!
 //! 契约 auth=optional：本文件自带 [`optional_auth`]；三个接口均需会员上下文，
 //! 游客 → 401「请先登录」。
 
@@ -26,11 +29,12 @@ use tigshop_security::JwtService;
 
 use crate::PublicState;
 
-/// 本域 3 条路由。
-const ROUTE_TABLE: [(&str, &str, &str); 3] = [
+/// 本域 4 条路由（末条为 5.8.57 前端新增，不在原契约内）。
+const ROUTE_TABLE: [(&str, &str, &str); 4] = [
     ("GET", "/user/orderInvoice/detail", "OrderInvoiceClientController.detail"),
     ("POST", "/user/orderInvoice/create", "OrderInvoiceClientController.create"),
     ("POST", "/user/orderInvoice/update", "OrderInvoiceClientController.update"),
+    ("POST", "/user/orderInvoice/del", "OrderInvoiceClientController.del"),
 ];
 
 /// 订单发票路由（挂载于 `/api` 下）。
@@ -39,6 +43,7 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/user/orderInvoice/detail", get(detail))
         .route("/user/orderInvoice/create", post(create))
         .route("/user/orderInvoice/update", post(update))
+        .route("/user/orderInvoice/del", post(del))
         .layer(middleware::from_fn_with_state(
             state.jwt.clone(),
             optional_auth,
@@ -132,6 +137,21 @@ async fn update(
         .order_invoice_client
         .update(user_id, &param)
         .await?;
+    ok(())
+}
+
+/// `POST /api/user/orderInvoice/del`：删除发票申请（物理删，仅本人）。
+async fn del(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+    Json(q): Json<InvoiceIdQuery>,
+) -> ApiResult<()> {
+    let user_id = current_user_id(auth)?;
+    let id = q
+        .id
+        .filter(|id| *id > 0)
+        .ok_or_else(|| AppError(Error::Validation(MSG_ID_REQUIRED.into())))?;
+    state.trade.order_invoice_client.del(user_id, id).await?;
     ok(())
 }
 

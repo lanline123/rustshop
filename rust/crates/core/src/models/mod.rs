@@ -45,6 +45,9 @@ pub use marketing::time_discount::{
 
 pub mod identity;
 pub mod merchant;
+pub mod vendor;
+pub mod pos;
+pub mod o2o;
 pub mod wholesale;
 pub mod catalog;
 pub mod trade;
@@ -58,3 +61,4 @@ pub mod system;
 pub mod im;
 pub mod analytics;
 pub mod openapi;
+pub mod lang;

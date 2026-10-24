@@ -52,7 +52,10 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new()
         .route("/im/conversation/message/list", get(list))
-        .route("/im/conversation/message/receivedList", get(received_list))
+        .route(
+            "/im/conversation/message/receivedList",
+            get(received_list).post(received_list),
+        )
         .route("/im/conversation/message/send", post(send))
         .route("/im/conversation/message/uploadVideo", post(upload_video))
         .route("/im/conversation/message/setRead", post(set_read))

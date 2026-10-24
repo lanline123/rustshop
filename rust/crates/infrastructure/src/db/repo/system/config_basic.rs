@@ -107,6 +107,21 @@ impl ConfigBasicRepository {
             .collect())
     }
 
+    /// 「先删后插」写入一个配置项（无事务版本）。
+    ///
+    /// 与 [`ConfigBasicRepository::replace_in_tx`] 同语义（Java
+    /// `SettingsHelper#set`：`delete(eq(bizCode))` + `insert(ConfigPO)`），
+    /// 供单条配置写入场景使用（showSettings / apiSettings / layoutThemeSwitch）。
+    ///
+    /// # Errors
+    /// 数据库失败 → `Error::Database`。
+    pub async fn save_code(&self, code: &str, value: &str) -> Result<()> {
+        let mut tx = self.begin().await?;
+        self.replace_in_tx(&mut tx, code, value).await?;
+        tx.commit().await.map_err(map_err)?;
+        Ok(())
+    }
+
     /// 「先删后插」写入一个配置项（Java `SettingsHelper#set`）。
     ///
     /// Java 侧每次 `set` 都是 `delete(eq(bizCode))` + `insert(ConfigPO)`；

@@ -22,20 +22,23 @@ use axum::{
 };
 use serde::Deserialize;
 use tigshop_core::models::marketing::salesman_group::{
-    OperateDTO, SalesmanGroupEditDTO, SalesmanGroupListQuery, SalesmanGroupSaveDTO, SalesmanGroupVO,
+    BatchDTO, OperateDTO, SalesmanGroupEditDTO, SalesmanGroupListQuery, SalesmanGroupSaveDTO,
+    SalesmanGroupVO,
 };
 use tigshop_core::types::PageResult;
 use tigshop_security::web::{ok, ApiResult};
 
 use crate::AdminState;
 
-/// 本域 5 条路由（去掉 `/adminapi` 前缀）。
-const ROUTE_TABLE: [(&str, &str, &str); 5] = [
+/// 本域 6 条路由（去掉 `/adminapi` 前缀）。最后一条 `batch` 来自
+/// 新版管理端前端契约（`view/admin/src/api/salesman/subgroup.ts`）。
+const ROUTE_TABLE: [(&str, &str, &str); 6] = [
     ("GET", "/salesman/group/list", "SalesmanGroupController.list"),
     ("GET", "/salesman/group/detail", "SalesmanGroupController.detail"),
     ("POST", "/salesman/group/create", "SalesmanGroupController.create"),
     ("POST", "/salesman/group/update", "SalesmanGroupController.update"),
     ("POST", "/salesman/group/del", "SalesmanGroupController.del"),
+    ("POST", "/salesman/group/batch", "SalesmanGroupController.batch"),
 ];
 
 /// 分组管理路由（`/adminapi` 下，全局 `require_auth` 已生效）。
@@ -47,6 +50,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/salesman/group/create", post(create))
         .route("/salesman/group/update", post(update))
         .route("/salesman/group/del", post(delete))
+        .route("/salesman/group/batch", post(batch))
 }
 
 /// 本域已实现路由（覆盖率统计）。
@@ -101,13 +105,22 @@ async fn delete(State(state): State<AdminState>, Json(dto): Json<OperateDTO>) ->
     ok(())
 }
 
+/// `POST /adminapi/salesman/group/batch`：批量操作。
+///
+/// Java 来源：新版管理端前端
+/// `view/admin/src/api/salesman/subgroup.ts#batchSubmit`（`{ type, ids }`，
+/// 分组标签列表批量删除；Java 控制器未含该端点）。
+async fn batch(State(state): State<AdminState>, Json(dto): Json<BatchDTO>) -> ApiResult<bool> {
+    ok(state.marketing.salesman_group.batch(&dto).await?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn route_table_matches_java_contract() {
-        assert_eq!(ROUTE_TABLE.len(), 5);
+        assert_eq!(ROUTE_TABLE.len(), 6);
         let paths: Vec<&str> = ROUTE_TABLE.iter().map(|(_, p, _)| *p).collect();
         assert_eq!(
             paths,
@@ -117,6 +130,7 @@ mod tests {
                 "/salesman/group/create",
                 "/salesman/group/update",
                 "/salesman/group/del",
+                "/salesman/group/batch",
             ]
         );
         for p in &paths {
@@ -128,7 +142,7 @@ mod tests {
     #[test]
     fn implemented_routes_are_full_contract_paths() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 5);
+        assert_eq!(docs.len(), 6);
         for d in &docs {
             assert!(d.path.starts_with("/adminapi/salesman/group/"));
             assert!(d.java_ref.starts_with("SalesmanGroupController."));
@@ -152,6 +166,7 @@ mod tests {
             "/salesman/group/create",
             "/salesman/group/update",
             "/salesman/group/del",
+            "/salesman/group/batch",
         ];
         assert_eq!(registered.len(), ROUTE_TABLE.len());
         for p in registered {

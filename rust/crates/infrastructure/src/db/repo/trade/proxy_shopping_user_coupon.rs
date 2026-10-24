@@ -131,6 +131,29 @@ impl ProxyShoppingUserCouponRepository {
         q.fetch_optional(&self.pool).await.map_err(map_err)
     }
 
+    /// 代客下单可领取（可见）优惠券列表。
+    ///
+    /// Java 来源：新版管理端前端
+    /// `view/admin/src/api/proxyShopping/cart.ts#getProxyShoppingCouponList`
+    /// （`POST /proxyShopping/coupon/visible-list`，注释「对齐收银台
+    /// pos/user/coupon/visible-list」；对应 Java 控制器未随本仓提供）。
+    /// 过滤口径对齐 `repo::marketing::coupon::paginate_claimable`：
+    /// 未删除 + 展示 + 可点击领取 + 有效期末过（`send_type = 0` 或
+    /// `use_end_date >= now`）。
+    pub async fn find_visible_coupons(&self, now: i64) -> Result<Vec<Coupon>> {
+        let sql = format!(
+            "SELECT {COUPON_COLUMNS} FROM coupon
+             WHERE is_delete = 0 AND is_show = 1 AND enabled_click_get = 1
+               AND (send_type = 0 OR use_end_date >= ?)
+             ORDER BY add_time DESC"
+        );
+        sqlx::query_as::<_, Coupon>(&sql)
+            .bind(now)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)
+    }
+
     /// 统计某用户对某券的已领数量（Java `count(user_id, coupon_id)`）。
     pub async fn count_user_claimed(&self, user_id: i32, coupon_id: i32) -> Result<i64> {
         let q = sqlx::query_as::<_, (i64,)>(

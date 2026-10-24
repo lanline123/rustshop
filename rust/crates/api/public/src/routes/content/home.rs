@@ -1,4 +1,4 @@
-//! 商城前台首页聚合路由（content::home，16 条）。
+//! 商城前台首页聚合路由（content::home，17 条：契约 16 + 5.8.57 新增 mobileCatNav）。
 //!
 //! 对应原 Java `com.tigshop.api.controller.home.HomeController`
 //! （`@RequestMapping("/api/home/home")`）：
@@ -22,7 +22,7 @@
 //! | `GET /home/home/mobileLogin` | `mobileLogin` | anonymous |
 //! | `GET /home/home/getRecommend` | `getRecommend` | optional |
 //!
-//! > **路由分组**：14 条 `optional` 走 [`routes`]（模块自带 [`optional_auth`]，
+//! > **路由分组**：15 条 `optional` 走 [`routes`]（模块自带 [`optional_auth`]，
 //! > 无令牌放行、令牌非法 401）；`pcLogin` / `mobileLogin` 在 Java 属匿名白名单，
 //! > 走 [`anonymous_routes`]（不套鉴权层）。`sync_routes.py` 会把两者都并入
 //! > `merge_public`。
@@ -59,8 +59,11 @@ use tigshop_security::JwtService;
 
 use crate::PublicState;
 
-/// 本 feature 全部 16 条路由（`/api` 前缀之后的路径 + 原 Java 方法名）。
-const ROUTE_TABLE: [(&str, &str, &str); 16] = [
+/// 本 feature 全部 17 条路由（`/api` 前缀之后的路径 + 原 Java 方法名）。
+///
+/// 末条 `mobileCatNav` 为 b2b2b 5.8.57 H5 前端新增（**无 Java 对应**，
+/// 读管理端维护的 `decorate_mobile_cat_nav` 表输出，不在原契约内）。
+const ROUTE_TABLE: [(&str, &str, &str); 17] = [
     ("GET", "/home/home/friendLinks", "HomeController.friendLinks"),
     ("GET", "/home/home/mobileNav", "HomeController.mobileNav"),
     ("GET", "/home/home/pcLogin", "HomeController.pcLogin"),
@@ -89,6 +92,7 @@ const ROUTE_TABLE: [(&str, &str, &str); 16] = [
     ("GET", "/home/home/h5Search", "HomeController.h5Search"),
     ("GET", "/home/home/mobileLogin", "HomeController.mobileLogin"),
     ("GET", "/home/home/getRecommend", "HomeController.getRecommend"),
+    ("GET", "/home/home/mobileCatNav", "HomeController.mobileCatNav"),
 ];
 
 /// `optional` 路由（14 条，模块自带可选登录态中间件）。
@@ -111,6 +115,7 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/home/home/h5Member", get(h5_member))
         .route("/home/home/h5Search", get(h5_search))
         .route("/home/home/getRecommend", get(get_recommend))
+        .route("/home/home/mobileCatNav", get(mobile_cat_nav))
         .layer(middleware::from_fn_with_state(
             state.jwt.clone(),
             optional_auth,
@@ -303,12 +308,33 @@ async fn get_recommend(
     ok(state.content.home.get_recommend(&q).await?)
 }
 
+/// `GET /api/home/home/mobileCatNav`：移动端首页分类导航。
+///
+/// b2b2b 5.8.57 H5 前端新增（无 Java 对应）：读管理端
+/// `decorate_mobile_cat_nav` CRUD 维护的数据，只输出 `is_show = 1`
+/// 的条目；表空返回空数组。
+async fn mobile_cat_nav(
+    State(state): State<PublicState>,
+) -> ApiResult<Vec<tigshop_core::models::content::mobile_cat_nav::MobileCatNavVO>> {
+    let q = tigshop_core::models::content::mobile_cat_nav::MobileCatNavListQuery {
+        is_show: Some(1),
+        keyword: None,
+        sort_field: None,
+        // 数字越大越靠前（表注释口径）→ 降序
+        sort_order: Some("desc".into()),
+        page: Some(1),
+        size: Some(100),
+    };
+    let page = state.content.mobile_cat_nav.list(&q).await?;
+    ok(page.list)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn registered_pairs() -> Vec<(String, String)> {
-        // routes() 注册的 14 条（把 `.route` 调用逐条复述，防止漏挂/错路径）
+        // routes() 注册的 15 条（把 `.route` 调用逐条复述，防止漏挂/错路径）
         let mut v: Vec<(&str, &str)> = vec![
             ("GET", "/home/home/friendLinks"),
             ("GET", "/home/home/mobileNav"),
@@ -324,6 +350,7 @@ mod tests {
             ("GET", "/home/home/h5Member"),
             ("GET", "/home/home/h5Search"),
             ("GET", "/home/home/getRecommend"),
+            ("GET", "/home/home/mobileCatNav"),
         ];
         // anonymous_routes() 注册的 2 条
         v.push(("GET", "/home/home/pcLogin"));
@@ -336,7 +363,7 @@ mod tests {
     #[test]
     fn implemented_routes_match_java_contract() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 16, "契约中首页域共 16 条接口");
+        assert_eq!(docs.len(), 17, "契约 16 条 + 5.8.57 新增 mobileCatNav");
         assert_eq!(docs.len(), ROUTE_TABLE.len());
         for (method, path, handler) in ROUTE_TABLE.iter() {
             let full = format!("/api{path}");

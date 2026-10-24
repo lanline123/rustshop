@@ -67,6 +67,19 @@ pub struct OperateDTO {
     pub id: Option<i32>,
 }
 
+/// 批量操作（Java `BatchDTO`）。
+///
+/// Java 来源：新版管理端前端 `view/admin/src/api/salesman/subgroup.ts#batchSubmit`
+/// （body `{ type, ids }`；仅 `type = "del"` 生效）。
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct BatchDTO {
+    /// 主键列表
+    pub ids: Vec<i32>,
+    /// 操作类型（仅 `del` 生效）
+    pub r#type: String,
+}
+
 /// 分组 VO（Java `SalesmanGroupVO`）。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

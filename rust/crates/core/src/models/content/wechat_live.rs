@@ -115,6 +115,8 @@ pub fn current_time_string() -> String {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct WechatLiveListQuery {
+    /// `#[serde(alias)]` 支持 H5 的 `pageNum` 形态（camelCase rename 后仍生效）。
+    #[serde(alias = "pageNum")]
     pub page: Option<u64>,
     #[serde(rename = "pageSize", alias = "size")]
     pub page_size: Option<u64>,

@@ -11,6 +11,7 @@ pub mod example;
 pub mod captcha;
 pub mod excel;
 pub mod files;
+pub mod locales;
 pub mod log;
 pub mod mail_templates;
 pub mod message_type;
@@ -42,6 +43,7 @@ pub struct Services {
     pub csrf: Arc<csrf::CsrfService>,
     pub config_basic: Arc<config_basic::ConfigBasicService>,
     pub tips_manage: Arc<tips_manage::TipsManageService>,
+    pub locales: Arc<locales::LocalesService>,
     pub log: Arc<log::LogService>,
     pub util: Arc<util::UtilService>,
     pub admin_msg: Arc<admin_msg::AdminMsgService>,

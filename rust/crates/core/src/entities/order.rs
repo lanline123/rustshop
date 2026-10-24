@@ -617,8 +617,8 @@ pub struct OrderInvoice {
     pub add_time: i32,
     /// 发票附件地址
     pub invoice_attachment: Option<String>,
-    /// 开票时间 [NOT NULL]
-    pub invoicing_time: i32,
+    /// 开票时间（未开票时为 NULL，对应 Java 可空 Integer）
+    pub invoicing_time: Option<i32>,
 }
 
 impl OrderInvoice {

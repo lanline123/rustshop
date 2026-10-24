@@ -2137,6 +2137,63 @@ impl OrderAdminService {
         Ok(())
     }
 
+    /// 门店核销（`POST /order/order/writeOff?pickupSn=`）。
+    ///
+    /// Java 来源：新版管理端前端
+    /// `view/admin/src/api/order/order.ts#writeOffOrder`（扫码核销，门店自提单）。
+    /// 旧版 Java `OrderController` 未含该端点（o2o 门店核销链路未迁移），
+    /// 按**最小可用**实现：
+    /// 1. `pickupSn` 按**订单号**匹配订单（前端扫码/手输核销码即订单号）；
+    /// 2. 仅「已确认，待发货」/「处理中，已发货」且未删除的订单可核销，
+    ///    核销 = 置为已完成（`order_status = Completed`）并记录收货时间；
+    /// 3. 写订单日志「核销」（不涉及核销员/门店归属校验）；
+    /// 4. 返回核销后的订单详情 VO（前端把返回值 unshift 进核销列表）。
+    ///
+    /// # Errors
+    /// `pickupSn` 为空 → `Validation`；订单不存在 → 业务错误
+    /// `订单不存在`；状态不允许 → 业务错误 `订单状态错误`。
+    pub async fn write_off(&self, pickup_sn: &str, admin_id: i32) -> Result<OrderVO> {
+        let pickup_sn = pickup_sn.trim();
+        if pickup_sn.is_empty() {
+            return Err(Error::Validation("核销码不能为空".into()));
+        }
+        let order = self
+            .repos
+            .trade
+            .order_admin
+            .find_order_by_sn(pickup_sn)
+            .await?
+            .ok_or_else(|| Error::biz_msg("订单不存在"))?;
+        if order.is_del == 1 {
+            return Err(Error::biz_msg("订单不存在"));
+        }
+        let can_write_off = matches!(
+            OrderStatus::of(order.order_status),
+            Some(OrderStatus::Confirmed) | Some(OrderStatus::Processing)
+        );
+        if !can_write_off {
+            return Err(Error::biz_msg("订单状态错误"));
+        }
+        let now = utils::now_seconds() as i32;
+        self.repos
+            .trade
+            .order_admin
+            .update_order(
+                order.order_id,
+                &OrderPatch::new()
+                    .i32_val("order_status", OrderStatus::Completed as i32)
+                    .i32_val("shipping_status", ShippingStatus::Sent as i32)
+                    .i32_val("received_time", now),
+            )
+            .await?;
+        self.repos
+            .trade
+            .order_admin
+            .insert_order_log(order.order_id, &order.order_sn, "核销", admin_id, order.shop_id)
+            .await?;
+        self.detail(order.order_id).await
+    }
+
     /// 修改配送信息（`POST /order/order/modifyShipping`）。
     ///
     /// 对应 Java `modifyOrderShipping`：`shipping_method` 1 物流（物流公司 + 单号）、

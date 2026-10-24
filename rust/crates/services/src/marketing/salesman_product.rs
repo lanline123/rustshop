@@ -177,6 +177,24 @@ impl SalesmanProductService {
         product_type_map()
     }
 
+    /// 批量操作（`POST /salesman/product/batch`）。
+    ///
+    /// Java 来源：新版管理端前端
+    /// `view/admin/src/api/salesman/product.ts#batchSubmit`
+    /// （body `{ type, ids }`；Java `SalesmanProductController` 未含 `batch`）。
+    /// 语义对齐各域 `BaseServiceImpl#batch`：`type = "del"` 时
+    /// `removeByIds` 物理删除；其它 `type` 静默返回 `false`。
+    ///
+    /// # Errors
+    /// 数据库错误 → `Error::Database`。
+    pub async fn batch(&self, batch_type: &str, ids: &[i32]) -> Result<bool> {
+        if batch_type != "del" || ids.is_empty() {
+            return Ok(false);
+        }
+        let deleted = self.repo().delete_many(ids).await?;
+        Ok(deleted > 0)
+    }
+
     /// 商品成交分析（Java `analysis`）。
     pub async fn analysis(
         &self,

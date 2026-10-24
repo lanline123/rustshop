@@ -13,7 +13,7 @@ use axum::{
 };
 use serde::Deserialize;
 use tigshop_core::models::marketing::salesman_product::{
-    SalesmanProductAnalysisQuery, SalesmanProductEditParam, SalesmanProductListVO,
+    BatchDTO, SalesmanProductAnalysisQuery, SalesmanProductEditParam, SalesmanProductListVO,
     SalesmanProductPageQuery, SalesmanProductSaveParam, SalesmanProductVO,
 };
 use tigshop_core::types::PageResult;
@@ -21,14 +21,16 @@ use tigshop_security::web::{ok, ApiResult};
 
 use crate::AdminState;
 
-/// 本域 6 条 admin 路由。
-const ROUTE_TABLE: [(&str, &str, &str); 6] = [
+/// 本域 7 条 admin 路由。最后一条 `batch` 来自
+/// 新版管理端前端契约（`view/admin/src/api/salesman/product.ts`）。
+const ROUTE_TABLE: [(&str, &str, &str); 7] = [
     ("GET", "/salesman/product/list", "SalesmanProductController.list"),
     ("GET", "/salesman/product/detail", "SalesmanProductController.detail"),
     ("POST", "/salesman/product/create", "SalesmanProductController.create"),
     ("POST", "/salesman/product/update", "SalesmanProductController.update"),
     ("GET", "/salesman/product/config", "SalesmanProductController.config"),
     ("GET", "/salesman/product/analysis", "SalesmanProductController.analysis"),
+    ("POST", "/salesman/product/batch", "SalesmanProductController.batch"),
 ];
 
 /// 分销商品管理路由（挂载于 `/adminapi` 下，外层统一套 `require_auth`）。
@@ -41,6 +43,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/salesman/product/update", post(update))
         .route("/salesman/product/config", get(config))
         .route("/salesman/product/analysis", get(analysis))
+        .route("/salesman/product/batch", post(batch))
 }
 
 /// 本模块已实现路由（覆盖率统计，完整契约路径）。
@@ -119,6 +122,19 @@ async fn analysis(
         .await?)
 }
 
+/// `POST /adminapi/salesman/product/batch`：批量操作。
+///
+/// Java 来源：新版管理端前端
+/// `view/admin/src/api/salesman/product.ts#batchSubmit`（`{ type, ids }`，
+/// 分销商品/业绩结算列表批量删除；Java 控制器未含该端点）。
+async fn batch(State(state): State<AdminState>, Json(dto): Json<BatchDTO>) -> ApiResult<bool> {
+    ok(state
+        .marketing
+        .salesman_product
+        .batch(&dto.r#type, &dto.ids)
+        .await?)
+}
+
 /// 解析 `HeaderUtils.getShopId()`（缺失 ⇒ 0 平台）。
 #[must_use]
 #[cfg(test)]
@@ -148,7 +164,7 @@ mod tests {
     #[test]
     fn implemented_routes_match_java_contract() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 6);
+        assert_eq!(docs.len(), 7);
         let expected = [
             ("GET", "/adminapi/salesman/product/list"),
             ("GET", "/adminapi/salesman/product/detail"),
@@ -156,6 +172,7 @@ mod tests {
             ("POST", "/adminapi/salesman/product/update"),
             ("GET", "/adminapi/salesman/product/config"),
             ("GET", "/adminapi/salesman/product/analysis"),
+            ("POST", "/adminapi/salesman/product/batch"),
         ];
         for (method, path) in expected {
             assert!(docs.iter().any(|d| d.method == method && d.path == path), "缺少 {method} {path}");
@@ -170,7 +187,7 @@ mod tests {
 
     #[test]
     fn route_table_paths_stay_relative() {
-        assert_eq!(ROUTE_TABLE.len(), 6);
+        assert_eq!(ROUTE_TABLE.len(), 7);
         for (_, path, _) in ROUTE_TABLE.iter() {
             assert!(!path.contains("/adminapi"), "{path}");
             assert!(path.starts_with("/salesman/product/"), "{path}");

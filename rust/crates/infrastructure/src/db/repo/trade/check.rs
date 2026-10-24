@@ -119,7 +119,7 @@ struct InvoiceRow {
     email: String,
     add_time: i32,
     invoice_attachment: Option<String>,
-    invoicing_time: i32,
+    invoicing_time: Option<i32>,
 }
 
 impl InvoiceRow {
@@ -181,7 +181,7 @@ mod tests {
             email: "a@b.c".into(),
             add_time: 100,
             invoice_attachment: None,
-            invoicing_time: 200,
+            invoicing_time: Some(200),
         };
         let vo = row.into_vo();
         assert_eq!(vo.invoice_no, "NO1");

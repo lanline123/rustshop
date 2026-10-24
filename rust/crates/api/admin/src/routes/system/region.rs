@@ -14,6 +14,7 @@
 //! | `POST /setting/region/update` | `RegionController.update` | `regionUpdateManage` |
 //! | `POST /setting/region/del` | `RegionController.del` | `regionUpdateManage` |
 //! | `POST /setting/region/batch` | `RegionController.batch` | `regionBatchManage` |
+//! | `GET  /setting/region/getLocationByRegionId` | 前端契约（新版管理端 `region.ts`） | 登录 |
 //!
 //! > **路径说明**：`@RequestMapping` 的值是 `/adminapi/setting/region`，
 //! > 方法级只有 `/list` 这种短路径，**没有**控制器前缀重复
@@ -61,8 +62,8 @@ use axum::{
 };
 use serde::Deserialize;
 use tigshop_core::models::system::region::{
-    BatchDTO, OperateDTO, RegionCreateDTO, RegionListQuery, RegionListVO, RegionTreeNode,
-    RegionUpdateDTO, UpdateFieldDTO,
+    BatchDTO, OperateDTO, RegionCreateDTO, RegionListQuery, RegionListVO, RegionLocationVO,
+    RegionTreeNode, RegionUpdateDTO, UpdateFieldDTO,
 };
 use tigshop_core::types::PageResult;
 use tigshop_security::web::{ok, ApiResult, AuthUser};
@@ -71,10 +72,12 @@ use crate::support::tenant::require_platform;
 
 use crate::AdminState;
 
-/// 本域全部 8 条路由（去掉 `/adminapi` 前缀后的路径 + 原 Java handler）。
+/// 本域全部 9 条路由（去掉 `/adminapi` 前缀后的路径 + 原 Java handler）。
 ///
 /// **这是 [`implemented_routes`] 的唯一来源**，与 [`routes`] 里的注册一一对应。
-const ROUTE_TABLE: [(&str, &str, &str); 8] = [
+/// 最后一条 `getLocationByRegionId` 来自新版管理端前端契约
+/// （Java `RegionController` 没有该端点）。
+const ROUTE_TABLE: [(&str, &str, &str); 9] = [
     // (HTTP method, 本模块路径, 原 Java handler)
     (
         "GET",
@@ -92,6 +95,11 @@ const ROUTE_TABLE: [(&str, &str, &str); 8] = [
     ("POST", "/setting/region/update", "RegionController.update"),
     ("POST", "/setting/region/del", "RegionController.del"),
     ("POST", "/setting/region/batch", "RegionController.batch"),
+    (
+        "GET",
+        "/setting/region/getLocationByRegionId",
+        "RegionController.getLocationByRegionId",
+    ),
 ];
 
 /// 地区管理域路由（挂载于 `/adminapi` 下，全局 `require_auth` 已生效）。
@@ -106,6 +114,10 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/setting/region/update", post(update))
         .route("/setting/region/del", post(del))
         .route("/setting/region/batch", post(batch))
+        .route(
+            "/setting/region/getLocationByRegionId",
+            get(get_location_by_region_id),
+        )
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。
@@ -125,6 +137,14 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
 struct IdQuery {
     /// 地区主键
     id: Option<i32>,
+}
+
+/// `getLocationByRegionId` 的查询参数（前端契约 `?regionId=`，必填）。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RegionIdQuery {
+    /// 地区主键
+    region_id: Option<i32>,
 }
 
 /// `GET /adminapi/setting/region/getAllRegionTree`：获取所有地区（树形）。
@@ -274,18 +294,36 @@ async fn batch(
     ok(state.system.region.batch(&dto).await?)
 }
 
+/// `GET /adminapi/setting/region/getLocationByRegionId?regionId=`：地区定位信息。
+///
+/// Java 来源：新版管理端前端
+/// `view/admin/src/api/setting/region.ts#getLocationByRegionId`
+/// （返回 `{ regionId, regionName, centor }`）。`region` 表已无
+/// `centor` 列，恒回 `null`；地区不存在时回 `null` 体（非 404，
+/// 前端仅用于地图中心点回显）。
+async fn get_location_by_region_id(
+    State(state): State<AdminState>,
+    Query(q): Query<RegionIdQuery>,
+) -> ApiResult<Option<RegionLocationVO>> {
+    let region_id = q
+        .region_id
+        .filter(|v| *v > 0)
+        .ok_or_else(|| tigshop_core::Error::Validation("regionId不能为空".into()))?;
+    ok(state.system.region.get_location_by_region_id(region_id).await?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// 路由表必须与 `docs/api-contract.json` 的 8 条逐字符一致，
+    /// 路由表必须与 `docs/api-contract.json` 的 8 条 + 前端契约 1 条逐字符一致，
     /// 且 `/adminapi` 前缀只在 `implemented_routes` 拼接时才出现。
     #[test]
     fn route_table_matches_java_contract() {
-        assert_eq!(ROUTE_TABLE.len(), 8);
+        assert_eq!(ROUTE_TABLE.len(), 9);
 
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 8);
+        assert_eq!(docs.len(), 9);
 
         let paths: Vec<&str> = ROUTE_TABLE.iter().map(|(_, p, _)| *p).collect();
         assert_eq!(
@@ -299,6 +337,7 @@ mod tests {
                 "/setting/region/update",
                 "/setting/region/del",
                 "/setting/region/batch",
+                "/setting/region/getLocationByRegionId",
             ]
         );
 
@@ -319,7 +358,7 @@ mod tests {
     #[test]
     fn full_paths_match_contract_verbatim() {
         let full: Vec<String> = implemented_routes().into_iter().map(|d| d.path).collect();
-        // 契约里的实际路径（`docs/api-contract.json`）
+        // 契约里的实际路径（`docs/api-contract.json` + 前端契约）
         let expected = [
             "/adminapi/setting/region/getAllRegionTree",
             "/adminapi/setting/region/list",
@@ -329,12 +368,14 @@ mod tests {
             "/adminapi/setting/region/update",
             "/adminapi/setting/region/del",
             "/adminapi/setting/region/batch",
+            "/adminapi/setting/region/getLocationByRegionId",
         ];
         assert_eq!(full, expected);
     }
 
     /// method 与 Java 注解一致：`getAllRegionTree` / `list` / `detail`
-    /// 是 GET（`@GetMapping`），其余 5 条是 POST（`@PostMapping`）。
+    /// 是 GET（`@GetMapping`），其余 5 条是 POST（`@PostMapping`）；
+    /// 前端契约的 `getLocationByRegionId` 也是 GET。
     #[test]
     fn http_methods_match_java_annotations() {
         for (method, path, _) in ROUTE_TABLE {
@@ -343,6 +384,7 @@ mod tests {
                 "/setting/region/getAllRegionTree"
                     | "/setting/region/list"
                     | "/setting/region/detail"
+                    | "/setting/region/getLocationByRegionId"
             );
             assert_eq!(method == "GET", expect_get, "{path} 的 method 不对");
         }
@@ -385,7 +427,9 @@ mod tests {
         for p in batch_manage {
             assert!(all.contains(&p), "缺少批量接口 {p}");
         }
+        // 8 条 Java 契约 + 1 条前端契约（getLocationByRegionId 为只读）
         assert_eq!(read_paths.len() + update_manage.len() + batch_manage.len(), 8);
+        assert_eq!(ROUTE_TABLE.len(), 9);
     }
 
     /// `detail` 的 `id` 参数缺失时报 400（Java `@RequestParam` 必填）。

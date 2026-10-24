@@ -73,6 +73,13 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/sys/region/getCityListByCityName", get(get_city_list_by_city_name))
         .route("/sys/region/getRegionListByRegionId", get(get_region_list_by_region_id))
         .route("/sys/region/getRegionPath", get(get_region_path))
+        // —— o2o H5 定位类（5.8.57 前端新增，无 Java 控制器对应）——
+        .route("/sys/region/getCountryList", get(get_country_list))
+        .route("/sys/region/getLocationByIp", get(get_location_by_ip))
+        .route("/sys/region/getLocationByLocation", get(get_location_by_location))
+        .route("/sys/region/getLocationByRegionId", get(get_location_by_region_id))
+        .route("/sys/region/getRegeoDetail", get(get_regeo_detail))
+        .route("/sys/region/searchByKeywords", get(search_by_keywords))
         .layer(middleware::from_fn_with_state(
             state.jwt.clone(),
             optional_auth,
@@ -113,6 +120,37 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
             "GET",
             "/api/sys/region/getRegionPath",
             "RegionController.getRegionPath",
+        ),
+        // —— o2o H5 定位类（5.8.57 前端新增，不在原契约内）——
+        (
+            "GET",
+            "/api/sys/region/getCountryList",
+            "RegionController.getCountryList",
+        ),
+        (
+            "GET",
+            "/api/sys/region/getLocationByIp",
+            "RegionController.getLocationByIp",
+        ),
+        (
+            "GET",
+            "/api/sys/region/getLocationByLocation",
+            "RegionController.getLocationByLocation",
+        ),
+        (
+            "GET",
+            "/api/sys/region/getLocationByRegionId",
+            "RegionController.getLocationByRegionId",
+        ),
+        (
+            "GET",
+            "/api/sys/region/getRegeoDetail",
+            "RegionController.getRegeoDetail",
+        ),
+        (
+            "GET",
+            "/api/sys/region/searchByKeywords",
+            "RegionController.searchByKeywords",
         ),
     ]
     .iter()
@@ -299,6 +337,116 @@ async fn get_region_path(
     Query(q): Query<RegionIdQuery>,
 ) -> ApiResult<Vec<serde_json::Value>> {
     let rows = state.system.region_client.region_path(q.region_id).await?;
+    ok(rows.iter().map(region_json).collect())
+}
+
+// ——————————————————————————————————————————————
+// o2o H5 定位类接口（b2b2b 5.8.57 前端新增，**无 Java 控制器对应**，
+// 按表结构 + 前端语义最小实现；高德 / ip2region 凭据未接入时降级，
+// 与 `getUserRegion` 的兜底口径一致）
+// ——————————————————————————————————————————————
+
+/// `GET /api/sys/region/getCountryList`：国家列表（`region` 表 `level = 1`）。
+async fn get_country_list(
+    State(state): State<PublicState>,
+) -> ApiResult<Vec<serde_json::Value>> {
+    let rows = state.system.region_client.country_list().await?;
+    ok(rows.iter().map(region_json).collect())
+}
+
+/// `GET /api/sys/region/getLocationByIp?ip=...`：按 IP 定位。
+///
+/// 未接入 ip2region → 固定返回默认城市（Java `getUserRegion` 兜底分支）。
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct LocationByIpQuery {
+    ip: Option<String>,
+}
+
+async fn get_location_by_ip(
+    State(state): State<PublicState>,
+    Query(q): Query<LocationByIpQuery>,
+) -> ApiResult<serde_json::Value> {
+    let region = state
+        .system
+        .region_client
+        .location_by_ip(q.ip.as_deref())
+        .await?;
+    ok(region_json(&region))
+}
+
+/// `GET /api/sys/region/getLocationByLocation?longitude=&latitude=`：
+/// 按经纬度定位（逆地理需高德 Key；未配置 → 默认城市降级）。
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct LocationByLocationQuery {
+    longitude: Option<String>,
+    latitude: Option<String>,
+}
+
+async fn get_location_by_location(
+    State(state): State<PublicState>,
+    Query(q): Query<LocationByLocationQuery>,
+) -> ApiResult<serde_json::Value> {
+    let region = state
+        .system
+        .region_client
+        .location_by_location(q.longitude.as_deref(), q.latitude.as_deref())
+        .await?;
+    ok(region_json(&region))
+}
+
+/// `GET /api/sys/region/getLocationByRegionId?regionId=...`：
+/// 按 regionId 取地区（缺行返回 `null`）。
+async fn get_location_by_region_id(
+    State(state): State<PublicState>,
+    Query(q): Query<RegionIdQuery>,
+) -> ApiResult<Option<serde_json::Value>> {
+    ok(state
+        .system
+        .region_client
+        .location_by_region_id(q.region_id)
+        .await?
+        .as_ref()
+        .map(region_json))
+}
+
+/// `GET /api/sys/region/getRegeoDetail?longitude=&latitude=`：逆地理详情。
+///
+/// 高德 regeo 未配置凭据 → 返回默认城市的降级结果
+/// （`regeo: false` 标记非真实逆编码）。
+async fn get_regeo_detail(
+    State(state): State<PublicState>,
+    Query(_q): Query<LocationByLocationQuery>,
+) -> ApiResult<serde_json::Value> {
+    let region = state.system.region_client.regeo_detail().await?;
+    let mut value = region_json(&region);
+    if let Some(obj) = value.as_object_mut() {
+        obj.insert("regeo".into(), serde_json::json!(false));
+    }
+    ok(value)
+}
+
+/// `GET /api/sys/region/searchByKeywords?keywords=...`：
+/// 地区名模糊搜索（`region_name LIKE`，不限层级）。
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct KeywordsQuery {
+    keywords: Option<String>,
+}
+
+async fn search_by_keywords(
+    State(state): State<PublicState>,
+    Query(q): Query<KeywordsQuery>,
+) -> ApiResult<Vec<serde_json::Value>> {
+    let Some(keywords) = q.keywords.as_deref().filter(|s| !s.is_empty()) else {
+        return ok(Vec::new());
+    };
+    let rows = state
+        .system
+        .region_client
+        .search_by_keywords(keywords)
+        .await?;
     ok(rows.iter().map(region_json).collect())
 }
 

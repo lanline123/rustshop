@@ -194,6 +194,38 @@ impl From<Region> for RegionListVO {
     }
 }
 
+/// 地区经纬度定位 VO（Java 来源：前端契约
+/// `view/admin/src/api/setting/region.ts#getLocationByRegionId`，
+/// 返回 `{ regionId, regionName, centor }`；`centor`（中心点
+/// "经度,纬度"）在 `region` 表中已无对应列（Java `RegionVO.centor`
+/// 同样只声明不映射），恒为 `null`，字段保留以兼容前端类型）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RegionLocationVO {
+    /// 地区主键
+    pub region_id: i32,
+    /// 地区名称
+    pub region_name: String,
+    /// 父级 id
+    pub parent_id: i32,
+    /// 级别
+    pub level: Option<i32>,
+    /// 中心点（`region` 表已无此列，恒为 `null`）
+    pub centor: Option<String>,
+}
+
+impl From<&Region> for RegionLocationVO {
+    fn from(r: &Region) -> Self {
+        Self {
+            region_id: r.region_id,
+            region_name: r.region_name.clone(),
+            parent_id: r.parent_id,
+            level: r.level,
+            centor: None,
+        }
+    }
+}
+
 /// 地区树节点（对应 Java `cn.hutool.core.lang.tree.Tree<Integer>`，
 /// 由 `TreeUtil.build` + `TreeNodeConfig` 产出）。
 ///

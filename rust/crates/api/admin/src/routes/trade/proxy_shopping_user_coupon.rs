@@ -41,25 +41,34 @@
 //! > 详见服务层模块头第 4 条。
 
 use axum::{
+    extract::Query,
     extract::State,
-    routing::post,
+    routing::{get, post},
     Extension, Json, Router,
 };
 use serde::Deserialize;
+use serde_json::Value;
 use tigshop_core::Error;
 use tigshop_security::web::{ok, ApiResult, AuthUser};
 
 use crate::AdminState;
 
-/// 本域唯一一条路由（去 `/adminapi` 前缀的路径 + 原 Java handler）。
+/// 本域路由（去 `/adminapi` 前缀的路径 + 原 Java handler）。
 ///
 /// [`implemented_routes`] 的唯一来源。
-const ROUTE_TABLE: [(&str, &str, &str); 1] = [
+/// `visible-list` 来自新版管理端前端契约（Java 控制器未含，
+/// 见 `view/admin/src/api/proxyShopping/cart.ts`）。
+const ROUTE_TABLE: [(&str, &str, &str); 2] = [
     // (HTTP method, 本模块路径, 原 Java handler)
     (
         "POST",
         "/proxyShopping/coupon/claim",
         "ProxyShoppingUserCouponController.claim",
+    ),
+    (
+        "POST",
+        "/proxyShopping/coupon/visible-list",
+        "ProxyShoppingUserCouponController.visibleList",
     ),
 ];
 
@@ -69,7 +78,12 @@ const ROUTE_TABLE: [(&str, &str, &str); 1] = [
 /// `@PostMapping("/claim")`。
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
-    Router::new().route("/proxyShopping/coupon/claim", post(coupon_claim))
+    Router::new()
+        .route("/proxyShopping/coupon/claim", post(coupon_claim))
+        .route(
+            "/proxyShopping/coupon/visible-list",
+            post(coupon_visible_list).get(coupon_visible_list_get),
+        )
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。
@@ -125,24 +139,121 @@ async fn coupon_claim(
     ok(id)
 }
 
+/// `visible-list` 的请求体（前端 `{ userId, productIds? }`）。
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct VisibleListPayload {
+    /// 目标会员 id（可选，当前不参与过滤，保留契约）
+    user_id: Option<i32>,
+    /// 商品 id 列表（可选，当前不参与过滤，保留契约）
+    product_ids: Option<Vec<i32>>,
+}
+
+/// `visible-list` 的查询参数（GET 兼容形态：`?userId=&productIds=1,2`）。
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct VisibleListQuery {
+    user_id: Option<i32>,
+    product_ids: Option<String>,
+}
+
+impl VisibleListQuery {
+    fn parse_product_ids(&self) -> Vec<i32> {
+        self.product_ids
+            .as_deref()
+            .unwrap_or_default()
+            .split(',')
+            .filter_map(|s| s.trim().parse::<i32>().ok())
+            .collect()
+    }
+}
+
+/// `Coupon` 实体 → 前端 camelCase JSON（实体 serde 是 snake_case，
+/// 代客下单优惠券抽屉按 Java VO 驼峰字段读取，这里显式映射关键字段）。
+fn coupon_to_json(c: &tigshop_core::entities::Coupon) -> Value {
+    serde_json::json!({
+        "couponId": c.coupon_id,
+        "couponName": c.coupon_name,
+        "couponMoney": c.coupon_money,
+        "couponDiscount": c.coupon_discount,
+        "couponDesc": c.coupon_desc,
+        "couponType": c.coupon_type,
+        "sendRange": c.send_range,
+        "sendRangeData": c.send_range_data,
+        "minOrderAmount": c.min_order_amount,
+        "sendType": c.send_type,
+        "useDay": c.use_day,
+        "useStartDate": c.use_start_date,
+        "useEndDate": c.use_end_date,
+        "maxOrderAmount": c.max_order_amount,
+        "couponUnit": c.coupon_unit,
+        "reduceType": c.reduce_type,
+        "limitNum": c.limit_num,
+        "sendNum": c.send_num,
+        "isNewUser": c.is_new_user,
+        "shopId": c.shop_id,
+    })
+}
+
+/// `POST /adminapi/proxyShopping/coupon/visible-list`：可领取优惠券列表。
+///
+/// Java 来源：新版管理端前端
+/// `view/admin/src/api/proxyShopping/cart.ts#getProxyShoppingCouponList`
+/// （body `{ userId, productIds? }`，代客下单优惠券抽屉）。
+/// 返回 camelCase 优惠券数组。
+async fn coupon_visible_list(
+    State(state): State<AdminState>,
+    Json(payload): Json<VisibleListPayload>,
+) -> ApiResult<Vec<Value>> {
+    let list = state
+        .trade
+        .proxy_shopping_user_coupon
+        .visible_list(payload.user_id, payload.product_ids.as_deref().unwrap_or_default())
+        .await?;
+    ok(list.iter().map(coupon_to_json).collect())
+}
+
+/// `GET /adminapi/proxyShopping/coupon/visible-list`：同上的 GET 兼容形态。
+async fn coupon_visible_list_get(
+    State(state): State<AdminState>,
+    Query(q): Query<VisibleListQuery>,
+) -> ApiResult<Vec<Value>> {
+    let list = state
+        .trade
+        .proxy_shopping_user_coupon
+        .visible_list(q.user_id, &q.parse_product_ids())
+        .await?;
+    ok(list.iter().map(coupon_to_json).collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn route_table_has_exactly_one_path() {
-        assert_eq!(ROUTE_TABLE.len(), 1);
+    fn route_table_has_contract_paths() {
+        assert_eq!(ROUTE_TABLE.len(), 2);
         assert_eq!(ROUTE_TABLE[0].0, "POST");
         assert_eq!(ROUTE_TABLE[0].1, "/proxyShopping/coupon/claim");
         assert_eq!(ROUTE_TABLE[0].2, "ProxyShoppingUserCouponController.claim");
+        assert_eq!(ROUTE_TABLE[1].0, "POST");
+        assert_eq!(ROUTE_TABLE[1].1, "/proxyShopping/coupon/visible-list");
+        assert_eq!(
+            ROUTE_TABLE[1].2,
+            "ProxyShoppingUserCouponController.visibleList"
+        );
     }
 
     #[test]
     fn implemented_routes_use_adminapi_prefix() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 1);
+        assert_eq!(docs.len(), 2);
         assert_eq!(docs[0].path, "/adminapi/proxyShopping/coupon/claim");
         assert_eq!(docs[0].method, "POST");
+        assert_eq!(
+            docs[1].path,
+            "/adminapi/proxyShopping/coupon/visible-list"
+        );
     }
 
     #[test]

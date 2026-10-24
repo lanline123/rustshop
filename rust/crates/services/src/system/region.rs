@@ -120,7 +120,8 @@ use tigshop_core::entities::Region;
 use tigshop_core::models::system::region::{
     build_region_tree, map_update_field_column, normalize_first_word, resolve_level,
     validate_first_word, validate_parent_id, validate_region_name, BatchDTO, OperateDTO,
-    RegionCreateDTO, RegionListQuery, RegionListVO, RegionTreeNode, RegionUpdateDTO, UpdateFieldDTO,
+    RegionCreateDTO, RegionListQuery, RegionListVO, RegionLocationVO, RegionTreeNode,
+    RegionUpdateDTO, UpdateFieldDTO,
     DEFAULT_SORT_ORDER, MSG_INVALID_FIELD_VALUE, MSG_ID_REQUIRED, MSG_PARENT_ID_REQUIRED,
     MSG_PARENT_IS_SELF, MSG_PARENT_NOT_FOUND, MSG_REGION_ID_REQUIRED, MSG_REGION_NAME_MAX_SIZE,
     MSG_REGION_NAME_REQUIRED, MSG_REGION_NOT_FOUND, NO, REGION_COLUMNS, REGION_FIELDS, YES,
@@ -217,6 +218,21 @@ impl RegionService {
             .await?
             .ok_or_else(|| Error::NotFound(MSG_REGION_NOT_FOUND.into()))?;
         Ok(RegionListVO::from(&region))
+    }
+
+    /// 按 id 查地区定位信息（Java 来源：新版管理端前端
+    /// `view/admin/src/api/setting/region.ts#getLocationByRegionId`，
+    /// Java `RegionController` 未含此端点，按最小可用实现）。
+    ///
+    /// 返回 `{ regionId, regionName, parentId, level, centor: null }`；
+    /// `centor`（中心点）在 `region` 表已无对应列，恒为 `null`。
+    /// 地区不存在时返回 `Ok(None)`（调用方决定 404 文案）。
+    ///
+    /// # Errors
+    /// 数据库错误 → `Error::Database`。
+    pub async fn get_location_by_region_id(&self, region_id: i32) -> Result<Option<RegionLocationVO>> {
+        let region = self.repos.system.region.find_by_id(region_id).await?;
+        Ok(region.as_ref().map(RegionLocationVO::from))
     }
 
     // ————————————————————— 新增 —————————————————————

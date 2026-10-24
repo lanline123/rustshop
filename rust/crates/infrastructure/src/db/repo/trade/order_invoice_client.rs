@@ -32,7 +32,7 @@ pub struct InvoiceRow {
     pub email: String,
     pub add_time: i32,
     pub invoice_attachment: Option<String>,
-    pub invoicing_time: i32,
+    pub invoicing_time: Option<i32>,
 }
 
 /// 发票更新补丁（只更新提供字段）。

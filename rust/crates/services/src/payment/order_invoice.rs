@@ -176,7 +176,7 @@ impl OrderInvoiceService {
                 .and_then(|v| i32::try_from(v).ok())
                 .unwrap_or_else(|| now_seconds() as i32),
             invoice_attachment: None,
-            invoicing_time: 0,
+            invoicing_time: Some(0),
         };
         let id = self.repo().insert(&entity).await?;
         tracing::info!("创建发票申请: id={id}");
@@ -254,7 +254,7 @@ impl OrderInvoiceService {
         if let Some(attachments) = param.invoice_attachment.as_deref() {
             // Java：`JSONArray.toJSONString(param.getInvoiceAttachment())`
             entity.invoice_attachment = Some(attachment_to_json(attachments));
-            entity.invoicing_time = now;
+            entity.invoicing_time = Some(now);
         }
         self.repo().update(&entity).await?;
 

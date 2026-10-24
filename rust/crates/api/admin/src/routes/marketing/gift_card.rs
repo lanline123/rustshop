@@ -39,8 +39,9 @@ use tigshop_security::web::{ok, ApiResult, AppError};
 
 use crate::AdminState;
 
-/// 本域 8 条路由（去掉 `/adminapi` 前缀后的路径 + 原 Java handler）。
-const ROUTE_TABLE: [(&str, &str, &str); 8] = [
+/// 本域 10 条路由（去掉 `/adminapi` 前缀后的路径 + 原 Java handler）。
+/// 最后两条来自新版管理端前端契约（`view/admin/src/api/promotion/giftCard.ts`）。
+const ROUTE_TABLE: [(&str, &str, &str); 10] = [
     ("GET", "/promotion/giftCards/list", "GiftCardController.list"),
     ("GET", "/promotion/giftCards/detail", "GiftCardController.detail"),
     (
@@ -73,6 +74,16 @@ const ROUTE_TABLE: [(&str, &str, &str); 8] = [
         "/promotion/giftCards/updateCardStatus",
         "GiftCardController.updateGiftCardsAvailableStatus",
     ),
+    (
+        "POST",
+        "/promotion/giftCards/createBatch",
+        "GiftCardController.createGiftCardsBatch",
+    ),
+    (
+        "GET",
+        "/promotion/giftCards/showCardPassword",
+        "GiftCardController.showCardPassword",
+    ),
 ];
 
 /// 礼品卡管理路由（挂载于 `/adminapi` 下，外层统一套 `require_auth`）。
@@ -90,6 +101,8 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
             get(gift_card_exchange_detail),
         )
         .route("/promotion/giftCards/updateCardStatus", post(update_card_status))
+        .route("/promotion/giftCards/createBatch", post(create_batch))
+        .route("/promotion/giftCards/showCardPassword", get(show_card_password))
 }
 
 /// 本模块已实现路由（覆盖率统计，完整契约路径）。
@@ -212,6 +225,46 @@ async fn update_card_status(
     ok(())
 }
 
+/// `showCardPassword` 的查询参数（前端 `getGiftCardPasswrod({ cardId })`）。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CardIdQuery {
+    card_id: Option<i32>,
+}
+
+/// `POST /adminapi/promotion/giftCards/createBatch`：批量生成礼品卡。
+///
+/// Java 来源：`GiftCardController.createGiftCardsBatch`
+/// （`GiftCardIdParam { cardGroupsId, count }` →
+/// `giftCardsService.createGiftCardsBatch`）。
+async fn create_batch(
+    State(state): State<AdminState>,
+    Json(param): Json<GiftCardIdParam>,
+) -> ApiResult<()> {
+    let card_groups_id = param
+        .gift_cards_id()
+        .map_err(Error::Validation)?;
+    let count = param.count.unwrap_or(0);
+    state.marketing.gift_card.create_batch(card_groups_id, count).await?;
+    ok(())
+}
+
+/// `GET /adminapi/promotion/giftCards/showCardPassword?cardId=`：查看卡密。
+///
+/// Java 来源：新版管理端前端
+/// `view/admin/src/api/promotion/giftCard.ts#getGiftCardPasswrod`
+/// （返回 `string`；旧版 Java 控制器未含该端点）。
+async fn show_card_password(
+    State(state): State<AdminState>,
+    Query(q): Query<CardIdQuery>,
+) -> ApiResult<String> {
+    let card_id = q
+        .card_id
+        .filter(|v| *v > 0)
+        .ok_or_else(|| AppError(Error::Validation("cardId不能为空".into())))?;
+    ok(state.marketing.gift_card.show_card_password(card_id).await?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -219,7 +272,7 @@ mod tests {
     #[test]
     fn implemented_routes_match_java_contract() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 8);
+        assert_eq!(docs.len(), 10);
         let expected = [
             ("GET", "/adminapi/promotion/giftCards/list"),
             ("GET", "/adminapi/promotion/giftCards/detail"),
@@ -229,6 +282,8 @@ mod tests {
             ("POST", "/adminapi/promotion/giftCards/delete"),
             ("GET", "/adminapi/promotion/giftCards/giftCardExchangeDetail"),
             ("POST", "/adminapi/promotion/giftCards/updateCardStatus"),
+            ("POST", "/adminapi/promotion/giftCards/createBatch"),
+            ("GET", "/adminapi/promotion/giftCards/showCardPassword"),
         ];
         for (method, path) in expected {
             assert!(
@@ -246,7 +301,7 @@ mod tests {
 
     #[test]
     fn route_table_matches_registrations() {
-        assert_eq!(ROUTE_TABLE.len(), 8);
+        assert_eq!(ROUTE_TABLE.len(), 10);
         for (_, path, _) in ROUTE_TABLE.iter() {
             assert!(!path.contains("/adminapi"), "{path}");
             assert!(path.starts_with("/promotion/giftCards/"), "{path}");

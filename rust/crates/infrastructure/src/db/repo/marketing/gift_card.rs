@@ -350,6 +350,49 @@ impl GiftCardRepository {
         Ok(res.rows_affected())
     }
 
+    /// 查询给定卡号中已存在的（Java `lambdaQuery().in(cardNumber, cardNos)`）。
+    pub async fn find_existing_card_numbers(
+        &self,
+        card_numbers: &[String],
+    ) -> Result<Vec<String>> {
+        if card_numbers.is_empty() {
+            return Ok(Vec::new());
+        }
+        let placeholders = vec!["?"; card_numbers.len()].join(", ");
+        let sql = format!(
+            "SELECT card_number FROM gift_cards WHERE card_number IN ({placeholders})"
+        );
+        let mut q = sqlx::query_as::<_, (String,)>(&sql);
+        for no in card_numbers {
+            q = q.bind(no);
+        }
+        let rows = q.fetch_all(&self.pool).await.map_err(map_err)?;
+        Ok(rows.into_iter().map(|(n,)| n).collect())
+    }
+
+    /// 批量插入礼品卡（Java `saveBatch(cards, 500)`）。
+    pub async fn insert_many(&self, cards: &[GiftCards]) -> Result<u64> {
+        let mut affected = 0u64;
+        for card in cards {
+            let res = sqlx::query(
+                "INSERT INTO gift_cards (card_groups_id, card_number, card_password, gift_card_sn, is_available, status, used_time, user_id, add_time, expired_time, claimed_user_id, claimed_status, order_time) VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, ?, 0, 0, 0)",
+            )
+            .bind(card.card_groups_id)
+            .bind(&card.card_number)
+            .bind(&card.card_password)
+            .bind(&card.gift_card_sn)
+            .bind(card.is_available)
+            .bind(card.status)
+            .bind(card.add_time)
+            .bind(card.expired_time)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+            affected += res.rows_affected();
+        }
+        Ok(affected)
+    }
+
     /// 插入充值单（Java `userRechargeOrderService.rechargeOperation` 的落库部分）。
     pub async fn insert_recharge_order(
         &self,

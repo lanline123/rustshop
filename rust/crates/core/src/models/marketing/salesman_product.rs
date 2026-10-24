@@ -317,6 +317,19 @@ pub fn parse_commission_data(raw: Option<&str>) -> Option<Vec<CommissionData>> {
     serde_json::from_str(raw).ok()
 }
 
+/// 批量操作（Java `BatchDTO`）。
+///
+/// Java 来源：新版管理端前端 `view/admin/src/api/salesman/product.ts#batchSubmit`
+/// （body `{ type, ids }`；仅 `type = "del"` 生效）。
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct BatchDTO {
+    /// 主键列表
+    pub ids: Vec<i32>,
+    /// 操作类型（仅 `del` 生效）
+    pub r#type: String,
+}
+
 /// 佣金方式文案（Java `SalesmanProductCommissionTypeEnum`）。
 #[must_use]
 pub fn commission_type_text(commission_type: i32) -> &'static str {

@@ -5,8 +5,10 @@ pub mod app_version_admin;
 pub mod area_code;
 pub mod cache_manage;
 pub mod config_basic;
+pub mod config_extra;
 pub mod csrf;
 pub mod example;
+pub mod licensed;
 pub mod mail_templates;
 pub mod message_type;
 pub mod region;
@@ -26,7 +28,9 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(area_code::routes(state))
         .merge(cache_manage::routes(state))
         .merge(config_basic::routes(state))
+        .merge(config_extra::routes(state))
         .merge(example::routes(state))
+        .merge(licensed::routes(state))
         .merge(mail_templates::routes(state))
         .merge(message_type::routes(state))
         .merge(region::routes(state))
@@ -51,8 +55,10 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(area_code::implemented_routes());
     out.extend(cache_manage::implemented_routes());
     out.extend(config_basic::implemented_routes());
+    out.extend(config_extra::implemented_routes());
     out.extend(csrf::implemented_routes());
     out.extend(example::implemented_routes());
+    out.extend(licensed::implemented_routes());
     out.extend(mail_templates::implemented_routes());
     out.extend(message_type::implemented_routes());
     out.extend(region::implemented_routes());

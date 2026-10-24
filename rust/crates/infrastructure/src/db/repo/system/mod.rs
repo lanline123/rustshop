@@ -8,6 +8,7 @@ pub mod config_basic;
 pub mod config_client;
 pub mod example;
 pub mod files;
+pub mod locales;
 pub mod log;
 pub mod mail_templates;
 pub mod message_type;
@@ -29,6 +30,7 @@ pub struct Repositories {
     pub config_client: config_client::ConfigClientRepository,
     pub example: example::ExampleRepository,
     pub files: files::FilesRepository,
+    pub locales: locales::LocalesRepository,
     pub log: log::LogRepository,
     pub mail_templates: mail_templates::MailTemplatesRepository,
     pub message_type: message_type::MessageTypeRepository,
@@ -52,6 +54,7 @@ impl Repositories {
             config_client: config_client::ConfigClientRepository::new(pool.clone()),
             example: example::ExampleRepository::new(pool.clone()),
             files: files::FilesRepository::new(pool.clone()),
+            locales: locales::LocalesRepository::new(pool.clone()),
             log: log::LogRepository::new(pool.clone()),
             mail_templates: mail_templates::MailTemplatesRepository::new(pool.clone()),
             message_type: message_type::MessageTypeRepository::new(pool.clone()),
