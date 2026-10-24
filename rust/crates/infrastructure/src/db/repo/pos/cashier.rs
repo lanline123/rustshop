@@ -127,14 +127,14 @@ impl PosCashierRepository {
 
     /// 上下班时间戳存 config（code = posWork:{admin_id}，value = ISO 时间 JSON）。
     pub async fn work_flag(&self, admin_id: i32) -> Result<Option<String>> {
-        let (v,): (Option<String>,) = sqlx::query_as(
+        let row: Option<(Option<String>,)> = sqlx::query_as(
             "SELECT content FROM config WHERE `code` = ? ORDER BY id DESC LIMIT 1",
         )
         .bind(format!("posWork:{admin_id}"))
         .fetch_optional(&self.pool)
         .await
         .map_err(map_err)?;
-        Ok(v)
+        Ok(row.and_then(|(v,)| v))
     }
 
     pub async fn set_work_flag(&self, admin_id: i32, working: bool) -> Result<()> {
@@ -649,7 +649,7 @@ impl PosCashierRepository {
     pub async fn table_transfer(&self, from: i32, to: i32) -> Result<()> {
         let src = self.table_find(from).await?;
         let dst = self.table_find(to).await?;
-        let (Some(_), Some(_)) = (src, dst) else {
+        let (Some(src), Some(_)) = (src, dst) else {
             return Err(Error::NotFound("桌台不存在".into()));
         };
         sqlx::query(
@@ -665,8 +665,8 @@ impl PosCashierRepository {
             "UPDATE pos_table SET status = 1, user_id = ?, order_id = ?, update_time = ? \
              WHERE table_id = ?",
         )
-        .bind(src.map(|t| t.user_id).unwrap_or(0))
-        .bind(src.map(|t| t.order_id).unwrap_or(0))
+        .bind(src.user_id)
+        .bind(src.order_id)
         .bind(now())
         .bind(to)
         .execute(&self.pool)
@@ -726,7 +726,7 @@ impl PosCashierRepository {
         .fetch_optional(&self.pool)
         .await
         .map_err(map_err)?
-        .map(|opt| opt.map(|(v,)| v))
+        .map(|(v,)| v)
     }
 
     pub async fn categories(&self) -> Result<Vec<serde_json::Value>> {
@@ -810,16 +810,14 @@ impl PosCashierRepository {
     }
 
     pub async fn order_remark(&self, user_id: i32) -> Result<Option<String>> {
-        let (v,): (Option<String>,) = sqlx::query_as(
+        let row: Option<(Option<String>,)> = sqlx::query_as(
             "SELECT order_remark FROM `order` WHERE user_id = ? ORDER BY order_id DESC LIMIT 1",
         )
         .bind(user_id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(map_err)
-        .map(|opt| opt.map(|(v,)| v));
-        .map(|opt| opt.map(|(v,)| v))
-        Ok(v)
+        .map_err(map_err)?;
+        Ok(row.and_then(|(v,)| v))
     }
 
     /// 充值单读取（按会员）。
