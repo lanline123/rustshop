@@ -115,9 +115,6 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/order/pay/create", post(order_pay_create))
         .route("/order/pay/checkStatus", get(order_pay_check))
         // 门店 / 账号辅助
-        .route("/merchant/shop/recordLoginSystem", post(shop_record_login))
-        .route("/merchant/shop/setPosLoginDefault", post(shop_pos_default))
-        .route("/merchant/shop/updateVendorSetting", post(shop_vendor_setting))
         .route("/adminapi/adminUser/checkCode", get(admin_check_code))
 }
 
@@ -924,56 +921,8 @@ async fn order_pay_check(
     ok(serde_json::to_value(row).unwrap_or(serde_json::Value::Null))
 }
 
-#[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-struct ShopFlagDTO {
-    shop_id: Option<i32>,
-    flag: Option<i32>,
-}
 
-async fn shop_record_login(
-    State(state): State<AdminState>,
-    Json(dto): Json<ShopFlagDTO>,
-) -> ApiResult<()> {
-    let code = format!("shopRecordLogin:{}", dto.shop_id.unwrap_or(0));
-    state
-        .repos
-        .system
-        .config_basic
-        .save_code(&code, &dto.flag.unwrap_or(1).to_string())
-        .await?;
-    ok(())
-}
 
-async fn shop_pos_default(
-    State(state): State<AdminState>,
-    Json(dto): Json<ShopFlagDTO>,
-) -> ApiResult<()> {
-    // shop 表有 default_pos_login 列 → 用 update_shop 不可行（DTO 重），直接列更新
-    if let Some(shop_id) = dto.shop_id {
-        state
-            .repos
-            .system
-            .config_basic
-            .save_code(&format!("shopPosDefault:{shop_id}"), &dto.flag.unwrap_or(1).to_string())
-            .await?;
-    }
-    ok(())
-}
-
-async fn shop_vendor_setting(
-    State(state): State<AdminState>,
-    Json(dto): Json<ShopFlagDTO>,
-) -> ApiResult<()> {
-    let code = format!("shopVendorSetting:{}", dto.shop_id.unwrap_or(0));
-    state
-        .repos
-        .system
-        .config_basic
-        .save_code(&code, &dto.flag.unwrap_or(0).to_string())
-        .await?;
-    ok(())
-}
 
 /// `GET /adminapi/adminapi/adminUser/checkCode`：安装期检查码（兼容桩）。
 async fn admin_check_code() -> ApiResult<serde_json::Value> {
