@@ -18,7 +18,6 @@ use tigshop_infrastructure::db::Repositories;
 /// POS 收银域服务（挂载于 `AdminState.pos.cashier`）。
 pub struct PosCashierService {
     repos: Arc<Repositories>,
-    /// 收银员身份（组合根注入：当前登录管理员 id 由 handler 传入）。
 }
 
 impl PosCashierService {
@@ -28,6 +27,14 @@ impl PosCashierService {
 
     fn repo(&self) -> &tigshop_infrastructure::db::repo::pos::cashier::PosCashierRepository {
         &self.repos.pos.cashier
+    }
+
+    /// 当前工作草稿（kind=0, status=0）。
+    async fn working_draft(
+        &self,
+        admin_id: i32,
+    ) -> Result<Option<tigshop_core::entities::o2o::PosPendingOrder>> {
+        self.repo().working_draft(admin_id).await
     }
 
     // ————————————————————— 收银员 —————————————————————
@@ -42,8 +49,10 @@ impl PosCashierService {
             .repo()
             .cashier_paginate(q.keyword.as_deref(), q.status, size, (page - 1) * size)
             .await?;
+        let total_page = if size > 0 { (total + size - 1) / size } else { 0 };
         Ok(tigshop_core::types::PageResult {
             total,
+            total_page,
             list: rows
                 .into_iter()
                 .map(|r| PosAdminUserVO {
@@ -237,7 +246,7 @@ impl PosCashierService {
             .find_by_code("rechargeSetting")
             .await?;
         Ok(raw
-            .and_then(|v| serde_json::from_str(&v).ok())
+            .and_then(|v| serde_json::from_str::<serde_json::Value>(&v).ok())
             .unwrap_or_else(|| serde_json::json!({})))
     }
 
