@@ -274,7 +274,7 @@ async fn h_32(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<i
 del_ids!(h_33, 'vendor_product', 'id');
 
 // get /vendor/product/getParticiple
-async fn h_34(_State(_): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+async fn h_34(_state: State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
     // 分词服务未迁移：按空格/2字切分
     let kw = q.keyword.clone().unwrap_or_default();
     let parts: Vec<String> = kw.chars().collect::<Vec<_>>().chunks(2).map(|c| c.iter().collect()).collect();
@@ -351,7 +351,7 @@ async fn h_48() -> ApiResult<&'static str> {
 async fn h_49() -> ApiResult<Value> { ok(serde_json::json!({"records": []})) }
 
 // post /vendor/stock/batchImport
-async fn h_50(_State(_): State<AdminState>) -> ApiResult<()> {
+async fn h_50(_state: State<AdminState>) -> ApiResult<()> {
     Err(Error::Validation("批量导入未迁移（简化实现）".into()))
 }
 

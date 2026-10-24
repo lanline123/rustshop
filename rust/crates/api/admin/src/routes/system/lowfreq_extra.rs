@@ -291,7 +291,7 @@ del_ids!(h_33, 'salesman', 'salesman_id');
 cfg_get!(h_34, 'areaCodeConfig');
 
 // post /setting/areaCode/translation
-async fn h_35(_State(_): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<Value> {
+async fn h_35(_state: State<AdminState>, Json(q): Json<Pg>) -> ApiResult<Value> {
     // 无翻译凭据：原样返回
     let kw = q.keyword.clone().unwrap_or_default();
     ok(serde_json::json!({ "translation": kw }))
@@ -323,10 +323,10 @@ async fn h_39(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult
 del_ids!(h_40, 'message_type', 'message_id');
 
 // post /setting/messageType/miniProgramMessageTemplateSync
-async fn h_41(_State(_): State<AdminState>) -> ApiResult<()> { ok(()) }
+async fn h_41(_state: State<AdminState>) -> ApiResult<()> { ok(()) }
 
 // post /setting/messageType/wechatMessageTemplateSync
-async fn h_42(_State(_): State<AdminState>) -> ApiResult<()> { ok(()) }
+async fn h_42(_state: State<AdminState>) -> ApiResult<()> { ok(()) }
 
 // post /content/articleCategory/moveCat
 async fn h_43(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<()> {
@@ -400,12 +400,12 @@ list_pg!(h_61, 'unipush_log', 'unipush_log_id', "'unipush_log_id', unipush_log_i
 del_ids!(h_62, 'unipush_log', 'unipush_log_id');
 
 // get /user/oauth/render
-async fn h_63(_State(_): State<AdminState>, Query(_q): Query<Pg>) -> ApiResult<()> {
+async fn h_63(_state: State<AdminState>, Query(_q): Query<Pg>) -> ApiResult<()> {
     Err(Error::Validation("OAuth 未配置".into()))
 }
 
 // get /user/oauth/callback
-async fn h_64(_State(_): State<AdminState>) -> ApiResult<()> {
+async fn h_64(_state: State<AdminState>) -> ApiResult<()> {
     Err(Error::Validation("OAuth 未配置".into()))
 }
 
