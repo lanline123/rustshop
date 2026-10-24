@@ -531,7 +531,7 @@ async fn collection_shop(
 
 /// `POST /api/user/user/collectionShop/save`：收藏店铺（b2b2b 5.8.57 前端新增，
 /// 无 Java 对应；payload `{shopId}`，幂等）。
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, serde::Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct CollectShopSaveDTO {
     shop_id: Option<i32>,
@@ -551,7 +551,7 @@ async fn collection_shop_save(
 }
 
 /// `POST /api/user/user/collectionShop/cancel`：取消收藏（payload `{id}` 或 `{shopId}`）。
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, serde::Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct CollectShopCancelDTO {
     id: Option<i32>,
