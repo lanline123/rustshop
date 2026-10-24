@@ -276,7 +276,7 @@ impl PosCashierRepository {
         .execute(&self.pool)
         .await
         .map_err(map_err)?;
-        Ok(r.last_insert_id())
+        Ok(r.last_insert_id() as i64)
     }
 
     pub async fn item_merge_same(
@@ -716,19 +716,15 @@ impl PosCashierRepository {
     }
 
     pub async fn product_one(&self, product_id: i64) -> Result<Option<serde_json::Value>> {
-        sqlx::query_as::<_, (serde_json::Value,)>(
-            "SELECT JSON_OBJECT('productId', product_id, 'productName', product_name, \
-             'picThumb', pic_thumb, 'productPrice', product_price, 'marketPrice', market_price, \
-             'productStock', product_stock, 'productSn', product_sn, 'productStatus', \
-             product_status) FROM product WHERE product_id = ?",
+        let row: Option<(serde_json::Value,)> = sqlx::query_as::<_, (serde_json::Value,)>(
+            "SELECT JSON_OBJECT('productId', product_id, 'productName', product_name,              'picThumb', pic_thumb, 'productPrice', product_price, 'marketPrice', market_price,              'productStock', product_stock, 'productSn', product_sn, 'productStatus',              product_status) FROM product WHERE product_id = ?",
         )
         .bind(product_id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(map_err)?
-        .map(|(v,)| v)
+        .map_err(map_err)?;
+        Ok(row.map(|(v,)| v))
     }
-
     pub async fn categories(&self) -> Result<Vec<serde_json::Value>> {
         sqlx::query_as::<_, (serde_json::Value,)>(
             "SELECT JSON_OBJECT('categoryId', category_id, 'categoryName', category_name, \
@@ -737,7 +733,9 @@ impl PosCashierRepository {
         .fetch_all(&self.pool)
         .await
         .map_err(map_err)?
-        .map(|rows| rows.into_iter().map(|(v,)| v).collect::<Vec<_>>())
+        .into_iter()
+        .map(|(v,)| v)
+        .collect::<Vec<_>>()
     }
 
     /// 会员搜索（手机号 / 昵称）。
@@ -806,7 +804,9 @@ impl PosCashierRepository {
         .fetch_all(&self.pool)
         .await
         .map_err(map_err)?
-        .map(|rows| rows.into_iter().map(|(v,)| v).collect::<Vec<_>>())
+        .into_iter()
+        .map(|(v,)| v)
+        .collect::<Vec<_>>()
     }
 
     pub async fn order_remark(&self, user_id: i32) -> Result<Option<String>> {
@@ -831,6 +831,8 @@ impl PosCashierRepository {
         .fetch_all(&self.pool)
         .await
         .map_err(map_err)?
-        .map(|rows| rows.into_iter().map(|(v,)| v).collect::<Vec<_>>())
+        .into_iter()
+        .map(|(v,)| v)
+        .collect::<Vec<_>>()
     }
 }
