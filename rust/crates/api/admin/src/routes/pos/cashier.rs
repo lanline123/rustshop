@@ -118,12 +118,6 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/merchant/shop/recordLoginSystem", post(shop_record_login))
         .route("/merchant/shop/setPosLoginDefault", post(shop_pos_default))
         .route("/merchant/shop/updateVendorSetting", post(shop_vendor_setting))
-        .route("/authority/adminUser/apiToken/generate", post(api_token_generate))
-        .route("/authority/adminUser/apiToken/revoke", post(api_token_revoke))
-        .route(
-            "/authority/adminUser/modifyManageAccounts",
-            post(admin_modify_accounts),
-        )
         .route("/adminapi/adminUser/checkCode", get(admin_check_code))
 }
 
@@ -981,65 +975,7 @@ async fn shop_vendor_setting(
     ok(())
 }
 
-#[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-struct ApiTokenDTO {
-    admin_id: i32,
-    remark: Option<String>,
-}
-
-async fn api_token_generate(
-    State(state): State<AdminState>,
-    Json(dto): Json<ApiTokenDTO>,
-) -> ApiResult<serde_json::Value> {
-    // 兼容桩：POS 端申请接口令牌（token 明文仅本次返回，库中存同值 hash 列）
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default();
-    let token = format!("pos{:x}{:x}", now.as_secs(), now.subsec_nanos());
-    state
-        .repos
-        .identity
-        .admin_user
-        .insert_api_token(
-            dto.admin_id,
-            &token,
-            &token.chars().take(8).collect::<String>(),
-            dto.remark.as_deref().unwrap_or("POS"),
-            now.as_secs() as i64,
-            None,
-        )
-        .await?;
-    ok(serde_json::json!({ "token": token }))
-}
-
-async fn api_token_revoke(
-    State(state): State<AdminState>,
-    Json(dto): Json<ApiTokenDTO>,
-) -> ApiResult<()> {
-    // 兼容桩：按管理员吊销其最新一枚令牌
-    let tokens = state.pos.cashier.api_tokens(dto.admin_id).await?;
-    if let Some(t) = tokens.first() {
-        state.pos.cashier.api_token_revoke(t.id).await?;
-    }
-    ok(())
-}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-struct ModifyAccountsDTO {
-    admin_ids: Option<Vec<i32>>,
-    shop_id: Option<i32>,
-}
-
-/// 兼容桩：账号-组织重绑（组织模型未迁移，no-op）。
-async fn admin_modify_accounts(
-    State(_state): State<AdminState>,
-    Json(_dto): Json<ModifyAccountsDTO>,
-) -> ApiResult<()> {
-    ok(())
-}
-
+/// `GET /adminapi/adminapi/adminUser/checkCode`：安装期检查码（兼容桩）。
 async fn admin_check_code() -> ApiResult<serde_json::Value> {
     ok(serde_json::json!({ "valid": true }))
 }
