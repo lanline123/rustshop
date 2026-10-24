@@ -82,7 +82,7 @@ macro_rules! upd_field {
         async fn $fn_name(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<()> {
             let f = q.field.clone().unwrap_or_default();
             if ![$($fld),+].contains(&f.as_str()) {
-                return Err(Error::Validation("不支持的字段".into()));
+                return Err(tigshop_security::web::AppError(Error::Validation("不支持的字段".into())));
             }
             let v = match q.value.clone().unwrap_or(Value::Null) {
                 Value::String(sv) => sv,
@@ -100,7 +100,7 @@ macro_rules! del_ids {
     ($fn_name:ident, $table:literal, $key:literal) => {
         async fn $fn_name(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<()> {
             let ids = q.ids.clone().or_else(|| q.id.map(|v| vec![v])).unwrap_or_default();
-            if ids.is_empty() { return Err(Error::Validation("缺少 id".into())); }
+            if ids.is_empty() { return Err(tigshop_security::web::AppError(Error::Validation("缺少 id".into()))); }
             let list = ids.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(",");
             sqlx::query(&format!("DELETE FROM `{}` WHERE `{}` IN ({})", $table, $key, list))
                 .execute(&pool(&state)).await.map_err(db)?;
@@ -129,7 +129,7 @@ macro_rules! cfg_set {
 /// 通用状态更新：body {id 或 ids, status?}（缺省 0=撤回待处理）。
 async fn set_status(state: &AdminState, table: &str, key: &str, q: &Pg, status: i32) -> Result<(), Error> {
     let ids = q.ids.clone().or_else(|| q.id.map(|v| vec![v])).unwrap_or_default();
-    if ids.is_empty() { return Err(Error::Validation("缺少 id".into())); }
+    if ids.is_empty() { return Err(tigshop_security::web::AppError(Error::Validation("缺少 id".into()))); }
     let list = ids.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(",");
     sqlx::query(&format!("UPDATE `{}` SET status = ? WHERE `{}` IN ({})", table, key, list))
         .bind(status).execute(&pool(state)).await.map_err(db)?;
@@ -137,19 +137,19 @@ async fn set_status(state: &AdminState, table: &str, key: &str, q: &Pg, status: 
 }
 
 // post /o2o/areaStoreManager/list
-list_pg!(h_0, 'area_store_manager', 'area_store_manager_id', "'area_store_manager_id', area_store_manager_id, 'area_store_name', area_store_name, 'sort_order', sort_order, 'create_time', create_time, 'update_time', update_time", 'area_store_name');
+list_pg!(h_0, "area_store_manager", "area_store_manager_id", "'area_store_manager_id', area_store_manager_id, 'area_store_name', area_store_name, 'sort_order', sort_order, 'create_time', create_time, 'update_time', update_time", "area_store_name");
 
 // post /o2o/areaStoreManager/del
-del_ids!(h_1, 'area_store_manager', 'area_store_manager_id');
+del_ids!(h_1, "area_store_manager", "area_store_manager_id");
 
 // post /o2o/areaStoreManager/removeShop
-del_ids!(h_2, 'area_store_manager_shop', 'area_store_manager_shop_id');
+del_ids!(h_2, "area_store_manager_shop", "area_store_manager_shop_id");
 
 // post /o2o/areaStoreManager/shopList
-list_pg!(h_3, 'area_store_manager_shop', 'area_store_manager_shop_id', "'area_store_manager_shop_id', area_store_manager_shop_id, 'area_store_manager_id', area_store_manager_id, 'shop_id', shop_id, 'create_time', create_time", 'area_store_manager_id');
+list_pg!(h_3, "area_store_manager_shop", "area_store_manager_shop_id", "'area_store_manager_shop_id', area_store_manager_shop_id, 'area_store_manager_id', area_store_manager_id, 'shop_id', shop_id, 'create_time', create_time", "area_store_manager_id");
 
 // get /o2o/decorate/decorate/detail
-detail_one!(h_4, 'decorate', 'decorate_id', "'decorate_id', decorate_id, 'decorate_title', decorate_title, 'data', data");
+detail_one!(h_4, "decorate", "decorate_id", "'decorate_id', decorate_id, 'decorate_title', decorate_title, 'data', data");
 
 // post /o2o/decorate/decorate/update
 async fn h_5(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<()> {
@@ -185,19 +185,19 @@ async fn h_9(State(state): State<AdminState>) -> ApiResult<Value> {
 }
 
 // post /o2o/homeService/saveConfig
-cfg_set!(h_10, 'o2oHomeServiceConfig');
+cfg_set!(h_10, "o2oHomeServiceConfig");
 
 // post /o2o/localDelivery/saveConfig
-cfg_set!(h_11, 'o2oLocalDeliveryConfig');
+cfg_set!(h_11, "o2oLocalDeliveryConfig");
 
 // get /o2o/intraCityDelivery/platformConfig/getConfig
-cfg_get!(h_12, 'o2oIntraCityDeliveryConfig');
+cfg_get!(h_12, "o2oIntraCityDeliveryConfig");
 
 // post /o2o/intraCityDelivery/platformConfig/saveConfig
-cfg_set!(h_13, 'o2oIntraCityDeliveryConfig');
+cfg_set!(h_13, "o2oIntraCityDeliveryConfig");
 
 // post /o2o/reservationTpl/batch
-del_ids!(h_14, 'reservation_tpl', 'reservation_tpl_id');
+del_ids!(h_14, "reservation_tpl", "reservation_tpl_id");
 
 // post /o2o/shopPickupConfig/saveShopPickupTpl
 async fn h_15(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<()> {
@@ -217,13 +217,13 @@ async fn h_16(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<(
 }
 
 // post /o2o/tip/list
-list_pg!(h_17, 'tip', 'tip_id', "'tip_id', tip_id, 'tip_name', tip_name, 'status', status, 'add_time', add_time", 'tip_name');
+list_pg!(h_17, "tip", "tip_id", "'tip_id', tip_id, 'tip_name', tip_name, 'status', status, 'add_time', add_time", "tip_name");
 
 // post /o2o/tip/del
-del_ids!(h_18, 'tip', 'tip_id');
+del_ids!(h_18, "tip", "tip_id");
 
 // post /o2o/tip/batch
-del_ids!(h_19, 'tip', 'tip_id');
+del_ids!(h_19, "tip", "tip_id");
 
 // get /o2o/tip/selectAllTip
 async fn h_20(State(state): State<AdminState>) -> ApiResult<Value> {
@@ -232,7 +232,7 @@ async fn h_20(State(state): State<AdminState>) -> ApiResult<Value> {
 }
 
 // get /o2o/tip/tipConfig
-cfg_get!(h_21, 'o2oTipConfig');
+cfg_get!(h_21, "o2oTipConfig");
 
 // post /pos/table/cart/list
 async fn h_22(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<tigshop_core::models::pos::cashier::PosCartVO> {
@@ -244,7 +244,7 @@ async fn h_23(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<i
     use tigshop_core::models::pos::cashier::PosCartAddDTO;
     ok(state.pos.cashier.add_to_cart(0, &PosCartAddDTO {
         product_id: q.product_id.unwrap_or(0),
-        table_id: q.id.map(|v| v as i32),
+        table_id: q.id,
         ..Default::default()
     }).await?)
 }
@@ -264,31 +264,31 @@ async fn h_25(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<(
 }
 
 // get /salesman/category/config
-cfg_get!(h_26, 'salesmanCategoryConfig');
+cfg_get!(h_26, "salesmanCategoryConfig");
 
 // get /salesman/group/config
-cfg_get!(h_27, 'salesmanGroupConfig');
+cfg_get!(h_27, "salesmanGroupConfig");
 
 // get /salesman/material/config
-cfg_get!(h_28, 'salesmanMaterialConfig');
+cfg_get!(h_28, "salesmanMaterialConfig");
 
 // get /salesman/salesman/config
-cfg_get!(h_29, 'salesmanConfig');
+cfg_get!(h_29, "salesmanConfig");
 
 // post /salesman/group/updateField
-upd_field!(h_30, 'salesman_group', 'group_id', ["groupName", "status"]);
+upd_field!(h_30, "salesman_group", "group_id", ["groupName", "status"]);
 
 // post /salesman/product/updateField
-upd_field!(h_31, 'salesman_product', 'salesman_product_id', ["status"]);
+upd_field!(h_31, "salesman_product", "salesman_product_id", ["status"]);
 
 // post /salesman/salesman/updateField
-upd_field!(h_32, 'salesman', 'salesman_id', ["status", "mobile"]);
+upd_field!(h_32, "salesman", "salesman_id", ["status", "mobile"]);
 
 // post /salesman/salesman/batch
-del_ids!(h_33, 'salesman', 'salesman_id');
+del_ids!(h_33, "salesman", "salesman_id");
 
 // get /setting/areaCode/config
-cfg_get!(h_34, 'areaCodeConfig');
+cfg_get!(h_34, "areaCodeConfig");
 
 // post /setting/areaCode/translation
 async fn h_35(_state: State<AdminState>, Json(q): Json<Pg>) -> ApiResult<Value> {
@@ -310,7 +310,7 @@ async fn h_37(State(state): State<AdminState>) -> ApiResult<Value> {
 }
 
 // post /setting/gallery/updateField
-upd_field!(h_38, 'album', 'id', ["albumName", "isShow"]);
+upd_field!(h_38, "album", "id", ["albumName", "isShow"]);
 
 // get /setting/region/getChildRegion
 async fn h_39(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
@@ -320,7 +320,7 @@ async fn h_39(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult
 }
 
 // post /setting/messageType/batch
-del_ids!(h_40, 'message_type', 'message_id');
+del_ids!(h_40, "message_type", "message_id");
 
 // post /setting/messageType/miniProgramMessageTemplateSync
 async fn h_41(_state: State<AdminState>) -> ApiResult<()> { ok(()) }
@@ -344,10 +344,10 @@ async fn h_44(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<(
 }
 
 // post /content/wechatLiveProduct/batch
-del_ids!(h_45, 'wechat_live_goods', 'id');
+del_ids!(h_45, "wechat_live_goods", "id");
 
 // post /merchant/merchant/search
-list_pg!(h_46, 'merchant', 'merchant_id', "'merchant_id', merchant_id, 'merchant_apply_id', merchant_apply_id, 'user_id', user_id, 'add_time', add_time, 'base_data', base_data, 'shop_data', shop_data, 'merchant_data', merchant_data, 'status', status, 'is_delete', is_delete, 'type', type, 'company_name', company_name, 'corporate_name', corporate_name, 'settlement_cycle', settlement_cycle", 'merchant_apply_id');
+list_pg!(h_46, "merchant", "merchant_id", "'merchant_id', merchant_id, 'merchant_apply_id', merchant_apply_id, 'user_id', user_id, 'add_time', add_time, 'base_data', base_data, 'shop_data', shop_data, 'merchant_data', merchant_data, 'status', status, 'is_delete', is_delete, 'type', type, 'company_name', company_name, 'corporate_name', corporate_name, 'settlement_cycle', settlement_cycle", "merchant_apply_id");
 
 // get /merchant/merchant/userCount
 async fn h_47(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
@@ -356,7 +356,7 @@ async fn h_47(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult
 }
 
 // get /merchant/shop/isPlatformAllocation
-cfg_get!(h_48, 'platformAllocation');
+cfg_get!(h_48, "platformAllocation");
 
 // post /order/aftersales/batch
 async fn h_49(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<()> {
@@ -364,68 +364,75 @@ async fn h_49(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<(
     ok(())
 }
 
+// post /order/aftersales/rejectReceive
+async fn h_50(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<()> {
+    sqlx::query("UPDATE aftersales SET status = 3 WHERE aftersales_id = ?").bind(q.id.unwrap_or(0)).execute(&pool(&state)).await.map_err(db)?;
+    ok(())
+}
 
+// get /order/aftersales/returnGoodsStatus
+cfg_get!(h_51, "returnGoodsStatus");
 
 // post /order/aftersales/updateField
-upd_field!(h_52, 'aftersales', 'aftersale_id', ["status", "adminRemark"]);
+upd_field!(h_52, "aftersales", "aftersale_id", ["status", "adminRemark"]);
 
 // post /order/order/updateField
-upd_field!(h_53, 'order', 'order_id', ["order_status", "admin_remark"]);
+upd_field!(h_53, "order", "order_id", ["order_status", "admin_remark"]);
 
 // get /product/eCardGroup/cardList
-list_pg!(h_54, 'e_card_group', 'group_id', "'group_id', group_id, 'group_name', group_name, 'shop_id', shop_id, 'remark', remark, 'is_use', is_use, 'add_time', add_time, 'up_time', up_time", 'group_name');
+list_pg!(h_54, "e_card_group", "group_id", "'group_id', group_id, 'group_name', group_name, 'shop_id', shop_id, 'remark', remark, 'is_use', is_use, 'add_time', add_time, 'up_time', up_time", "group_name");
 
 // post /product/productGroup/search
-list_pg!(h_55, 'product_group', 'product_group_id', "'product_group_id', product_group_id, 'product_group_name', product_group_name, 'product_group_sn', product_group_sn, 'product_group_description', product_group_description, 'product_ids', product_ids, 'add_time', add_time, 'shop_id', shop_id", 'product_group_name');
+list_pg!(h_55, "product_group", "product_group_id", "'product_group_id', product_group_id, 'product_group_name', product_group_name, 'product_group_sn', product_group_sn, 'product_group_description', product_group_description, 'product_ids', product_ids, 'add_time', add_time, 'shop_id', shop_id", "product_group_name");
 
 // post /promotion/giftCard/batch
-del_ids!(h_56, 'gift_cards', 'gift_cards_id');
+del_ids!(h_56, "gift_cards", "gift_cards_id");
 
 // post /promotion/seckill/updateField
-upd_field!(h_57, 'seckill', 'seckill_id', ["status"]);
+upd_field!(h_57, "seckill", "seckill_id", ["status"]);
 
 // post /promotion/timeDiscount/updateField
-upd_field!(h_58, 'time_discount', 'discount_id', ["status"]);
+upd_field!(h_58, "time_discount", "discount_id", ["status"]);
 
 // post /promotion/wechatLive/batch
-del_ids!(h_59, 'wechat_live', 'wechat_live_id');
+del_ids!(h_59, "wechat_live", "wechat_live_id");
 
 // post /user/userCompany/updateField
-upd_field!(h_60, 'user_company', 'id', ["status", "audit_remark"]);
+upd_field!(h_60, "user_company", "id", ["status", "audit_remark"]);
 
 // get /user/pushLog/list
-list_pg!(h_61, 'unipush_log', 'unipush_log_id', "'unipush_log_id', unipush_log_id, 'type', type, 'add_time', add_time, 'data', data, 'respond_data', respond_data, 'is_success', is_success, 'user_ids', user_ids, 'message_title', message_title, 'message_content', message_content, 'send_user_type', send_user_type", 'type');
+list_pg!(h_61, "unipush_log", "unipush_log_id", "'unipush_log_id', unipush_log_id, 'type', type, 'add_time', add_time, 'data', data, 'respond_data', respond_data, 'is_success', is_success, 'user_ids', user_ids, 'message_title', message_title, 'message_content', message_content, 'send_user_type', send_user_type", "type");
 
 // post /user/pushLog/del
-del_ids!(h_62, 'unipush_log', 'unipush_log_id');
+del_ids!(h_62, "unipush_log", "unipush_log_id");
 
 // get /user/oauth/render
 async fn h_63(_state: State<AdminState>, Query(_q): Query<Pg>) -> ApiResult<()> {
-    Err(Error::Validation("OAuth 未配置".into()))
+    Err(tigshop_security::web::AppError(Error::Validation("OAuth 未配置".into())))
 }
 
 // get /user/oauth/callback
 async fn h_64(_state: State<AdminState>) -> ApiResult<()> {
-    Err(Error::Validation("OAuth 未配置".into()))
+    Err(tigshop_security::web::AppError(Error::Validation("OAuth 未配置".into())))
 }
 
 // get /finance/serverFundManagement/settings/detail
-cfg_get!(h_65, 'serverFundManagement');
+cfg_get!(h_65, "serverFundManagement");
 
 // get /decorate/themeStyle/list
-cfg_get!(h_66, 'themeStyle');
+cfg_get!(h_66, "themeStyle");
 
 // post /decorate/themeStyle/saveThemeStyle
-cfg_set!(h_67, 'themeStyle');
+cfg_set!(h_67, "themeStyle");
 
 // post /decorate/mobileDecorate/list
-list_pg!(h_68, 'decorate', 'decorate_id', "'decorate_id', decorate_id, 'decorate_title', decorate_title, 'data', data, 'draft_data', draft_data, 'decorate_type', decorate_type, 'page_type', page_type, 'is_home', is_home, 'shop_id', shop_id, 'status', status, 'update_time', update_time, 'locale_id', locale_id, 'parent_id', parent_id, 'sort_order', sort_order, 'binded_h5_id', binded_h5_id, 'share_info', share_info", 'decorate_title');
+list_pg!(h_68, "decorate", "decorate_id", "'decorate_id', decorate_id, 'decorate_title', decorate_title, 'data', data, 'draft_data', draft_data, 'decorate_type', decorate_type, 'page_type', page_type, 'is_home', is_home, 'shop_id', shop_id, 'status', status, 'update_time', update_time, 'locale_id', locale_id, 'parent_id', parent_id, 'sort_order', sort_order, 'binded_h5_id', binded_h5_id, 'share_info', share_info", "decorate_title");
 
 // post /decorate/mobileDecorate/batch
-del_ids!(h_69, 'decorate', 'decorate_id');
+del_ids!(h_69, "decorate", "decorate_id");
 
 // post /decorate/mobileDecorate/updateField
-upd_field!(h_70, 'decorate', 'decorate_id', ["decorate_title", "is_home"]);
+upd_field!(h_70, "decorate", "decorate_id", ["decorate_title", "is_home"]);
 
 // post /decorate/decorateRequest/productList
 async fn h_71(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
@@ -490,6 +497,8 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/merchant/merchant/userCount", get(h_47))
         .route("/merchant/shop/isPlatformAllocation", get(h_48))
         .route("/order/aftersales/batch", post(h_49))
+        .route("/order/aftersales/rejectReceive", post(h_50))
+        .route("/order/aftersales/returnGoodsStatus", get(h_51))
         .route("/order/aftersales/updateField", post(h_52))
         .route("/order/order/updateField", post(h_53))
         .route("/product/eCardGroup/cardList", get(h_54))
