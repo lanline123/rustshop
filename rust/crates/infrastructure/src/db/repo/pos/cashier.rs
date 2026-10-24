@@ -726,7 +726,7 @@ impl PosCashierRepository {
         Ok(row.map(|(v,)| v))
     }
     pub async fn categories(&self) -> Result<Vec<serde_json::Value>> {
-        sqlx::query_as::<_, (serde_json::Value,)>(
+        Ok(sqlx::query_as::<_, (serde_json::Value,)>(
             "SELECT JSON_OBJECT('categoryId', category_id, 'categoryName', category_name, \
              'parentId', parent_id) FROM category WHERE parent_id IS NOT NULL ORDER BY category_id",
         )
@@ -735,7 +735,7 @@ impl PosCashierRepository {
         .map_err(map_err)?
         .into_iter()
         .map(|(v,)| v)
-        .collect::<Vec<_>>()
+        .collect::<Vec<_>>())
     }
 
     /// 会员搜索（手机号 / 昵称）。
@@ -795,7 +795,7 @@ impl PosCashierRepository {
     }
 
     pub async fn user_addresses(&self, user_id: i32) -> Result<Vec<serde_json::Value>> {
-        sqlx::query_as::<_, (serde_json::Value,)>(
+        Ok(sqlx::query_as::<_, (serde_json::Value,)>(
             "SELECT JSON_OBJECT('addressId', address_id, 'consignee', consignee, \
              'mobile', mobile, 'address', address, 'isDefault', is_default) \
              FROM user_address WHERE user_id = ? ORDER BY is_default DESC, address_id DESC",
@@ -806,7 +806,7 @@ impl PosCashierRepository {
         .map_err(map_err)?
         .into_iter()
         .map(|(v,)| v)
-        .collect::<Vec<_>>()
+        .collect::<Vec<_>>())
     }
 
     pub async fn order_remark(&self, user_id: i32) -> Result<Option<String>> {
@@ -822,7 +822,7 @@ impl PosCashierRepository {
 
     /// 充值单读取（按会员）。
     pub async fn recharge_orders(&self, user_id: i32) -> Result<Vec<serde_json::Value>> {
-        sqlx::query_as::<_, (serde_json::Value,)>(
+        Ok(sqlx::query_as::<_, (serde_json::Value,)>(
             "SELECT JSON_OBJECT('rechargeOrderId', recharge_order_id, 'money', money, \
              'payStatus', pay_status, 'addTime', add_time) \
              FROM user_recharge_order WHERE user_id = ? ORDER BY recharge_order_id DESC LIMIT 50",
@@ -833,6 +833,6 @@ impl PosCashierRepository {
         .map_err(map_err)?
         .into_iter()
         .map(|(v,)| v)
-        .collect::<Vec<_>>()
+        .collect::<Vec<_>>())
     }
 }
