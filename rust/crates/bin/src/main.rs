@@ -832,7 +832,9 @@ async fn main() -> anyhow::Result<()> {
         vendor_product: vendor_product_service.clone(),
     });
     let pos_device_service = Arc::new(tigshop_services::pos::device::PosDeviceService::new(repos.clone()));
+    let pos_cashier_service = Arc::new(tigshop_services::pos::cashier::PosCashierService::new(repos.clone()));
     let pos = Arc::new(tigshop_services::pos::Services {
+        cashier: pos_cashier_service.clone(),
         device: pos_device_service.clone(),
     });
     let o2o_config_service = Arc::new(tigshop_services::o2o::config::O2oConfigService::new(repos.clone()));
