@@ -94,7 +94,8 @@ pub struct AdminState {
 pub fn router(state: AdminState) -> Router {
     // —— 根级路由（无 `/adminapi` 前缀：/im/** 需登录，/img|/video|/app 免登录）——
     let root_protected = root::merge_protected(&state)
-        .layer(middleware::from_fn_with_state(state.jwt.clone(), require_auth));
+        .layer(middleware::from_fn_with_state(state.jwt.clone(), require_auth))
+        .layer(middleware::from_fn_with_state(state.clone(), support::api_token::api_token_auth));
     let root_public = root::merge_public(&state);
 
     let protected = Router::new()
@@ -111,6 +112,12 @@ pub fn router(state: AdminState) -> Router {
         .layer(middleware::from_fn_with_state(
             state.jwt.clone(),
             require_auth,
+        ))
+        // API Token 认证（Java ApiTokenAuthenticationFilter：X-Api-Token 命中
+        // 时短路 JWT 链，置于 require_auth 之外层）
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            support::api_token::api_token_auth,
         ));
 
     // 管理端匿名路由：Java 的 `URL_WHITELIST` + LoginFilter 登录端点，全部挂 `/adminapi`

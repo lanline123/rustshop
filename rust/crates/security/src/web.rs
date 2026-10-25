@@ -296,6 +296,11 @@ pub async fn require_auth(
     mut req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
+    // 前置认证中间件（如管理端 `X-Api-Token`）已注入身份时直接放行，
+    // 对应 Java `ApiTokenAuthenticationFilter` 命中后短路 JWT 过滤链的语义。
+    if req.extensions().get::<AuthUser>().is_some() {
+        return Ok(next.run(req).await);
+    }
     let header_token = req
         .headers()
         .get(header::AUTHORIZATION)

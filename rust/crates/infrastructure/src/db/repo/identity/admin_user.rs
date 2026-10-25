@@ -655,6 +655,34 @@ impl AdminUserRepository {
             .rows_affected();
         Ok(affected > 0)
     }
+
+    /// 按 SHA-256 哈希取有效 Token（Java `validateToken`：激活且未过期），
+    /// 供 `X-Api-Token` 认证中间件使用。
+    pub async fn find_active_api_token_by_hash(
+        &self,
+        token_hash: &str,
+        now: i64,
+    ) -> Result<Option<AdminApiToken>> {
+        sqlx::query_as::<_, AdminApiToken>(
+            "SELECT * FROM admin_api_token              WHERE token_hash = ? AND is_active = 1                AND (expires_at IS NULL OR expires_at > ?)              LIMIT 1",
+        )
+        .bind(token_hash)
+        .bind(now)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 回写 Token 最后使用时间（Java `validateToken` 内联 touch）。
+    pub async fn touch_api_token(&self, id: i32, now: i64) -> Result<()> {
+        sqlx::query("UPDATE admin_api_token SET last_used_at = ? WHERE id = ?")
+            .bind(now)
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(())
+    }
 }
 
 /// 「普通角色」过滤片段。
