@@ -148,6 +148,16 @@ async fn tag_list(State(state): State<PublicState>) -> ApiResult<Vec<&'static st
     ok(state.member.user_address_client.tag_list())
 }
 
+/// `Json<T>` 提取失败 → 业务 JSON(带文案)。
+///
+/// axum 内置 rejection 是纯文本 422/400/415,前端 `error.message` 为空,
+/// 只弹灰色空 toast;转成统一 `ApiResponse` 后用户能看到具体原因。
+fn parse_body<T>(result: Result<Json<T>, axum::extract::rejection::JsonRejection>) -> Result<T, AppError> {
+    result
+        .map(|Json(v)| v)
+        .map_err(|re| AppError(Error::biz_msg(format!("请求参数解析失败: {}", re.body_text()))))
+}
+
 /// `GET /api/user/address/list`：当前用户地址列表。
 async fn list(
     State(state): State<PublicState>,
@@ -173,8 +183,9 @@ async fn detail(
 async fn del(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
-    Json(dto): Json<UserAddressIdDTO>,
+    dto: Result<Json<UserAddressIdDTO>, axum::extract::rejection::JsonRejection>,
 ) -> ApiResult<()> {
+    let dto = parse_body(dto)?;
     let user_id = current_user_id(&auth);
     ensure_login(user_id)?;
     state.member.user_address_client.delete(user_id, &dto).await?;
@@ -185,8 +196,9 @@ async fn del(
 async fn create(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
-    Json(dto): Json<UserAddressCreateDTO>,
+    dto: Result<Json<UserAddressCreateDTO>, axum::extract::rejection::JsonRejection>,
 ) -> ApiResult<i32> {
+    let dto = parse_body(dto)?;
     let user_id = current_user_id(&auth);
     ok(state.member.user_address_client.create(user_id, &dto).await?)
 }
@@ -195,8 +207,9 @@ async fn create(
 async fn update(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
-    Json(dto): Json<UserAddressUpdateDTO>,
+    dto: Result<Json<UserAddressUpdateDTO>, axum::extract::rejection::JsonRejection>,
 ) -> ApiResult<()> {
+    let dto = parse_body(dto)?;
     let user_id = current_user_id(&auth);
     ensure_login(user_id)?;
     state.member.user_address_client.update(user_id, &dto).await?;
@@ -207,8 +220,9 @@ async fn update(
 async fn set_selected(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
-    Json(dto): Json<UserAddressIdDTO>,
+    dto: Result<Json<UserAddressIdDTO>, axum::extract::rejection::JsonRejection>,
 ) -> ApiResult<()> {
+    let dto = parse_body(dto)?;
     let user_id = current_user_id(&auth);
     state
         .member

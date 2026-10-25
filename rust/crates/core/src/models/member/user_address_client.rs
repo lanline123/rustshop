@@ -27,6 +27,171 @@
 //!    `dto.userId ?? 当前登录用户`，避免把缺参放大成 500。
 //! 5. 时间：本域无时间字段；金额：本域无金额列。
 
+/// 数值字段容错反序列化:字符串数字("7")/浮点(7.0)一律接受。
+///
+/// Java Jackson 默认把 `"7"` 宽松绑定到 int;H5 编辑页把 URL 参数
+/// `?id=7`(字符串)原样放进 JSON 载荷,Rust serde 严格拒绝导致 422
+/// 纯文本、前端只弹灰色空窗。此处对齐 Jackson 行为。
+fn tolerant_opt_i32<'de, D>(deserializer: D) -> Result<Option<i32>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error as _;
+    struct V;
+    impl<'de> serde::de::Visitor<'de> for V {
+        type Value = Option<i32>;
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("i32 or numeric string")
+        }
+        fn visit_none<E>(self) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(None)
+        }
+        fn visit_unit<E>(self) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(None)
+        }
+        fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(i32::try_from(v).ok())
+        }
+        fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(i32::try_from(v).ok())
+        }
+        fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(if v.is_finite() && v.fract() == 0.0 {
+                i32::try_from(v as i64).ok()
+            } else {
+                None
+            })
+        }
+        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            let s = v.trim();
+            if s.is_empty() || s.eq_ignore_ascii_case("nan") || s.eq_ignore_ascii_case("undefined") || s.eq_ignore_ascii_case("null") {
+                return Ok(None);
+            }
+            Ok(s.parse::<i32>().ok())
+        }
+    }
+    deserializer.deserialize_any(V)
+}
+
+/// f64 容错(纬度/经度:前端可能传字符串)。
+fn tolerant_opt_f64<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error as _;
+    struct V;
+    impl<'de> serde::de::Visitor<'de> for V {
+        type Value = Option<f64>;
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("f64 or numeric string")
+        }
+        fn visit_none<E>(self) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(None)
+        }
+        fn visit_unit<E>(self) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(None)
+        }
+        fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(Some(v as f64))
+        }
+        fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(Some(v as f64))
+        }
+        fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(Some(v))
+        }
+        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            let s = v.trim();
+            if s.is_empty() || s.eq_ignore_ascii_case("nan") || s.eq_ignore_ascii_case("undefined") || s.eq_ignore_ascii_case("null") {
+                return Ok(None);
+            }
+            Ok(s.parse::<f64>().ok())
+        }
+    }
+    deserializer.deserialize_any(V)
+}
+
+/// `Vec<i32>` 容错(地区 ID 列表:元素可能是字符串)。
+fn tolerant_opt_i32_vec<'de, D>(deserializer: D) -> Result<Option<Vec<i32>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    struct V;
+    impl<'de> serde::de::Visitor<'de> for V {
+        type Value = Option<Vec<i32>>;
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("list of i32 (elements may be numeric strings)")
+        }
+        fn visit_none<E>(self) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(None)
+        }
+        fn visit_unit<E>(self) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(None)
+        }
+        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+        where
+            A: serde::de::SeqAccess<'de>,
+        {
+            let mut out = Vec::new();
+            while let Some(item) = seq.next_element::<serde_json::Value>()? {
+                let v = match &item {
+                    serde_json::Value::Number(n) => n.as_i64().and_then(|i| i32::try_from(i).ok()),
+                    serde_json::Value::String(s) => s.trim().parse::<i32>().ok(),
+                    serde_json::Value::Null => None,
+                    _ => None,
+                };
+                if let Some(v) = v {
+                    out.push(v);
+                }
+            }
+            Ok(Some(out))
+        }
+    }
+    deserializer.deserialize_any(V)
+}
+
 use serde::{Deserialize, Serialize};
 
 use crate::types::PageQuery;
@@ -153,8 +318,10 @@ pub struct UserAddressListQuery {
     /// 关键字（Java `BasePage.keyword`；本域未使用）。
     pub keyword: Option<String>,
     /// 用户 ID（Java `UserAddressListDTO.userId`；缺省取登录用户）。
+    #[serde(default, deserialize_with = "tolerant_opt_i32")]
     pub user_id: Option<i32>,
     /// 是否系统地址（Java 控制器固定覆盖为 0）。
+    #[serde(default, deserialize_with = "tolerant_opt_i32")]
     pub is_system: Option<i32>,
 }
 
@@ -182,6 +349,7 @@ impl UserAddressListQuery {
 }
 
 /// 创建入参（Java `UserAddressCreateDTO`）。
+
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct UserAddressCreateDTO {
@@ -204,18 +372,25 @@ pub struct UserAddressCreateDTO {
     /// 固定电话。
     pub telephone: Option<String>,
     /// 是否默认。
+    #[serde(default, deserialize_with = "tolerant_opt_i32")]
     pub is_default: Option<i32>,
     /// 是否选中。
+    #[serde(default, deserialize_with = "tolerant_opt_i32")]
     pub is_selected: Option<i32>,
     /// 地区 ID 列表。
+    #[serde(default, deserialize_with = "tolerant_opt_i32_vec")]
     pub region_ids: Option<Vec<i32>>,
     /// 用户 ID（缺省取当前登录用户）。
+    #[serde(default, deserialize_with = "tolerant_opt_i32")]
     pub user_id: Option<i32>,
     /// 是否系统添加。
+    #[serde(default, deserialize_with = "tolerant_opt_i32")]
     pub is_system: Option<i32>,
     /// 纬度。
+    #[serde(default, deserialize_with = "tolerant_opt_f64")]
     pub latitude: Option<f64>,
     /// 经度。
+    #[serde(default, deserialize_with = "tolerant_opt_f64")]
     pub longitude: Option<f64>,
 }
 
@@ -224,8 +399,10 @@ pub struct UserAddressCreateDTO {
 #[serde(rename_all = "camelCase", default)]
 pub struct UserAddressUpdateDTO {
     /// 兼容 id（Java 同名字段，未使用）。
+    #[serde(default, deserialize_with = "tolerant_opt_i32")]
     pub id: Option<i32>,
     /// 收货地址 ID（Java `addressId`，更新定位用）。
+    #[serde(default, deserialize_with = "tolerant_opt_i32")]
     pub address_id: Option<i32>,
     /// 地址标签。
     pub address_tag: Option<String>,
@@ -246,18 +423,25 @@ pub struct UserAddressUpdateDTO {
     /// 固定电话。
     pub telephone: Option<String>,
     /// 是否默认。
+    #[serde(default, deserialize_with = "tolerant_opt_i32")]
     pub is_default: Option<i32>,
     /// 是否选中。
+    #[serde(default, deserialize_with = "tolerant_opt_i32")]
     pub is_selected: Option<i32>,
     /// 地区 ID 列表。
+    #[serde(default, deserialize_with = "tolerant_opt_i32_vec")]
     pub region_ids: Option<Vec<i32>>,
     /// 用户 ID。
+    #[serde(default, deserialize_with = "tolerant_opt_i32")]
     pub user_id: Option<i32>,
     /// 纬度。
+    #[serde(default, deserialize_with = "tolerant_opt_f64")]
     pub latitude: Option<f64>,
     /// 经度。
+    #[serde(default, deserialize_with = "tolerant_opt_f64")]
     pub longitude: Option<f64>,
     /// 是否系统地址。
+    #[serde(default, deserialize_with = "tolerant_opt_i32")]
     pub is_system: Option<i32>,
 }
 
@@ -266,6 +450,7 @@ pub struct UserAddressUpdateDTO {
 #[serde(rename_all = "camelCase", default)]
 pub struct UserAddressIdDTO {
     /// 地址 ID（`setSelected` 用 `id`，`del` 用 `id`）。
+    #[serde(default, deserialize_with = "tolerant_opt_i32")]
     pub id: Option<i32>,
     /// 备注（Java `OperateDTO.adminNote`，未使用）。
     pub admin_note: Option<String>,
@@ -310,10 +495,13 @@ pub struct UserAddressVO {
     /// 地址标签。
     pub address_tag: String,
     /// 纬度。
+    #[serde(default, deserialize_with = "tolerant_opt_f64")]
     pub latitude: Option<f64>,
     /// 经度。
+    #[serde(default, deserialize_with = "tolerant_opt_f64")]
     pub longitude: Option<f64>,
     /// 是否系统添加。
+    #[serde(default, deserialize_with = "tolerant_opt_i32")]
     pub is_system: Option<i32>,
 }
 
@@ -491,5 +679,44 @@ mod tests {
         assert_eq!(json["regionIds"][1], 2);
         assert_eq!(json["addressTag"], "家");
         assert_eq!(json["isSystem"], serde_json::Value::Null);
+    }
+}
+
+
+#[cfg(test)]
+mod tolerant_dto_tests {
+    use super::*;
+
+    /// H5 编辑页把 URL 参数 `?id=7`(字符串)原样放进 JSON 载荷,
+    /// Java Jackson 宽松接受;serde 必须同样接受(线上 422 实测)。
+    #[test]
+    fn update_dto_accepts_string_ids() {
+        let dto: UserAddressUpdateDTO = serde_json::from_str(
+            r#"{"id":"7","addressId":"7","consignee":"A","mobile":"18834155321",
+                "regionIds":["1","110000","110100","110101"],"address":"x",
+                "isDefault":"0","latitude":"28.71","longitude":115.85}"#,
+        )
+        .expect("string numerics must parse");
+        assert_eq!(dto.id, Some(7));
+        assert_eq!(dto.address_id, Some(7));
+        assert_eq!(dto.region_ids, Some(vec![1, 110000, 110100, 110101]));
+        assert_eq!(dto.is_default, Some(0));
+        assert_eq!(dto.latitude, Some(28.71));
+        assert_eq!(dto.longitude, Some(115.85));
+    }
+
+    #[test]
+    fn id_dto_accepts_string_id() {
+        let dto: UserAddressIdDTO = serde_json::from_str(r#"{"id":"7"}"#).expect("string id ok");
+        assert_eq!(dto.id, Some(7));
+    }
+
+    #[test]
+    fn garbage_still_none_not_error() {
+        let dto: UserAddressIdDTO = serde_json::from_str(r#"{"id":"NaN"}"#).expect("NaN → None");
+        assert_eq!(dto.id, None);
+        let dto: UserAddressUpdateDTO =
+            serde_json::from_str(r#"{"latitude":"undefined"}"#).expect("undefined → None");
+        assert_eq!(dto.latitude, None);
     }
 }
