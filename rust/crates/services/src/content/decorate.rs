@@ -1613,6 +1613,17 @@ fn convert_legacy_h5_modules(vo: &mut DecorateModuleListVO) {
                         .unwrap_or(true)
                 });
                 let scroll = texts.len() > 1;
+                // H5 新版公告组件 noticeA3：竖排轮播，样式与“公告混排”一致
+                let notice_list: Vec<serde_json::Value> = texts
+                    .iter()
+                    .map(|t| {
+                        serde_json::json!({
+                            "title": t,
+                            "prefix": "",
+                            "link": {},
+                        })
+                    })
+                    .collect();
                 let module_style = module.get("moduleStyle").cloned().unwrap_or_default();
                 let content_style = module.get("contentStyle").cloned().unwrap_or_default();
                 let module_color = module.get("moduleColor").cloned().unwrap_or_default();
@@ -1652,7 +1663,21 @@ fn convert_legacy_h5_modules(vo: &mut DecorateModuleListVO) {
                 });
                 new_module["nociceEffect"] =
                     serde_json::Value::String(if scroll { "scroll" } else { "still" }.into());
-                item["type"] = serde_json::Value::String("notice".into());
+                // noticeA3 读取的字段（新版公告混排样式）
+                new_module["noticeList"] = serde_json::Value::Array(notice_list);
+                new_module["showHeader"] = serde_json::json!(0);
+                new_module["showPrefix"] = serde_json::json!(0);
+                new_module["showBorder"] = serde_json::json!(0);
+                new_module["headerImage"] = serde_json::json!({ "picUrl": icon });
+                new_module["textColor"] = module_color
+                    .get("titleColor")
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::json!("#666666"));
+                new_module["contentBgColor"] = content_style
+                    .get("backgroundColor")
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::json!(""));
+                item["type"] = serde_json::Value::String("noticeA3".into());
                 item["module"] = new_module;
             }
             // 新版装修类型 → H5 仍只识别的旧类型
