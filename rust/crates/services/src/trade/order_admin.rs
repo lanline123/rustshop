@@ -906,6 +906,32 @@ impl OrderAdminService {
                             now,
                         )
                         .await?;
+                } else if lid > 0
+                    && crate::logistics::logistics_company::LogisticsCompanyService::new(
+                        self.repos.clone(),
+                    )
+                    .resolve_active_provider_type()
+                    .await?
+                        == tigshop_core::models::logistics::logistics_company::PROVIDER_KUAIDI100
+                {
+                    // 快递100 电子面单（Java Kuaidi100LogisticsProvider#createElectronicWaybill）
+                    let waybill = self
+                        .create_kuaidi100_waybill(&order, lid, param.bill_remark.as_deref(), &items)
+                        .await?;
+                    tn = waybill.1.clone();
+                    provider = 2;
+                    self.repos
+                        .trade
+                        .order_admin
+                        .insert_logistics_api_log(
+                            order_id,
+                            2,
+                            &waybill.0,
+                            &waybill.1,
+                            waybill.2.as_deref().unwrap_or(""),
+                            now,
+                        )
+                        .await?;
                 }
                 (lid, provider, name, tn)
             }
@@ -2506,6 +2532,138 @@ impl OrderAdminService {
         Ok((order_code, logistic_code, result.print_template))
     }
 
+    /// 快递100 电子面单（Java `Kuaidi100LogisticsProvider#createElectronicWaybill`）。
+    ///
+    /// 校验逐条对齐：凭证三件套 / CLOUD 需 siid / IMAGE|HTML|CLOUD 需 tempId /
+    /// 编码解析（`kuaidi100_code` 优先，内置映射兜底）。
+    /// 返回 `(order_code, 运单号, 面单模板)`。
+    async fn create_kuaidi100_waybill(
+        &self,
+        order: &tigshop_core::entities::Order,
+        logistics_id: i32,
+        remark: Option<&str>,
+        items: &[tigshop_core::entities::OrderItem],
+    ) -> Result<(String, String, Option<String>)> {
+        let company = self
+            .repos
+            .logistics
+            .logistics_company
+            .find_by_id(logistics_id)
+            .await?
+            .ok_or_else(|| Error::biz_msg("未存在物流公司信息"))?;
+        let client = crate::logistics::kuaidi100::Kuaidi100Client::from_repos(&self.repos).await?;
+        if !client.is_label_configured() {
+            return Err(Error::biz_msg(
+                "快递100凭证未配置完整（customer/key/secret），请先在配送设置中填写",
+            ));
+        }
+        let print_type = client.print_type();
+        if print_type.eq_ignore_ascii_case("CLOUD") && client.siid().trim().is_empty() {
+            return Err(Error::biz_msg("快递100云打印需要配置云打印机设备码(siid)"));
+        }
+        let need_template = print_type.eq_ignore_ascii_case("IMAGE")
+            || print_type.eq_ignore_ascii_case("HTML")
+            || print_type.eq_ignore_ascii_case("CLOUD");
+        if need_template && company.kuaidi100_temp_id.trim().is_empty() {
+            return Err(Error::biz_msg(format!(
+                "物流公司[{}]未配置快递100面单模板ID(tempId)，打印类型[{print_type}]无法生成面单，请在物流公司管理中补充",
+                company.logistics_name
+            )));
+        }
+        let com = tigshop_core::models::logistics::logistics_company::resolve_kuaidi100_code(
+            Some(&company.logistics_code),
+        )
+        .or_else(|| {
+            let s = company.kuaidi100_code.trim();
+            (!s.is_empty()).then(|| s.to_string())
+        })
+        .ok_or_else(|| {
+            Error::biz_msg(format!(
+                "物流公司[{}]未配置快递100编码(kuaidi100Code)，且内置映射无匹配物流编码[{}]，请在后台物流公司管理中补充",
+                company.logistics_name, company.logistics_code
+            ))
+        })?;
+
+        let cfg = self
+            .repos
+            .system
+            .config_basic
+            .find_by_codes(&[
+                "sender",
+                "mobile",
+                "provinceName",
+                "cityName",
+                "areaName",
+                "address",
+            ])
+            .await?
+            .into_iter()
+            .collect::<std::collections::HashMap<_, _>>();
+        let get = |key: &str| cfg.get(key).cloned().unwrap_or_default();
+        let region_names: Vec<String> =
+            serde_json::from_str(&order.region_names).unwrap_or_default();
+        let recv_addr = format!(
+            "{}{}{}{}",
+            region_names.first().cloned().unwrap_or_default(),
+            region_names.get(1).cloned().unwrap_or_default(),
+            region_names.get(2).cloned().unwrap_or_default(),
+            order.address
+        );
+        let send_addr = format!("{}{}{}{}", get("provinceName"), get("cityName"), get("areaName"), get("address"));
+        // Java 汇总 OrderItemVO.productWeight（商品联表值）；Rust OrderItem
+        // 不携带该字段，取 1.0 兜底（与快递鸟路径同口径，已记 uncertain_points）。
+        let weight_sum = 0.0_f64;
+        let order_code = format!(
+            "{}{}{}",
+            order.order_sn,
+            order.order_id,
+            100 + (utils::now_millis() % 900)
+        );
+        let request = crate::logistics::kuaidi100::Kuaidi100WaybillRequest {
+            kuaidicom: com,
+            print_type: print_type.to_string(),
+            order_code: order_code.clone(),
+            rec_man: crate::logistics::kuaidi100::Kuaidi100Man {
+                name: order.consignee.clone(),
+                mobile: order.mobile.clone(),
+                print_addr: recv_addr,
+            },
+            send_man: crate::logistics::kuaidi100::Kuaidi100Man {
+                name: get("sender"),
+                mobile: get("mobile"),
+                print_addr: send_addr,
+            },
+            weight: if weight_sum > 0.0 { weight_sum } else { 1.0 },
+            remark: remark.unwrap_or_default().to_string(),
+            partner_id: Some(company.kuaidi100_partner_id.clone()).map(|v| v.trim().to_string()).filter(|v| !v.is_empty()),
+            partner_key: Some(company.kuaidi100_partner_key.clone()).map(|v| v.trim().to_string()).filter(|v| !v.is_empty()),
+            partner_secret: Some(company.kuaidi100_partner_secret.clone()).map(|v| v.trim().to_string()).filter(|v| !v.is_empty()),
+            net: Some(company.kuaidi100_net.clone()).map(|v| v.trim().to_string()).filter(|v| !v.is_empty()),
+            check_man: (!company.kuaidi100_check_man.trim().is_empty())
+                .then(|| company.kuaidi100_check_man.trim().to_string()),
+            exp_type: (!company.kuaidi100_exp_type.trim().is_empty())
+                .then(|| company.kuaidi100_exp_type.trim().to_string()),
+            temp_id: Some(company.kuaidi100_temp_id.clone()).map(|v| v.trim().to_string()).filter(|v| !v.is_empty()),
+            child_temp_id: (!company.kuaidi100_child_temp_id.trim().is_empty())
+                .then(|| company.kuaidi100_child_temp_id.trim().to_string()),
+            back_temp_id: (!company.kuaidi100_back_temp_id.trim().is_empty())
+                .then(|| company.kuaidi100_back_temp_id.trim().to_string()),
+        };
+        let result = client.create_waybill(&request).await?;
+        tracing::info!(
+            "快递100电子面单创建成功: order_id={}, logistics={}, tracking_no={}, items={}",
+            order.order_id,
+            company.logistics_name,
+            result.logistic_code,
+            items.len()
+        );
+        Ok((
+            result.order_code,
+            result.logistic_code,
+            Some(result.print_template).filter(|l| !l.is_empty()),
+        ))
+    }
+
     /// 批量操作（`POST /order/order/batch`）：仅支持 `type = "deliver"`。
     pub async fn batch_operation(
         &self,
@@ -2889,6 +3047,74 @@ impl OrderAdminService {
                             tracing::warn!(order_id = id, "快递鸟轨迹查询异常: {e}");
                             return Ok(None);
                         }
+                    }
+                }
+            }
+        } else if provider == tigshop_core::models::logistics::logistics_company::PROVIDER_KUAIDI100
+        {
+            // 快递100 实时轨迹（Java Kuaidi100LogisticsProvider#queryTrack）
+            if let Some(company) = self
+                .repos
+                .logistics
+                .logistics_company
+                .find_by_id(order.logistics_id)
+                .await?
+            {
+                let com = tigshop_core::models::logistics::logistics_company::resolve_kuaidi100_code(
+                    Some(&company.logistics_code),
+                )
+                .or_else(|| {
+                    let s = company.kuaidi100_code.trim();
+                    (!s.is_empty()).then(|| s.to_string())
+                });
+                let Some(com) = com else {
+                    tracing::warn!(order_id = id, "物流公司未配置快递100编码，跳过轨迹查询");
+                    return Ok(None);
+                };
+                let Ok(client) =
+                    crate::logistics::kuaidi100::Kuaidi100Client::from_repos(&self.repos).await
+                else {
+                    return Ok(None);
+                };
+                if !client.is_configured() {
+                    tracing::warn!("快递100凭证未配置，跳过轨迹查询");
+                    return Ok(None);
+                }
+                match client.query_track(&com, &order.tracking_no, None).await {
+                    Ok(r) if r.success => {
+                        return Ok(Some(ShippingInfoVO {
+                            e_business_id: None,
+                            shipper_code: r.shipper_code.or(Some(com)),
+                            logistic_code: r
+                                .logistic_code
+                                .or(Some(order.tracking_no.clone())),
+                            state: r.state,
+                            state_ex: r.state_ex,
+                            location: r.location,
+                            traces: r
+                                .traces
+                                .into_iter()
+                                .map(|t| ShippingTraceVO {
+                                    action: None,
+                                    accept_time: t.accept_time,
+                                    accept_station: t.accept_station,
+                                    location: t.location,
+                                })
+                                .collect(),
+                            success: Some("true".to_string()),
+                        }));
+                    }
+                    Ok(r) => {
+                        tracing::warn!(
+                            order_id = id,
+                            reason = r.reason.as_deref().unwrap_or(""),
+                            "快递100轨迹查询未成功，按 Java 语义返回 null"
+                        );
+                        return Ok(None);
+                    }
+                    Err(e) => {
+                        tracing::warn!(order_id = id, "快递100轨迹查询异常: {e}");
+                        return Ok(None);
                     }
                 }
             }

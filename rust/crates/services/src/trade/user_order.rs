@@ -266,6 +266,74 @@ impl UserOrderService {
                     }
                 }
             }
+        } else if provider == tigshop_core::models::logistics::logistics_company::PROVIDER_KUAIDI100
+        {
+            // 快递100 实时查询（Java Kuaidi100LogisticsProvider#queryTrack）
+            if let Some(company) = self
+                .repos
+                .logistics
+                .logistics_company
+                .find_by_id(order.logistics_id)
+                .await?
+            {
+                let com = tigshop_core::models::logistics::logistics_company::resolve_kuaidi100_code(
+                    Some(&company.logistics_code),
+                )
+.or_else(|| {
+                    let s = company.kuaidi100_code.trim();
+                    (!s.is_empty()).then(|| s.to_string())
+                });
+                let Some(com) = com else {
+                    tracing::warn!(order_id = id, "物流公司未配置快递100编码，跳过轨迹查询");
+                    return Ok(None);
+                };
+                let Ok(client) =
+                    crate::logistics::kuaidi100::Kuaidi100Client::from_repos(&self.repos).await
+                else {
+                    return Ok(None);
+                };
+                if !client.is_configured() {
+                    tracing::warn!("快递100凭证未配置，跳过轨迹查询");
+                    return Ok(None);
+                }
+                match client.query_track(&com, &order.tracking_no, None).await {
+                    Ok(r) if r.success => {
+                        return Ok(Some(ShippingResult {
+                            e_business_id: None,
+                            shipper_code: r.shipper_code.or(Some(com)),
+                            logistic_code: r
+                                .logistic_code
+                                .or(Some(order.tracking_no.clone())),
+                            state: r.state,
+                            state_ex: r.state_ex,
+                            location: r.location,
+                            traces: r
+                                .traces
+                                .into_iter()
+                                .map(|t| ShippingTraceVO {
+                                    action: None,
+                                    accept_time: t.accept_time,
+                                    accept_station: t.accept_station,
+                                    location: t.location,
+                                })
+                                .collect(),
+                            success: Some("true".to_string()),
+                        }));
+                    }
+                    Ok(r) => {
+                        tracing::warn!(
+                            order_id = id,
+                            reason = r.reason.as_deref().unwrap_or(""),
+                            "快递100轨迹查询未成功"
+                        );
+                        return Ok(None);
+                    }
+                    Err(e) => {
+                        tracing::warn!(order_id = id, "快递100轨迹查询异常: {e}");
+                        return Ok(None);
+                    }
+                }
+            }
         }
 
         let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
