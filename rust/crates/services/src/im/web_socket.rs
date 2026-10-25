@@ -11,13 +11,13 @@
 //! [`WebSocketService::send_message`] 通过 `send_to_user` 向在线用户推送，
 //! 用户不在线时与 Java 一样只记录日志并返回成功文案。
 //!
-//! ## 另一处 Java 侧门禁未迁移
+//! ## 内部密钥门禁（已迁移，2026-10-25）
 //!
-//! Java 注释声明该接口「仅供内部服务调用，需携带 `X-Internal-Api-Key` 请求头」，
-//! 但该校验**不在控制器里**（控制器只有 `@RequestParam`），而是依赖
-//! Spring Security 配置。契约把这条标为 `auth=optional`，Rust 侧按 optional
-//! 落地（见 `routes/web_socket.rs` 的 `optional_auth`），**未**实现
-//! `X-Internal-Api-Key` 校验；若线上依赖它做内网隔离，需在网关侧补齐。
+//! Java `InternalApiFilter` 要求 `/api/socket/send` 携带 `X-Internal-Api-Key`
+//! 请求头。Rust 侧已在路由层实现同等校验
+//! （`tigshop_security::web::require_internal_api_key`，密钥取
+//! `config.yaml` 的 `internal.api_key` / env `TIG_INTERNAL__API_KEY`）：
+//! 未配置密钥 → 403；缺头/密钥不符 → 401。
 
 use std::sync::Arc;
 

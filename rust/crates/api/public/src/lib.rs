@@ -87,6 +87,8 @@ pub struct PublicState {
     pub jwt: JwtService,
     /// 本地上传/H5 静态资源目录（config.yaml `file.upload_dir`）。
     pub upload_dir: String,
+    /// 内部接口密钥（config.yaml `internal.api_key`，保护 `/api/socket/send`）。
+    pub internal_api_key: String,
 }
 
 /// 构建商城前台路由。

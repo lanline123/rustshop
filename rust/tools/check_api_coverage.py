@@ -8,6 +8,8 @@
 * 已实现 / 未实现接口数量与百分比（按模块）
 * 契约中存在但 Rust 未实现的接口清单（开发待办）
 * Rust 已注册但契约中不存在的路由（自加端点，需人工确认）
+* **孤儿路由模块**（文件里有路由但不在 lib.rs 模块树上 = 未编译/未挂载，
+  运行时 404）——此类问题一律按错误处理，非零退出
 
 路由前缀按 crate 约定推导：
   ``crates/api/admin/**``  -> ``/adminapi``
@@ -230,6 +232,70 @@ def is_self_endpoint(path):
     return any(path.startswith(p) for p in SELF_ENDPOINT_PREFIXES)
 
 
+# --------------------------------------------------------------------------
+# 孤儿模块检测
+# --------------------------------------------------------------------------
+
+MOD_DECL_RE = re.compile(
+    r"^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_]\w*)\s*;", re.M
+)
+
+
+def _mod_file(dirname, name):
+    """``mod x;`` 声明对应的文件（`x.rs` 优先于 `x/mod.rs`）。"""
+    f1 = os.path.join(dirname, name + ".rs")
+    if os.path.isfile(f1):
+        return f1
+    f2 = os.path.join(dirname, name, "mod.rs")
+    return f2 if os.path.isfile(f2) else None
+
+
+def module_reachable_files(root_src):
+    """从 ``lib.rs`` 沿 ``mod x;`` 声明 BFS，返回可达文件集合。"""
+    reached = set()
+    stack = [os.path.join(root_src, "lib.rs")]
+    while stack:
+        cur = stack.pop()
+        if cur in reached or not os.path.isfile(cur):
+            continue
+        reached.add(cur)
+        text = strip_comments(read(cur))
+        for m in MOD_DECL_RE.finditer(text):
+            mf = _mod_file(os.path.dirname(cur), m.group(1))
+            if mf:
+                stack.append(mf)
+    return reached
+
+
+def find_orphan_route_files(crates_dir):
+    """有路由注册、但不在 lib.rs 模块树上的文件（= 未编译/未挂载，运行时 404）。
+
+    历史事故：``lowfreq_extra.rs``、``licensed.rs``、``recall_extra.rs``
+    三次都是文件齐全、路由齐全，但父 ``mod.rs`` 忘写 ``pub mod``，
+    覆盖率工具却照样把它们计入「已实现」。
+
+    局限：只能发现「模块声明链断裂」；「已声明但 ``routes()`` 忘 merge」
+    需要调用图分析，仍靠 ``check_route_conflicts.py`` 与运行时冒烟兜底。
+    """
+    orphans = []
+    for crate in CRATE_PREFIX:
+        root = os.path.join(crates_dir, "api", crate, "src")
+        if not os.path.isdir(root):
+            continue
+        reachable = module_reachable_files(root)
+        for dirpath, _dirs, files in os.walk(root):
+            for fn in files:
+                if not fn.endswith(".rs"):
+                    continue
+                full = os.path.join(dirpath, fn)
+                if full in reachable:
+                    continue
+                text = strip_comments(read(full))
+                if ".route(" in text or "const ROUTE_TABLE" in text:
+                    orphans.append(os.path.relpath(full, crates_dir))
+    return sorted(orphans)
+
+
 def load_contract(path):
     with open(path, encoding="utf-8") as fh:
         return json.load(fh)
@@ -321,6 +387,28 @@ def main(argv=None):
 
     contract = load_contract(args.contract)
     rust_routes = collect_rust_routes(args.crates)
+
+    # 孤儿模块检测：未挂载文件的路由不算「已实现」，且直接判为错误。
+    orphan_files = find_orphan_route_files(args.crates)
+    if orphan_files:
+        orphan_norm = {os.path.normpath(p) for p in orphan_files}
+        before = len(rust_routes)
+        rust_routes = [
+            r
+            for r in rust_routes
+            if os.path.normpath(r["source"].rsplit(":", 1)[0]) not in orphan_norm
+        ]
+        print(
+            "❌ 孤儿路由模块 %d 个（未挂载 = 未编译，运行时 404，已从覆盖率剔除）:"
+            % len(orphan_files),
+            file=sys.stderr,
+        )
+        for p in orphan_files:
+            print("     %s" % p, file=sys.stderr)
+        print(
+            "   剔除未挂载路由 %d 条" % (before - len(rust_routes)), file=sys.stderr
+        )
+
     report = analyse(contract, rust_routes)
 
     real_extra = [r for r in report["extra"] if not is_self_endpoint(r["path"])]
@@ -406,6 +494,13 @@ def main(argv=None):
     if args.strict and report["missing"]:
         print(
             "\n仍有 %d 个接口未实现" % len(report["missing"]), file=sys.stderr
+        )
+        return 1
+    if orphan_files:
+        print(
+            "\n存在 %d 个孤儿路由模块（见上），必须补 `pub mod` 声明并 merge"
+            % len(orphan_files),
+            file=sys.stderr,
         )
         return 1
     return 0

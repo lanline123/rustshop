@@ -22,9 +22,10 @@
 //! > [`tigshop_services::im::web_socket`] 模块头「WebSocket 推送通道未迁移」。
 //! > 要恢复真实推送，需要先落一个独立的 WebSocket 基础设施切片。
 //!
-//! > **`X-Internal-Api-Key` 未校验**：Java 注释声明该接口需内部密钥
-//! > （校验在 Spring Security 配置里，不在控制器内）；契约标记为
-//! > `auth=optional`，故本文件按 optional 落地，未实现该密钥校验。
+//! > **`X-Internal-Api-Key` 已校验（2026-10-25）**：对齐 Java
+//! > `InternalApiFilter` —— 未配置密钥 → 403、缺头/密钥不符 → 401，
+//! > 密钥来自 `config.yaml` 的 `internal.api_key`（env `TIG_INTERNAL__API_KEY`）。
+//! > 该层在 `optional_auth` 之外执行（Java 里 servlet filter 先于 Spring Security）。
 //!
 //! > **auth=optional 的落地口径**：与 shop_client / wholesale_client / seo / sunmi_print_callback
 //! > 一致，本文件自带 [`optional_auth`]（带合法令牌写入上下文；不带 → 游客；
@@ -40,7 +41,7 @@ use axum::{
 };
 use tigshop_core::models::im::web_socket::SocketSendQuery;
 use tigshop_core::Error;
-use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
+use tigshop_security::web::{ok, require_internal_api_key, ApiResult, AppError, AuthUser};
 use tigshop_security::JwtService;
 
 use crate::PublicState;
@@ -52,6 +53,12 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .layer(middleware::from_fn_with_state(
             state.jwt.clone(),
             optional_auth,
+        ))
+        // Java `InternalApiFilter` 是 servlet filter，先于 Spring Security 执行，
+        // 因此密钥校验放最外层（后 add 的 layer 更靠外）。
+        .layer(middleware::from_fn_with_state(
+            state.internal_api_key.clone(),
+            require_internal_api_key,
         ))
 }
 

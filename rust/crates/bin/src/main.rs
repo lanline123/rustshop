@@ -887,6 +887,7 @@ async fn main() -> anyhow::Result<()> {
         o2o: o2o.clone(),
         jwt: (*jwt).clone(),
         upload_dir: cfg.file.upload_dir.clone(),
+        internal_api_key: cfg.internal.api_key.clone(),
     };
 
     // 6. CORS（开发期允许全部来源，生产按域名收紧）

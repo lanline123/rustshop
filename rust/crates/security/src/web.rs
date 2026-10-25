@@ -407,9 +407,90 @@ pub async fn require_auth(
     Ok(crate::audit::with_actor(actor, next.run(req)).await)
 }
 
+// ————————————————————— 内部接口密钥校验 —————————————————————
+
+/// 内部 API 密钥请求头（Java `InternalApiFilter.INTERNAL_API_KEY_HEADER`）。
+pub const INTERNAL_API_KEY_HEADER: &str = "X-Internal-Api-Key";
+
+/// 内部密钥校验结果：`(HTTP 状态码, 文案)`，与 Java `InternalApiFilter` 逐条对齐。
+#[must_use]
+pub fn check_internal_api_key(
+    configured: &str,
+    provided: Option<&str>,
+) -> Result<(), (u16, &'static str)> {
+    if configured.trim().is_empty() {
+        return Err((403, "内部接口未正确配置"));
+    }
+    let Some(provided) = provided.map(str::trim).filter(|v| !v.is_empty()) else {
+        return Err((401, "缺少内部 API 密钥"));
+    };
+    if provided != configured {
+        return Err((401, "内部 API 密钥验证失败"));
+    }
+    Ok(())
+}
+
+/// 内部接口密钥中间件（对应 Java `InternalApiFilter`，保护 `/api/socket/send`）。
+///
+/// 未配置密钥 → 403；缺头 → 401；密钥不符 → 401。
+/// 错误体与 Java 一致：`{"code":<status>,"message":…,"success":false}`。
+/// 通过后放行后续链（如 `optional_auth`）。
+pub async fn require_internal_api_key(
+    State(configured): State<String>,
+    req: Request,
+    next: Next,
+) -> Response {
+    let provided = req
+        .headers()
+        .get(INTERNAL_API_KEY_HEADER)
+        .and_then(|v| v.to_str().ok());
+    if let Err((status, message)) = check_internal_api_key(&configured, provided) {
+        let code =
+            StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+        let path = req.uri().path().to_string();
+        tracing::warn!("内部 API 密钥校验未通过：{message}（{path}）");
+        return (
+            code,
+            Json(serde_json::json!({
+                "code": status,
+                "message": message,
+                "success": false,
+            })),
+        )
+            .into_response();
+    }
+    next.run(req).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn internal_api_key_matches_java_filter_semantics() {
+        // 未配置密钥 → 403「内部接口未正确配置」
+        assert_eq!(
+            check_internal_api_key("", Some("k")).unwrap_err(),
+            (403, "内部接口未正确配置")
+        );
+        // 缺头 / 空头 → 401「缺少内部 API 密钥」
+        assert_eq!(
+            check_internal_api_key("secret", None).unwrap_err(),
+            (401, "缺少内部 API 密钥")
+        );
+        assert_eq!(
+            check_internal_api_key("secret", Some("  ")).unwrap_err(),
+            (401, "缺少内部 API 密钥")
+        );
+        // 密钥不符 → 401「内部 API 密钥验证失败」
+        assert_eq!(
+            check_internal_api_key("secret", Some("wrong")).unwrap_err(),
+            (401, "内部 API 密钥验证失败")
+        );
+        // 正确密钥（含首尾空白）→ 放行
+        assert!(check_internal_api_key("secret", Some("secret")).is_ok());
+        assert!(check_internal_api_key("secret", Some(" secret ")).is_ok());
+    }
 
     #[test]
     fn auth_user_tenant_isolation_rules() {

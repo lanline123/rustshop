@@ -25,6 +25,18 @@ pub struct AppConfig {
     pub file: FileConfig,
     #[serde(default)]
     pub storage: StorageConfig,
+    #[serde(default)]
+    pub internal: InternalConfig,
+}
+
+/// 内部服务间调用配置（Java `internal.api.key`，`InternalApiFilter`）。
+///
+/// 环境变量覆盖：`TIG_INTERNAL__API_KEY`。密钥为空时受保护接口
+/// （`/api/socket/send`）按 Java 语义一律 403。
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct InternalConfig {
+    #[serde(default)]
+    pub api_key: String,
 }
 
 /// 服务配置。
