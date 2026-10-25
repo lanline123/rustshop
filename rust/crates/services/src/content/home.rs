@@ -227,6 +227,7 @@ impl HomeService {
             .decorate_module(DECORATE_TYPE_H5, PAGE_MEMBER, q.preview_id)
             .await?;
         normalize_member_account_module(&mut vo);
+        normalize_member_service_links(&mut vo);
         Ok(vo)
     }
 
@@ -507,11 +508,11 @@ fn normalize_member_account_module(vo: &mut DecorateModuleListVO) {
                     .and_then(Value::as_str)
                     .unwrap_or_default();
                 let link = match title {
-                    "账号详情" => "/pages/user/account/index",
-                    "国家/地区和语言" => "/pages/user/language/index",
+                    "账号详情" => "/pages/user/profile/index",
+                    "国家/地区和语言" => "/pages/user/profile/index",
                     "地址" => "/pages/address/list",
-                    "设置" => "/pages/user/setting/index",
-                    _ => "/pages/user/account/index",
+                    "设置" => "/pages/user/profile/index",
+                    _ => "/pages/user/profile/index",
                 };
                 entry["picLink"] = Value::String(link.to_string());
                 entry
@@ -529,6 +530,46 @@ fn normalize_member_account_module(vo: &mut DecorateModuleListVO) {
             "layoutStyle": 1,
             "iconRadius": 0,
         });
+    }
+}
+
+/// 旧 H5 服务组件只接受字符串 URL；后台配置里的 default 链接对象需要降级。
+fn normalize_member_service_links(vo: &mut DecorateModuleListVO) {
+    let Some(modules) = vo.module_list.as_mut() else {
+        return;
+    };
+    for item in modules.iter_mut() {
+        if !matches!(
+            item.get("type").and_then(Value::as_str),
+            Some("myService" | "my-service")
+        ) {
+            continue;
+        }
+        let Some(service_list) = item
+            .get_mut("module")
+            .and_then(|m| m.get_mut("serviceList"))
+            .and_then(Value::as_array_mut)
+        else {
+            continue;
+        };
+        for entry in service_list.iter_mut() {
+            let Some(link) = entry.get("picLink") else {
+                continue;
+            };
+            if let Some(s) = link.as_str() {
+                if s.starts_with('/') {
+                    continue;
+                }
+            }
+            let normalized = link
+                .get("link")
+                .and_then(Value::as_str)
+                .filter(|s| s.starts_with('/'))
+                .map(str::to_string);
+            if let Some(url) = normalized {
+                entry["picLink"] = Value::String(url);
+            }
+        }
     }
 }
 
