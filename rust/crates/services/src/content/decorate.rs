@@ -1575,6 +1575,10 @@ fn convert_legacy_h5_modules(vo: &mut DecorateModuleListVO) {
         let Some(kind) = item.get("type").and_then(serde_json::Value::as_str) else {
             continue;
         };
+        // H5 已有原版 mixedNotice 组件，保留原类型和 noticeGroups，禁止降级成旧公告
+        if kind == "mixedNotice" {
+            continue;
+        }
         match kind {
             // mixedNotice → notice：旧 notice 组件固定读取
             // icoPic.picUrl / nociceEffect(scroll|still) / frame{...} / text。
