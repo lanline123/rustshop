@@ -18,6 +18,7 @@ pub mod proxy_shopping_product;
 pub mod proxy_shopping_user;
 pub mod proxy_shopping_user_address;
 pub mod proxy_shopping_user_coupon;
+pub mod settlement;
 pub mod shop_order_config;
 pub mod user_order;
 

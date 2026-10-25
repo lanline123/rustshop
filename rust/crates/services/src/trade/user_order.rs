@@ -19,12 +19,14 @@
 //! - `buyAgain`：订单商品仍在售 → 命中同商品同规格购物车行则累加数量，否则加购；
 //!   价格取订单快照（Java 会走 `addProductToCart` 的价格/活动重算，本实现未迁移）。
 //!
-//! # 未迁移依赖（明确记录，未伪造成功）
+//! # 结算级联（2026-10-25 起已迁移）
 //!
-//! - `confirmReceipt` 的奖金/分销结算、店铺结算、积分赠送、会员成长值、
-//!   管理员消息、MQ 通知等自动化流程均未迁移。
-//! - `buyAgain` 的价格/库存/活动重算、秒杀/拼团校验、购物车改价清理未迁移。
-//! - 快递100 查询仍未接入；快递鸟查询仅在激活服务商为快递鸟时启用。
+//! - `confirmReceipt` 的收尾统一走 [`crate::trade::settlement::SettlementService`]：
+//!   积分赠送（节点 3）、会员成长值、次卡主单推进、出账单置已结算、
+//!   分销结算与佣金入账、分销佣金出账、店铺资金结算（`shop_money` +
+//!   `shop_account_log` + `is_settlement` 原子抢占）、平台消息副本、分销员等级升级。
+//! - 剩余未迁移：`buyAgain` 的价格/库存/活动重算、秒杀/拼团校验、购物车改价清理；
+//!   快递100 查询仍未接入（快递鸟查询仅在激活服务商为快递鸟时启用）。
 //! - `delOrder`/`confirmReceipt` 的 `orderLogService.quickCreate` 已按 order_log 表落库。
 
 use std::sync::Arc;
@@ -153,42 +155,10 @@ impl UserOrderService {
         )
         .await?;
 
-        // 1. 积分赠送（已完成节点 Node 3）
-        let order_service = crate::trade::order::OrderService::from_repos(self.repos.clone());
+        // 完成收尾：店铺完成消息 + 统一收尾（积分/成长值/次卡/出账单/结算级联）
         if let Ok(Some(full_order)) = self.repos.trade.order.find_by_id(order.order_id).await {
-            let _ = order_service.order_success_point(&full_order, 3).await;
-
-            // 2. 会员成长值累加（对齐 Java userRankService.getRankGrowth）
-            let growth = full_order.total_amount.to_string().parse::<f64>().unwrap_or(0.0) as i32;
-            if growth > 0 {
-                let log = tigshop_core::entities::RankGrowthLog {
-                    id: 0,
-                    user_id,
-                    r#type: 1, // 完成下单
-                    growth_points: growth,
-                    change_type: 1, // 增加
-                    create_time: Some(now_i32()),
-                };
-                let _ = self.repos.member.user_center.insert_rank_growth_log(&log).await;
-                let _ = sqlx::query("UPDATE `user` SET `growth_points` = `growth_points` + ? WHERE `user_id` = ?")
-                    .bind(growth)
-                    .bind(user_id)
-                    .execute(&self.repo().pool_clone())
-                    .await;
-            }
-
-            // 4. 次卡子单完成时推进次卡主订单
-            if let Some(parent_id) = full_order.parent_order_id.filter(|p| *p > 0) {
-                let _ = sqlx::query(
-                    "UPDATE `order` SET `order_status` = 5, `received_time` = ? WHERE `order_id` = ? AND `is_card_order` = 1",
-                )
-                .bind(now_i32())
-                .bind(parent_id)
-                .execute(&self.repo().pool_clone())
-                .await;
-            }
-
-            // 5. 后台管理员与店铺订单完成消息通知（对齐 Java AdminMsgTypeEnum.ORDER_COMPLETED = 13）
+            // 店铺侧完成消息（对齐 Java AdminMsgTypeEnum.ORDER_COMPLETED = 13；
+            // 平台 shopId=0 副本与供应商副本由结算级联 / 管理端路径补发）
             let msg_title = format!("订单已完成通知：{},金额：{}", full_order.order_sn, full_order.total_amount);
             let msg_content = format!("您有订单【{}】已完成，请注意查看。", full_order.order_sn);
             let related_data = serde_json::json!({ "orderId": full_order.order_id }).to_string();
@@ -200,15 +170,11 @@ impl UserOrderService {
                 &msg_content,
                 &related_data,
             ).await;
-        }
 
-        // 3. 对账单结算状态更新（real_settlement = 1）
-        let _ = self
-            .repos
-            .payment
-            .statement
-            .complete_statement_output_by_order(order.order_id, now_i32())
-            .await;
+            crate::trade::settlement::SettlementService::new(self.repos.clone())
+                .after_order_completed(&full_order)
+                .await;
+        }
 
         tracing::info!(
             "订单确认收货成功: id={}, user_id={user_id}",

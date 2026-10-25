@@ -871,9 +871,9 @@ impl AftersalesService {
     ///
     /// 状态门：仅 `1 审核处理中` / `21 待供应商审核` 可审，否则「该售后状态不能操作」。
     ///
-    /// **未迁移**：Java 在仅退款审核通过后会创建退款申请、按配置自动执行财务退款、
-    /// 生成退款结算单、回滚账期订单、为拼团团长退款解散整团。Rust 侧停在
-    /// 「售后主单状态已流转 + 协商记录已写」，退款申请需由财务域接口另行创建。
+    /// 收尾（2026-10-25 迁移）：仅退款审核通过后创建退款申请并按配置处理财务退款、
+    /// 生成退款结算单、店铺退款结算（[`crate::trade::settlement`]）、拼团团长退款
+    /// 整团解散；审核驳回时回滚账期订单（退款中 → 未结算）。
     pub async fn update(&self, param: &AftersalesEditParam) -> Result<()> {
         let aftersale_id = param
             .id
@@ -1151,6 +1151,12 @@ impl AftersalesService {
                         .await;
                 }
             }
+            // 退款收尾（Java 审核通过段）：退款出账单 + 店铺退款结算 +
+            // 拼团团长退款整团解散（2026-10-25 迁移）
+            crate::trade::settlement::SettlementService::new(self.repos.clone())
+                .on_refund_completed(aftersale_id)
+                .await;
+
             let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
             if let Err(e) = admin_log.record_current_log(if aftersales.shop_id > 0 { "shop" } else { "admin" }, aftersales.shop_id, &log_info).await {
                 tracing::warn!("写管理操作日志失败（售后）: {e}");
@@ -1190,6 +1196,27 @@ impl AftersalesService {
                     None,
                 ))
                 .await?;
+            // 售后驳回：若该订单没有其他「处理中」售后，恢复账期订单为待结算
+            // （Java 审核未通过段，settlement_status 3 退款中 → 0 未结算）
+            if let Some(order_id) = aftersales.order_id.filter(|id| *id > 0) {
+                let processing: i64 = sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM aftersales WHERE order_id = ? AND status IN (1, 2, 3, 4, 21, 22)",
+                )
+                .bind(order_id)
+                .fetch_one(&self.repo().pool_clone())
+                .await
+                .unwrap_or(0);
+                if processing <= 0 {
+                    let _ = sqlx::query(
+                        "UPDATE credit_order SET settlement_status = 0, update_time = ?                          WHERE order_id = ? AND settlement_status = 3",
+                    )
+                    .bind(now)
+                    .bind(order_id)
+                    .execute(&self.repo().pool_clone())
+                    .await;
+                }
+            }
+
             let admin_log_text = format!("更新退换货:{aftersale_id}");
             let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
             if let Err(e) = admin_log.record_current_log(if aftersales.shop_id > 0 { "shop" } else { "admin" }, aftersales.shop_id, &admin_log_text).await {
@@ -1208,8 +1235,8 @@ impl AftersalesService {
     /// 售后确认收货（对应 Java `AftersalesController.receive` /
     /// `AftersalesServiceImpl#receive` → `completeReturnAftersales(id, false)`）。
     ///
-    /// **未迁移**：Java 在置完成后创建退款申请（`createRefundApplyAfterReceive`）、
-    /// 写退款结算单、发退款结算 MQ。Rust 侧停在状态流转与协商记录。
+    /// 收尾（2026-10-25 迁移）：置完成后创建退款申请（`createRefundApplyAfterReceive`）、
+    /// 退款结算单与店铺退款结算走 [`crate::trade::settlement::SettlementService`]。
     pub async fn receive(&self, param: &AftersalesReceiveParam) -> Result<()> {
         let aftersale_id = param
             .id
@@ -1462,6 +1489,12 @@ impl AftersalesService {
         {
             tracing::warn!("售后确认收货完成创建财务退款申请失败: {e}");
         }
+
+        // 退款收尾（Java completeReturnAftersales）：退款出账单 + 店铺退款结算 +
+        // 拼团团长退款整团解散（2026-10-25 迁移）
+        crate::trade::settlement::SettlementService::new(self.repos.clone())
+            .on_refund_completed(aftersale_id)
+            .await;
 
         tracing::info!(
             "售后确认收货完成: aftersale_id={aftersale_id}, refund_amount={final_refund_amount}, \

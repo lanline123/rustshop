@@ -23,17 +23,38 @@ pub fn account_type_name(code: Option<i32>) -> &'static str {
     }
 }
 
+/// 对账单类型码（Java `StatementType` 枚举，5.8.57 权威值）。
+pub mod statement_type {
+    /// 手续费（`HANDLING_FEE`）。
+    pub const HANDLING_FEE: i32 = 1;
+    /// 服务费（`SERVICE_FEE`）。
+    pub const SERVICE_FEE: i32 = 2;
+    /// 订单收支（`ORDER`）。
+    pub const ORDER: i32 = 3;
+    /// 店铺提现收支（`SHOP_WITHDRAWAL`）。
+    pub const SHOP_WITHDRAWAL: i32 = 4;
+    /// 门店提现收支（`STORE_WITHDRAWAL`）。
+    pub const STORE_WITHDRAWAL: i32 = 5;
+    /// 供应商提现收支（`SUPPLIER_WITHDRAWAL`）。
+    pub const SUPPLIER_WITHDRAWAL: i32 = 6;
+    /// 订单退款（`ORDER_REFUND`）。
+    pub const ORDER_REFUND: i32 = 7;
+    /// 分销佣金（`DISTRIBUTION_COMMISSION`）。
+    pub const DISTRIBUTION_COMMISSION: i32 = 8;
+}
+
 /// 对账单类型文案（Java `StatementType`）。
 #[must_use]
 pub fn statement_type_name(code: Option<i32>) -> &'static str {
     match code {
         Some(1) => "手续费",
-        Some(2) => "店铺提现收支",
-        Some(3) => "店铺订单收支",
-        Some(4) => "供应商订单收支",
-        Some(5) => "供应商提现收支",
-        Some(6) => "退款收支",
-        Some(7) => "平台调整",
+        Some(2) => "服务费",
+        Some(3) => "订单收支",
+        Some(4) => "店铺提现收支",
+        Some(5) => "门店提现收支",
+        Some(6) => "供应商提现收支",
+        Some(7) => "订单退款",
+        Some(8) => "分销佣金",
         _ => "",
     }
 }

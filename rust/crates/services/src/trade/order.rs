@@ -1085,7 +1085,8 @@ impl OrderService {
             expenditure: Some(Decimal::ZERO),
             gmt_create: Some(now as i64),
             record_sn: Some(order.order_sn.clone()),
-            record_type: Some(1),
+            // Java `StatementType.ORDER`（3=订单收支）。此前误写 1（手续费）。
+            record_type: Some(tigshop_core::models::payment::statement::statement_type::ORDER),
             record_id: Some(order.order_id),
             settlement_status: Some(0),
             real_settlement: Some(0),

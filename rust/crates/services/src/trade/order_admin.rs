@@ -2069,7 +2069,8 @@ impl OrderAdminService {
     /// `order_status = 已完成`、`shipping_status = 已发货`、`received_time = now`；
     /// 预约上门订单写「完成上门服务」日志，其余写「确认收货」。
     ///
-    /// ⚠️ **未迁移**：对账单/分销结算/店铺结算、积分赠送、后台消息、次卡主单完成。
+    /// 收尾统一走 [`crate::trade::settlement::SettlementService::after_order_completed`]
+    /// （2026-10-25 起）：积分/成长值/次卡/出账单/分销结算/店铺结算/分销员升级。
     pub async fn confirm_receipt(&self, id: i32, admin_id: i32) -> Result<()> {
         let order = self
             .repos
@@ -2134,6 +2135,13 @@ impl OrderAdminService {
                 )
                 .await;
         }
+
+        // 统一收尾：积分（节点 3）/成长值/次卡/出账单/结算级联（与前台同款）
+        if let Ok(Some(full_order)) = self.repos.trade.order.find_by_id(id).await {
+            crate::trade::settlement::SettlementService::new(self.repos.clone())
+                .after_order_completed(&full_order)
+                .await;
+        }
         Ok(())
     }
 
@@ -2191,6 +2199,14 @@ impl OrderAdminService {
             .order_admin
             .insert_order_log(order.order_id, &order.order_sn, "核销", admin_id, order.shop_id)
             .await?;
+
+        // 核销即完成：走统一收尾（积分/成长值/次卡/出账单/结算级联），
+        // 否则自提核销单永远不触发店铺结算与分销佣金。
+        if let Ok(Some(full_order)) = self.repos.trade.order.find_by_id(order.order_id).await {
+            crate::trade::settlement::SettlementService::new(self.repos.clone())
+                .after_order_completed(&full_order)
+                .await;
+        }
         self.detail(order.order_id).await
     }
 

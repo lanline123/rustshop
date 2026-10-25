@@ -113,7 +113,7 @@ async fn order_auto_receive_loop(repos: Arc<Repositories>) {
     )));
     loop {
         ticker.tick().await;
-        match run_auto_receive(&repos).await {
+        match run_auto_receive(repos.clone()).await {
             Ok(0) => {}
             Ok(n) => tracing::info!("定时任务：自动确认收货 {n} 笔"),
             Err(e) => tracing::warn!("定时任务：自动收货失败: {e}"),
@@ -500,7 +500,7 @@ pub async fn run_auto_cancel(repos: &Repositories, order_service: &OrderService)
 }
 
 /// 执行一轮自动收货，返回处理笔数。
-pub async fn run_auto_receive(repos: &Repositories) -> Result<u64> {
+pub async fn run_auto_receive(repos: Arc<Repositories>) -> Result<u64> {
     let raw = repos
         .system
         .config_basic
@@ -520,6 +520,18 @@ pub async fn run_auto_receive(repos: &Repositories) -> Result<u64> {
         .await?;
     let mut done = 0_u64;
     for order_id in ids {
+        // Java `receiveOrderConfirmReceiptMessage` 的防护：售后审核处理中
+        // （状态 1）不自动收货，避免售后中订单被错误完成并触发结算
+        let in_review: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM aftersales WHERE order_id = ? AND status = 1",
+        )
+        .bind(order_id)
+        .fetch_one(&repos.pool)
+        .await
+        .unwrap_or(0);
+        if in_review > 0 {
+            continue;
+        }
         if repos
             .trade
             .order
@@ -527,6 +539,30 @@ pub async fn run_auto_receive(repos: &Repositories) -> Result<u64> {
             .await?
         {
             done += 1;
+            // 自动收货 = Java confirmReceipt 同款收尾：完成日志 + 积分/成长值/
+            // 次卡/出账单/结算级联（店铺结算、分销佣金、分销员升级）
+            if let Ok(Some(order)) = repos.trade.order.find_by_id(order_id).await {
+                let desc = if order.order_type == Some(10) {
+                    "完成上门服务"
+                } else {
+                    "确认收货"
+                };
+                let _ = repos
+                    .trade
+                    .user_order
+                    .insert_order_log(
+                        order_id,
+                        &order.order_sn,
+                        order.user_id,
+                        order.shop_id,
+                        desc,
+                        now as i32,
+                    )
+                    .await;
+                crate::trade::settlement::SettlementService::new(repos.clone())
+                    .after_order_completed(&order)
+                    .await;
+            }
         }
     }
     Ok(done)
