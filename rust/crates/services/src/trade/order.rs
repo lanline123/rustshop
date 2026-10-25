@@ -1016,6 +1016,24 @@ impl OrderService {
         if has_card || items.iter().any(|it| it.product_type == 3) {
             vo.is_card_order = true;
         }
+        // 纯卡密订单：卡券下发后直接进入“待收货”，无需物流发货
+        if has_card && !items.is_empty() && items.iter().all(|it| it.product_type == 3) {
+            let now = utils::now_seconds() as i32;
+            if self
+                .repos
+                .trade
+                .order
+                .mark_card_shipped(order_id, now)
+                .await
+                .is_ok()
+            {
+                vo.order_status = 2;
+                vo.order_status_name = "待收货".into();
+                vo.status_label = "待收货".into();
+                vo.shipping_status = 1;
+                vo.shipping_status_name = "已发货".into();
+            }
+        }
         Ok((vo, items))
     }
 
@@ -1124,14 +1142,41 @@ impl OrderService {
         let _ = self.order_success_point(&order, 1).await;
 
         // 3. 电子卡券分配
-        if let Ok(items) = self.repos.trade.order_admin.find_items(order_id).await {
+        if let Ok(items) = self.repos.trade.order.find_items(order_id).await {
+            let has_items = !items.is_empty();
+            let all_card = has_items && items.iter().all(|it| it.product_type == 3);
+            let mut allocated_ok = true;
             for it in &items {
+                if it.product_type != 3 {
+                    continue;
+                }
                 if let Ok(Some(prod)) = self.repos.catalog.product.find_by_id(it.product_id).await {
                     if prod.card_group_id > 0 {
                         let gid = prod.card_group_id;
-                        let _ = self.repos.catalog.e_card.allocate_cards_to_order_item(gid, order_id, it.item_id, it.quantity).await;
+                        if self
+                            .repos
+                            .catalog
+                            .e_card
+                            .allocate_cards_to_order_item(gid, order_id, it.item_id, it.quantity)
+                            .await
+                            .is_err()
+                        {
+                            allocated_ok = false;
+                        }
                     }
                 }
+            }
+            // 纯卡密订单：下发卡券后直接转为“待收货”
+            if all_card && allocated_ok {
+                let _ = self.repos.trade.order.mark_card_shipped(order_id, now).await;
+                let _ = self.repos.trade.user_order.insert_order_log(
+                    order_id,
+                    &order.order_sn,
+                    order.user_id,
+                    order.shop_id,
+                    "卡券已发放，订单待收货",
+                    now,
+                ).await;
             }
         }
 
@@ -1263,7 +1308,7 @@ fn client_status_label(status: i32) -> String {
     match status {
         0 => "待付款",
         1 => "已确认，待发货",
-        2 => "处理中，已发货",
+        2 => "待收货",
         3 => "已取消",
         4 => "无效",
         5 => "已完成",
