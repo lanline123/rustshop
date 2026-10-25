@@ -781,6 +781,8 @@ pub static PERMISSIONS: &[(&str, &str, &[&str])] = &[
     ("POST", "/adminapi/setting/galleryVideoInfo/del", &["galleryVideoManage"]),
     ("POST", "/adminapi/setting/galleryVideoInfo/update", &["galleryVideoManage"]),
     ("POST", "/adminapi/setting/galleryVideoInfo/uploadVideo", &["galleryVideoManage"]),
+    ("POST", "/adminapi/setting/licensed/saveLicensed", &["licensed"]),
+    ("POST", "/adminapi/setting/licensed/update", &["licensedModifyManage"]),
     ("POST", "/adminapi/setting/logisticsCompany/batch", &["logisticsCompanyBatchManage"]),
     ("POST", "/adminapi/setting/logisticsCompany/create", &["logisticsCompanyUpdateManage"]),
     ("POST", "/adminapi/setting/logisticsCompany/del", &["logisticsCompanyDelManage"]),

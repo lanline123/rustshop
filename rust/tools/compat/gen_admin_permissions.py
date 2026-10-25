@@ -9,7 +9,7 @@ import json
 import re
 
 SRC = "docs/api-contract.json"
-OUT = "crates/api/admin/src/generated_permissions.rs"
+OUT = "crates/api/admin/src/support/generated_permissions.rs"
 
 data = json.load(io.open(SRC, encoding="utf-8"))
 rows = []
