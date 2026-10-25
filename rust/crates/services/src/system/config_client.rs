@@ -556,6 +556,9 @@ pub fn assemble_init_config_settings(configs: &ConfigIndex) -> InitConfigSetting
     vo.use_coupon = get_int(configs, BIZ_USE_COUPON);
     vo.show_selled_count = get_int(configs, "showSelledCount");
     vo.show_marketprice = get_int(configs, "showMarketprice");
+    // H5 推荐组件显示条件：缺这两个字段会导致“猜你喜欢”整块被隐藏。
+    vo.is_guest_like_goods = Some(get_int(configs, "isGuestLikeGoods").unwrap_or(1));
+    vo.guest_like_goods_name = get_str(configs, "guestLikeGoodsName");
     // 域名与移动端自动跳转：PC 首页初始化配置依赖这几个字段决定是否跳 H5。
     vo.auto_redirect = Some(get_int(configs, BIZ_AUTO_REDIRECT).unwrap_or(DEFAULT_AUTO_REDIRECT));
     vo.h5_domain = get_str(configs, BIZ_H5_DOMAIN);
