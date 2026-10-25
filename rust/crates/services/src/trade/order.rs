@@ -971,12 +971,33 @@ impl OrderService {
         // 卡密订单：补齐每个商品项已分配的电子卡券（原版 ECardItemVO）
         let mut has_card = false;
         for (idx, item) in items.iter().enumerate() {
-            let cards = self
+            let mut cards = self
                 .repos
                 .catalog
                 .e_card
                 .find_by_order_item_id(item.item_id)
                 .await?;
+            // 历史卡密订单可能未在支付回调里分配成功；查看详情时兜底分配一次
+            if cards.is_empty() && item.product_type == 3 {
+                if let Ok(Some(prod)) = self.repos.catalog.product.find_by_id(item.product_id).await {
+                    if prod.card_group_id > 0 {
+                        if let Ok(allocated) = self
+                            .repos
+                            .catalog
+                            .e_card
+                            .allocate_cards_to_order_item(
+                                prod.card_group_id,
+                                order_id,
+                                item.item_id,
+                                item.quantity,
+                            )
+                            .await
+                        {
+                            cards = allocated;
+                        }
+                    }
+                }
+            }
             if cards.is_empty() {
                 continue;
             }
