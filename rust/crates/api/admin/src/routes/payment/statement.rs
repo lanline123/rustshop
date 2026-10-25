@@ -130,14 +130,16 @@ async fn export_statement(
     Ok(crate::support::excel_response::xlsx_response(bytes, &file_name))
 }
 
-/// `GET /adminapi/finance/statement/exportStatementStatistics`：导出统计（JSON 降级）。
+/// `GET /adminapi/finance/statement/exportStatementStatistics`：导出统计
+/// （Java `@ResponseExcel`，返回 xlsx 文件流）。
 async fn export_statistics(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
     Query(mut q): Query<StatementStatisticsQuery>,
-) -> ApiResult<Vec<StatementStatisticsExportVO>> {
+) -> Result<axum::response::Response, AppError> {
     q.shop_id = auth.resolve_shop_scope(q.shop_id)?;
-    ok(state.payment.statement.export_statistics(&q).await?)
+    let (file_name, bytes) = state.payment.statement.export_statistics_xlsx(&q).await?;
+    Ok(crate::support::excel_response::xlsx_response(bytes, &file_name))
 }
 
 /// `GET /adminapi/finance/statement/getStatementStatisticsList`：对账单统计。

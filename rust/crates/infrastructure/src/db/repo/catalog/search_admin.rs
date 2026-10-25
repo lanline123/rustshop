@@ -112,6 +112,33 @@ impl SearchAdminRepository {
         Ok(rows.into_iter().map(|r| r.0).collect())
     }
 
+    /// 命中商品的去重分类 ID（Java `getProductCategoryList` 的 DISTINCT 段）。
+    pub async fn distinct_category_ids(&self, f: &ProductSearchFilter) -> Result<Vec<i32>> {
+        let mut qb = QueryBuilder::<MySql>::new("SELECT category_id FROM product");
+        push_filters(&mut qb, f);
+        qb.push(" GROUP BY category_id ORDER BY category_id ASC");
+        let rows: Vec<(i32,)> = qb
+            .build_query_as::<(i32,)>()
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(rows.into_iter().map(|r| r.0).collect())
+    }
+
+    /// 按 ID 批量取分类（Java `categoryService.listByIds`，不附加过滤）。
+    pub async fn find_categories_by_ids(&self, ids: &[i32]) -> Result<Vec<Category>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let ph = vec!["?"; ids.len()].join(", ");
+        let sql = format!("SELECT * FROM category WHERE category_id IN ({ph})");
+        let mut q = sqlx::query_as::<_, Category>(&sql);
+        for id in ids {
+            q = q.bind(id);
+        }
+        q.fetch_all(&self.pool).await.map_err(map_err)
+    }
+
     /// 按 ID 批量取品牌（筛选项展示品牌名）。
     pub async fn find_brands(&self, brand_ids: &[i32]) -> Result<Vec<Brand>> {
         if brand_ids.is_empty() {

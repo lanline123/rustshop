@@ -16,9 +16,10 @@
 //! - 查询字段配置：枚举字典（code/description）。
 //! - 保存下载信息：时间解析 + 落库 `statement_download`。
 //!
-//! # 偏差
-//! - 导出端点在 Java 标注 `@ResponseExcel`（返回 Excel 文件流）；Rust 侧未迁移
-//!   Excel writer，按契约返回 JSON 数组（文档标注，前端可改取下文件接口）。
+//! # 偏差（已消除）
+//! - 导出端点 Java 标注 `@ResponseExcel`：`exportStatement` 与
+//!   `exportStatementStatistics` 均已返回真实 xlsx 文件流
+//!   （`export_statement_xlsx` / `export_statistics_xlsx`）。
 //! - 多租户：Java 按请求头 X-Admin-Type/X-Shop-Id 限定；Rust 无该上下文，按
 //!   查询参数 `shopId/vendorId/source` 过滤（平台视角）。
 //! - `vendor` 名称使用 `vendor.vendor_name`（Java `selectOnboardedById` 另校验入驻）。

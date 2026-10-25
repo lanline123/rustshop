@@ -25,8 +25,8 @@
 //!   积分赠送（节点 3）、会员成长值、次卡主单推进、出账单置已结算、
 //!   分销结算与佣金入账、分销佣金出账、店铺资金结算（`shop_money` +
 //!   `shop_account_log` + `is_settlement` 原子抢占）、平台消息副本、分销员等级升级。
-//! - 剩余未迁移：`buyAgain` 的价格/库存/活动重算、秒杀/拼团校验、购物车改价清理；
-//!   快递100 查询仍未接入（快递鸟查询仅在激活服务商为快递鸟时启用）。
+//! - `buyAgain`（2026-10-25 起）走 `CartService::add`：当前售价 + 可购校验 +
+//!   同款数量合并（对齐 Java `addProductToCart`）；快递100 查询已接入。
 //! - `delOrder`/`confirmReceipt` 的 `orderLogService.quickCreate` 已按 order_log 表落库。
 
 use std::sync::Arc;
@@ -359,29 +359,30 @@ impl UserOrderService {
         let order = self.require_owned_order(user_id, dto).await?;
         let repo = self.repo();
         let items = repo.list_order_items(order.order_id).await?;
-        let now = now_i32();
+        // Java `buyAgain` 走 `addProductToCart`：以**当前售价**加购并做可购校验
+        // （库存/上架），而非沿用订单快照价。下架商品静默跳过（Java 同款）。
+        let product = crate::catalog::product::ProductService::new(self.repos.clone(), None);
+        let cart = crate::trade::cart::CartService::new(self.repos.clone(), product);
         let mut added = 0_u32;
         for item in &items {
             if !repo.product_available(item.product_id).await? {
                 continue;
             }
-            let cart_type =
-                tigshop_core::models::trade::user_order::cart_type_from_product_type(Some(
-                    item.product_type,
-                ));
+            let sku_id = (item.sku_id > 0).then_some(item.sku_id);
             let quantity = item.quantity.max(1);
-            match repo
-                .find_cart_row(user_id, item.product_id, item.sku_id, cart_type)
-                .await?
+            match cart
+                .add(user_id, item.product_id, sku_id, quantity, None, false)
+                .await
             {
-                Some(cart_id) => {
-                    repo.add_cart_quantity(cart_id, quantity, now).await?;
-                }
-                None => {
-                    repo.insert_cart_row(user_id, item, now).await?;
+                Ok(_) => added += 1,
+                Err(e) => {
+                    tracing::warn!(
+                        "再次购买加购失败(跳过): order_id={}, product={}, err={e}",
+                        order.order_id,
+                        item.product_id
+                    );
                 }
             }
-            added += 1;
         }
         tracing::info!(
             "再次购买加购成功: order_id={}, user_id={user_id}, items={added}",

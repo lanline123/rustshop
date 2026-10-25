@@ -101,12 +101,64 @@ impl SearchAdminService {
     pub async fn get_filter(&self, q: &ProductSearchClientQuery) -> Result<SearchFilterVO> {
         let filter = self.build_filter(q).await?;
 
-        let parent_id = q.cat.filter(|c| *c > 0).unwrap_or(0);
-        let categories = self
-            .repos.catalog.search_admin
-            .find_categories_by_parent(parent_id, CATEGORY_FILTER_LIMIT)
-            .await?;
+        // Java `getFilterListCategoryList` 三分支：
+        // cat>0 → 子分类；intro/keyword 存在 → 命中商品所属分类反查；否则根分类。
+        let categories = if let Some(cat) = q.cat.filter(|c| *c > 0) {
+            self.repos
+                .catalog
+                .search_admin
+                .find_categories_by_parent(cat, CATEGORY_FILTER_LIMIT)
+                .await?
+        } else if q.intro.is_some() || q.keyword.is_some() {
+            let ids = self
+                .repos
+                .catalog
+                .search_admin
+                .distinct_category_ids(&filter)
+                .await?;
+            self.repos
+                .catalog
+                .search_admin
+                .find_categories_by_ids(&ids)
+                .await?
+        } else {
+            self.repos
+                .catalog
+                .search_admin
+                .find_categories_by_parent(0, CATEGORY_FILTER_LIMIT)
+                .await?
+        };
         let category_vos: Vec<SearchCategoryVO> = categories.iter().map(to_category_vo).collect();
+
+        // Java：shopId>0 时返回店铺自定义分类（shopCategoryId 的子级，无则根级）
+        let shop_category: Option<Vec<serde_json::Value>> =
+            match q.shop_id.filter(|s| *s > 0) {
+            Some(shop_id) => {
+                let parent = q.shop_category_id.filter(|c| *c > 0).unwrap_or(0);
+                let mut rows = self
+                    .repos
+                    .merchant
+                    .shop_product_category
+                    .find_visible_by_shop(shop_id)
+                    .await?;
+                rows.sort_by_key(|c| c.sort_order);
+                let vos: Vec<serde_json::Value> = rows
+                    .into_iter()
+                    .filter(|c| c.parent_id == parent)
+                    .map(|c| {
+                        serde_json::to_value(SearchCategoryVO {
+                            category_id: c.category_id,
+                            category_name: c.category_name,
+                            parent_id: c.parent_id,
+                            sort_order: c.sort_order,
+                        })
+                        .unwrap_or(serde_json::Value::Null)
+                    })
+                    .collect();
+                Some(vos)
+            }
+            None => None,
+        };
 
         let brand_ids = self
             .repos.catalog.search_admin
@@ -138,8 +190,7 @@ impl SearchAdminService {
         let filter_list = ProductSearchFilterListVO {
             category: Some(category_vos),
             brand: Some(brand_vos),
-            // 店铺分类依赖店铺域，未迁移（见模块头）
-            shop_category: None,
+            shop_category,
             max_price,
         };
         let selected = self.build_selected(q).await?;
