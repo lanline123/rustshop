@@ -49,6 +49,19 @@ impl OrderRepository {
         Ok(())
     }
 
+    /// 卡密订单下发卡券后自动置为“待收货”（无需物流发货）。
+    pub async fn mark_card_shipped(&self, order_id: i32, shipping_time: i32) -> Result<()> {
+        sqlx::query(
+            "UPDATE `order` SET order_status = 2, shipping_status = 1, shipping_time = ? WHERE order_id = ?",
+        )
+        .bind(shipping_time)
+        .bind(order_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
     /// 按订单ID查询。
     pub async fn find_by_id(&self, order_id: i32) -> Result<Option<Order>> {
         sqlx::query_as::<_, Order>("SELECT * FROM `order` WHERE order_id = ? LIMIT 1")
