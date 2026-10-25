@@ -377,6 +377,10 @@ pub struct PayOrderVO {
     pub is_presale: i32,
     pub presale_type: Option<i32>,
     pub pay_type_id: i32,
+    /// 下单时间（Java `TigUtils.handelTime` 格式化串，H5 支付页直接展示）
+    pub add_time: String,
+    /// 配送方式名称（`order.shipping_type_name` 列；空串时 H5 回退「专线物流」）
+    pub shipping_type_name: Option<String>,
 }
 
 /// 支付页面（Java `PayIndexVO`）。

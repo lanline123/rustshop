@@ -493,7 +493,16 @@ fn to_order_vo(order: &PayOrderRow) -> PayOrderVO {
         is_presale: order.is_presale,
         presale_type: order.presale_type,
         pay_type_id: order.pay_type_id,
+        add_time: format_cst(order.add_time),
+        shipping_type_name: Some(order.shipping_type_name.clone()).filter(|s| !s.is_empty()),
     }
+}
+
+/// 秒级时间戳 → `YYYY-MM-DD HH:mm:ss`（UTC+8，Java `TigUtils.handelTime` 同口径）。
+fn format_cst(sec: i32) -> String {
+    chrono::DateTime::<chrono::Utc>::from_timestamp(i64::from(sec), 0)
+        .map(|dt| (dt.naive_utc() + chrono::Duration::hours(8)).format("%Y-%m-%d %H:%M:%S").to_string())
+        .unwrap_or_default()
 }
 
 /// 复制 paylog 到 VO（Java `BeanUtils.copyProperties(one, target)`，`None` 时 no-op）。
@@ -521,6 +530,14 @@ fn copy_paylog(target: &mut PaylogVO, paylog: Option<&Paylog>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn format_cst_matches_java_handel_time() {
+        // 2026-10-25 10:23:26 +08:00 == 1792899806
+        assert_eq!(format_cst(1792899806), "2026-10-25 10:23:26");
+        assert_eq!(format_cst(0), "1970-01-01 08:00:00");
+    }
+
 
     #[test]
     fn require_user_rejects_guest() {

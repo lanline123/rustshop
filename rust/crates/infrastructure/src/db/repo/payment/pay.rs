@@ -30,6 +30,8 @@ pub struct PayOrderRow {
     pub presale_type: Option<i32>,
     pub order_type: Option<i32>,
     pub parent_order_id: Option<i32>,
+    pub add_time: i32,
+    pub shipping_type_name: String,
 }
 
 /// 订单支付域仓储。
@@ -80,7 +82,7 @@ impl PayRepository {
     /// 按主键查订单摘要。
     pub async fn find_order_by_id(&self, order_id: i32) -> Result<Option<PayOrderRow>> {
         sqlx::query_as::<_, PayOrderRow>(
-            "SELECT order_id, order_sn, user_id, total_amount, paid_amount, unpaid_amount, balance, pay_status, order_status, pay_type_id, is_presale, presale_type, order_type, parent_order_id FROM `order` WHERE order_id = ? LIMIT 1",
+            "SELECT order_id, order_sn, user_id, total_amount, paid_amount, unpaid_amount, balance, pay_status, order_status, pay_type_id, is_presale, presale_type, order_type, parent_order_id, add_time, shipping_type_name FROM `order` WHERE order_id = ? LIMIT 1",
         )
         .bind(order_id)
         .fetch_optional(&self.pool)
@@ -95,7 +97,7 @@ impl PayRepository {
         user_id: i32,
     ) -> Result<Vec<PayOrderRow>> {
         sqlx::query_as::<_, PayOrderRow>(
-            "SELECT order_id, order_sn, user_id, total_amount, paid_amount, unpaid_amount, balance, pay_status, order_status, pay_type_id, is_presale, presale_type, order_type, parent_order_id FROM `order` WHERE parent_order_id = ? AND user_id = ?",
+            "SELECT order_id, order_sn, user_id, total_amount, paid_amount, unpaid_amount, balance, pay_status, order_status, pay_type_id, is_presale, presale_type, order_type, parent_order_id, add_time, shipping_type_name FROM `order` WHERE parent_order_id = ? AND user_id = ?",
         )
         .bind(parent_order_id)
         .bind(user_id)
