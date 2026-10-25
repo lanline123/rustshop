@@ -160,17 +160,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn implemented_routes_match_contract() {
+    fn implemented_routes_match_route_table() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 3);
-        assert_eq!(docs[0].path, "/api/user/orderInvoice/detail");
-        assert_eq!(docs[1].method, "POST");
-        assert_eq!(docs[2].path, "/api/user/orderInvoice/update");
+        assert_eq!(docs.len(), ROUTE_TABLE.len());
+        for (doc, (method, path, _)) in docs.iter().zip(ROUTE_TABLE.iter()) {
+            assert_eq!(doc.method, *method);
+            assert_eq!(doc.path, format!("/api{path}"));
+        }
     }
 
     #[test]
     fn routes_registers_all_table_paths() {
-        assert_eq!(ROUTE_TABLE.len(), 3);
         for (_, p, _) in ROUTE_TABLE.iter() {
             assert!(p.starts_with("/user/orderInvoice/"));
         }

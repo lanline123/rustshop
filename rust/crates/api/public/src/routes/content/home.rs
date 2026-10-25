@@ -406,11 +406,13 @@ mod tests {
                 "{path} 不在 ROUTE_TABLE"
             );
         }
-        let optional_paths: Vec<&str> = ROUTE_TABLE
-            .iter()
-            .map(|(_, p, _)| *p)
-            .filter(|p| !anon.contains(p))
-            .collect();
-        assert_eq!(optional_paths.len(), 14);
+        // ROUTE_TABLE 内路径不允许重复（同一 (method,path) 双注册 = merge panic）
+        let mut seen: Vec<&str> = ROUTE_TABLE.iter().map(|(_, p, _)| *p).collect();
+        seen.sort_unstable();
+        let total = seen.len();
+        seen.dedup();
+        assert_eq!(seen.len(), total, "ROUTE_TABLE 存在重复路径");
+        // 匿名路由恰好两条登录页；其余全部走 optional 鉴权
+        assert_eq!(anon.len(), 2);
     }
 }

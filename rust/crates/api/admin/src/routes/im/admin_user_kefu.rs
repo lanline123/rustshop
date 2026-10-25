@@ -274,8 +274,8 @@ mod tests {
     #[tokio::test]
     async fn shop_id_comes_from_trusted_identity_not_headers() {
         use tigshop_infrastructure::db::repo::marketing::tenant::with_tenant_scope;
-        // 无关登录态 / 伪造 x-shop-id → 400（不再信任请求头）
-        assert!(current_shop_id(&HeaderMap::new()).is_err());
+        // 平台账号（无租户上下文）→ shop_id=0 平台视角（2026-10-21 修复：不再 400）
+        assert_eq!(current_shop_id(&HeaderMap::new()).unwrap(), 0);
         // 店铺身份 → 本店（HeaderMap 内容被忽略）
         let shop = TenantScope::for_shop(6);
         let id =

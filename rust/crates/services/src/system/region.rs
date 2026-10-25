@@ -25,7 +25,7 @@
 //! Hutool `TreeUtil.build(regionList, 0, config, consumer)`：
 //! - 版本开关 `tigshopProperties.getIsOverseas()`：`== 1` 用 `level >= 0`，
 //!   否则 `level > 0`。Rust 侧复用 identity::authority 的
-//!   [`EditionFlags::default()`]（`application.yaml: is-overseas: 0` ⇒
+//!   [`EditionFlags::default()`]（全功能部署 `is-overseas: 1` ⇒
 //!   **国内版 ⇒ `level > 0`**），与 trade::proxy_shopping_user_address 的既有约定一致。
 //! - `TreeNodeConfig`：`idKey = regionId`、`parentIdKey = parentId`、
 //!   `nameKey = regionName`、`deep = 8`。
@@ -139,7 +139,7 @@ pub const TREE_ROOT_PARENT_ID: i32 = 0;
 
 /// 版本开关：是否跨境版（Java `TigshopProperties.getIsOverseas()`）。
 ///
-/// Java 取自 `application.yaml` 的 `tigshop.is-overseas`（本仓默认 `0`）；
+/// Java 取自 `application.yaml` 的 `tigshop.is-overseas`（全功能部署默认 `1`）；
 /// Rust 侧复用 identity::authority 的既有约定，不新建配置服务
 /// （与 trade::proxy_shopping_user_address 的 [`crate::trade::proxy_shopping_user_address::default_is_overseas`] 同一做法）。
 #[must_use]
@@ -561,11 +561,12 @@ mod tests {
         assert_eq!(TREE_ROOT_PARENT_ID, 0);
     }
 
-    /// 版本开关默认取国内版（`application.yaml: is-overseas: 0`）。
+    /// 版本开关默认取全功能部署（跨境/批发/O2O/供应商全开，is_overseas=1；
+    /// Java `application.yaml` 的 `is-overseas` 在本部署形态下为 1）。
     #[test]
-    fn default_edition_is_domestic() {
-        assert!(!default_is_overseas());
-        assert_eq!(EditionFlags::default().is_overseas, 0);
+    fn default_edition_is_full_featured() {
+        assert!(default_is_overseas());
+        assert_eq!(EditionFlags::default().is_overseas, 1);
     }
 
     /// Java 文案逐字符照抄。

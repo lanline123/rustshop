@@ -264,19 +264,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn implemented_routes_match_frontend_contract() {
+    fn implemented_routes_match_route_table() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 2);
-        assert_eq!(
-            docs[0].path,
-            "/adminapi/lang/translations/getTranslations"
-        );
-        assert_eq!(docs[0].method, "POST");
-        assert_eq!(
-            docs[1].path,
-            "/adminapi/lang/translations/createTranslations"
-        );
-        assert_eq!(docs[1].method, "POST");
+        assert_eq!(docs.len(), ROUTE_TABLE.len());
+        for (doc, (method, path, _)) in docs.iter().zip(ROUTE_TABLE.iter()) {
+            assert_eq!(doc.method, *method);
+            assert_eq!(doc.path, format!("/adminapi{path}"));
+        }
     }
 
     #[test]

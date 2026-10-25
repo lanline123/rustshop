@@ -114,15 +114,18 @@ pub const AUTHORITY_NAME_MAX_LEN: usize = 30;
 
 /// 版本 / 平台开关，对应 Java `TigshopProperties`。
 ///
-/// **重要**：Rust 侧尚无配置服务，Java 里这些值来自 `application.yaml`
-/// （`tigshop.is-overseas` 等）；当前实现按 Java 源码里的**有效常量**取值：
-/// - `is_overseas` → `0`（Java 默认演示站为国内版）
-/// - `is_merchant` → `0`（`boolean = false` 的 `isMerchant()` 常量）
-/// - `is_pro` / `is_o2o` / `is_vendor` / `is_b2b` / `is_demo` → `0`
-///   （`supplyChainCompiled = false` 一处的同类常量）
+/// **产品决策（2026-10-25，业主确认）**：Rust 后端为**全功能版**——
+/// 接口能力永远完整，版本区分（跨境/批发/O2O/供应商等）由**前端**结合
+/// 后续授权体系控制，后端不做接口级裁剪。因此 `Default` 全开。
 ///
-/// 若目标部署是 B2B2B / 供应商 / 跨境 / 多门店版本，**必须调整这些常量并重新编译**，
-/// 否则菜单会被错误下架。已列入 `uncertain_points`。
+/// 这些开关只影响**权限树展示**（`getAuthority`/`list`/`getAllAuthority`
+/// 的菜单下架），不影响端点鉴权（端点权限来自 `@PreAuthorize` 契约表）。
+/// 全开默认下按 Java 同配置语义仅下架两族互斥菜单：O2O 开启时的
+/// 旧版小票（由收银台设置承载）与保证金菜单。
+///
+/// Java 里这些值来自 `application.yaml`（`tigshop.is-overseas` 等）；
+/// Java 对照测试用 [`EditionFlags`] 的全零「国内演示版」显式构造
+/// （见 tests 里的 `java_default`），勿依赖 `Default` 断言 Java 原生行为。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EditionFlags {
     pub is_overseas: i32,
@@ -179,12 +182,18 @@ impl EditionFlags {
             || authority_sn.starts_with("cashierList")
     }
 
-    /// Java `filterReceiptPrintMenuByEdition(list, o2oEnabled)`：
-    /// 当前部署要求展示全部菜单，因此不按版本下架收银/小票入口。
+    /// Java `filterReceiptPrintMenuByEdition(list, isO2o() == 1)`：
+    /// - O2O 开启 → 下架旧版小票菜单（由收银台设置承载），保留 POS 收银菜单；
+    /// - O2O 关闭 → 下架 POS 收银菜单，保留旧版小票。
+    ///
+    /// 全功能部署（`Default`：全开）走 O2O 分支。
     #[must_use]
     pub fn keep_receipt_or_pos(&self, authority_sn: &str) -> bool {
-        let _ = (self, authority_sn, LEGACY_RECEIPT_MENU_SN, Self::is_pos_menu);
-        true
+        if self.is_o2o == 1 {
+            !LEGACY_RECEIPT_MENU_SN.contains(&authority_sn)
+        } else {
+            !Self::is_pos_menu(authority_sn)
+        }
     }
 
     /// 该权限是否应下架（返回 `true` 表示移除）。flags 的公共部分。
@@ -1202,20 +1211,33 @@ mod tests {
 
     // ————— 版本下架规则 —————
 
+    /// Java `application.yaml` 全零原生默认（区别于面向当前部署全开的 `Default`）。
+    fn java_default() -> EditionFlags {
+        EditionFlags {
+            is_overseas: 0,
+            is_merchant: 0,
+            is_pro: 0,
+            is_o2o: 0,
+            is_vendor: 0,
+            is_b2b: 0,
+            is_demo: 0,
+        }
+    }
+
     #[test]
     fn wholesale_menu_enabled_follows_java_is_wholesale_menu_enabled() {
-        // 非演示站 → true（Java `enabled = true`）
+        // 非演示站 → true（Java `enabled = true`；部署默认也非演示站）
         assert!(EditionFlags::default().wholesale_menu_enabled());
         // 演示站：仅 B2B / 供应商 / 跨境 / O2O 版本展示
         let demo = EditionFlags {
             is_demo: 1,
-            ..Default::default()
+            ..java_default()
         };
         assert!(!demo.wholesale_menu_enabled());
         let demo_b2b = EditionFlags {
             is_demo: 1,
             is_b2b: 1,
-            ..Default::default()
+            ..java_default()
         };
         assert!(demo_b2b.wholesale_menu_enabled());
     }
@@ -1232,7 +1254,7 @@ mod tests {
 
     #[test]
     fn common_removals_match_java_default_edition() {
-        let f = EditionFlags::default();
+        let f = java_default();
         let remove = MenuFilter::for_get_authority(f);
         // is_overseas == 0
         assert!(remove("multilingual"));
@@ -1313,7 +1335,7 @@ mod tests {
 
     #[test]
     fn get_all_authority_variant_differs_from_list_variant() {
-        let f = EditionFlags::default();
+        let f = java_default();
         let all = MenuFilter::for_get_all_authority(f);
         let one = MenuFilter::for_get_authority(f);
         let list = MenuFilter::for_list(f);
@@ -1338,7 +1360,7 @@ mod tests {
     fn o2o_edition_keeps_receipt_removes_pos_and_store() {
         let o2o = EditionFlags {
             is_o2o: 1,
-            ..Default::default()
+            ..java_default()
         };
         let remove = MenuFilter::for_get_authority(o2o);
         // O2O：移除旧版小票菜单

@@ -45,7 +45,7 @@
 //!    `[1, 330000, 330100]` 顺序一致；但对跨境数据（`region_id` 与行政区划
 //!    层级不同序）可能与 Java 的**偶然顺序**不同，属既有不确定点。
 //! 4. **`is_overseas` 取值来源**。Java 取自 `application.yaml`
-//!    （`tigshop.is-overseas: 0`）。Rust 侧无配置服务，按
+//!    （全功能部署 `tigshop.is-overseas: 1`）。Rust 侧无配置服务，按
 //!    `tigshop_services::identity::authority::EditionFlags` 的既有约定取 `0`
 //!    （国内版 → `level > 0`）。
 //! 5. **i18n 未迁移**。邮编超长文案直接内联中文
@@ -102,7 +102,7 @@ pub const REGION_TREE_MAX_DEEP: usize = 8;
 
 /// 地区树默认按国内版过滤（`level > 0`）。
 ///
-/// Java 取 `TigshopProperties.getIsOverseas()`（`application.yaml: is-overseas: 0`）；
+/// Java 取 `TigshopProperties.getIsOverseas()`（全功能部署 `is-overseas: 1`）；
 /// Rust 侧复用 identity::authority 既有约定，不在本切片新建配置服务。
 #[must_use]
 pub fn default_is_overseas() -> bool {
@@ -1039,9 +1039,9 @@ mod tests {
 
     #[test]
     fn overseas_and_domestic_edition_flags_are_stable() {
-        // 与 identity::authority 的既有约定一致（application.yaml: is-overseas: 0）
-        assert!(!default_is_overseas());
-        assert_eq!(EditionFlags::default().is_overseas, 0);
+        // 全功能部署：跨境/批发/O2O/供应商全开（与 identity::authority 的 Default 一致）
+        assert!(default_is_overseas());
+        assert_eq!(EditionFlags::default().is_overseas, 1);
     }
 
     // ————————————————————— 入参 JSON 兼容性 —————————————————————
