@@ -303,6 +303,16 @@ async fn profile(
     Extension(auth): Extension<AuthUser>,
 ) -> ApiResult<Option<serde_json::Value>> {
     let user = state.member.user.find(auth.id).await?.map(|u| {
+        let username = u.display_name();
+        // Java `UserServiceImpl#getDimUsername`：首字符 + *** + 末字符
+        let dim_username = {
+            let chars: Vec<char> = username.chars().collect();
+            if chars.len() > 1 {
+                format!("{}***{}", chars[0], chars[chars.len() - 1])
+            } else {
+                username.clone()
+            }
+        };
         // 原版顶部导航优先读取 nickname；昵称为空时回退用户名，避免只显示“会员”。
         let nickname = u
             .nickname
@@ -310,10 +320,11 @@ async fn profile(
             .map(str::trim)
             .filter(|s| !s.is_empty())
             .map(str::to_string)
-            .unwrap_or_else(|| u.display_name());
+            .unwrap_or_else(|| username.clone());
         serde_json::json!({
             "userId": u.user_id,
-            "username": u.display_name(),
+            "username": username,
+            "dimUsername": dim_username,
             "nickname": nickname,
             "memberName": nickname,
             "mobile": u.mobile,
