@@ -165,7 +165,7 @@ pub struct OrderVO {
     pub paid_amount: Decimal,
     pub consignee: String,
     pub mobile: String,
-    pub add_time: i32,
+    pub add_time: String,
     pub item_count: i32,
     /// 订单商品明细（前端订单卡需要渲染 items）
     pub items: Vec<serde_json::Value>,

@@ -534,7 +534,7 @@ mod tests {
     #[test]
     fn format_cst_matches_java_handel_time() {
         // 2026-10-25 10:23:26 +08:00 == 1792899806
-        assert_eq!(format_cst(1792899806), "2026-10-25 10:23:26");
+        assert_eq!(format_cst(1792899806), "2026-10-25 11:43:26");
         assert_eq!(format_cst(0), "1970-01-01 08:00:00");
     }
 
@@ -569,8 +569,12 @@ mod tests {
             presale_type: None,
             order_type: Some(1),
             parent_order_id: None,
+            add_time: 1792899806,
+            shipping_type_name: String::new(),
         };
         let vo = to_order_vo(&row);
+        assert_eq!(vo.add_time, "2026-10-25 11:43:26");
+        assert_eq!(vo.shipping_type_name, None);
         assert_eq!(vo.order_id, 3);
         assert_eq!(vo.order_sn, "SN3");
         assert_eq!(vo.total_amount, rust_decimal::Decimal::new(10000, 2));

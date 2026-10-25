@@ -1218,6 +1218,18 @@ fn client_status_label(status: i32) -> String {
     .to_string()
 }
 
+/// 秒级时间戳 → `yyyy-MM-dd HH:mm:ss`（Java `TigUtils.handelTime`：≤0 返回空串）。
+fn fmt_time(secs: i32) -> String {
+    if secs <= 0 {
+        return String::new();
+    }
+    use chrono::TimeZone;
+    match chrono::Local.timestamp_opt(i64::from(secs), 0) {
+        chrono::LocalResult::Single(dt) => dt.format("%Y-%m-%d %H:%M:%S").to_string(),
+        _ => String::new(),
+    }
+}
+
 fn to_vo(o: &Order, items: &[OrderItem]) -> OrderVO {
     let status_label = client_status_label(o.order_status);
     let item_values: Vec<serde_json::Value> = items
@@ -1300,7 +1312,7 @@ fn to_vo(o: &Order, items: &[OrderItem]) -> OrderVO {
         paid_amount: o.paid_amount,
         consignee: o.consignee.clone(),
         mobile: o.mobile.clone(),
-        add_time: o.add_time,
+        add_time: fmt_time(o.add_time),
         item_count: i32::try_from(items.len()).unwrap_or(0),
         items: item_values,
         available_actions,
