@@ -566,19 +566,28 @@ async fn order_detail(
     ok(value)
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct OrderIdDTO {
-    order_id: i32,
-}
-
-/// `POST /api/order/cancel`：取消订单（回滚库存）。
+/// `POST /user/order/cancelOrder`：取消订单（Java `UserOrderController.cancelOrder`，
+/// 契约 `OrderIdDTO{id, description}`；id 容错字符串——H5 直接透传 URL 参数）。
 async fn order_cancel(
     State(state): State<PublicState>,
     Extension(auth): Extension<AuthUser>,
-    Json(dto): Json<OrderIdDTO>,
+    dto: Result<Json<tigshop_core::models::trade::user_order::OrderIdDTO>, axum::extract::rejection::JsonRejection>,
 ) -> ApiResult<&'static str> {
-    state.trade.order.cancel(dto.order_id, Some(auth.id)).await?;
+    let Json(dto) = dto.map_err(|re| {
+        AppError(tigshop_core::Error::biz_msg(format!(
+            "请求参数解析失败: {}",
+            re.body_text()
+        )))
+    })?;
+    state
+        .trade
+        .order
+        .cancel(
+            dto.id.unwrap_or(0),
+            Some(auth.id),
+            dto.description.as_deref(),
+        )
+        .await?;
     ok("订单已取消")
 }
 

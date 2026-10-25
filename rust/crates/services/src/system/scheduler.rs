@@ -563,7 +563,7 @@ pub async fn run_auto_cancel(repos: &Repositories, order_service: &OrderService)
     let mut done = 0_u64;
     for order_id in ids {
         // 复用订单取消逻辑（状态条件更新 + 回滚库存）；并发下可能返回冲突，忽略
-        match order_service.cancel(order_id, None).await {
+        match order_service.cancel(order_id, None, None).await {
             Ok(()) => done += 1,
             Err(e) => tracing::debug!("自动取消订单 {order_id} 跳过: {e}"),
         }

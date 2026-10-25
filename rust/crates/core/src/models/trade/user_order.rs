@@ -16,6 +16,7 @@
 //! - `reasonConfig` 读取 config 表 `afterSalesReasonEnabled` / `afterSalesReasonList`
 //!   （JSON 数组），并保留 Java 默认值作为兜底；i18n 翻译未迁移（原样返回）。
 
+use crate::models::trade::check::tolerant_opt_i32;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
@@ -143,6 +144,7 @@ pub fn cart_type_from_product_type(product_type: Option<i32>) -> i32 {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct OrderIdDTO {
+    #[serde(default, deserialize_with = "tolerant_opt_i32")]
     pub id: Option<i32>,
     pub description: Option<String>,
 }
@@ -324,5 +326,24 @@ mod tests {
         assert_eq!(dto.description.as_deref(), Some("不想要了"));
         let dto: OrderIdDTO = serde_json::from_str("{}").unwrap();
         assert_eq!(dto.id, None);
+    }
+}
+
+
+#[cfg(test)]
+mod tolerant_order_id_tests {
+    use super::*;
+
+    /// H5 取消订单契约 `OrderIdDTO{id, description}`(Java OrderIdDTO 同名);
+    /// 详情页入口的 id 可能是 URL 字符串,须容忍(Jackson 同款)。
+    #[test]
+    fn cancel_order_dto_accepts_string_id() {
+        let dto: OrderIdDTO =
+            serde_json::from_str(r#"{"id":"29","description":"不想要了"}"#).expect("string id ok");
+        assert_eq!(dto.id, Some(29));
+        assert_eq!(dto.description.as_deref(), Some("不想要了"));
+        let dto: OrderIdDTO =
+            serde_json::from_str(r#"{"id":29}"#).expect("numeric id ok");
+        assert_eq!(dto.id, Some(29));
     }
 }

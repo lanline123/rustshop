@@ -182,6 +182,12 @@ where
                 None
             })
         }
+        fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(Some(i32::from(v)))
+        }
         fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
         where
             E: serde::de::Error,
@@ -197,7 +203,7 @@ where
             Ok(s.parse::<i32>().ok())
         }
     }
-    deserializer.deserialize_str(V)
+    deserializer.deserialize_any(V)
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]

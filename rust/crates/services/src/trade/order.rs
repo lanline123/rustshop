@@ -991,7 +991,7 @@ impl OrderService {
     }
 
     /// 取消订单（仅待付款可取消，取消后回滚库存）。
-    pub async fn cancel(&self, order_id: i32, user_id: Option<i32>) -> Result<()> {
+    pub async fn cancel(&self, order_id: i32, user_id: Option<i32>, reason: Option<&str>) -> Result<()> {
         let order = self
             .repos.trade.order
             .find_by_id(order_id)
@@ -1011,6 +1011,16 @@ impl OrderService {
             .repos.trade.order
             .transition_status(order_id, &[status::UNPAID], status::CANCELED)
             .await?;
+        // Java `cancelOrder(..., description)`:`order.cancel_remark = 取消原因`
+        let remark = reason.map(str::trim).filter(|s| !s.is_empty());
+        if let Some(remark) = remark {
+            sqlx::query("UPDATE `order` SET cancel_remark = ? WHERE order_id = ?")
+                .bind(remark)
+                .bind(order_id)
+                .execute(&self.repos.pool)
+                .await
+                .map_err(|e| Error::Database(e.to_string()))?;
+        }
         if !ok {
             return Err(Error::Conflict("订单状态已变更，请刷新后重试".into()));
         }
