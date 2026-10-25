@@ -650,12 +650,217 @@ impl CheckService {
             tmpl_ids: Vec::new(),
             flow_type,
             message: None,
-            delivery_option: None,
+            delivery_option: Some(
+                self.build_delivery_option(
+                    &carts,
+                    products.values().collect::<Vec<_>>(),
+                    address_id,
+                    param.delivery_type,
+                )
+                .await?,
+            ),
             product_presale: presale_json,
             credit_payment_info: credit_info,
             coupon_exclude_amount: "0".to_string(),
             points_exclude_amount: "0".to_string(),
         })
+    }
+
+    /// Java `ProductServiceImpl#getDeliveryOption`：按商品配送能力分组
+    /// （商城配送 / 到店自提 / 同城配送），驱动 H5 确认订单页的配送区块与
+    /// 收货地址编辑区。此前恒 `None`，H5 三个配送开关全灭导致地址区不渲染。
+    ///
+    /// 已声明差异：自提点按 `store_parent_id + status=1` 查询（Java 在带
+    /// 经纬度时走 `pickupByLocation` 地理过滤）；平台自营门店坐标未配置时
+    /// 距离记 0（与 Java 空坐标路径一致）。
+    async fn build_delivery_option(
+        &self,
+        carts: &[Cart],
+        products: Vec<&Product>,
+        address_id: i32,
+        delivery_type: Option<i32>,
+    ) -> Result<serde_json::Value> {
+        use serde_json::json;
+
+        let product_json =
+            |p: &Product| serde_json::to_value(p).unwrap_or(serde_json::Value::Null);
+
+        if carts.is_empty() {
+            return Ok(json!({}));
+        }
+
+        let address = if address_id > 0 {
+            self.repos
+                .member
+                .user_address_client
+                .find_by_id(address_id)
+                .await?
+        } else {
+            None
+        };
+        let addr_lng = address.as_ref().and_then(|a| a.longitude);
+        let addr_lat = address.as_ref().and_then(|a| a.latitude);
+
+        let mut delivery_products: Vec<serde_json::Value> = Vec::new();
+        let mut shop_delivery_products: Vec<serde_json::Value> = Vec::new();
+        let mut no_shipping_products: Vec<serde_json::Value> = Vec::new();
+        let mut pickup_groups: std::collections::BTreeMap<i32, (Vec<serde_json::Value>, Vec<serde_json::Value>)> =
+            std::collections::BTreeMap::new();
+        let mut shop_delivery_data: Vec<serde_json::Value> = Vec::new();
+        let total = carts.len();
+
+        for cart in carts {
+            let Some(product) = products.iter().copied().find(|p| p.product_id == cart.product_id) else {
+                continue;
+            };
+            let shop_id = cart.shop_id;
+
+            let can_delivery = product.is_logistics == 1;
+            let is_no_shipping = product.no_shipping.unwrap_or(0) == 1;
+            let mut can_pickup = product.is_shop_pickup == 1;
+            let mut is_shop_delivery = product.is_shop_delivery == 1;
+
+            // 同城配送门：店铺开通自建同城配送（第三方运力切换会置 0）
+            match self.repos.o2o.config.find_local_delivery(shop_id).await? {
+                Some(cfg) if cfg.enabled == 1 => {
+                    if cfg.distance_pricing_enabled == 0 {
+                        let mut distance = Decimal::ZERO;
+                        if let (Some(lng), Some(lat)) = (addr_lng, addr_lat) {
+                            if shop_id > 0 {
+                                let shop_coord: Option<(Option<Decimal>, Option<Decimal>)> =
+                                    sqlx::query_as(
+                                        "SELECT shop_longitude, shop_latitude FROM shop WHERE shop_id = ?",
+                                    )
+                                    .bind(shop_id)
+                                    .fetch_optional(&self.repos.pool)
+                                    .await
+                                    .map_err(|e| Error::Database(e.to_string()))?;
+                                if let Some((Some(sl), Some(sa))) = shop_coord {
+                                    distance =
+                                        crate::trade::proxy_shopping_product::haversine_meters(
+                                            Some(lng),
+                                            Some(lat),
+                                            Some(sl),
+                                            Some(sa),
+                                        );
+                                }
+                            }
+                        }
+                        let out_of_range = distance > cfg.delivery_radius;
+                        shop_delivery_data.push(json!({
+                            "shopId": shop_id,
+                            "distance": distance,
+                            "isOutOfRange": out_of_range,
+                        }));
+                    }
+                }
+                _ => is_shop_delivery = false,
+            }
+
+            // 自提门：店铺自提开关开启
+            let pickup_cfg = self
+                .repos
+                .o2o
+                .config
+                .find_pickup_config(i64::from(shop_id))
+                .await?;
+            if pickup_cfg.map(|c| c.status != 1).unwrap_or(true) {
+                can_pickup = false;
+            }
+
+            // 无需物流（非卡券）：整单按配送处理提前返回
+            if is_no_shipping && product.product_type != Some(1) {
+                no_shipping_products.push(product_json(product));
+                return Ok(json!({
+                    "deliveryType": 3,
+                    "deliveryProducts": no_shipping_products,
+                    "pickupProducts": [],
+                    "shopDeliveryProducts": [],
+                    "shopDeliveryData": [],
+                }));
+            }
+
+            if is_shop_delivery {
+                shop_delivery_products.push(product_json(product));
+            }
+            if can_delivery {
+                delivery_products.push(product_json(product));
+            }
+            if can_pickup {
+                let shop: Option<tigshop_core::entities::Shop> =
+                    sqlx::query_as::<_, tigshop_core::entities::Shop>(
+                    "SELECT * FROM shop WHERE store_parent_id = ? AND status = 1 ORDER BY shop_id LIMIT 1",
+                )
+                .bind(shop_id)
+                .fetch_optional(&self.repos.pool)
+                .await
+                .map_err(|e| Error::Database(e.to_string()))?;
+                if let Some(shop) = shop {
+                    let entry = pickup_groups.entry(shop_id).or_default();
+                    entry
+                        .0
+                        .push(serde_json::to_value(&shop).unwrap_or(serde_json::Value::Null));
+                    entry.1.push(product_json(product));
+                }
+            }
+        }
+
+        let pickup_count: usize = pickup_groups.values().map(|(_, ps)| ps.len()).sum();
+        let delivery_count = delivery_products.len();
+        let shop_delivery_count = shop_delivery_products.len();
+
+        // Java ShopDeliveryTypeEnum 决策矩阵（1 全可选 / 2 部分可选 /
+        // 3 配送 / 4 自提 / 5 同城）
+        let dt = if (pickup_count == total
+            && delivery_count == total
+            && shop_delivery_count == total)
+            || (pickup_count == 0 && delivery_count == total && shop_delivery_count == total)
+            || (pickup_count == total && delivery_count == 0 && shop_delivery_count == total)
+            || (pickup_count == total && delivery_count == total && shop_delivery_count == 0)
+        {
+            1
+        } else if pickup_count == total && delivery_count == 0 && shop_delivery_count == 0 {
+            4
+        } else if shop_delivery_count == total && pickup_count == 0 && delivery_count == 0 {
+            5
+        } else if delivery_count == total && pickup_count == 0 && shop_delivery_count == 0 {
+            3
+        } else {
+            2
+        };
+
+        let pickup_products: Vec<serde_json::Value> = pickup_groups
+            .into_iter()
+            .map(|(shop_id, (pickups, products))| {
+                json!({"shopId": shop_id, "pickups": pickups, "products": products})
+            })
+            .collect();
+
+        let assemble =
+            |dp: Vec<serde_json::Value>, pp: Vec<serde_json::Value>, sp: Vec<serde_json::Value>| {
+                json!({
+                    "deliveryType": dt,
+                    "deliveryProducts": dp,
+                    "pickupProducts": pp,
+                    "shopDeliveryProducts": sp,
+                    "shopDeliveryData": shop_delivery_data,
+                })
+            };
+
+        // 指定配送方式时只回该组（Java 同款）
+        if let Some(t) = delivery_type {
+            return Ok(match t {
+                1 => assemble(delivery_products, Vec::new(), Vec::new()),
+                2 => assemble(Vec::new(), pickup_products, Vec::new()),
+                3 => assemble(Vec::new(), Vec::new(), shop_delivery_products),
+                _ => assemble(delivery_products, pickup_products, shop_delivery_products),
+            });
+        }
+        Ok(assemble(
+            delivery_products,
+            pickup_products,
+            shop_delivery_products,
+        ))
     }
 
     /// 地址地区 ID（用于运费模板地区匹配；无地址返回空）。
