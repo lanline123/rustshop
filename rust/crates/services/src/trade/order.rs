@@ -967,7 +967,35 @@ impl OrderService {
         }
 
         let items = self.repos.trade.order.find_items(order_id).await?;
-        Ok((to_vo(&order, &items), items))
+        let mut vo = to_vo(&order, &items);
+        // 卡密订单：补齐每个商品项已分配的电子卡券（原版 ECardItemVO）
+        let mut has_card = false;
+        for (idx, item) in items.iter().enumerate() {
+            let cards = self
+                .repos
+                .catalog
+                .e_card
+                .find_by_order_item_id(item.item_id)
+                .await?;
+            if cards.is_empty() {
+                continue;
+            }
+            has_card = true;
+            vo.items[idx]["eCard"] = serde_json::json!(cards
+                .iter()
+                .map(|c| serde_json::json!({
+                    "cardId": c.card_id,
+                    "groupId": c.group_id,
+                    "cardNumber": c.card_number,
+                    "cardPwd": c.card_pwd,
+                    "orderItemId": c.order_item_id,
+                }))
+                .collect::<Vec<_>>());
+        }
+        if has_card || items.iter().any(|it| it.product_type == 3) {
+            vo.is_card_order = true;
+        }
+        Ok((vo, items))
     }
 
     /// 订单分页。
