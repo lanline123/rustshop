@@ -313,7 +313,10 @@ mod tests {
     fn texts_match_java_enums() {
         assert_eq!(account_type_name(Some(1)), "账户余额");
         assert_eq!(statement_type_name(Some(1)), "手续费");
-        assert_eq!(statement_type_name(Some(3)), "店铺订单收支");
+        assert_eq!(statement_type_name(Some(2)), "服务费");
+        assert_eq!(statement_type_name(Some(3)), "订单收支");
+        assert_eq!(statement_type_name(Some(7)), "订单退款");
+        assert_eq!(statement_type_name(Some(8)), "分销佣金");
         assert_eq!(entry_type_name("1"), "自动");
         assert_eq!(entry_type_name("2"), "手动");
         assert_eq!(time_type_name(Some(1)), "入账（结算）时间");
