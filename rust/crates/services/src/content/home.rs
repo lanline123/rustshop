@@ -483,7 +483,8 @@ fn cfg_int(map: &std::collections::HashMap<String, Option<String>>, key: &str) -
 }
 
 /// 当前 H5 包没有 `account` 组件，把账号装修模块降级为 `myService` 列表，
-/// 避免后台已配置“账号”但个人中心整块不渲染。
+/// 账号模块在新版 H5 有独立 `account` 组件；这里只补默认标题和标签，
+/// 不再降级成 `myService`（否则会和服务模块重复，且丢失语言/地区入口）。
 fn normalize_member_account_module(vo: &mut DecorateModuleListVO) {
     let Some(modules) = vo.module_list.as_mut() else {
         return;
@@ -492,44 +493,12 @@ fn normalize_member_account_module(vo: &mut DecorateModuleListVO) {
         if item.get("type").and_then(Value::as_str) != Some("account") {
             continue;
         }
-        let Some(module) = item.get("module") else {
-            continue;
-        };
-        let account_list = module
-            .get("accountList")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
-        let service_list: Vec<Value> = account_list
-            .into_iter()
-            .map(|mut entry| {
-                let title = entry
-                    .get("picTitle")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default();
-                let link = match title {
-                    "账号详情" => "/pages/user/profile/index",
-                    "国家/地区和语言" => "/pages/user/profile/index",
-                    "地址" => "/pages/address/list",
-                    "设置" => "/pages/user/profile/index",
-                    _ => "/pages/user/profile/index",
-                };
-                entry["picLink"] = Value::String(link.to_string());
-                entry
-            })
-            .collect();
-        let title = module
-            .get("moduleTitle")
-            .cloned()
-            .unwrap_or_else(|| Value::String("账号信息".into()));
-        item["type"] = Value::String("myService".into());
         item["label"] = Value::String("账号".into());
-        item["module"] = json!({
-            "moduleTitle": title,
-            "serviceList": service_list,
-            "layoutStyle": 1,
-            "iconRadius": 0,
-        });
+        if let Some(module) = item.get_mut("module").and_then(Value::as_object_mut) {
+            module
+                .entry("moduleTitle")
+                .or_insert_with(|| Value::String("账号信息".into()));
+        }
     }
 }
 
