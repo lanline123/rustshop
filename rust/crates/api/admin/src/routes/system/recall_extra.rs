@@ -119,9 +119,23 @@ async fn withdraw_recall(
     ok(())
 }
 
-recall_route!(paylog_recall, "finance/payLog/recall", "paylog");
+// 主键列名与表名不同的三条不走宏(paylog=paylog_id、user=user_id、
+// unipush_log=unipush_log_id,线上 1054 实测修正):
+async fn paylog_recall(
+    State(state): State<AdminState>,
+    Json(dto): Json<RecallDTO>,
+) -> ApiResult<()> {
+    recall_invoice(&state, "paylog", "paylog_id", &ids_of(&dto)).await?;
+    ok(())
+}
 recall_route!(feedback_recall, "user/feedback/recall", "feedback");
-recall_route!(user_recall, "user/user/recall", "user");
+async fn user_recall(
+    State(state): State<AdminState>,
+    Json(dto): Json<RecallDTO>,
+) -> ApiResult<()> {
+    recall_invoice(&state, "user", "user_id", &ids_of(&dto)).await?;
+    ok(())
+}
 async fn user_rank_recall_inner(
     state: &AdminState,
     ids: &[i32],
@@ -145,7 +159,13 @@ async fn user_rank_recall(
     user_rank_recall_inner(&state, &ids_of(&dto)).await?;
     ok(())
 }
-recall_route!(push_log_recall, "user/pushLog/recall", "unipush_log");
+async fn push_log_recall(
+    State(state): State<AdminState>,
+    Json(dto): Json<RecallDTO>,
+) -> ApiResult<()> {
+    recall_invoice(&state, "unipush_log", "unipush_log_id", &ids_of(&dto)).await?;
+    ok(())
+}
 
 /// 撤回杂项路由（挂载于 `/adminapi` 下）。
 pub fn routes(state: &AdminState) -> Router<AdminState> {
