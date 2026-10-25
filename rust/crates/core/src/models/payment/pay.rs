@@ -325,9 +325,12 @@ pub fn offline_payment_list(
 // ——————————————————————————————————————————————
 
 /// `index?id=`。
+use crate::models::trade::check::tolerant_opt_i32;
+
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct PayIndexQuery {
+    #[serde(default, deserialize_with = "tolerant_opt_i32")]
     pub id: Option<i32>,
 }
 

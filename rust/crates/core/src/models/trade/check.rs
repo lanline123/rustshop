@@ -132,10 +132,80 @@ pub struct OrderCheckParam {
 }
 
 /// 店铺配送方式查询（Java `StoreShippingTypeQuery`）。
+/// 容错的 `Option<i32>` 反序列化：非法值（"NaN"/"undefined"/非数字串/浮点）
+/// 一律回 `None` 而不是让整个请求 400。
+///
+/// 背景：H5 路由 `?flowType=undefined` 经 `Number()` 得 `NaN` 并拼进 GET
+/// 参数，严格 serde 解析会让 `getStoreShippingType` 等接口整体 400，
+/// 前端静默失败后结算页显示「该收货地址不支持配送」。
+pub fn tolerant_opt_i32<'de, D>(deserializer: D) -> Result<Option<i32>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    struct V;
+    impl<'de> serde::de::Visitor<'de> for V {
+        type Value = Option<i32>;
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("i32 or ignorable value")
+        }
+        fn visit_none<E>(self) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(None)
+        }
+        fn visit_unit<E>(self) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(None)
+        }
+        fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(i32::try_from(v).ok())
+        }
+        fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(i32::try_from(v).ok())
+        }
+        fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(if v.is_finite() && v.fract() == 0.0 {
+                i32::try_from(v as i64).ok()
+            } else {
+                None
+            })
+        }
+        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            let s = v.trim();
+            if s.is_empty()
+                || s.eq_ignore_ascii_case("nan")
+                || s.eq_ignore_ascii_case("undefined")
+                || s.eq_ignore_ascii_case("null")
+            {
+                return Ok(None);
+            }
+            Ok(s.parse::<i32>().ok())
+        }
+    }
+    deserializer.deserialize_str(V)
+}
+
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct StoreShippingTypeQuery {
+    #[serde(default, deserialize_with = "tolerant_opt_i32")]
     pub shop_id: Option<i32>,
+    #[serde(default, deserialize_with = "tolerant_opt_i32")]
     pub flow_type: Option<i32>,
     pub user_id: Option<i32>,
     pub address_id: Option<i32>,
@@ -1051,5 +1121,32 @@ mod tests {
         assert_eq!(total, Decimal::from(30));
         assert_eq!(proportion, Decimal::new(85, 2));
         assert!(promotion_discount(1, 1, &tier, Decimal::from(10), Decimal::from(10)).is_none());
+    }
+}
+
+
+#[cfg(test)]
+mod tolerant_query_tests {
+    use super::*;
+
+    #[test]
+    fn tolerant_flow_type_ignores_garbage() {
+        // H5 路由漏参:Number(undefined)=NaN → "NaN" 入查询串
+        let q: StoreShippingTypeQuery =
+            serde_json::from_str(r#"{"flowType":"NaN"}"#).expect("NaN must not fail");
+        assert_eq!(q.flow_type, None);
+
+        let q: StoreShippingTypeQuery =
+            serde_json::from_str(r#"{"flowType":"undefined"}"#).expect("undefined must not fail");
+        assert_eq!(q.flow_type, None);
+
+        // 正常值不受影响
+        let q: StoreShippingTypeQuery =
+            serde_json::from_str(r#"{"flowType":"12"}"#).expect("12 must parse");
+        assert_eq!(q.flow_type, Some(12));
+
+        // 缺省 → None
+        let q: StoreShippingTypeQuery = serde_json::from_str("{}").expect("missing ok");
+        assert_eq!(q.flow_type, None);
     }
 }
