@@ -246,6 +246,17 @@ impl ECardRepository {
         Ok(res.rows_affected())
     }
 
+    /// 订单商品项已分配的卡密（客户端订单详情 `eCard` 字段）。
+    pub async fn find_by_order_item_id(&self, order_item_id: i32) -> Result<Vec<ECard>> {
+        sqlx::query_as::<_, ECard>(&format!(
+            "{CARD_SELECT} WHERE order_item_id = ? ORDER BY card_id ASC"
+        ))
+        .bind(order_item_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
     /// 为订单分配未使用的卡密（对应 Java eCardService.getNewCardByGroupId）。
     pub async fn allocate_cards_to_order_item(
         &self,
