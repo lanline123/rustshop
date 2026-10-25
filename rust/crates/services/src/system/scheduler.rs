@@ -161,7 +161,13 @@ async fn deposit_due_check_loop(repos: Arc<Repositories>) {
     }
 }
 
-/// 微信视频号/直播订单同步循环（对应 Java WechatLiveOrderSyncTask）。
+/// 微信视频号/直播订单同步循环（对应 Java `WechatLiveOrderSyncTask`）。
+///
+/// Java 每 15 分钟处理待同步/失败日志（`processPendingLogs`）、每日 2 点对账
+/// （`reconcileLiveOrders`）。同步执行依赖微信直播/视频号订单 API 凭据，
+/// 凭据未接入前本循环做**积压监控**：有待处理日志时每周期告警一次
+/// （诚实降级，不伪造同步成功）；接入凭据后在
+/// `services/content/wechat_live_order_sync.rs` 落地真实推送。
 async fn wechat_live_order_sync_loop(repos: Arc<Repositories>) {
     tokio::time::sleep(Duration::from_secs(
         env_secs("TIG_SCHEDULER__DELAY_SECS", 30) + 120,
@@ -169,17 +175,34 @@ async fn wechat_live_order_sync_loop(repos: Arc<Repositories>) {
     .await;
     let mut ticker = tokio::time::interval(Duration::from_secs(env_secs(
         "TIG_SCHEDULER__WECHAT_LIVE_SYNC_SECS",
-        600,
+        900,
     )));
     loop {
         ticker.tick().await;
-        let service = crate::content::wechat_live_order_sync::WechatLiveOrderSyncService::new(repos.clone());
-        let q = tigshop_core::models::content::wechat_live_order_sync::SyncLogQuery::default();
-        let _ = service.logs(&q).await;
+        let now = utils::now_seconds();
+        let pending: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM wechat_live_sync_log              WHERE sync_status IN (0, 2)                AND (next_retry_time IS NULL OR next_retry_time <= ?)",
+        )
+        .bind(now)
+        .fetch_one(&repos.pool)
+        .await
+        .unwrap_or(0);
+        if pending > 0 {
+            tracing::warn!(
+                "微信直播订单同步：{pending} 条待处理/失败日志积压                  （同步执行待微信 API 凭据接入，见 docs/SCHEDULER.md）"
+            );
+        }
     }
 }
 
-/// 微信线上分账状态补偿循环（对应 Java ProfitSharingScheduleTask）。
+/// 线上分账调度循环（对应 Java `ProfitSharingScheduleTask` 的 8 个方法）。
+///
+/// 分账通道（微信/汇付）API 客户端待商户凭据接入（见 `docs/PAYMENT-CHANNELS.md`：
+/// 协议层已就绪）。接入前本循环做**真实可做的部分**：
+/// - 超时预警（Java `executeTimeoutWarning`，纯 DB）：挂起超 150 天
+///   （微信 180 天冻结上限）的分账单每周期告警；
+/// - 其余 7 类（自动分账/状态补偿/完结补偿/失败重试/进件轮询/提现查询/回退补偿）
+///   依赖通道查单接口：有积压时每周期报告一次，不伪造成功。
 async fn profit_sharing_schedule_loop(repos: Arc<Repositories>) {
     tokio::time::sleep(Duration::from_secs(
         env_secs("TIG_SCHEDULER__DELAY_SECS", 30) + 150,
@@ -191,9 +214,58 @@ async fn profit_sharing_schedule_loop(repos: Arc<Repositories>) {
     )));
     loop {
         ticker.tick().await;
-        let service = crate::payment::profit_sharing::ProfitSharingService::new(repos.clone());
-        let q = tigshop_core::models::payment::profit_sharing::ProfitSharingPageQuery::default();
-        let _ = service.list(&q).await;
+
+        // 1. 超时预警（纯 DB，Java executeTimeoutWarning 全量移植）
+        let cutoff = chrono::Utc::now().timestamp() - 150 * 24 * 3600;
+        let timeout_rows: Vec<(i64, String, i64, String)> = sqlx::query_as(
+            "SELECT id, out_order_no, shop_id, status FROM profit_sharing_order              WHERE status = 0 AND create_time <= ?",
+        )
+        .bind(chrono::NaiveDateTime::from_timestamp_opt(cutoff, 0))
+        .fetch_all(&repos.pool)
+        .await
+        .unwrap_or_default();
+        for (id, out_order_no, shop_id, status) in &timeout_rows {
+            tracing::warn!(
+                "分账超时预警：id={id} outOrderNo={out_order_no} shopId={shop_id}                  status={status} 挂起超150天（微信180天冻结上限）"
+            );
+        }
+
+        // 2. 通道依赖类的积压可见性（凭据接入后在此接真实查单/提交）
+        let processing: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM profit_sharing_order WHERE status = 1",
+        )
+        .fetch_one(&repos.pool)
+        .await
+        .unwrap_or(0);
+        let unfinished: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM profit_sharing_order WHERE status = 2 AND finish_status = 0",
+        )
+        .fetch_one(&repos.pool)
+        .await
+        .unwrap_or(0);
+        let failed: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM profit_sharing_order WHERE status = 3 AND retry_count < 3",
+        )
+        .fetch_one(&repos.pool)
+        .await
+        .unwrap_or(0);
+        let returns: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM profit_sharing_return_order WHERE status = 1",
+        )
+        .fetch_one(&repos.pool)
+        .await
+        .unwrap_or(0);
+        let withdraws: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM shop_withdraw              WHERE withdraw_type = 2 AND status = 1                AND channel_status IN ('CREATE_SUCCESS','PROCESSING','SUBMITTING','UNKNOWN')",
+        )
+        .fetch_one(&repos.pool)
+        .await
+        .unwrap_or(0);
+        if processing + unfinished + failed + returns + withdraws > 0 {
+            tracing::warn!(
+                "分账调度：通道依赖积压（待商户凭据接入后自动处理，见 docs/PAYMENT-CHANNELS.md）                 —— 处理中分账 {processing}、待完结 {unfinished}、待重试 {failed}、                 回退中 {returns}、线上提现待查 {withdraws}"
+            );
+        }
     }
 }
 
