@@ -114,6 +114,27 @@ java/view/admin/src/views/setting/
 
 ## 进度
 
+### 2026-10-26 F1：次卡 + 剩余配置
+
+已补 18 条：
+
+```text
+权限组供应商 list/detail/create/update/updateField/del/batch
+promotion/wechatLive detail/update（别名）
+promotion/lotteryActivity/updateStatus
+promotion/buyerShow/group/del/{id}
+user/login/sendCode
+promotion/giftCardGroups/showCardPassword
+cycleCard list/detail/{cardId}/checkUsable/{cardId}/refundInfo/{cardId}/checkAftersales/{orderId}
+```
+
+- 次卡接 `order_cycle_card`，含可用性/退款金额/售后校验
+- 礼品卡密码按 `giftCardSn` 查询
+- `cargo check -p tigshop-api` 通过
+- 登录/礼品卡测试通过
+- **审计未实现数：18 → 0**
+- commit：`1f5ddaef`、`c22377a2`
+
 ### 2026-10-26 E1：供应商员工/资金账户/商品
 
 已补 11 条：
