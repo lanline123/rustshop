@@ -39,6 +39,23 @@ pub struct Pg {
     pub tip_name: Option<String>,
 }
 
+fn json_ids(body: &Value) -> Vec<i64> {
+    let mut out = Vec::new();
+    if let Some(arr) = body.get("ids").and_then(Value::as_array) {
+        for v in arr {
+            if let Some(id) = v.as_i64() {
+                out.push(id);
+            }
+        }
+    }
+    if out.is_empty() {
+        if let Some(id) = body.get("id").and_then(Value::as_i64) {
+            out.push(id);
+        }
+    }
+    out
+}
+
 fn page_of(q: &Pg) -> (u64, u64, u64) {
     let p = q.page.unwrap_or(1).max(1);
     let s = q.size.unwrap_or(10).clamp(1, 100);
@@ -304,6 +321,161 @@ async fn h_tip_update_field(State(state): State<AdminState>, Json(q): Json<Pg>) 
     ok(())
 }
 
+// ————————————————————— O2O 服务人员（service_staff） —————————————————————
+
+// get /o2o/serviceStaff/list
+async fn h_staff_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let (p, s, off) = page_of(&q);
+    let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
+    let status = q.status.unwrap_or(-1);
+    let (total,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM service_staff WHERE is_delete = 0 AND (? = -1 OR status = ?) AND (name LIKE ? OR phone LIKE ?)",
+    )
+    .bind(status)
+    .bind(status)
+    .bind(&kw)
+    .bind(&kw)
+    .fetch_one(&pool(&state))
+    .await
+    .map_err(db)?;
+    let rows: Vec<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('id', id, 'name', name, 'nickname', nickname, 'avatar', avatar, 'phone', phone, 'memberId', member_id, 'storeId', store_id, 'type', type, 'status', status, 'workStatus', work_status, 'completedOrderCount', completed_order_count, 'completedOrderAmount', completed_order_amount, 'createTime', create_time) FROM service_staff WHERE is_delete = 0 AND (? = -1 OR status = ?) AND (name LIKE ? OR phone LIKE ?) ORDER BY id DESC LIMIT ? OFFSET ?",
+    )
+    .bind(status)
+    .bind(status)
+    .bind(&kw)
+    .bind(&kw)
+    .bind(s)
+    .bind(off)
+    .fetch_all(&pool(&state))
+    .await
+    .map_err(db)?;
+    ok(serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "total": total, "page": p, "size": s}))
+}
+
+// get /o2o/serviceStaff/detail
+async fn h_staff_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let row: Option<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('id', id, 'name', name, 'nickname', nickname, 'avatar', avatar, 'phone', phone, 'memberId', member_id, 'storeId', store_id, 'type', type, 'status', status, 'workStatus', work_status, 'completedOrderCount', completed_order_count, 'completedOrderAmount', completed_order_amount, 'createTime', create_time) FROM service_staff WHERE id = ? AND is_delete = 0",
+    )
+    .bind(q.id.unwrap_or(0))
+    .fetch_optional(&pool(&state))
+    .await
+    .map_err(db)?;
+    ok(row.map(|(v,)| v).unwrap_or(Value::Null))
+}
+
+// get /o2o/serviceStaff/showMobile
+async fn h_staff_show_mobile(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let row: Option<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('id', id, 'name', name, 'phone', phone) FROM service_staff WHERE id = ? AND is_delete = 0",
+    )
+    .bind(q.id.unwrap_or(0))
+    .fetch_optional(&pool(&state))
+    .await
+    .map_err(db)?;
+    ok(row.map(|(v,)| v).unwrap_or(Value::Null))
+}
+
+// post /o2o/serviceStaff/create
+async fn h_staff_create(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<i64> {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    let gs = |k: &str| body.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
+    let gi = |k: &str| body.get(k).and_then(Value::as_i64).unwrap_or(0);
+    let r = sqlx::query(
+        "INSERT INTO service_staff (name, nickname, avatar, phone, member_id, store_id, type, status, create_time, update_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(gs("name"))
+    .bind(gs("nickname"))
+    .bind(gs("avatar"))
+    .bind(gs("phone"))
+    .bind(gi("memberId"))
+    .bind(gi("storeId"))
+    .bind(body.get("type").and_then(Value::as_i64).unwrap_or(1))
+    .bind(body.get("status").and_then(Value::as_i64).unwrap_or(1))
+    .bind(now)
+    .bind(now)
+    .execute(&pool(&state))
+    .await
+    .map_err(db)?;
+    ok(r.last_insert_id() as i64)
+}
+
+// post /o2o/serviceStaff/update
+async fn h_staff_update(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    let gs = |k: &str| body.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
+    let gi = |k: &str| body.get(k).and_then(Value::as_i64).unwrap_or(0);
+    sqlx::query(
+        "UPDATE service_staff SET name = ?, nickname = ?, avatar = ?, phone = ?, member_id = ?, store_id = ?, type = ?, status = ?, update_time = ? WHERE id = ? AND is_delete = 0",
+    )
+    .bind(gs("name"))
+    .bind(gs("nickname"))
+    .bind(gs("avatar"))
+    .bind(gs("phone"))
+    .bind(gi("memberId"))
+    .bind(gi("storeId"))
+    .bind(body.get("type").and_then(Value::as_i64).unwrap_or(1))
+    .bind(body.get("status").and_then(Value::as_i64).unwrap_or(1))
+    .bind(now)
+    .bind(gi("id"))
+    .execute(&pool(&state))
+    .await
+    .map_err(db)?;
+    ok(())
+}
+
+// post /o2o/serviceStaff/updateField
+async fn h_staff_update_field(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    let field = body.get("field").and_then(Value::as_str).unwrap_or_default();
+    let column = match field {
+        "status" => "status",
+        "workStatus" | "work_status" => "work_status",
+        "name" => "name",
+        "phone" => "phone",
+        "storeId" | "store_id" => "store_id",
+        other => return Err(tigshop_security::web::AppError(Error::Validation(format!("不支持字段 {other}")))),
+    };
+    let val = body.get("val").cloned().or_else(|| body.get("value").cloned()).unwrap_or(Value::Null);
+    let sql = format!("UPDATE service_staff SET {column} = ? WHERE id = ? AND is_delete = 0");
+    if matches!(column, "status" | "work_status" | "store_id") {
+        sqlx::query(&sql)
+            .bind(val.as_i64().unwrap_or(0))
+            .bind(id)
+            .execute(&pool(&state))
+            .await
+            .map_err(db)?;
+    } else {
+        sqlx::query(&sql)
+            .bind(val.as_str().unwrap_or_default())
+            .bind(id)
+            .execute(&pool(&state))
+            .await
+            .map_err(db)?;
+    }
+    ok(())
+}
+
+// post /o2o/serviceStaff/del
+async fn h_staff_del(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let ids = json_ids(&body);
+    if ids.is_empty() {
+        return Err(tigshop_security::web::AppError(Error::Validation("缺少 id".into())));
+    }
+    let list = ids.iter().map(ToString::to_string).collect::<Vec<_>>().join(",");
+    sqlx::query(&format!("UPDATE service_staff SET is_delete = 1 WHERE id IN ({list})"))
+        .execute(&pool(&state))
+        .await
+        .map_err(db)?;
+    ok(())
+}
+
+// post /o2o/serviceStaff/batch
+async fn h_staff_batch(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    h_staff_del(State(state), Json(body)).await
+}
+
 // post /pos/table/cart/list
 async fn h_22(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<tigshop_core::models::pos::cashier::PosCartVO> {
     ok(state.pos.cashier.cart(0, 0, q.id.unwrap_or(0) as i32).await?)
@@ -537,6 +709,14 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/o2o/tip/create", post(h_tip_create))
         .route("/o2o/tip/update", post(h_tip_update))
         .route("/o2o/tip/updateField", post(h_tip_update_field))
+        .route("/o2o/serviceStaff/list", get(h_staff_list))
+        .route("/o2o/serviceStaff/detail", get(h_staff_detail))
+        .route("/o2o/serviceStaff/showMobile", get(h_staff_show_mobile))
+        .route("/o2o/serviceStaff/create", post(h_staff_create))
+        .route("/o2o/serviceStaff/update", post(h_staff_update))
+        .route("/o2o/serviceStaff/updateField", post(h_staff_update_field))
+        .route("/o2o/serviceStaff/del", post(h_staff_del))
+        .route("/o2o/serviceStaff/batch", post(h_staff_batch))
         .route("/pos/table/cart/list", post(h_22))
         .route("/pos/table/cart/addToCart", post(h_23))
         .route("/pos/table/cart/removeItem", post(h_24))

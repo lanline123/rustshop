@@ -1,8 +1,8 @@
 # Rust 接口实现审计（对照 Tigshop Java Apifox 文档）
 
 - 文档接口（HTTP，按 method+path 去重）：1600
-- Rust 源码中能对应到：1493
-- 未找到对应实现：107
+- Rust 源码中能对应到：1501
+- 未找到对应实现：99
 
 > 说明：这是静态审计。判断依据是 Rust 源码中是否出现该路径（含去掉 `/api`、`/adminapi` 前缀后的形式）。
 > “未找到”不一定是完全没写，也可能是路径由常量拼接、特征开关或尚未迁移。
@@ -12,7 +12,6 @@
 | 分组 | 数量 |
 | --- | --- |
 | 前台api / o2o --- 多门店 / 派送订单（配送员 / 服务员端） | 10 |
-| 后台adminapi / o2o --- 多门店 / 服务人员管理 | 8 |
 | 后台adminapi / authority --- 权限组 / 供应商管理 | 7 |
 | 前台api / o2o --- 多门店 / 配送员 / 服务员钱包（C 端） | 6 |
 | 后台adminapi / o2o --- 多门店 / 区域管理 | 5 |
@@ -64,19 +63,6 @@
 | GET | `/api/o2o/deliveryOrder/grabList` | 待抢单列表 |
 | GET | `/api/o2o/deliveryOrder/detail` | 派送订单详情 |
 | GET | `/api/o2o/deliveryOrder/myListTabCounts` | 我的派送订单各 tab 数量 |
-
-### 后台adminapi / o2o --- 多门店 / 服务人员管理（8）
-
-| 方法 | 路径 | 名称 |
-| --- | --- | --- |
-| POST | `/adminapi/o2o/serviceStaff/update` | 更新服务人员 |
-| POST | `/adminapi/o2o/serviceStaff/updateField` | 更新指定字段（状态等） |
-| POST | `/adminapi/o2o/serviceStaff/del` | 删除服务人员 |
-| POST | `/adminapi/o2o/serviceStaff/create` | 创建服务人员 |
-| POST | `/adminapi/o2o/serviceStaff/batch` | 批量删除服务人员 |
-| GET | `/adminapi/o2o/serviceStaff/showMobile` | 获取服务人员详情 |
-| GET | `/adminapi/o2o/serviceStaff/list` | 获取服务人员列表 |
-| GET | `/adminapi/o2o/serviceStaff/detail` | 获取服务人员详情 |
 
 ### 后台adminapi / authority --- 权限组 / 供应商管理（7）
 
