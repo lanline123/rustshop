@@ -114,6 +114,23 @@ java/view/admin/src/views/setting/
 
 ## 进度
 
+### 2026-10-26 B5：O2O 商品分配 + 钱包后台
+
+已补 4 条：
+
+```text
+GET  /adminapi/o2o/productOrg/info/{productId}
+POST /adminapi/o2o/productOrg/distribution
+GET  /adminapi/o2o/serviceStaffWallet/detail
+GET  /adminapi/o2o/serviceStaffWallet/logList
+```
+
+- `product_org` 按 orgType 分组返回；distribution 先清空再重建
+- 钱包详情含 totalWithdrawn；流水按 staffId 分页
+- `cargo check -p tigshop-admin-api` 通过
+- 审计未实现数：88 → 84
+- commit：`d7c55e70`
+
 ### 2026-10-26 B4：O2O 派送订单后台
 
 已补 4 条：
