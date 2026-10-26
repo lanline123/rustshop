@@ -114,6 +114,24 @@ java/view/admin/src/views/setting/
 
 ## 进度
 
+### 2026-10-26 B4：O2O 派送订单后台
+
+已补 4 条：
+
+```text
+GET  /adminapi/o2o/deliveryOrder/list
+GET  /adminapi/o2o/deliveryOrder/detail
+POST /adminapi/o2o/deliveryOrder/dispatch
+POST /adminapi/o2o/deliveryOrder/cancel
+```
+
+- 列表支持店铺/类型/状态/配送员/关键词筛选
+- 手动派单写入 staff 信息、status=20、dispatch_mode=2
+- 取消置 status=50 并记录原因/时间
+- `cargo check -p tigshop-admin-api` 通过
+- 审计未实现数：94 → 88
+- commit：`6d1498de`
+
 ### 2026-10-26 B3：O2O 区域管理
 
 已补 5 条：
