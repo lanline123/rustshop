@@ -34,6 +34,12 @@ pub struct PosUserIdQuery {
     pub user_id: Option<i32>,
 }
 
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PosUserMobileQuery {
+    pub mobile: Option<String>,
+}
+
 /// 本域路由。
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
@@ -41,6 +47,10 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         // 收银员管理
         .route("/pos/adminUserPos/list", post(admin_user_list))
         .route("/pos/adminUserPos/detail", get(admin_user_detail))
+        .route("/pos/adminUserPos/info", get(admin_user_detail))
+        .route("/pos/adminUserPos/create", post(admin_user_modify))
+        .route("/pos/adminUserPos/update", post(admin_user_modify))
+        .route("/pos/adminUserPos/updateField", post(admin_user_update_field))
         .route("/pos/adminUserPos/batch", post(admin_user_batch))
         .route("/pos/adminUserPos/modifyUser", post(admin_user_modify))
         .route("/pos/adminUserPos/del", post(admin_user_del))
@@ -56,11 +66,15 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/pos/user/userAddressList", get(pos_user_addresses))
         .route("/pos/user/userAddressCreate", post(pos_user_address_create))
         .route("/pos/user/coupon/visible-list", post(coupon_visible))
+        .route("/pos/user/coupon/getList", get(coupon_get_list))
+        .route("/pos/user/coupon/list", get(coupon_get_list))
         .route("/pos/user/coupon/claim", post(coupon_claim))
+        .route("/pos/user/getUserByMobile", get(user_by_mobile))
         .route("/pos/user/rechargeOrder/create", post(recharge_create))
         .route("/pos/user/rechargeOrder/update", post(recharge_update))
         .route("/pos/user/rechargeOrder/checkStatus", get(recharge_check))
         .route("/pos/user/rechargeOrder/setting", get(recharge_setting))
+        .route("/pos/user/rechargeOrder/paymentList", get(recharge_setting))
         // 商品
         .route("/pos/product/index", get(product_index))
         .route("/pos/product/getProduct", get(product_get))
@@ -69,6 +83,8 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/pos/product/getProductAvailability", get(product_availability))
         // 购物车 / 挂单
         .route("/pos/cart/list", post(cart_list))
+        .route("/pos/cart/getCount", get(cart_count))
+        .route("/pos/cart/updateCheck", post(cart_update_check))
         .route("/pos/cart/addToCart", post(cart_add))
         .route("/pos/cart/updateItem", post(cart_update))
         .route("/pos/cart/removeItem", post(cart_remove))
@@ -226,6 +242,14 @@ async fn admin_user_modify(
     ok(state.pos.cashier.cashier_save(&dto).await?)
 }
 
+async fn admin_user_update_field(
+    State(state): State<AdminState>,
+    Json(dto): Json<PosAdminUserUpdateFieldDTO>,
+) -> ApiResult<()> {
+    state.pos.cashier.cashier_update_field(&dto).await?;
+    ok(())
+}
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct PosAdminUserDelDTO {
@@ -295,6 +319,25 @@ async fn pos_user_list(
     ok(state.pos.cashier.users(&q).await?)
 }
 
+async fn user_by_mobile(
+    State(state): State<AdminState>,
+    Query(q): Query<PosUserMobileQuery>,
+) -> ApiResult<serde_json::Value> {
+    let mobile = q.mobile.unwrap_or_default();
+    let res = state
+        .pos
+        .cashier
+        .users(&PosUserQuery { page: Some(1), size: Some(10), keyword: Some(mobile), user_id: None })
+        .await?;
+    let first = res
+        .get("records")
+        .and_then(|v| v.as_array())
+        .and_then(|a| a.first())
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
+    ok(first)
+}
+
 async fn pos_user_detail(
     State(state): State<AdminState>,
     Query(q): Query<PosUserIdQuery>,
@@ -353,6 +396,13 @@ async fn pos_user_address_create(
         .user_address_client
         .create(&e, None, false, dto.user_id)
         .await?)
+}
+
+async fn coupon_get_list(
+    State(state): State<AdminState>,
+    Query(q): Query<PosCouponQuery>,
+) -> ApiResult<serde_json::Value> {
+    ok(state.pos.cashier.coupon_visible(q.user_id.unwrap_or(0)).await?)
 }
 
 async fn coupon_visible(
@@ -526,6 +576,27 @@ async fn cart_list(
         .cashier
         .cart(admin_id_of(&tenant), dto.user_id.unwrap_or(0), dto.table_id.unwrap_or(0))
         .await?)
+}
+
+async fn cart_count(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Query(q): Query<PosUserIdQuery>,
+) -> ApiResult<serde_json::Value> {
+    let cart = state
+        .pos
+        .cashier
+        .cart(admin_id_of(&tenant), q.user_id.unwrap_or(0), 0)
+        .await?;
+    ok(serde_json::json!({"totalCount": cart.total.total_count, "checkedCount": cart.total.checked_count}))
+}
+
+async fn cart_update_check(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(dto): Json<PosCartUpdateDTO>,
+) -> ApiResult<()> {
+    ok_generic(state.pos.cashier.update_item(admin_id_of(&tenant), &dto).await?)
 }
 
 async fn cart_add(
