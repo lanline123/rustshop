@@ -229,12 +229,24 @@ serverStaffWithdrawManage   服务员提现管理
 ## 线上验收（2026-10-26）
 
 ```text
-https://battery.recy.cc/adminapi/health → 200
+https://battery.recy.cc/                 → 200
 https://battery.recy.cc/admin/           → 200
+https://battery.recy.cc/mobile/          → 200（移动 UA）
 https://battery.recy.cc/oauth/callback   → 200（4098 字节，与本地 SHA256 一致）
 https://battery.recy.cc/cycleCard        → 200（6274 字节，与本地 SHA256 一致）
-https://battery.recy.cc/mobile/          → 200
+https://battery.recy.cc/adminapi/health  → 200
 ```
+
+静态资源：
+
+```text
+/admin/assets/index-BYky8Jxs.js  → application/javascript
+/mobile/assets/pages-delivery-list.sAIcrx0l.js → application/javascript
+```
+
+> 2026-10-26 修复：Windows `Compress-Archive` 生成的 zip 使用反斜杠路径，
+> Linux 解压后变成 `assets\xxx` 文件名，导致 Admin/H5 的 assets 目录缺失。
+> 已用 Python 重新打包为 `/` 路径并重新部署，资源 Content-Type 正常。
 
 > PC 站点根路径有 SPA 回退，已在 Nginx 扩展目录新增
 > `pc-static.conf` 两条精确 location，防止 `/oauth/callback`、
