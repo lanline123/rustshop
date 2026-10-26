@@ -404,6 +404,11 @@ impl PayService {
         crate::payment::channels::load_channel_configs(&self.repos).await
     }
 
+    /// 读取 `config` 表单项（Stripe/Xendit/Antom 等新增渠道使用）。
+    pub async fn config_value(&self, code: &str) -> Result<Option<String>> {
+        self.repos.system.config_basic.find_by_code(code).await
+    }
+
     /// 创建线下汇款待支付流水（Java `PaylogService#creatPayLog` 离线分支）。
     async fn create_pending_offline_paylog(&self, order: &PayOrderRow) -> Result<String> {
         use tigshop_core::entities::Paylog;
