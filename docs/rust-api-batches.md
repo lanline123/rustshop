@@ -135,6 +135,26 @@ cycleCard list/detail/{cardId}/checkUsable/{cardId}/refundInfo/{cardId}/checkAft
 - **审计未实现数：18 → 0**
 - commit：`1f5ddaef`、`c22377a2`
 
+### 2026-10-26 最终部署校正
+
+发现服务器上遗留的部署/回滚计划任务每 30 分钟运行，`rollbackC` 会把二进制回滚到 A 批。
+
+已处理：
+
+```text
+删除所有 deploy/rollback/check 类计划任务
+保留 Let's Encrypt 证书续签任务
+重新部署 F 批二进制
+```
+
+最终线上：
+
+```text
+sha256：8d2e3ea82a0a0965f25d65ce359ab09168ea89a43096df3ff8223b2b65685f07
+health：UP
+/api/cycleCard/list → 200（F 批接口存在）
+```
+
 ### F 批构建部署（2026-10-26）
 
 ```text
