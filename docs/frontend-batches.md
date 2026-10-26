@@ -134,6 +134,18 @@ OAuth 回调页 /pages/oauth/callback
 
 ## PC
 
+### 2026-10-26 次卡页面（静态页）
+
+新增：
+
+```text
+java/public/cycleCard/index.html
+```
+
+- 读取 `accessToken` cookie 调 `/api/cycleCard/list`
+- 列表 / 详情 / 可用性检查
+- 线上：`https://battery.recy.cc/cycleCard` → 200
+
 ### 2026-10-26 OAuth 回调页
 
 新增静态页：
