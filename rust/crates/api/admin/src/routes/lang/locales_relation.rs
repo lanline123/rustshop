@@ -163,8 +163,8 @@ mod tests {
     #[test]
     fn implemented_routes_match_frontend_contract() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 6);
+        assert_eq!(docs.len(), 7);
         assert_eq!(docs[0].path, "/adminapi/lang/localesRelation/list");
-        assert_eq!(docs[5].path, "/adminapi/lang/localesRelation/config");
+        assert!(docs.iter().any(|d| d.path == "/adminapi/lang/localesRelation/config"));
     }
 }

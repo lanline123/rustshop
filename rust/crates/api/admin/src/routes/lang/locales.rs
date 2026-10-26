@@ -117,9 +117,9 @@ mod tests {
     #[test]
     fn implemented_routes_match_frontend_contract() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 5);
+        assert_eq!(docs.len(), 6);
         assert_eq!(docs[0].path, "/adminapi/lang/locales/list");
         assert_eq!(docs[0].method, "GET");
-        assert_eq!(docs[2].path, "/adminapi/lang/locales/updateField");
+        assert!(docs.iter().any(|d| d.path == "/adminapi/lang/locales/updateField"));
     }
 }

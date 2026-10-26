@@ -240,7 +240,7 @@ mod tests {
     #[test]
     fn implemented_routes_match_java_contract() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 7);
+        assert_eq!(docs.len(), 8);
         let expected = [
             ("GET", "/adminapi/setting/galleryVideo/getAllCategory"),
             ("GET", "/adminapi/setting/galleryVideo/list"),
@@ -265,7 +265,7 @@ mod tests {
 
     #[test]
     fn route_table_is_unique_and_prefixed() {
-        assert_eq!(ROUTE_TABLE.len(), 7);
+        assert_eq!(ROUTE_TABLE.len(), 8);
         for (i, (_, p, _)) in ROUTE_TABLE.iter().enumerate() {
             assert!(p.starts_with("/setting/galleryVideo/"), "路径前缀错误: {p}");
             for (_, p2, _) in ROUTE_TABLE.iter().skip(i + 1) {

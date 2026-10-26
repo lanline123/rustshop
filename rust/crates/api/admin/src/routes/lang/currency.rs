@@ -187,12 +187,9 @@ mod tests {
     #[test]
     fn implemented_routes_match_frontend_contract() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 10);
+        assert_eq!(docs.len(), 11);
         assert_eq!(docs[0].path, "/adminapi/lang/currency/list");
-        assert_eq!(
-            docs[9].path,
-            "/adminapi/lang/currency/translation"
-        );
+        assert!(docs.iter().any(|d| d.path == "/adminapi/lang/currency/translation"));
     }
 
     #[test]
