@@ -1,8 +1,8 @@
 # Rust 接口实现审计（对照 Tigshop Java Apifox 文档）
 
 - 文档接口（HTTP，按 method+path 去重）：1600
-- Rust 源码中能对应到：1480
-- 未找到对应实现：120
+- Rust 源码中能对应到：1486
+- 未找到对应实现：114
 
 > 说明：这是静态审计。判断依据是 Rust 源码中是否出现该路径（含去掉 `/api`、`/adminapi` 前缀后的形式）。
 > “未找到”不一定是完全没写，也可能是路径由常量拼接、特征开关或尚未迁移。
@@ -14,7 +14,6 @@
 | 前台api / o2o --- 多门店 / 派送订单（配送员 / 服务员端） | 10 |
 | 后台adminapi / o2o --- 多门店 / 服务人员管理 | 8 |
 | 后台adminapi / authority --- 权限组 / 供应商管理 | 7 |
-| 后台adminapi / setting --- 配置组 / 设置 | 6 |
 | 前台api / o2o --- 多门店 / 配送员 / 服务员钱包（C 端） | 6 |
 | 后台adminapi / o2o --- 多门店 / 区域管理 | 5 |
 | 后台adminapi / vendor --- 供应商组 / 供应商员工管理 | 5 |
@@ -92,17 +91,6 @@
 | POST | `/adminapi/authority/suppliers/batch` | 批量操作 |
 | GET | `/adminapi/authority/suppliers/list` | 获取列表 |
 | GET | `/adminapi/authority/suppliers/detail` | 获取详情 |
-
-### 后台adminapi / setting --- 配置组 / 设置（6）
-
-| 方法 | 路径 | 名称 |
-| --- | --- | --- |
-| POST | `/adminapi/setting/config/saveStripe` | 保存系统设置-Stripe支付设置 |
-| GET | `/adminapi/setting/config/stripeSettings` | 获取系统设置-Stripe支付设置 |
-| POST | `/adminapi/setting/config/saveXendit` | 保存系统设置-Xendit支付设置 |
-| POST | `/adminapi/setting/config/saveAntom` | 保存系统设置-Antom支付设置 |
-| GET | `/adminapi/setting/config/xenditSettings` | 获取系统设置-Xendit支付设置 |
-| GET | `/adminapi/setting/config/antomSettings` | 获取系统设置-Antom支付设置 |
 
 ### 前台api / o2o --- 多门店 / 配送员 / 服务员钱包（C 端）（6）
 
