@@ -114,6 +114,24 @@ java/view/admin/src/views/setting/
 
 ## 进度
 
+### 2026-10-26 B8：收款账号 + 提现查询
+
+```text
+GET  /api/o2o/staffAccount/list
+POST /api/o2o/staffAccount/save
+POST /api/o2o/staffAccount/del
+GET  /api/o2o/staffWallet/withdrawConfig
+GET  /api/o2o/staffWallet/myWithdrawList
+GET  /api/o2o/staffWallet/myWithdrawDetail
+```
+
+- 收款账号复用 `user_withdraw_account`（按当前会员 user_id）
+- 提现规则按服务人员 type 读 `o2oDeliveryWithdrawConfig` / `o2oServerWithdrawConfig`
+- 提现记录查询仅限本人
+- `cargo check -p tigshop-api` 通过
+- 审计未实现数：72 → 66
+- commit：`35cec945`
+
 ### 2026-10-26 B7：服务人员资料 + 钱包基础
 
 ```text
