@@ -41,6 +41,8 @@ pub struct Pg {
     pub delivery_order_id: Option<i64>,
     pub cancel_reason: Option<String>,
     pub r#type: Option<i64>,
+    pub business_type: Option<i64>,
+    pub withdraw_id: Option<i64>,
 }
 
 fn json_ids(body: &Value) -> Vec<i64> {
@@ -809,6 +811,140 @@ async fn h_staff_wallet_log_list(State(state): State<AdminState>, Query(q): Quer
     ok(serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "total": total, "size": s, "current": p, "pages": (total as u64 + s - 1) / s}))
 }
 
+// ————————————————————— 财务：员工提现/钱包 —————————————————————
+
+async fn finance_withdraw_list(
+    state: &AdminState,
+    business_type: Option<i64>,
+    q: &Pg,
+) -> ApiResult<Value> {
+    let (p, s, off) = page_of(q);
+    let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
+    let btype = business_type.or(q.business_type).unwrap_or(0);
+    let status = q.status.unwrap_or(-1);
+    let staff_id = q.staff_id.unwrap_or(0);
+    let count_sql = "SELECT COUNT(*) FROM service_staff_withdraw w LEFT JOIN service_staff s ON s.id = w.staff_id WHERE w.is_delete = 0 AND (? = 0 OR w.business_type = ?) AND (? = -1 OR w.status = ?) AND (? = 0 OR w.staff_id = ?) AND (w.withdraw_sn LIKE ? OR s.name LIKE ?)".to_string();
+    let (total,): (i64,) = sqlx::query_as(&count_sql)
+        .bind(btype).bind(btype).bind(status).bind(status).bind(staff_id).bind(staff_id).bind(&kw).bind(&kw)
+        .fetch_one(&pool(state)).await.map_err(db)?;
+    let list_sql = "SELECT JSON_OBJECT('withdrawId', w.withdraw_id, 'withdrawSn', w.withdraw_sn, 'staffId', w.staff_id, 'staffName', s.name, 'staffPhone', s.phone, 'businessType', w.business_type, 'amount', w.amount, 'status', w.status, 'accountId', w.account_id, 'accountType', w.account_type, 'accountName', w.account_name, 'accountNo', w.account_no, 'bankName', w.bank_name, 'adminRemark', w.admin_remark, 'paymentVoucher', w.payment_voucher, 'rejectReason', w.reject_reason, 'applyTime', w.apply_time, 'auditTime', w.audit_time) FROM service_staff_withdraw w LEFT JOIN service_staff s ON s.id = w.staff_id WHERE w.is_delete = 0 AND (? = 0 OR w.business_type = ?) AND (? = -1 OR w.status = ?) AND (? = 0 OR w.staff_id = ?) AND (w.withdraw_sn LIKE ? OR s.name LIKE ?) ORDER BY w.withdraw_id DESC LIMIT ? OFFSET ?".to_string();
+    let rows: Vec<(Value,)> = sqlx::query_as(&list_sql)
+        .bind(btype).bind(btype).bind(status).bind(status).bind(staff_id).bind(staff_id).bind(&kw).bind(&kw).bind(s).bind(off)
+        .fetch_all(&pool(state)).await.map_err(db)?;
+    ok(serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "total": total, "page": p, "size": s}))
+}
+
+async fn finance_withdraw_detail(state: &AdminState, q: &Pg) -> ApiResult<Value> {
+    let row: Option<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('withdrawId', w.withdraw_id, 'withdrawSn', w.withdraw_sn, 'staffId', w.staff_id, 'staffName', s.name, 'staffPhone', s.phone, 'businessType', w.business_type, 'amount', w.amount, 'status', w.status, 'accountId', w.account_id, 'accountType', w.account_type, 'accountName', w.account_name, 'accountNo', w.account_no, 'bankName', w.bank_name, 'adminRemark', w.admin_remark, 'paymentVoucher', w.payment_voucher, 'rejectReason', w.reject_reason, 'applyTime', w.apply_time, 'auditTime', w.audit_time) FROM service_staff_withdraw w LEFT JOIN service_staff s ON s.id = w.staff_id WHERE w.withdraw_id = ? AND w.is_delete = 0",
+    )
+    .bind(q.withdraw_id.or(q.id).unwrap_or(0))
+    .fetch_optional(&pool(state)).await.map_err(db)?;
+    ok(row.map(|(v,)| v).unwrap_or(Value::Null))
+}
+
+async fn finance_withdraw_audit(state: &AdminState, body: &Value) -> ApiResult<()> {
+    let withdraw_id = body.get("withdrawId").or_else(|| body.get("id")).and_then(Value::as_i64).unwrap_or(0);
+    let status = body.get("status").and_then(Value::as_i64).unwrap_or(0);
+    let remark = body.get("adminRemark").and_then(Value::as_str).unwrap_or_default();
+    let voucher = body.get("paymentVoucher").and_then(Value::as_str).unwrap_or_default();
+    let reject = body.get("rejectReason").and_then(Value::as_str).unwrap_or_default();
+    let row: Option<(i64, rust_decimal::Decimal, i64, i64)> = sqlx::query_as(
+        "SELECT staff_id, amount, business_type, status FROM service_staff_withdraw WHERE withdraw_id = ? AND is_delete = 0",
+    ).bind(withdraw_id).fetch_optional(&pool(state)).await.map_err(db)?;
+    let Some((staff_id, amount, business_type, old_status)) = row else {
+        return Err(tigshop_security::web::AppError(Error::Validation("提现单不存在".into())));
+    };
+    if old_status != 0 {
+        return Err(tigshop_security::web::AppError(Error::Validation("该提现单已审核".into())));
+    }
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    sqlx::query("UPDATE service_staff_withdraw SET status = ?, admin_remark = ?, payment_voucher = ?, reject_reason = ?, audit_time = ?, update_time = ? WHERE withdraw_id = ?")
+        .bind(status).bind(remark).bind(voucher).bind(reject).bind(now).bind(now).bind(withdraw_id)
+        .execute(&pool(state)).await.map_err(db)?;
+    if status == 1 {
+        sqlx::query("UPDATE service_staff_wallet SET frozen_balance = frozen_balance - ?, update_time = ? WHERE staff_id = ?")
+            .bind(amount).bind(now).bind(staff_id).execute(&pool(state)).await.map_err(db)?;
+        sqlx::query("INSERT INTO service_staff_wallet_log (staff_id, withdraw_id, amount, balance_after, frozen_after, business_type, type, remark, create_time) SELECT staff_id, ?, ?, balance, frozen_balance, ?, 2, '提现打款', ? FROM service_staff_wallet WHERE staff_id = ?")
+            .bind(withdraw_id).bind(-amount).bind(business_type).bind(now).bind(staff_id)
+            .execute(&pool(state)).await.map_err(db)?;
+    } else if status == 2 {
+        sqlx::query("UPDATE service_staff_wallet SET frozen_balance = frozen_balance - ?, balance = balance + ?, update_time = ? WHERE staff_id = ?")
+            .bind(amount).bind(amount).bind(now).bind(staff_id).execute(&pool(state)).await.map_err(db)?;
+        sqlx::query("INSERT INTO service_staff_wallet_log (staff_id, withdraw_id, amount, balance_after, frozen_after, business_type, type, remark, create_time) SELECT staff_id, ?, ?, balance, frozen_balance, ?, 5, '提现驳回退回', ? FROM service_staff_wallet WHERE staff_id = ?")
+            .bind(withdraw_id).bind(amount).bind(business_type).bind(now).bind(staff_id)
+            .execute(&pool(state)).await.map_err(db)?;
+    }
+    ok(())
+}
+
+// GET /finance/staffFundWithdraw/list | /deliveryStaffWithdraw/list | /serverStaffWithdraw/list
+async fn h_fin_staff_withdraw_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> { finance_withdraw_list(&state, None, &q).await }
+async fn h_fin_delivery_withdraw_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> { finance_withdraw_list(&state, Some(1), &q).await }
+async fn h_fin_server_withdraw_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> { finance_withdraw_list(&state, Some(2), &q).await }
+async fn h_fin_staff_withdraw_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> { finance_withdraw_detail(&state, &q).await }
+async fn h_fin_staff_withdraw_audit(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> { finance_withdraw_audit(&state, &body).await }
+
+// GET /finance/staffFundWallet/overview|ranking|staffList|incomeTrend
+async fn h_fin_wallet_overview(State(state): State<AdminState>) -> ApiResult<Value> {
+    let row: Option<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('totalIncome', COALESCE(SUM(total_income),0), 'availableBalance', COALESCE(SUM(balance),0), 'frozenBalance', COALESCE(SUM(frozen_balance),0)) FROM service_staff_wallet",
+    ).fetch_optional(&pool(&state)).await.map_err(db)?;
+    let (withdrawn,): (Value,) = sqlx::query_as("SELECT COALESCE(SUM(ABS(amount)),0) FROM service_staff_wallet_log WHERE type = 2").fetch_one(&pool(&state)).await.map_err(db)?;
+    let mut obj = row.map(|(v,)| v).unwrap_or_else(|| serde_json::json!({}));
+    obj["totalWithdrawn"] = withdrawn;
+    ok(obj)
+}
+
+async fn h_fin_wallet_staff_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let (p, s, off) = page_of(&q);
+    let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
+    let btype = q.business_type.unwrap_or(0);
+    let (total,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM service_staff s LEFT JOIN service_staff_wallet w ON w.staff_id = s.id WHERE s.is_delete = 0 AND (? = 0 OR s.type = ?) AND s.name LIKE ?",
+    ).bind(btype).bind(btype).bind(&kw).fetch_one(&pool(&state)).await.map_err(db)?;
+    let rows: Vec<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('staffId', s.id, 'staffName', s.name, 'staffPhone', s.phone, 'type', s.type, 'status', s.status, 'workStatus', s.work_status, 'balance', COALESCE(w.balance,0), 'frozenBalance', COALESCE(w.frozen_balance,0), 'totalIncome', COALESCE(w.total_income,0)) FROM service_staff s LEFT JOIN service_staff_wallet w ON w.staff_id = s.id WHERE s.is_delete = 0 AND (? = 0 OR s.type = ?) AND s.name LIKE ? ORDER BY s.id DESC LIMIT ? OFFSET ?",
+    ).bind(btype).bind(btype).bind(&kw).bind(s).bind(off).fetch_all(&pool(&state)).await.map_err(db)?;
+    ok(serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "total": total, "page": p, "size": s}))
+}
+
+async fn h_fin_wallet_ranking(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    h_fin_wallet_staff_list(State(state), Query(q)).await
+}
+
+async fn h_fin_wallet_log_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let (p, s, off) = page_of(&q);
+    let btype = q.business_type.unwrap_or(0);
+    let (total,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM service_staff_wallet_log l LEFT JOIN service_staff s ON s.id = l.staff_id WHERE (? = 0 OR l.business_type = ?)",
+    ).bind(btype).bind(btype).fetch_one(&pool(&state)).await.map_err(db)?;
+    let rows: Vec<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('logId', l.log_id, 'staffId', l.staff_id, 'staffName', s.name, 'orderId', l.order_id, 'withdrawId', l.withdraw_id, 'transactionSn', l.transaction_sn, 'amount', l.amount, 'balanceAfter', l.balance_after, 'frozenAfter', l.frozen_after, 'businessType', l.business_type, 'type', l.type, 'remark', l.remark, 'createTime', l.create_time) FROM service_staff_wallet_log l LEFT JOIN service_staff s ON s.id = l.staff_id WHERE (? = 0 OR l.business_type = ?) ORDER BY l.log_id DESC LIMIT ? OFFSET ?",
+    ).bind(btype).bind(btype).bind(s).bind(off).fetch_all(&pool(&state)).await.map_err(db)?;
+    ok(serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "total": total, "page": p, "size": s}))
+}
+
+async fn h_fin_wallet_log_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let row: Option<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('staffId', id, 'walletId', w.wallet_id, 'balance', w.balance, 'frozenBalance', w.frozen_balance, 'totalIncome', w.total_income, 'staffName', name, 'staffPhone', phone) FROM service_staff s LEFT JOIN service_staff_wallet w ON w.staff_id = s.id WHERE s.id = ?",
+    ).bind(q.staff_id.unwrap_or(0)).fetch_optional(&pool(&state)).await.map_err(db)?;
+    ok(row.map(|(v,)| v).unwrap_or(Value::Null))
+}
+
+async fn h_fin_wallet_income_trend(State(state): State<AdminState>) -> ApiResult<Value> {
+    let rows: Vec<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('day', FROM_UNIXTIME(create_time, '%Y-%m-%d'), 'income', COALESCE(SUM(amount),0)) FROM service_staff_wallet_log WHERE create_time >= UNIX_TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 30 DAY)) GROUP BY FROM_UNIXTIME(create_time, '%Y-%m-%d') ORDER BY day",
+    ).fetch_all(&pool(&state)).await.map_err(db)?;
+    ok(Value::Array(rows.into_iter().map(|(v,)| v).collect()))
+}
+
+// 财务提现设置（JSON 配置表）
+cfg_get!(h_fin_delivery_cfg, "o2oDeliveryFundConfig");
+cfg_set!(h_fin_delivery_cfg_save, "o2oDeliveryFundConfig");
+cfg_get!(h_fin_server_cfg, "o2oServerFundConfig");
+cfg_set!(h_fin_server_cfg_save, "o2oServerFundConfig");
+
 // post /pos/table/cart/list
 async fn h_22(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<tigshop_core::models::pos::cashier::PosCartVO> {
     ok(state.pos.cashier.cart(0, 0, q.id.unwrap_or(0) as i32).await?)
@@ -1033,6 +1169,25 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/o2o/productOrg/distribution", post(h_product_org_distribution))
         .route("/o2o/serviceStaffWallet/detail", get(h_staff_wallet_detail))
         .route("/o2o/serviceStaffWallet/logList", get(h_staff_wallet_log_list))
+        .route("/finance/staffFundWithdraw/list", get(h_fin_staff_withdraw_list))
+        .route("/finance/staffFundWithdraw/detail", get(h_fin_staff_withdraw_detail))
+        .route("/finance/staffFundWithdraw/audit", post(h_fin_staff_withdraw_audit))
+        .route("/finance/deliveryStaffWithdraw/list", get(h_fin_delivery_withdraw_list))
+        .route("/finance/deliveryStaffWithdraw/detail", get(h_fin_staff_withdraw_detail))
+        .route("/finance/deliveryStaffWithdraw/audit", post(h_fin_staff_withdraw_audit))
+        .route("/finance/serverStaffWithdraw/list", get(h_fin_server_withdraw_list))
+        .route("/finance/serverStaffWithdraw/detail", get(h_fin_staff_withdraw_detail))
+        .route("/finance/serverStaffWithdraw/audit", post(h_fin_staff_withdraw_audit))
+        .route("/finance/staffFundWallet/overview", get(h_fin_wallet_overview))
+        .route("/finance/staffFundWallet/staffList", get(h_fin_wallet_staff_list))
+        .route("/finance/staffFundWallet/ranking", get(h_fin_wallet_ranking))
+        .route("/finance/staffFundWallet/incomeTrend", get(h_fin_wallet_income_trend))
+        .route("/finance/staffFundWalletLog/list", get(h_fin_wallet_log_list))
+        .route("/finance/staffFundWalletLog/walletDetail", get(h_fin_wallet_log_detail))
+        .route("/finance/deliveryFundManagement/settings/detail", get(h_fin_delivery_cfg))
+        .route("/finance/deliveryFundManagement/settings/save", post(h_fin_delivery_cfg_save))
+        .route("/finance/serverFundManagement/settings/detail", get(h_fin_server_cfg))
+        .route("/finance/serverFundManagement/settings/save", post(h_fin_server_cfg_save))
         .route("/o2o/decorate/decorate/detail", get(h_4))
         .route("/o2o/decorate/decorate/update", post(h_5))
         .route("/o2o/dispatch/assign", post(h_6))
