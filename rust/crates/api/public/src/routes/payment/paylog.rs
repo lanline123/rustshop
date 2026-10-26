@@ -44,7 +44,10 @@ pub fn authorized_routes() -> Router<PublicState> {
 /// 路径参数名沿用原 Java 的 `payType`（camelCase），以便与契约逐字符对齐。
 pub fn public_routes() -> Router<PublicState> {
     Router::new()
-        // 拉卡拉回调路径更具体，需先于 `{payType}` 注册
+        // 海外渠道回调路径更具体，需先于 `{payType}` 注册
+        .route("/order/pay/notify/stripe", post(stripe_notify))
+        .route("/order/pay/notify/xendit", post(xendit_notify))
+        .route("/order/pay/notify/antom", post(antom_notify))
         .route("/order/pay/notify/lakala", post(notify))
         .route("/order/pay/notify/{payType}", post(notify))
         .route("/order/pay/refundNotify/{payType}", post(refund_notify))
@@ -57,6 +60,9 @@ pub fn public_routes() -> Router<PublicState> {
 #[must_use]
 pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     [
+        ("POST", "/api/order/pay/notify/stripe", "PayController.stripeNotify"),
+        ("POST", "/api/order/pay/notify/xendit", "PayController.xenditNotify"),
+        ("POST", "/api/order/pay/notify/antom", "PayController.antomNotify"),
         ("POST", "/api/order/pay/notify/lakala", "PayController.lakalaNotify"),
         ("POST", "/api/order/pay/notify/{payType}", "PayController.notify"),
         ("POST", "/api/order/pay/refundNotify/{payType}", "PayController.refundNotify"),
@@ -289,6 +295,113 @@ fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
         .get(name)
         .and_then(|value| value.to_str().ok())
         .map(str::to_string)
+}
+
+/// `POST /api/order/pay/notify/stripe`：Stripe Webhook。
+///
+/// 仅接受 HMAC 验签通过的 `payment_intent.succeeded` / `checkout.session.completed`。
+async fn stripe_notify(
+    State(state): State<PublicState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Response, AppError> {
+    let secret = state
+        .payment
+        .pay
+        .config_value("stripeWebhookSecret")
+        .await?
+        .filter(|v| !v.trim().is_empty())
+        .ok_or_else(|| AppError(tigshop_core::Error::biz(1001, "Stripe 未配置 Webhook Secret")))?;
+    let signature = header_str(&headers, "stripe-signature")
+        .ok_or_else(|| AppError(tigshop_core::Error::biz(1001, "Stripe 回调缺少 Stripe-Signature")))?;
+    let body_str = String::from_utf8_lossy(&body).to_string();
+    tigshop_services::payment::channels::stripe_verify_webhook(&secret, &signature, &body_str)?;
+    let event: serde_json::Value = serde_json::from_str(&body_str)
+        .map_err(|e| AppError(tigshop_core::Error::Validation(format!("Stripe 回调报文非法: {e}"))))?;
+    let event_type = event.get("type").and_then(serde_json::Value::as_str).unwrap_or_default();
+    if !matches!(event_type, "payment_intent.succeeded" | "checkout.session.completed") {
+        return Ok((StatusCode::OK, "SUCCESS").into_response());
+    }
+    let object = event
+        .get("data")
+        .and_then(|d| d.get("object"))
+        .ok_or_else(|| AppError(tigshop_core::Error::Validation("Stripe 回调缺少 data.object".into())))?;
+    let pay_sn = object
+        .get("metadata")
+        .and_then(|m| m.get("pay_sn"))
+        .and_then(serde_json::Value::as_str)
+        .or_else(|| object.get("client_reference_id").and_then(serde_json::Value::as_str))
+        .filter(|v| !v.trim().is_empty())
+        .ok_or_else(|| AppError(tigshop_core::Error::Validation("Stripe 回调缺少 pay_sn".into())))?;
+    let transaction_id = object.get("id").and_then(serde_json::Value::as_str).unwrap_or_default();
+    state
+        .payment
+        .paylog
+        .mark_paid_by_pay_sn(pay_sn, transaction_id, &body_str)
+        .await?;
+    if let Err(e) = state
+        .payment
+        .paylog
+        .settle_order_by_pay_sn(pay_sn, transaction_id)
+        .await
+    {
+        tracing::warn!("Stripe 回调推进订单失败: pay_sn={pay_sn}, err={e}");
+    }
+    Ok((StatusCode::OK, "SUCCESS").into_response())
+}
+
+/// `POST /api/order/pay/notify/xendit`：Xendit 回调。
+async fn xendit_notify(
+    State(state): State<PublicState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Response, AppError> {
+    let expected = state
+        .payment
+        .pay
+        .config_value("xenditWebhookToken")
+        .await?
+        .filter(|v| !v.trim().is_empty())
+        .ok_or_else(|| AppError(tigshop_core::Error::biz(1001, "Xendit 未配置 Webhook Token")))?;
+    let actual = header_str(&headers, "x-callback-token").unwrap_or_default();
+    if !tigshop_services::payment::channels::xendit_verify_token(&expected, &actual) {
+        return Ok((StatusCode::BAD_REQUEST, Json(serde_json::json!({"status":"FAILED"}))).into_response());
+    }
+    let body_str = String::from_utf8_lossy(&body).to_string();
+    let payload: serde_json::Value = serde_json::from_str(&body_str)
+        .map_err(|e| AppError(tigshop_core::Error::Validation(format!("Xendit 回调报文非法: {e}"))))?;
+    let status = payload.get("status").and_then(serde_json::Value::as_str).unwrap_or_default();
+    if !matches!(status, "PAID" | "SETTLED") {
+        return Ok((StatusCode::OK, Json(serde_json::json!({"status":"OK"}))).into_response());
+    }
+    let pay_sn = payload
+        .get("external_id")
+        .and_then(serde_json::Value::as_str)
+        .filter(|v| !v.trim().is_empty())
+        .ok_or_else(|| AppError(tigshop_core::Error::Validation("Xendit 回调缺少 external_id".into())))?;
+    let transaction_id = payload.get("id").and_then(serde_json::Value::as_str).unwrap_or_default();
+    state
+        .payment
+        .paylog
+        .mark_paid_by_pay_sn(pay_sn, transaction_id, &body_str)
+        .await?;
+    if let Err(e) = state
+        .payment
+        .paylog
+        .settle_order_by_pay_sn(pay_sn, transaction_id)
+        .await
+    {
+        tracing::warn!("Xendit 回调推进订单失败: pay_sn={pay_sn}, err={e}");
+    }
+    Ok((StatusCode::OK, Json(serde_json::json!({"status":"OK"}))).into_response())
+}
+
+/// `POST /api/order/pay/notify/antom`：Antom 回调（RSA 验签待补）。
+async fn antom_notify() -> Result<Response, AppError> {
+    Err(AppError(tigshop_core::Error::biz(
+        1001,
+        "Antom 回调 RSA 验签尚未迁移，不能接受支付通知",
+    )))
 }
 
 /// 退款回调载荷。
