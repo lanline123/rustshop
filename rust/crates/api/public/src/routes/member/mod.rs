@@ -4,6 +4,7 @@ pub mod captcha_api;
 pub mod collect_product;
 pub mod login;
 pub mod member_lists;
+pub mod oauth;
 pub mod user_address_client;
 pub mod user_center;
 pub mod user_company_client;
@@ -45,6 +46,7 @@ pub fn anonymous_routes(state: &PublicState) -> Router<PublicState> {
     Router::new()
         .merge(captcha_api::anonymous_routes(state))
         .merge(login::anonymous_routes(state))
+        .merge(oauth::anonymous_routes(state))
 }
 
 /// 需登录路由（外层统一套 require_auth）。
@@ -61,6 +63,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(collect_product::implemented_routes());
     out.extend(login::implemented_routes());
     out.extend(member_lists::implemented_routes());
+    out.extend(oauth::implemented_routes());
     out.extend(user_address_client::implemented_routes());
     out.extend(user_center::implemented_routes());
     out.extend(user_company_client::implemented_routes());

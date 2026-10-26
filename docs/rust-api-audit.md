@@ -1,8 +1,8 @@
 # Rust 接口实现审计（对照 Tigshop Java Apifox 文档）
 
 - 文档接口（HTTP，按 method+path 去重）：1600
-- Rust 源码中能对应到：1477
-- 未找到对应实现：123
+- Rust 源码中能对应到：1480
+- 未找到对应实现：120
 
 > 说明：这是静态审计。判断依据是 Rust 源码中是否出现该路径（含去掉 `/api`、`/adminapi` 前缀后的形式）。
 > “未找到”不一定是完全没写，也可能是路径由常量拼接、特征开关或尚未迁移。
@@ -29,7 +29,6 @@
 | 后台adminapi / pos --- 收银台组 / 收银台订单结算 | 3 |
 | 后台adminapi / vendor --- 供应商组 / 供应商资金变化 | 3 |
 | 前台api / order --- 订单 / 订单支付 | 3 |
-| 前台api / user --- 会员中心 / 第三方登录 | 3 |
 | 前台api / o2o --- 多门店 / 配送员收款账号（C 端） | 3 |
 | 后台adminapi / promotion --- 营销组 / 微信直播 | 2 |
 | 后台adminapi / finance --- 财务组 / 配送员资金管理 - 配送设置 | 2 |
@@ -229,14 +228,6 @@
 | POST | `/api/order/pay/notify/stripe` | stripe支付回调 |
 | POST | `/api/order/pay/notify/xendit` | xendit支付/退款回调 |
 | POST | `/api/order/pay/notify/antom` | antom支付/退款回调 |
-
-### 前台api / user --- 会员中心 / 第三方登录（3）
-
-| 方法 | 路径 | 名称 |
-| --- | --- | --- |
-| GET | `/api/user/oauth/callback/{source}` | 校验授权回调地址并登录（测试版） |
-| POST | `/api/user/oauth/callback/{source}` | 校验授权回调地址并登录 |
-| GET | `/api/user/oauth/render/{source}` | 获取授权链接 |
 
 ### 前台api / o2o --- 多门店 / 配送员收款账号（C 端）（3）
 
