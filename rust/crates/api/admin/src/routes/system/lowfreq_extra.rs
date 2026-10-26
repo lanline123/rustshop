@@ -37,6 +37,10 @@ pub struct Pg {
     pub parent_id: Option<i32>,
     pub tip_id: Option<i64>,
     pub tip_name: Option<String>,
+    pub staff_id: Option<i64>,
+    pub delivery_order_id: Option<i64>,
+    pub cancel_reason: Option<String>,
+    pub r#type: Option<i64>,
 }
 
 fn json_ids(body: &Value) -> Vec<i64> {
@@ -601,6 +605,94 @@ async fn h_area_batch(State(state): State<AdminState>, Json(body): Json<Value>) 
     ok(())
 }
 
+// ————————————————————— O2O 派送订单后台 —————————————————————
+
+const DELIVERY_JSON: &str = "'deliveryOrderId', delivery_order_id, 'deliveryOrderSn', delivery_order_sn, 'orderId', order_id, 'orderSn', order_sn, 'shopId', shop_id, 'type', type, 'dispatchMode', dispatch_mode, 'status', status, 'staffId', staff_id, 'staffName', staff_name, 'staffPhone', staff_phone, 'consignee', consignee, 'mobile', mobile, 'address', address, 'regionNames', region_names, 'orderAmount', order_amount, 'buyerNote', buyer_note, 'dispatchTime', dispatch_time, 'grabTime', grab_time, 'pickupTime', pickup_time, 'completeTime', complete_time, 'cancelTime', cancel_time, 'cancelReason', cancel_reason, 'createTime', create_time";
+
+// get /o2o/deliveryOrder/list
+async fn h_delivery_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let (p, s, off) = page_of(&q);
+    let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
+    let shop_id = q.shop_id.unwrap_or(0);
+    let dtype = q.r#type.unwrap_or(0);
+    let status = q.status.unwrap_or(-1);
+    let staff_id = q.staff_id.unwrap_or(0);
+    let (total,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM delivery_order WHERE (? = 0 OR shop_id = ?) AND (? = 0 OR type = ?) AND (? = -1 OR status = ?) AND (? = 0 OR staff_id = ?) AND (delivery_order_sn LIKE ? OR order_sn LIKE ? OR consignee LIKE ?)",
+    )
+    .bind(shop_id).bind(shop_id)
+    .bind(dtype).bind(dtype)
+    .bind(status).bind(status)
+    .bind(staff_id).bind(staff_id)
+    .bind(&kw).bind(&kw).bind(&kw)
+    .fetch_one(&pool(&state))
+    .await
+    .map_err(db)?;
+    let rows: Vec<(Value,)> = sqlx::query_as(&format!(
+        "SELECT JSON_OBJECT({DELIVERY_JSON}) FROM delivery_order WHERE (? = 0 OR shop_id = ?) AND (? = 0 OR type = ?) AND (? = -1 OR status = ?) AND (? = 0 OR staff_id = ?) AND (delivery_order_sn LIKE ? OR order_sn LIKE ? OR consignee LIKE ?) ORDER BY delivery_order_id DESC LIMIT ? OFFSET ?"
+    ))
+    .bind(shop_id).bind(shop_id)
+    .bind(dtype).bind(dtype)
+    .bind(status).bind(status)
+    .bind(staff_id).bind(staff_id)
+    .bind(&kw).bind(&kw).bind(&kw)
+    .bind(s).bind(off)
+    .fetch_all(&pool(&state))
+    .await
+    .map_err(db)?;
+    ok(serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "total": total, "page": p, "size": s}))
+}
+
+// get /o2o/deliveryOrder/detail
+async fn h_delivery_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let row: Option<(Value,)> = sqlx::query_as(&format!(
+        "SELECT JSON_OBJECT({DELIVERY_JSON}) FROM delivery_order WHERE delivery_order_id = ?"
+    ))
+    .bind(q.id.or(q.delivery_order_id).unwrap_or(0))
+    .fetch_optional(&pool(&state))
+    .await
+    .map_err(db)?;
+    ok(row.map(|(v,)| v).unwrap_or(Value::Null))
+}
+
+// post /o2o/deliveryOrder/dispatch
+async fn h_delivery_dispatch(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let order_id = body.get("orderId").and_then(Value::as_i64).unwrap_or(0);
+    let staff_id = body.get("staffId").and_then(Value::as_i64).unwrap_or(0);
+    let staff: Option<(String, String)> = sqlx::query_as("SELECT name, phone FROM service_staff WHERE id = ? AND is_delete = 0")
+        .bind(staff_id)
+        .fetch_optional(&pool(&state))
+        .await
+        .map_err(db)?;
+    let (name, phone) = staff.unwrap_or_default();
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    sqlx::query("UPDATE delivery_order SET staff_id = ?, staff_name = ?, staff_phone = ?, status = 20, dispatch_mode = 2, dispatch_time = ? WHERE delivery_order_id = ?")
+        .bind(staff_id)
+        .bind(name)
+        .bind(phone)
+        .bind(now)
+        .bind(order_id)
+        .execute(&pool(&state))
+        .await
+        .map_err(db)?;
+    ok(())
+}
+
+// post /o2o/deliveryOrder/cancel
+async fn h_delivery_cancel(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let id = body.get("deliveryOrderId").and_then(Value::as_i64).unwrap_or(0);
+    let reason = body.get("cancelReason").and_then(Value::as_str).unwrap_or_default();
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    sqlx::query("UPDATE delivery_order SET status = 50, cancel_reason = ?, cancel_time = ? WHERE delivery_order_id = ?")
+        .bind(reason)
+        .bind(now)
+        .bind(id)
+        .execute(&pool(&state))
+        .await
+        .map_err(db)?;
+    ok(())
+}
+
 // post /pos/table/cart/list
 async fn h_22(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<tigshop_core::models::pos::cashier::PosCartVO> {
     ok(state.pos.cashier.cart(0, 0, q.id.unwrap_or(0) as i32).await?)
@@ -817,6 +909,10 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/o2o/areaStoreManager/update", post(h_area_update))
         .route("/o2o/areaStoreManager/bindShop", post(h_area_bind_shop))
         .route("/o2o/areaStoreManager/batch", post(h_area_batch))
+        .route("/o2o/deliveryOrder/list", get(h_delivery_list))
+        .route("/o2o/deliveryOrder/detail", get(h_delivery_detail))
+        .route("/o2o/deliveryOrder/dispatch", post(h_delivery_dispatch))
+        .route("/o2o/deliveryOrder/cancel", post(h_delivery_cancel))
         .route("/o2o/decorate/decorate/detail", get(h_4))
         .route("/o2o/decorate/decorate/update", post(h_5))
         .route("/o2o/dispatch/assign", post(h_6))
