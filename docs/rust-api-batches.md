@@ -114,6 +114,19 @@ java/view/admin/src/views/setting/
 
 ## 进度
 
+### 2026-10-26 B9：提现申请 + O2O 门店配置
+
+```text
+POST /api/o2o/staffWallet/applyWithdraw
+GET  /api/o2o/config/localDeliveryConfig
+GET  /api/o2o/config/homeServiceConfig
+```
+
+- applyWithdraw 单事务：校验余额 → 插入提现单 → 余额转冻结 → 写流水
+- 同城配送/上门服务配置返回门店配置 + 距离溢价列表
+- 审计未实现数：66 → 63
+- commit：`8ecf1126`
+
 ### 2026-10-26 B8：收款账号 + 提现查询
 
 ```text
