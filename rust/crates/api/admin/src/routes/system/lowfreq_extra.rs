@@ -476,6 +476,131 @@ async fn h_staff_batch(State(state): State<AdminState>, Json(body): Json<Value>)
     h_staff_del(State(state), Json(body)).await
 }
 
+// ————————————————————— O2O 区域管理（area_store_manager） —————————————————————
+
+fn shop_ids_of(body: &Value) -> Vec<i64> {
+    let mut out = Vec::new();
+    if let Some(arr) = body.get("shopIds").and_then(Value::as_array) {
+        for v in arr {
+            if let Some(id) = v.as_i64() {
+                out.push(id);
+            }
+        }
+    }
+    out
+}
+
+async fn replace_area_shops(state: &AdminState, area_id: i64, shop_ids: &[i64]) -> Result<(), tigshop_core::Error> {
+    sqlx::query("DELETE FROM area_store_manager_shop WHERE area_store_manager_id = ?")
+        .bind(area_id)
+        .execute(&pool(state))
+        .await
+        .map_err(db)?;
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    for shop_id in shop_ids {
+        sqlx::query("INSERT INTO area_store_manager_shop (area_store_manager_id, shop_id, create_time) VALUES (?, ?, ?)")
+            .bind(area_id)
+            .bind(shop_id)
+            .bind(now)
+            .execute(&pool(state))
+            .await
+            .map_err(db)?;
+    }
+    Ok(())
+}
+
+// get /o2o/areaStoreManager/detail
+async fn h_area_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let id = q.id.unwrap_or(0);
+    let row: Option<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('areaStoreManagerId', area_store_manager_id, 'areaStoreName', area_store_name, 'sortOrder', sort_order, 'createTime', create_time, 'updateTime', update_time) FROM area_store_manager WHERE area_store_manager_id = ?",
+    )
+    .bind(id)
+    .fetch_optional(&pool(&state))
+    .await
+    .map_err(db)?;
+    let Some((mut obj,)) = row else { return ok(Value::Null) };
+    let shops: Vec<(i64,)> = sqlx::query_as(
+        "SELECT shop_id FROM area_store_manager_shop WHERE area_store_manager_id = ? ORDER BY area_store_manager_shop_id",
+    )
+    .bind(id)
+    .fetch_all(&pool(&state))
+    .await
+    .map_err(db)?;
+    obj["shopIds"] = Value::Array(shops.into_iter().map(|(v,)| Value::from(v)).collect());
+    ok(obj)
+}
+
+// post /o2o/areaStoreManager/create
+async fn h_area_create(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<i64> {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    let name = body.get("areaStoreName").and_then(Value::as_str).unwrap_or_default();
+    let sort = body.get("sortOrder").and_then(Value::as_i64).unwrap_or(50);
+    let r = sqlx::query("INSERT INTO area_store_manager (area_store_name, sort_order, create_time, update_time) VALUES (?, ?, ?, ?)")
+        .bind(name)
+        .bind(sort)
+        .bind(now)
+        .bind(now)
+        .execute(&pool(&state))
+        .await
+        .map_err(db)?;
+    let id = r.last_insert_id() as i64;
+    replace_area_shops(&state, id, &shop_ids_of(&body)).await?;
+    ok(id)
+}
+
+// post /o2o/areaStoreManager/update
+async fn h_area_update(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    let id = body.get("areaStoreManagerId").and_then(Value::as_i64).unwrap_or(0);
+    let name = body.get("areaStoreName").and_then(Value::as_str).unwrap_or_default();
+    let sort = body.get("sortOrder").and_then(Value::as_i64).unwrap_or(50);
+    sqlx::query("UPDATE area_store_manager SET area_store_name = ?, sort_order = ?, update_time = ? WHERE area_store_manager_id = ?")
+        .bind(name)
+        .bind(sort)
+        .bind(now)
+        .bind(id)
+        .execute(&pool(&state))
+        .await
+        .map_err(db)?;
+    replace_area_shops(&state, id, &shop_ids_of(&body)).await?;
+    ok(())
+}
+
+// post /o2o/areaStoreManager/bindShop
+async fn h_area_bind_shop(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let id = body.get("areaStoreManagerId").and_then(Value::as_i64).unwrap_or(0);
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    for shop_id in shop_ids_of(&body) {
+        sqlx::query("INSERT INTO area_store_manager_shop (area_store_manager_id, shop_id, create_time) VALUES (?, ?, ?)")
+            .bind(id)
+            .bind(shop_id)
+            .bind(now)
+            .execute(&pool(&state))
+            .await
+            .map_err(db)?;
+    }
+    ok(())
+}
+
+// post /o2o/areaStoreManager/batch
+async fn h_area_batch(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let ids = json_ids(&body);
+    if ids.is_empty() {
+        return Err(tigshop_security::web::AppError(Error::Validation("缺少 id".into())));
+    }
+    let list = ids.iter().map(ToString::to_string).collect::<Vec<_>>().join(",");
+    sqlx::query(&format!("DELETE FROM area_store_manager_shop WHERE area_store_manager_id IN ({list})"))
+        .execute(&pool(&state))
+        .await
+        .map_err(db)?;
+    sqlx::query(&format!("DELETE FROM area_store_manager WHERE area_store_manager_id IN ({list})"))
+        .execute(&pool(&state))
+        .await
+        .map_err(db)?;
+    ok(())
+}
+
 // post /pos/table/cart/list
 async fn h_22(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<tigshop_core::models::pos::cashier::PosCartVO> {
     ok(state.pos.cashier.cart(0, 0, q.id.unwrap_or(0) as i32).await?)
@@ -687,6 +812,11 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/o2o/areaStoreManager/del", post(h_1))
         .route("/o2o/areaStoreManager/removeShop", post(h_2))
         .route("/o2o/areaStoreManager/shopList", post(h_3))
+        .route("/o2o/areaStoreManager/detail", get(h_area_detail))
+        .route("/o2o/areaStoreManager/create", post(h_area_create))
+        .route("/o2o/areaStoreManager/update", post(h_area_update))
+        .route("/o2o/areaStoreManager/bindShop", post(h_area_bind_shop))
+        .route("/o2o/areaStoreManager/batch", post(h_area_batch))
         .route("/o2o/decorate/decorate/detail", get(h_4))
         .route("/o2o/decorate/decorate/update", post(h_5))
         .route("/o2o/dispatch/assign", post(h_6))

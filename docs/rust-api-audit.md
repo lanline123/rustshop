@@ -1,8 +1,8 @@
 # Rust 接口实现审计（对照 Tigshop Java Apifox 文档）
 
 - 文档接口（HTTP，按 method+path 去重）：1600
-- Rust 源码中能对应到：1501
-- 未找到对应实现：99
+- Rust 源码中能对应到：1506
+- 未找到对应实现：94
 
 > 说明：这是静态审计。判断依据是 Rust 源码中是否出现该路径（含去掉 `/api`、`/adminapi` 前缀后的形式）。
 > “未找到”不一定是完全没写，也可能是路径由常量拼接、特征开关或尚未迁移。
@@ -14,7 +14,6 @@
 | 前台api / o2o --- 多门店 / 派送订单（配送员 / 服务员端） | 10 |
 | 后台adminapi / authority --- 权限组 / 供应商管理 | 7 |
 | 前台api / o2o --- 多门店 / 配送员 / 服务员钱包（C 端） | 6 |
-| 后台adminapi / o2o --- 多门店 / 区域管理 | 5 |
 | 后台adminapi / vendor --- 供应商组 / 供应商员工管理 | 5 |
 | 前台api / cyclecard --- 次卡组 / 次卡权益 | 5 |
 | 后台adminapi / finance --- 财务组 / 员工资金总览 | 4 |
@@ -86,16 +85,6 @@
 | GET | `/api/o2o/staffWallet/myWithdrawDetail` | 查询个人提现申请详情 |
 | GET | `/api/o2o/staffWallet/myWallet` | 查询个人钱包余额 |
 | GET | `/api/o2o/staffWallet/myLogs` | 查询个人钱包流水 |
-
-### 后台adminapi / o2o --- 多门店 / 区域管理（5）
-
-| 方法 | 路径 | 名称 |
-| --- | --- | --- |
-| POST | `/adminapi/o2o/areaStoreManager/update` | 区域编辑 |
-| POST | `/adminapi/o2o/areaStoreManager/create` | 区域添加 |
-| POST | `/adminapi/o2o/areaStoreManager/bindShop` | 区域绑定店铺 |
-| POST | `/adminapi/o2o/areaStoreManager/batch` | 批量操作 |
-| GET | `/adminapi/o2o/areaStoreManager/detail` | 区域详情 |
 
 ### 后台adminapi / vendor --- 供应商组 / 供应商员工管理（5）
 
