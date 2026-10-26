@@ -114,6 +114,29 @@ java/view/admin/src/views/setting/
 
 ## 进度
 
+### B 批构建部署（2026-10-26）
+
+```text
+run：40253375232
+artifact：12621473908
+sha256：c14093b938b36a8668e940f495c6e4af9cdb0e2fb7ab6e17748b1cbdfb1ad12d
+```
+
+部署结果：
+
+```text
+服务 active，health UP
+备份：/www/wwwroot/tigshop-rust/tigshop.batchB.bak
+```
+
+线上验证：
+
+```text
+/api/o2o/deliveryOrder/grabList             → 200
+/api/o2o/config/localDeliveryConfig?shopId=1 → 200
+/api/o2o/config/homeServiceConfig?shopId=1   → 200
+```
+
 ### 2026-10-26 B9：提现申请 + O2O 门店配置
 
 ```text
