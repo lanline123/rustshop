@@ -32,7 +32,7 @@ use tigshop_security::web::{ok, ApiResult};
 use crate::AdminState;
 
 /// 本域路由表（相对路径，不含 `/adminapi` 前缀）。
-const ROUTE_TABLE: [(&str, &str, &str); 6] = [
+const ROUTE_TABLE: [(&str, &str, &str); 7] = [
     (
         "GET",
         "/lang/localesRelation/list",
@@ -42,6 +42,11 @@ const ROUTE_TABLE: [(&str, &str, &str); 6] = [
         "GET",
         "/lang/localesRelation/detail",
         "LocalesRelationController.detail",
+    ),
+    (
+        "POST",
+        "/lang/localesRelation/create",
+        "LocalesRelationController.create",
     ),
     (
         "POST",
@@ -67,6 +72,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
     Router::new()
         .route("/lang/localesRelation/list", get(list))
         .route("/lang/localesRelation/detail", get(detail))
+        .route("/lang/localesRelation/create", post(create))
         .route("/lang/localesRelation/updateField", post(update_field))
         .route("/lang/localesRelation/del", post(del))
         .route("/lang/localesRelation/batch", post(batch))
@@ -107,6 +113,15 @@ async fn detail(
     Query(q): Query<IdQuery>,
 ) -> ApiResult<Option<LocalesRelationVO>> {
     ok(state.lang.locales_relation().detail(q.id).await?)
+}
+
+/// `POST /adminapi/lang/localesRelation/create`：新增语言关联。
+async fn create(
+    State(state): State<AdminState>,
+    Json(dto): Json<LocalesRelationDTO>,
+) -> ApiResult<()> {
+    state.lang.locales_relation().create(&dto).await?;
+    ok(())
 }
 
 /// `POST /adminapi/lang/localesRelation/updateField`：修改（全量）。
