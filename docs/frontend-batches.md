@@ -231,10 +231,14 @@ serverStaffWithdrawManage   服务员提现管理
 ```text
 https://battery.recy.cc/adminapi/health → 200
 https://battery.recy.cc/admin/           → 200
-https://battery.recy.cc/oauth/callback   → 200
-https://battery.recy.cc/cycleCard        → 200
+https://battery.recy.cc/oauth/callback   → 200（4098 字节，与本地 SHA256 一致）
+https://battery.recy.cc/cycleCard        → 200（6274 字节，与本地 SHA256 一致）
 https://battery.recy.cc/mobile/          → 200
 ```
+
+> PC 站点根路径有 SPA 回退，已在 Nginx 扩展目录新增
+> `pc-static.conf` 两条精确 location，防止 `/oauth/callback`、
+> `/cycleCard` 被回退到 PC 首页。
 
 后端接口审计：`docs/rust-api-audit.md` 未实现 **0**。
 
