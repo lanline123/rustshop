@@ -114,6 +114,22 @@ java/view/admin/src/views/setting/
 
 ## 进度
 
+### 2026-10-26 B7：服务人员资料 + 钱包基础
+
+```text
+GET  /api/o2o/serviceStaff/myInfo
+POST /api/o2o/serviceStaff/updateWorkStatus
+GET  /api/o2o/staffWallet/myWallet
+GET  /api/o2o/staffWallet/myLogs
+```
+
+- 服务人员资料按 `member_id` 绑定
+- 工作状态更新
+- 钱包余额/冻结/累计收入
+- 钱包流水分页
+- 审计未实现数：76 → 72
+- commit：`c43d8b2f`
+
 ### 2026-10-26 B6：O2O C 端派送订单
 
 已补：
