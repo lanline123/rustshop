@@ -145,6 +145,8 @@ java/public/cycleCard/index.html
 - 读取 `accessToken` cookie 调 `/api/cycleCard/list`
 - 列表 / 详情 / 可用性检查
 - 线上：`https://battery.recy.cc/cycleCard` → 200
+- 2026-10-26 配送工作台新增「个人」入口，跳转 `/pages/staff/profile`
+- 最新 H5 备份：`/www/backup/mobile.bak.20261026115754`
 
 ### 2026-10-26 OAuth 回调页
 
