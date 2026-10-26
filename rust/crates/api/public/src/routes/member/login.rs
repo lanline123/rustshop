@@ -63,11 +63,12 @@ use crate::PublicState;
 /// 契约全部 16 条（完整路径 + 原 Java 方法名）。
 ///
 /// `wechatServer` 在 Java 用 `@RequestMapping`（不限方法），故 method 记 `ANY`。
-const ROUTE_TABLE: [(&str, &str, &str); 15] = [
+const ROUTE_TABLE: [(&str, &str, &str); 16] = [
     ("ANY", "/api/user/login/wechatServer", "LoginController.wechatServer"),
     ("GET", "/api/user/login/getQuickLoginSetting", "LoginController.getQuickLoginSetting"),
     ("GET", "/api/user/login/getWxLoginUrl", "LoginController.getWechatLoginUrl"),
     ("POST", "/api/user/login/sendMobileCode", "LoginController.sendMobileCode"),
+    ("POST", "/api/user/login/sendCode", "LoginController.sendMobileCode"),
     ("POST", "/api/user/login/sendEmailCode", "LoginController.sendEmailCode"),
     ("POST", "/api/user/login/checkMobile", "LoginController.checkMobile"),
     ("POST", "/api/user/login/checkEmail", "LoginController.checkEmail"),
@@ -104,6 +105,7 @@ pub fn anonymous_routes(state: &PublicState) -> Router<PublicState> {
         .route("/user/login/getQuickLoginSetting", get(get_quick_login_setting))
         .route("/user/login/getWxLoginUrl", get(get_wx_login_url))
         .route("/user/login/sendMobileCode", post(send_mobile_code))
+        .route("/user/login/sendCode", post(send_mobile_code))
         .route("/user/login/sendEmailCode", post(send_email_code))
         .route("/user/login/checkMobile", post(check_mobile))
         .route("/user/login/checkEmail", post(check_email))
@@ -335,11 +337,12 @@ mod tests {
     fn implemented_routes_match_all_16_java_paths() {
         // 契约 16 条中 `/adminapi/login/sendMobileCode` 由 admin 应用挂载（见 api/admin/src/lib.rs），
         // 本模块只负责 public 侧 15 条。
-        let expected: [(&str, &str); 15] = [
+        let expected: [(&str, &str); 16] = [
             ("ANY", "/api/user/login/wechatServer"),
             ("GET", "/api/user/login/getQuickLoginSetting"),
             ("GET", "/api/user/login/getWxLoginUrl"),
             ("POST", "/api/user/login/sendMobileCode"),
+            ("POST", "/api/user/login/sendCode"),
             ("POST", "/api/user/login/sendEmailCode"),
             ("POST", "/api/user/login/checkMobile"),
             ("POST", "/api/user/login/checkEmail"),
@@ -353,7 +356,7 @@ mod tests {
             ("GET", "/api/user/login/unbindWechat"),
         ];
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 15, "public 侧 15 条（第 16 条 admin 挂载）");
+        assert_eq!(docs.len(), 16, "public 侧 16 条（含 sendCode 别名）");
         for (doc, (method, path)) in docs.iter().zip(expected.iter()) {
             assert_eq!(doc.method, *method, "方法不匹配: {path}");
             assert_eq!(doc.path, *path, "路径不匹配");
@@ -362,7 +365,7 @@ mod tests {
         let mut keys: Vec<String> = docs.iter().map(|d| d.key()).collect();
         keys.sort();
         keys.dedup();
-        assert_eq!(keys.len(), 15);
+        assert_eq!(keys.len(), 16);
     }
 
     /// 15 条在 public 应用挂载；`/adminapi/login/sendMobileCode` 归 admin 应用。
@@ -373,7 +376,7 @@ mod tests {
             .map(|(_, p, _)| *p)
             .filter(|p| p.starts_with("/api/"))
             .collect();
-        assert_eq!(mounted.len(), 15);
+        assert_eq!(mounted.len(), 16);
         assert!(!mounted.iter().any(|p| p.starts_with("/adminapi/")));
         // 挂载前缀 = 契约路径去掉 `/api`
         for p in mounted {
@@ -396,7 +399,7 @@ mod tests {
                 .iter()
                 .any(|(_, full, _)| full == &format!("/api{p}")));
         }
-        assert_eq!(15 - protected.len(), 12);
+        assert_eq!(16 - protected.len(), 13);
     }
 
     /// 客户端类型从请求头读取（Java `HeaderUtils#getClientType`）。
