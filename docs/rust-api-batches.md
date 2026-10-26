@@ -114,6 +114,31 @@ java/view/admin/src/views/setting/
 
 ## 进度
 
+### 2026-10-26 B6：O2O C 端派送订单
+
+已补：
+
+```text
+POST /api/o2o/deliveryOrder/grab
+POST /api/o2o/deliveryOrder/confirmPickup
+POST /api/o2o/deliveryOrder/complete
+POST /api/o2o/deliveryOrder/cancel
+GET  /api/o2o/deliveryOrder/statistics
+GET  /api/o2o/deliveryOrder/myList
+GET  /api/o2o/deliveryOrder/myListTotalCount
+GET  /api/o2o/deliveryOrder/grabList
+GET  /api/o2o/deliveryOrder/detail
+GET  /api/o2o/deliveryOrder/myListTabCounts
+```
+
+- 当前会员按 `service_staff.member_id` 绑定服务人员
+- 抢单仅限 status=10、dispatch_mode=1
+- 状态流转：20 待取货 → 30 服务中 → 40 完成；取消 50
+- 列表支持 pending/processing/completed tab
+- `cargo check -p tigshop-api` 通过
+- 审计未实现数：84 → 76
+- commit：`92d950b3`
+
 ### 2026-10-26 B5：O2O 商品分配 + 钱包后台
 
 已补 4 条：
