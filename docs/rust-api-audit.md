@@ -1,8 +1,8 @@
 # Rust 接口实现审计（对照 Tigshop Java Apifox 文档）
 
 - 文档接口（HTTP，按 method+path 去重）：1600
-- Rust 源码中能对应到：1524
-- 未找到对应实现：76
+- Rust 源码中能对应到：1528
+- 未找到对应实现：72
 
 > 说明：这是静态审计。判断依据是 Rust 源码中是否出现该路径（含去掉 `/api`、`/adminapi` 前缀后的形式）。
 > “未找到”不一定是完全没写，也可能是路径由常量拼接、特征开关或尚未迁移。
@@ -12,11 +12,11 @@
 | 分组 | 数量 |
 | --- | --- |
 | 后台adminapi / authority --- 权限组 / 供应商管理 | 7 |
-| 前台api / o2o --- 多门店 / 配送员 / 服务员钱包（C 端） | 6 |
 | 后台adminapi / vendor --- 供应商组 / 供应商员工管理 | 5 |
 | 前台api / cyclecard --- 次卡组 / 次卡权益 | 5 |
 | 后台adminapi / finance --- 财务组 / 员工资金总览 | 4 |
 | 后台adminapi / pos --- 收银台组 / 收银台员工管理 | 4 |
+| 前台api / o2o --- 多门店 / 配送员 / 服务员钱包（C 端） | 4 |
 | 后台adminapi / finance --- 财务组 / 员工提现管理 | 3 |
 | 后台adminapi / finance --- 财务组 / 服务员提现管理 | 3 |
 | 后台adminapi / finance --- 财务组 / 配送员提现管理 | 3 |
@@ -30,7 +30,6 @@
 | 后台adminapi / pos --- 收银台组 / 收银台会员优惠券 | 2 |
 | 后台adminapi / pos --- 收银台组 / 收银购物车管理 | 2 |
 | 后台adminapi / vendor --- 供应商组 / 供应商商品控制器 | 2 |
-| 前台api / o2o --- 多门店 / 服务人员（配送员 / 服务员端） | 2 |
 | 前台api / o2o --- 多门店 / O2O配置（前端） | 2 |
 | 后台adminapi / promotion --- 营销组 / 抽奖活动管理 | 1 |
 | 后台adminapi / finance --- 财务组 / 对账单 | 1 |
@@ -55,17 +54,6 @@
 | POST | `/adminapi/authority/suppliers/batch` | 批量操作 |
 | GET | `/adminapi/authority/suppliers/list` | 获取列表 |
 | GET | `/adminapi/authority/suppliers/detail` | 获取详情 |
-
-### 前台api / o2o --- 多门店 / 配送员 / 服务员钱包（C 端）（6）
-
-| 方法 | 路径 | 名称 |
-| --- | --- | --- |
-| POST | `/api/o2o/staffWallet/applyWithdraw` | 提交提现申请（按 staff.type 路由 delivery / server service） |
-| GET | `/api/o2o/staffWallet/withdrawConfig` | 查询提现规则（按 staff.type 路由 delivery / server 配置） |
-| GET | `/api/o2o/staffWallet/myWithdrawList` | 查询个人提现申请记录（按 staff.type 自动过滤业务类型） |
-| GET | `/api/o2o/staffWallet/myWithdrawDetail` | 查询个人提现申请详情 |
-| GET | `/api/o2o/staffWallet/myWallet` | 查询个人钱包余额 |
-| GET | `/api/o2o/staffWallet/myLogs` | 查询个人钱包流水 |
 
 ### 后台adminapi / vendor --- 供应商组 / 供应商员工管理（5）
 
@@ -104,6 +92,15 @@
 | POST | `/adminapi/pos/adminUserPos/updateField` | 更新字段 |
 | POST | `/adminapi/pos/adminUserPos/create` | 创建收银台员工 |
 | GET | `/adminapi/pos/adminUserPos/info` | 获取收银台员工信息 |
+
+### 前台api / o2o --- 多门店 / 配送员 / 服务员钱包（C 端）（4）
+
+| 方法 | 路径 | 名称 |
+| --- | --- | --- |
+| POST | `/api/o2o/staffWallet/applyWithdraw` | 提交提现申请（按 staff.type 路由 delivery / server service） |
+| GET | `/api/o2o/staffWallet/withdrawConfig` | 查询提现规则（按 staff.type 路由 delivery / server 配置） |
+| GET | `/api/o2o/staffWallet/myWithdrawList` | 查询个人提现申请记录（按 staff.type 自动过滤业务类型） |
+| GET | `/api/o2o/staffWallet/myWithdrawDetail` | 查询个人提现申请详情 |
 
 ### 后台adminapi / finance --- 财务组 / 员工提现管理（3）
 
@@ -201,13 +198,6 @@
 | --- | --- | --- |
 | POST | `/adminapi/vendor/product/create` | 创建 |
 | GET | `/adminapi/vendor/product/detail` | 供应商商品详情 |
-
-### 前台api / o2o --- 多门店 / 服务人员（配送员 / 服务员端）（2）
-
-| 方法 | 路径 | 名称 |
-| --- | --- | --- |
-| POST | `/api/o2o/serviceStaff/updateWorkStatus` | 更新工作状态 |
-| GET | `/api/o2o/serviceStaff/myInfo` | 获取个人信息详情 |
 
 ### 前台api / o2o --- 多门店 / O2O配置（前端）（2）
 

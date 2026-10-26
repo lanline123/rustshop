@@ -123,6 +123,22 @@ impl PickupClientService {
         self.repos.o2o.pickup_client.staff_by_member(member_id).await
     }
 
+    pub async fn staff_info(&self, member_id: i32) -> Result<Option<Value>> {
+        self.repos.o2o.pickup_client.staff_info_by_member(member_id).await
+    }
+
+    pub async fn update_work_status(&self, member_id: i32, status: i32) -> Result<bool> {
+        self.repos.o2o.pickup_client.update_work_status(member_id, status).await
+    }
+
+    pub async fn my_wallet(&self, staff_id: i32) -> Result<Value> {
+        self.repos.o2o.pickup_client.wallet_by_staff(staff_id).await
+    }
+
+    pub async fn my_wallet_logs(&self, staff_id: i32, page: u64, size: u64) -> Result<(i64, Vec<Value>)> {
+        self.repos.o2o.pickup_client.wallet_logs(staff_id, page, size).await
+    }
+
     /// C 端派送订单列表。
     pub async fn delivery_list(
         &self,

@@ -322,7 +322,65 @@ impl PickupClientRepository {
         .map_err(map_err)
     }
 
-    /// C 端派送/服务订单列表。
+    /// 服务人员资料（C 端 myInfo）。
+    pub async fn staff_info_by_member(&self, member_id: i32) -> Result<Option<Value>> {
+        let row: Option<(Value,)> = sqlx::query_as(
+            "SELECT JSON_OBJECT('id', id, 'name', name, 'nickname', nickname, 'avatar', avatar, 'phone', phone, 'storeId', store_id, 'type', type, 'status', status, 'workStatus', work_status, 'completedOrderCount', completed_order_count, 'completedOrderAmount', completed_order_amount) FROM service_staff WHERE member_id = ? AND is_delete = 0 LIMIT 1",
+        )
+        .bind(member_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.map(|(v,)| v))
+    }
+
+    /// 更新工作状态（C 端上下班/空闲/忙碌）。
+    pub async fn update_work_status(&self, member_id: i32, work_status: i32) -> Result<bool> {
+        let r = sqlx::query("UPDATE service_staff SET work_status = ? WHERE member_id = ? AND is_delete = 0")
+            .bind(work_status)
+            .bind(member_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(r.rows_affected() > 0)
+    }
+
+    /// 个人钱包。
+    pub async fn wallet_by_staff(&self, staff_id: i32) -> Result<Value> {
+        let row: Option<(Value,)> = sqlx::query_as(
+            "SELECT JSON_OBJECT('walletId', wallet_id, 'staffId', staff_id, 'balance', balance, 'frozenBalance', frozen_balance, 'totalIncome', total_income, 'createTime', create_time, 'updateTime', update_time) FROM service_staff_wallet WHERE staff_id = ?",
+        )
+        .bind(staff_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row
+            .map(|(v,)| v)
+            .unwrap_or_else(|| serde_json::json!({"walletId": 0, "staffId": staff_id, "balance": 0, "frozenBalance": 0, "totalIncome": 0})))
+    }
+
+    /// 个人钱包流水。
+    pub async fn wallet_logs(&self, staff_id: i32, page: u64, size: u64) -> Result<(i64, Vec<Value>)> {
+        let offset = (page.max(1) - 1) * size;
+        let (total,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM service_staff_wallet_log WHERE staff_id = ?",
+        )
+        .bind(staff_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        let rows: Vec<(Value,)> = sqlx::query_as(
+            "SELECT JSON_OBJECT('logId', log_id, 'staffId', staff_id, 'orderId', order_id, 'withdrawId', withdraw_id, 'transactionSn', transaction_sn, 'amount', amount, 'balanceAfter', balance_after, 'frozenAfter', frozen_after, 'businessType', business_type, 'type', type, 'remark', remark, 'createTime', create_time) FROM service_staff_wallet_log WHERE staff_id = ? ORDER BY log_id DESC LIMIT ? OFFSET ?",
+        )
+        .bind(staff_id)
+        .bind(size)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok((total, rows.into_iter().map(|(v,)| v).collect()))
+    }
+
     pub async fn delivery_list(
         &self,
         staff_id: i32,

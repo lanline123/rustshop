@@ -34,7 +34,7 @@ use tigshop_services::o2o::pickup_client::StockDayVO;
 use crate::PublicState;
 
 /// 本域路由（挂载于 `/api` 下）。
-const ROUTE_TABLE: [(&str, &str, &str); 20] = [
+const ROUTE_TABLE: [(&str, &str, &str); 24] = [
     ("GET", "/o2o/userPickup/getUserPickups", "UserPickupController.getUserPickups"),
     ("GET", "/o2o/userPickup/detail", "UserPickupController.detail"),
     ("POST", "/o2o/userPickup/create", "UserPickupController.create"),
@@ -55,6 +55,10 @@ const ROUTE_TABLE: [(&str, &str, &str); 20] = [
     ("GET", "/o2o/deliveryOrder/grabList", "DeliveryOrderController.grabList"),
     ("GET", "/o2o/deliveryOrder/detail", "DeliveryOrderController.detail"),
     ("GET", "/o2o/deliveryOrder/myListTabCounts", "DeliveryOrderController.myListTabCounts"),
+    ("GET", "/o2o/serviceStaff/myInfo", "ServiceStaffController.myInfo"),
+    ("POST", "/o2o/serviceStaff/updateWorkStatus", "ServiceStaffController.updateWorkStatus"),
+    ("GET", "/o2o/staffWallet/myWallet", "StaffWalletController.myWallet"),
+    ("GET", "/o2o/staffWallet/myLogs", "StaffWalletController.myLogs"),
 ];
 
 /// o2o 前台路由（挂载于 `/api` 下）。
@@ -80,6 +84,10 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/o2o/deliveryOrder/grabList", get(delivery_grab_list))
         .route("/o2o/deliveryOrder/detail", get(delivery_detail))
         .route("/o2o/deliveryOrder/myListTabCounts", get(delivery_tab_counts))
+        .route("/o2o/serviceStaff/myInfo", get(staff_my_info))
+        .route("/o2o/serviceStaff/updateWorkStatus", post(staff_update_work_status))
+        .route("/o2o/staffWallet/myWallet", get(staff_wallet))
+        .route("/o2o/staffWallet/myLogs", get(staff_wallet_logs))
         .layer(middleware::from_fn_with_state(
             state.jwt.clone(),
             optional_auth,
@@ -389,6 +397,68 @@ async fn delivery_tab_counts(
     auth: Option<Extension<AuthUser>>,
 ) -> ApiResult<Value> {
     delivery_statistics(State(state), auth).await
+}
+
+// ————————————————————— C 端服务人员资料 / 钱包 —————————————————————
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct WorkStatusBody {
+    work_status: Option<i32>,
+}
+
+async fn staff_my_info(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+) -> ApiResult<Value> {
+    let uid = current_user_id(auth)?;
+    ok(state
+        .o2o
+        .pickup_client
+        .staff_info(uid)
+        .await?
+        .unwrap_or(Value::Null))
+}
+
+async fn staff_update_work_status(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+    Json(body): Json<WorkStatusBody>,
+) -> ApiResult<()> {
+    let uid = current_user_id(auth)?;
+    let ok_flag = state
+        .o2o
+        .pickup_client
+        .update_work_status(uid, body.work_status.unwrap_or(0))
+        .await?;
+    if !ok_flag {
+        return Err(tigshop_security::web::AppError(tigshop_core::Error::biz(1001, "当前账号未绑定服务人员")));
+    }
+    ok(())
+}
+
+async fn staff_wallet(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+) -> ApiResult<Value> {
+    let (staff_id, _, _) = delivery_staff_of(&state, current_user_id(auth)?).await?;
+    ok(state.o2o.pickup_client.my_wallet(staff_id).await?)
+}
+
+async fn staff_wallet_logs(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+    Query(q): Query<DeliveryListQuery>,
+) -> ApiResult<Value> {
+    let (staff_id, _, _) = delivery_staff_of(&state, current_user_id(auth)?).await?;
+    let page = q.page.unwrap_or(1).max(1);
+    let size = q.size.unwrap_or(10).clamp(1, 100);
+    let (total, records) = state
+        .o2o
+        .pickup_client
+        .my_wallet_logs(staff_id, page, size)
+        .await?;
+    ok(serde_json::json!({"records": records, "total": total, "size": size, "current": page, "pages": (total as u64 + size - 1) / size}))
 }
 
 fn current_user_id(auth: Option<Extension<AuthUser>>) -> std::result::Result<i32, tigshop_security::web::AppError> {
