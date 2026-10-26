@@ -135,6 +135,27 @@ cycleCard list/detail/{cardId}/checkUsable/{cardId}/refundInfo/{cardId}/checkAft
 - **审计未实现数：18 → 0**
 - commit：`1f5ddaef`、`c22377a2`
 
+### F 批构建部署（2026-10-26）
+
+```text
+run：40263025747
+artifact：12625403027
+sha256：8d2e3ea82a0a0965f25d65ce359ab09168ea89a43096df3ff8223b2b65685f07
+```
+
+```text
+服务 active，health UP
+备份：/www/wwwroot/tigshop-rust/tigshop.preF.bak
+```
+
+线上验证：
+
+```text
+/api/cycleCard/list                           → 200
+/api/user/login/sendCode                      → 400（请求校验，路由已生效）
+/api/promotion/giftCardGroups/showCardPassword → 200
+```
+
 ### 2026-10-26 E1：供应商员工/资金账户/商品
 
 已补 11 条：
