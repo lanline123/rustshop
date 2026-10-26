@@ -32,11 +32,16 @@ use tigshop_security::web::{ok, ApiResult};
 use crate::AdminState;
 
 /// 本域路由表（getTranslations 注册 POST + GET 双形态，另有 9 条 CRUD/翻译）。
-const ROUTE_TABLE: [(&str, &str, &str); 11] = [
+const ROUTE_TABLE: [(&str, &str, &str); 12] = [
     (
         "POST",
         "/lang/translations/getTranslations",
         "TranslationsController.getTranslations",
+    ),
+    (
+        "POST",
+        "/lang/translations/update",
+        "TranslationsController.update",
     ),
     (
         "POST",
@@ -86,6 +91,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
             "/lang/translations/createTranslations",
             post(create_translations),
         )
+        .route("/lang/translations/update", post(create_translations))
         .route("/lang/translations/list", get(list))
         .route("/lang/translations/detail", get(detail))
         .route("/lang/translations/batch", post(batch))
