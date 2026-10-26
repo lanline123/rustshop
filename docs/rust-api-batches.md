@@ -116,7 +116,7 @@ java/view/admin/src/views/setting/
 
 ### 2026-10-26 C1：财务员工资金/提现
 
-已补 18 条：
+已补 19 条：
 
 ```text
 /finance/staffFundWithdraw/list|detail|audit
@@ -126,13 +126,14 @@ java/view/admin/src/views/setting/
 /finance/staffFundWalletLog/list|walletDetail
 /finance/deliveryFundManagement/settings/detail|save
 /finance/serverFundManagement/settings/detail|save
+/finance/statement/getStatementDownloadList
 ```
 
 - 提现审核：已打款扣冻结；驳回冻结退回余额，并写钱包流水
 - 资金总览/员工列表/收益排行/30 天收入趋势
 - `cargo check -p tigshop-admin-api` 通过
-- 审计未实现数：63 → 45
-- commit：`0ec86e6e`
+- 审计未实现数：63 → 44
+- commit：`0ec86e6e`、`76606460`
 
 ### B 批构建部署（2026-10-26）
 
