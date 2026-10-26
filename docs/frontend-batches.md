@@ -101,6 +101,21 @@ OAuth 回调页 /pages/oauth/callback
 
 ## PC
 
+### 2026-10-26 OAuth 回调页
+
+新增静态页：
+
+```text
+java/public/oauth/callback/index.html
+```
+
+- 读取 `oauthPath` / `oauthReturnUrl` cookie
+- 调用 `POST /api/user/oauth/callback/{path}`
+- 写入 `accessToken` cookie 后回跳
+- 线上：`https://battery.recy.cc/oauth/callback` → 200
+
+> 采用静态页而非重建 Nuxt，避免覆盖现有 PC 构建产物。
+
 ### 待补
 
 ```text
