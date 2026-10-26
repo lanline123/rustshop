@@ -964,6 +964,31 @@ async fn h_statement_download_list(State(state): State<AdminState>, Query(q): Qu
     ok(serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "total": total, "page": p, "size": s}))
 }
 
+// GET /pos/order/OrderReservation/list
+async fn h_order_reservation_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let (p, s, off) = page_of(&q);
+    let order_id = q.order_id.unwrap_or(0);
+    let (total,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM order_reservations WHERE (? = 0 OR order_id = ?)",
+    )
+    .bind(order_id)
+    .bind(order_id)
+    .fetch_one(&pool(&state))
+    .await
+    .map_err(db)?;
+    let rows: Vec<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('orderReservationsId', order_reservations_id, 'orderId', order_id, 'productReservationTimeId', product_reservation_time_id, 'skuId', sku_id, 'reservationDate', reservation_date, 'startTime', start_time, 'endTime', end_time, 'timeSlotDescription', time_slot_description, 'addTime', add_time) FROM order_reservations WHERE (? = 0 OR order_id = ?) ORDER BY order_reservations_id DESC LIMIT ? OFFSET ?",
+    )
+    .bind(order_id)
+    .bind(order_id)
+    .bind(s)
+    .bind(off)
+    .fetch_all(&pool(&state))
+    .await
+    .map_err(db)?;
+    ok(serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "total": total, "page": p, "size": s}))
+}
+
 // 财务提现设置（JSON 配置表）
 cfg_get!(h_fin_delivery_cfg, "o2oDeliveryFundConfig");
 cfg_set!(h_fin_delivery_cfg_save, "o2oDeliveryFundConfig");
@@ -1213,6 +1238,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/finance/deliveryFundManagement/settings/save", post(h_fin_delivery_cfg_save))
         .route("/finance/serverFundManagement/settings/save", post(h_fin_server_cfg_save))
         .route("/finance/statement/getStatementDownloadList", get(h_statement_download_list))
+        .route("/pos/order/OrderReservation/list", get(h_order_reservation_list))
         .route("/o2o/decorate/decorate/detail", get(h_4))
         .route("/o2o/decorate/decorate/update", post(h_5))
         .route("/o2o/dispatch/assign", post(h_6))

@@ -127,6 +127,8 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
             get(pos_stock_calendar),
         )
         .route("/pos/order/check/getOrderRemark", get(pos_order_remark))
+        .route("/pos/order/check/index", post(pos_check_index))
+        .route("/pos/order/check/update", post(pos_check_update))
         // 支付（admin 侧最小实现）
         .route("/order/pay/create", post(order_pay_create))
         .route("/order/pay/checkStatus", get(order_pay_check))
@@ -956,6 +958,37 @@ async fn pos_order_remark(
 ) -> ApiResult<serde_json::Value> {
     let remark = state.pos.cashier.order_remark(q.user_id.unwrap_or(0)).await?;
     ok(serde_json::json!({ "orderRemark": remark }))
+}
+
+fn pos_check_table_id(body: &serde_json::Value) -> i32 {
+    body.get("tableId")
+        .or_else(|| body.get("table_id"))
+        .and_then(serde_json::Value::as_i64)
+        .unwrap_or(0) as i32
+}
+
+async fn pos_check_index(
+    State(state): State<AdminState>,
+    Json(body): Json<serde_json::Value>,
+) -> ApiResult<serde_json::Value> {
+    let cart = state
+        .pos
+        .cashier
+        .cart(0, 0, pos_check_table_id(&body))
+        .await?;
+    ok(serde_json::to_value(cart).unwrap_or(serde_json::Value::Null))
+}
+
+async fn pos_check_update(
+    State(state): State<AdminState>,
+    Json(body): Json<serde_json::Value>,
+) -> ApiResult<serde_json::Value> {
+    let cart = state
+        .pos
+        .cashier
+        .cart(0, 0, pos_check_table_id(&body))
+        .await?;
+    ok(serde_json::to_value(cart).unwrap_or(serde_json::Value::Null))
 }
 
 // ————————————————————— 支付 / 门店 / 账号 —————————————————————
