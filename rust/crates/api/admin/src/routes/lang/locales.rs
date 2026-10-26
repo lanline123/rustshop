@@ -22,16 +22,17 @@ use axum::{
 };
 use serde::Deserialize;
 use tigshop_core::models::lang::common::{BatchDTO, OperateDTO, UpdateFieldDTO};
-use tigshop_core::models::lang::locales::{LocalesListQuery, LocalesVO};
+use tigshop_core::models::lang::locales::{LocalesDTO, LocalesListQuery, LocalesVO};
 use tigshop_core::types::PageResult;
 use tigshop_security::web::{ok, ApiResult};
 
 use crate::AdminState;
 
 /// 本域路由表（相对路径，不含 `/adminapi` 前缀）。
-const ROUTE_TABLE: [(&str, &str, &str); 5] = [
+const ROUTE_TABLE: [(&str, &str, &str); 6] = [
     ("GET", "/lang/locales/list", "LocalesController.list"),
     ("GET", "/lang/locales/detail", "LocalesController.detail"),
+    ("POST", "/lang/locales/create", "LocalesController.create"),
     (
         "POST",
         "/lang/locales/updateField",
@@ -47,6 +48,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
     Router::new()
         .route("/lang/locales/list", get(list))
         .route("/lang/locales/detail", get(detail))
+        .route("/lang/locales/create", post(create))
         .route("/lang/locales/updateField", post(update_field))
         .route("/lang/locales/del", post(del))
         .route("/lang/locales/batch", post(batch))
@@ -84,6 +86,12 @@ async fn detail(
     ok(state.lang.locales().detail(q.id).await?)
 }
 
+/// `POST /adminapi/lang/locales/create`：新增语言。
+async fn create(State(state): State<AdminState>, Json(dto): Json<LocalesDTO>) -> ApiResult<()> {
+    state.lang.locales().create(&dto).await?;
+    ok(())
+}
+
 /// `POST /adminapi/lang/locales/updateField`：修改字段（`isDefault` 联动）。
 async fn update_field(
     State(state): State<AdminState>,
@@ -109,9 +117,9 @@ mod tests {
     #[test]
     fn implemented_routes_match_frontend_contract() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 5);
+        assert_eq!(docs.len(), 6);
         assert_eq!(docs[0].path, "/adminapi/lang/locales/list");
         assert_eq!(docs[0].method, "GET");
-        assert_eq!(docs[2].path, "/adminapi/lang/locales/updateField");
+        assert!(docs.iter().any(|d| d.path == "/adminapi/lang/locales/updateField"));
     }
 }
