@@ -171,6 +171,47 @@ O2O 相关页面
 
 ## Admin
 
+### 2026-10-26 员工收益管理页面
+
+新增页面：
+
+```text
+src/api/finance/staffFund.ts
+src/views/finance/staffFundWallet/Overview.vue
+src/views/finance/staffFundWalletLog/List.vue
+src/views/finance/deliveryStaffWithdraw/List.vue
+src/views/finance/fundSettings/Index.vue
+```
+
+新增路由（`router/asyncRoutes/admin/finance.ts`，名称对齐权限表）：
+
+```text
+staffFundManagement
+  deliveryFundSettingsManage     finance/delivery-fund-management/settings
+  serverFundSettingsManage       finance/server-fund-management/settings
+  staffFundWalletManage          finance/staff-fund-wallet/overview
+  staffFundWalletLogManage       finance/staff-fund-wallet-log/list
+  deliveryStaffWithdrawManage    finance/delivery-staff-withdraw/list
+  serverStaffWithdrawManage      finance/server-staff-withdraw/list
+```
+
+构建部署：
+
+```text
+npm install → 878 packages
+NODE_OPTIONS=--max-old-space-size=8192 npm run build-only → 成功
+zip sha256：9426cb3bf06e5090cde98526756902e7bdeb664ce1e61c446dfe19bcd302a3ab
+备份：/www/backup/admin.bak.20261026115402
+```
+
+线上验证：
+
+```text
+/admin/ → 200
+/admin/assets/Overview-oof508e9.js → 200
+/admin/assets/staffFund-BauBLyJn.js → 200
+```
+
 ### 待补
 
 ```text
