@@ -47,6 +47,7 @@ pub fn routes(_state: &AdminState) -> Router<AdminState> {
         .route("/content/articleCategory/tree", get(category_tree))
         .route("/content/articleCategory/detail", get(category_detail))
         .route("/content/articleCategory/create", post(category_save))
+        .route("/content/articleCategory/update", post(category_save))
         .route("/content/articleCategory/del", post(category_delete))
 }
 
@@ -232,14 +233,44 @@ async fn category_detail(
 /// `articleCategoryId` 为 0 或缺省时新增，否则更新。
 async fn category_save(
     State(state): State<AdminState>,
-    Json(c): Json<ArticleCategory>,
+    Json(dto): Json<ArticleCategorySaveDTO>,
 ) -> ApiResult<i32> {
+    let c = dto.into_entity();
     if c.article_category_id > 0 {
         let id = c.article_category_id;
         state.content.article.update_category(c).await?;
         ok(id)
     } else {
         ok(state.content.article.create_category(c).await?)
+    }
+}
+
+/// 文章分类表单 DTO（兼容 Java Admin 的驼峰字段）。
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct ArticleCategorySaveDTO {
+    article_category_id: Option<i32>,
+    id: Option<i32>,
+    article_category_name: Option<String>,
+    category_type: Option<i32>,
+    keywords: Option<String>,
+    description: Option<String>,
+    sort_order: Option<i32>,
+    parent_id: Option<i32>,
+}
+
+impl ArticleCategorySaveDTO {
+    fn into_entity(self) -> ArticleCategory {
+        ArticleCategory {
+            article_category_id: self.article_category_id.or(self.id).unwrap_or(0),
+            article_category_name: self.article_category_name.unwrap_or_default(),
+            category_sn: String::new(),
+            category_type: self.category_type.unwrap_or(1),
+            keywords: self.keywords.unwrap_or_default(),
+            description: self.description.unwrap_or_default(),
+            sort_order: self.sort_order.unwrap_or(50),
+            parent_id: self.parent_id.unwrap_or(0),
+        }
     }
 }
 
