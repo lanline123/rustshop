@@ -1,7 +1,7 @@
 //! 低频杂项接口（system::lowfreq_extra） —— 一次性低频接口（b2b2b 5.8.57 新版前端调用，无 Java 参考；
 //! 列名取自 overseas pure.sql，简化口径见各 handler 注释）。
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     routing::{get, post},
     Json, Router,
 };
@@ -35,6 +35,29 @@ pub struct Pg {
     pub product_id: Option<i64>,
     pub order_id: Option<i32>,
     pub parent_id: Option<i32>,
+    pub tip_id: Option<i64>,
+    pub tip_name: Option<String>,
+    pub staff_id: Option<i64>,
+    pub delivery_order_id: Option<i64>,
+    pub cancel_reason: Option<String>,
+    pub r#type: Option<i64>,
+}
+
+fn json_ids(body: &Value) -> Vec<i64> {
+    let mut out = Vec::new();
+    if let Some(arr) = body.get("ids").and_then(Value::as_array) {
+        for v in arr {
+            if let Some(id) = v.as_i64() {
+                out.push(id);
+            }
+        }
+    }
+    if out.is_empty() {
+        if let Some(id) = body.get("id").and_then(Value::as_i64) {
+            out.push(id);
+        }
+    }
+    out
 }
 
 fn page_of(q: &Pg) -> (u64, u64, u64) {
@@ -233,6 +256,558 @@ async fn h_20(State(state): State<AdminState>) -> ApiResult<Value> {
 
 // get /o2o/tip/tipConfig
 cfg_get!(h_21, "o2oTipConfig");
+
+// get /o2o/tip/detail
+async fn h_tip_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let id = q.id.or(q.tip_id).unwrap_or(0);
+    let row: Option<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('tipId', tip_id, 'tipName', tip_name, 'status', status, 'addTime', add_time) FROM tip WHERE tip_id = ?",
+    )
+    .bind(id)
+    .fetch_optional(&pool(&state))
+    .await
+    .map_err(db)?;
+    ok(row.map(|(v,)| v).unwrap_or(Value::Null))
+}
+
+// post /o2o/tip/create
+async fn h_tip_create(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<i64> {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    let r = sqlx::query("INSERT INTO tip (tip_name, status, add_time) VALUES (?, ?, ?)")
+        .bind(q.tip_name.unwrap_or_default())
+        .bind(q.status.unwrap_or(1))
+        .bind(now)
+        .execute(&pool(&state))
+        .await
+        .map_err(db)?;
+    ok(r.last_insert_id() as i64)
+}
+
+// post /o2o/tip/update
+async fn h_tip_update(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<()> {
+    let id = q.tip_id.or(q.id).unwrap_or(0);
+    sqlx::query("UPDATE tip SET tip_name = ?, status = ? WHERE tip_id = ?")
+        .bind(q.tip_name.unwrap_or_default())
+        .bind(q.status.unwrap_or(0))
+        .bind(id)
+        .execute(&pool(&state))
+        .await
+        .map_err(db)?;
+    ok(())
+}
+
+// post /o2o/tip/updateField
+async fn h_tip_update_field(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<()> {
+    let id = q.id.or(q.tip_id).unwrap_or(0);
+    let field = q.field.unwrap_or_default();
+    let column = match field.as_str() {
+        "tipName" | "tip_name" => "tip_name",
+        "status" => "status",
+        other => return Err(tigshop_security::web::AppError(Error::Validation(format!("不支持字段 {other}")))),
+    };
+    let val = q.value.unwrap_or(Value::Null);
+    let sql = format!("UPDATE tip SET {column} = ? WHERE tip_id = ?");
+    if column == "status" {
+        sqlx::query(&sql)
+            .bind(val.as_i64().unwrap_or(0))
+            .bind(id)
+            .execute(&pool(&state))
+            .await
+            .map_err(db)?;
+    } else {
+        sqlx::query(&sql)
+            .bind(val.as_str().unwrap_or_default())
+            .bind(id)
+            .execute(&pool(&state))
+            .await
+            .map_err(db)?;
+    }
+    ok(())
+}
+
+// ————————————————————— O2O 服务人员（service_staff） —————————————————————
+
+// get /o2o/serviceStaff/list
+async fn h_staff_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let (p, s, off) = page_of(&q);
+    let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
+    let status = q.status.unwrap_or(-1);
+    let (total,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM service_staff WHERE is_delete = 0 AND (? = -1 OR status = ?) AND (name LIKE ? OR phone LIKE ?)",
+    )
+    .bind(status)
+    .bind(status)
+    .bind(&kw)
+    .bind(&kw)
+    .fetch_one(&pool(&state))
+    .await
+    .map_err(db)?;
+    let rows: Vec<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('id', id, 'name', name, 'nickname', nickname, 'avatar', avatar, 'phone', phone, 'memberId', member_id, 'storeId', store_id, 'type', type, 'status', status, 'workStatus', work_status, 'completedOrderCount', completed_order_count, 'completedOrderAmount', completed_order_amount, 'createTime', create_time) FROM service_staff WHERE is_delete = 0 AND (? = -1 OR status = ?) AND (name LIKE ? OR phone LIKE ?) ORDER BY id DESC LIMIT ? OFFSET ?",
+    )
+    .bind(status)
+    .bind(status)
+    .bind(&kw)
+    .bind(&kw)
+    .bind(s)
+    .bind(off)
+    .fetch_all(&pool(&state))
+    .await
+    .map_err(db)?;
+    ok(serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "total": total, "page": p, "size": s}))
+}
+
+// get /o2o/serviceStaff/detail
+async fn h_staff_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let row: Option<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('id', id, 'name', name, 'nickname', nickname, 'avatar', avatar, 'phone', phone, 'memberId', member_id, 'storeId', store_id, 'type', type, 'status', status, 'workStatus', work_status, 'completedOrderCount', completed_order_count, 'completedOrderAmount', completed_order_amount, 'createTime', create_time) FROM service_staff WHERE id = ? AND is_delete = 0",
+    )
+    .bind(q.id.unwrap_or(0))
+    .fetch_optional(&pool(&state))
+    .await
+    .map_err(db)?;
+    ok(row.map(|(v,)| v).unwrap_or(Value::Null))
+}
+
+// get /o2o/serviceStaff/showMobile
+async fn h_staff_show_mobile(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let row: Option<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('id', id, 'name', name, 'phone', phone) FROM service_staff WHERE id = ? AND is_delete = 0",
+    )
+    .bind(q.id.unwrap_or(0))
+    .fetch_optional(&pool(&state))
+    .await
+    .map_err(db)?;
+    ok(row.map(|(v,)| v).unwrap_or(Value::Null))
+}
+
+// post /o2o/serviceStaff/create
+async fn h_staff_create(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<i64> {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    let gs = |k: &str| body.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
+    let gi = |k: &str| body.get(k).and_then(Value::as_i64).unwrap_or(0);
+    let r = sqlx::query(
+        "INSERT INTO service_staff (name, nickname, avatar, phone, member_id, store_id, type, status, create_time, update_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(gs("name"))
+    .bind(gs("nickname"))
+    .bind(gs("avatar"))
+    .bind(gs("phone"))
+    .bind(gi("memberId"))
+    .bind(gi("storeId"))
+    .bind(body.get("type").and_then(Value::as_i64).unwrap_or(1))
+    .bind(body.get("status").and_then(Value::as_i64).unwrap_or(1))
+    .bind(now)
+    .bind(now)
+    .execute(&pool(&state))
+    .await
+    .map_err(db)?;
+    ok(r.last_insert_id() as i64)
+}
+
+// post /o2o/serviceStaff/update
+async fn h_staff_update(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    let gs = |k: &str| body.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
+    let gi = |k: &str| body.get(k).and_then(Value::as_i64).unwrap_or(0);
+    sqlx::query(
+        "UPDATE service_staff SET name = ?, nickname = ?, avatar = ?, phone = ?, member_id = ?, store_id = ?, type = ?, status = ?, update_time = ? WHERE id = ? AND is_delete = 0",
+    )
+    .bind(gs("name"))
+    .bind(gs("nickname"))
+    .bind(gs("avatar"))
+    .bind(gs("phone"))
+    .bind(gi("memberId"))
+    .bind(gi("storeId"))
+    .bind(body.get("type").and_then(Value::as_i64).unwrap_or(1))
+    .bind(body.get("status").and_then(Value::as_i64).unwrap_or(1))
+    .bind(now)
+    .bind(gi("id"))
+    .execute(&pool(&state))
+    .await
+    .map_err(db)?;
+    ok(())
+}
+
+// post /o2o/serviceStaff/updateField
+async fn h_staff_update_field(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    let field = body.get("field").and_then(Value::as_str).unwrap_or_default();
+    let column = match field {
+        "status" => "status",
+        "workStatus" | "work_status" => "work_status",
+        "name" => "name",
+        "phone" => "phone",
+        "storeId" | "store_id" => "store_id",
+        other => return Err(tigshop_security::web::AppError(Error::Validation(format!("不支持字段 {other}")))),
+    };
+    let val = body.get("val").cloned().or_else(|| body.get("value").cloned()).unwrap_or(Value::Null);
+    let sql = format!("UPDATE service_staff SET {column} = ? WHERE id = ? AND is_delete = 0");
+    if matches!(column, "status" | "work_status" | "store_id") {
+        sqlx::query(&sql)
+            .bind(val.as_i64().unwrap_or(0))
+            .bind(id)
+            .execute(&pool(&state))
+            .await
+            .map_err(db)?;
+    } else {
+        sqlx::query(&sql)
+            .bind(val.as_str().unwrap_or_default())
+            .bind(id)
+            .execute(&pool(&state))
+            .await
+            .map_err(db)?;
+    }
+    ok(())
+}
+
+// post /o2o/serviceStaff/del
+async fn h_staff_del(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let ids = json_ids(&body);
+    if ids.is_empty() {
+        return Err(tigshop_security::web::AppError(Error::Validation("缺少 id".into())));
+    }
+    let list = ids.iter().map(ToString::to_string).collect::<Vec<_>>().join(",");
+    sqlx::query(&format!("UPDATE service_staff SET is_delete = 1 WHERE id IN ({list})"))
+        .execute(&pool(&state))
+        .await
+        .map_err(db)?;
+    ok(())
+}
+
+// post /o2o/serviceStaff/batch
+async fn h_staff_batch(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    h_staff_del(State(state), Json(body)).await
+}
+
+// ————————————————————— O2O 区域管理（area_store_manager） —————————————————————
+
+fn shop_ids_of(body: &Value) -> Vec<i64> {
+    let mut out = Vec::new();
+    if let Some(arr) = body.get("shopIds").and_then(Value::as_array) {
+        for v in arr {
+            if let Some(id) = v.as_i64() {
+                out.push(id);
+            }
+        }
+    }
+    out
+}
+
+async fn replace_area_shops(state: &AdminState, area_id: i64, shop_ids: &[i64]) -> Result<(), tigshop_core::Error> {
+    sqlx::query("DELETE FROM area_store_manager_shop WHERE area_store_manager_id = ?")
+        .bind(area_id)
+        .execute(&pool(state))
+        .await
+        .map_err(db)?;
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    for shop_id in shop_ids {
+        sqlx::query("INSERT INTO area_store_manager_shop (area_store_manager_id, shop_id, create_time) VALUES (?, ?, ?)")
+            .bind(area_id)
+            .bind(shop_id)
+            .bind(now)
+            .execute(&pool(state))
+            .await
+            .map_err(db)?;
+    }
+    Ok(())
+}
+
+// get /o2o/areaStoreManager/detail
+async fn h_area_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let id = q.id.unwrap_or(0);
+    let row: Option<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('areaStoreManagerId', area_store_manager_id, 'areaStoreName', area_store_name, 'sortOrder', sort_order, 'createTime', create_time, 'updateTime', update_time) FROM area_store_manager WHERE area_store_manager_id = ?",
+    )
+    .bind(id)
+    .fetch_optional(&pool(&state))
+    .await
+    .map_err(db)?;
+    let Some((mut obj,)) = row else { return ok(Value::Null) };
+    let shops: Vec<(i64,)> = sqlx::query_as(
+        "SELECT shop_id FROM area_store_manager_shop WHERE area_store_manager_id = ? ORDER BY area_store_manager_shop_id",
+    )
+    .bind(id)
+    .fetch_all(&pool(&state))
+    .await
+    .map_err(db)?;
+    obj["shopIds"] = Value::Array(shops.into_iter().map(|(v,)| Value::from(v)).collect());
+    ok(obj)
+}
+
+// post /o2o/areaStoreManager/create
+async fn h_area_create(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<i64> {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    let name = body.get("areaStoreName").and_then(Value::as_str).unwrap_or_default();
+    let sort = body.get("sortOrder").and_then(Value::as_i64).unwrap_or(50);
+    let r = sqlx::query("INSERT INTO area_store_manager (area_store_name, sort_order, create_time, update_time) VALUES (?, ?, ?, ?)")
+        .bind(name)
+        .bind(sort)
+        .bind(now)
+        .bind(now)
+        .execute(&pool(&state))
+        .await
+        .map_err(db)?;
+    let id = r.last_insert_id() as i64;
+    replace_area_shops(&state, id, &shop_ids_of(&body)).await?;
+    ok(id)
+}
+
+// post /o2o/areaStoreManager/update
+async fn h_area_update(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    let id = body.get("areaStoreManagerId").and_then(Value::as_i64).unwrap_or(0);
+    let name = body.get("areaStoreName").and_then(Value::as_str).unwrap_or_default();
+    let sort = body.get("sortOrder").and_then(Value::as_i64).unwrap_or(50);
+    sqlx::query("UPDATE area_store_manager SET area_store_name = ?, sort_order = ?, update_time = ? WHERE area_store_manager_id = ?")
+        .bind(name)
+        .bind(sort)
+        .bind(now)
+        .bind(id)
+        .execute(&pool(&state))
+        .await
+        .map_err(db)?;
+    replace_area_shops(&state, id, &shop_ids_of(&body)).await?;
+    ok(())
+}
+
+// post /o2o/areaStoreManager/bindShop
+async fn h_area_bind_shop(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let id = body.get("areaStoreManagerId").and_then(Value::as_i64).unwrap_or(0);
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    for shop_id in shop_ids_of(&body) {
+        sqlx::query("INSERT INTO area_store_manager_shop (area_store_manager_id, shop_id, create_time) VALUES (?, ?, ?)")
+            .bind(id)
+            .bind(shop_id)
+            .bind(now)
+            .execute(&pool(&state))
+            .await
+            .map_err(db)?;
+    }
+    ok(())
+}
+
+// post /o2o/areaStoreManager/batch
+async fn h_area_batch(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let ids = json_ids(&body);
+    if ids.is_empty() {
+        return Err(tigshop_security::web::AppError(Error::Validation("缺少 id".into())));
+    }
+    let list = ids.iter().map(ToString::to_string).collect::<Vec<_>>().join(",");
+    sqlx::query(&format!("DELETE FROM area_store_manager_shop WHERE area_store_manager_id IN ({list})"))
+        .execute(&pool(&state))
+        .await
+        .map_err(db)?;
+    sqlx::query(&format!("DELETE FROM area_store_manager WHERE area_store_manager_id IN ({list})"))
+        .execute(&pool(&state))
+        .await
+        .map_err(db)?;
+    ok(())
+}
+
+// ————————————————————— O2O 派送订单后台 —————————————————————
+
+const DELIVERY_JSON: &str = "'deliveryOrderId', delivery_order_id, 'deliveryOrderSn', delivery_order_sn, 'orderId', order_id, 'orderSn', order_sn, 'shopId', shop_id, 'type', type, 'dispatchMode', dispatch_mode, 'status', status, 'staffId', staff_id, 'staffName', staff_name, 'staffPhone', staff_phone, 'consignee', consignee, 'mobile', mobile, 'address', address, 'regionNames', region_names, 'orderAmount', order_amount, 'buyerNote', buyer_note, 'dispatchTime', dispatch_time, 'grabTime', grab_time, 'pickupTime', pickup_time, 'completeTime', complete_time, 'cancelTime', cancel_time, 'cancelReason', cancel_reason, 'createTime', create_time";
+
+// get /o2o/deliveryOrder/list
+async fn h_delivery_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let (p, s, off) = page_of(&q);
+    let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
+    let shop_id = q.shop_id.unwrap_or(0);
+    let dtype = q.r#type.unwrap_or(0);
+    let status = q.status.unwrap_or(-1);
+    let staff_id = q.staff_id.unwrap_or(0);
+    let (total,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM delivery_order WHERE (? = 0 OR shop_id = ?) AND (? = 0 OR type = ?) AND (? = -1 OR status = ?) AND (? = 0 OR staff_id = ?) AND (delivery_order_sn LIKE ? OR order_sn LIKE ? OR consignee LIKE ?)",
+    )
+    .bind(shop_id).bind(shop_id)
+    .bind(dtype).bind(dtype)
+    .bind(status).bind(status)
+    .bind(staff_id).bind(staff_id)
+    .bind(&kw).bind(&kw).bind(&kw)
+    .fetch_one(&pool(&state))
+    .await
+    .map_err(db)?;
+    let rows: Vec<(Value,)> = sqlx::query_as(&format!(
+        "SELECT JSON_OBJECT({DELIVERY_JSON}) FROM delivery_order WHERE (? = 0 OR shop_id = ?) AND (? = 0 OR type = ?) AND (? = -1 OR status = ?) AND (? = 0 OR staff_id = ?) AND (delivery_order_sn LIKE ? OR order_sn LIKE ? OR consignee LIKE ?) ORDER BY delivery_order_id DESC LIMIT ? OFFSET ?"
+    ))
+    .bind(shop_id).bind(shop_id)
+    .bind(dtype).bind(dtype)
+    .bind(status).bind(status)
+    .bind(staff_id).bind(staff_id)
+    .bind(&kw).bind(&kw).bind(&kw)
+    .bind(s).bind(off)
+    .fetch_all(&pool(&state))
+    .await
+    .map_err(db)?;
+    ok(serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "total": total, "page": p, "size": s}))
+}
+
+// get /o2o/deliveryOrder/detail
+async fn h_delivery_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let row: Option<(Value,)> = sqlx::query_as(&format!(
+        "SELECT JSON_OBJECT({DELIVERY_JSON}) FROM delivery_order WHERE delivery_order_id = ?"
+    ))
+    .bind(q.id.or(q.delivery_order_id).unwrap_or(0))
+    .fetch_optional(&pool(&state))
+    .await
+    .map_err(db)?;
+    ok(row.map(|(v,)| v).unwrap_or(Value::Null))
+}
+
+// post /o2o/deliveryOrder/dispatch
+async fn h_delivery_dispatch(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let order_id = body.get("orderId").and_then(Value::as_i64).unwrap_or(0);
+    let staff_id = body.get("staffId").and_then(Value::as_i64).unwrap_or(0);
+    let staff: Option<(String, String)> = sqlx::query_as("SELECT name, phone FROM service_staff WHERE id = ? AND is_delete = 0")
+        .bind(staff_id)
+        .fetch_optional(&pool(&state))
+        .await
+        .map_err(db)?;
+    let (name, phone) = staff.unwrap_or_default();
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    sqlx::query("UPDATE delivery_order SET staff_id = ?, staff_name = ?, staff_phone = ?, status = 20, dispatch_mode = 2, dispatch_time = ? WHERE delivery_order_id = ?")
+        .bind(staff_id)
+        .bind(name)
+        .bind(phone)
+        .bind(now)
+        .bind(order_id)
+        .execute(&pool(&state))
+        .await
+        .map_err(db)?;
+    ok(())
+}
+
+// post /o2o/deliveryOrder/cancel
+async fn h_delivery_cancel(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let id = body.get("deliveryOrderId").and_then(Value::as_i64).unwrap_or(0);
+    let reason = body.get("cancelReason").and_then(Value::as_str).unwrap_or_default();
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    sqlx::query("UPDATE delivery_order SET status = 50, cancel_reason = ?, cancel_time = ? WHERE delivery_order_id = ?")
+        .bind(reason)
+        .bind(now)
+        .bind(id)
+        .execute(&pool(&state))
+        .await
+        .map_err(db)?;
+    ok(())
+}
+
+// ————————————————————— O2O 商品组织分配 —————————————————————
+
+async fn insert_product_org(
+    state: &AdminState,
+    product_id: i64,
+    org_type: i64,
+    org_id: i64,
+    now: i64,
+) -> Result<(), Error> {
+    sqlx::query("INSERT INTO product_org (product_id, org_type, org_id, add_time) VALUES (?, ?, ?, ?)")
+        .bind(product_id)
+        .bind(org_type)
+        .bind(org_id)
+        .bind(now)
+        .execute(&pool(state))
+        .await
+        .map_err(db)?;
+    Ok(())
+}
+
+// get /o2o/productOrg/info/{productId}
+async fn h_product_org_info(State(state): State<AdminState>, Path(product_id): Path<i64>) -> ApiResult<Value> {
+    let rows: Vec<(i64, i64)> = sqlx::query_as(
+        "SELECT org_type, org_id FROM product_org WHERE product_id = ? ORDER BY product_org_id",
+    )
+    .bind(product_id)
+    .fetch_all(&pool(&state))
+    .await
+    .map_err(db)?;
+    let mut groups: std::collections::BTreeMap<i64, Vec<i64>> = std::collections::BTreeMap::new();
+    for (org_type, org_id) in rows {
+        groups.entry(org_type).or_default().push(org_id);
+    }
+    let org_items: Vec<Value> = groups
+        .into_iter()
+        .map(|(org_type, ids)| serde_json::json!({"orgType": org_type, "isAll": 0, "orgIds": ids}))
+        .collect();
+    ok(serde_json::json!({"productId": product_id, "orgItems": org_items}))
+}
+
+// post /o2o/productOrg/distribution
+async fn h_product_org_distribution(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let product_id = body.get("productId").and_then(Value::as_i64).unwrap_or(0);
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    sqlx::query("DELETE FROM product_org WHERE product_id = ?")
+        .bind(product_id)
+        .execute(&pool(&state))
+        .await
+        .map_err(db)?;
+    let mut pending: Vec<(i64, i64)> = Vec::new();
+    if let Some(items) = body.get("orgItems").and_then(Value::as_array) {
+        for item in items {
+            let org_type = item.get("orgType").and_then(Value::as_i64).unwrap_or(1);
+            for org_id in item.get("orgIds").and_then(Value::as_array).into_iter().flatten() {
+                if let Some(org_id) = org_id.as_i64() {
+                    pending.push((org_type, org_id));
+                }
+            }
+        }
+    }
+    for (key, org_type) in [("regionOrgIds", 2i64), ("shopOrgIds", 1i64)] {
+        for org_id in body.get(key).and_then(Value::as_array).into_iter().flatten() {
+            if let Some(org_id) = org_id.as_i64() {
+                pending.push((org_type, org_id));
+            }
+        }
+    }
+    for (org_type, org_id) in pending {
+        insert_product_org(&state, product_id, org_type, org_id, now).await?;
+    }
+    ok(())
+}
+
+// ————————————————————— O2O 配送员钱包后台 —————————————————————
+
+// get /o2o/serviceStaffWallet/detail
+async fn h_staff_wallet_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let staff_id = q.staff_id.unwrap_or(0);
+    let row: Option<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('walletId', wallet_id, 'staffId', staff_id, 'balance', balance, 'frozenBalance', frozen_balance, 'totalIncome', total_income, 'createTime', create_time, 'updateTime', update_time) FROM service_staff_wallet WHERE staff_id = ?",
+    )
+    .bind(staff_id)
+    .fetch_optional(&pool(&state))
+    .await
+    .map_err(db)?;
+    let (mut obj,) = row.unwrap_or((serde_json::json!({"walletId": 0, "staffId": staff_id, "balance": 0, "frozenBalance": 0, "totalIncome": 0, "createTime": 0, "updateTime": 0}),));
+    let (withdrawn,): (Value,) = sqlx::query_as(
+        "SELECT COALESCE(ABS(SUM(amount)), 0) FROM service_staff_wallet_log WHERE staff_id = ? AND type = 2",
+    )
+    .bind(staff_id)
+    .fetch_one(&pool(&state))
+    .await
+    .map_err(db)?;
+    obj["totalWithdrawn"] = withdrawn;
+    ok(obj)
+}
+
+// get /o2o/serviceStaffWallet/logList
+async fn h_staff_wallet_log_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let (p, s, off) = page_of(&q);
+    let staff_id = q.staff_id.unwrap_or(0);
+    let (total,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM service_staff_wallet_log WHERE (? = 0 OR staff_id = ?)")
+        .bind(staff_id).bind(staff_id)
+        .fetch_one(&pool(&state))
+        .await
+        .map_err(db)?;
+    let rows: Vec<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('logId', log_id, 'staffId', staff_id, 'orderId', order_id, 'withdrawId', withdraw_id, 'transactionSn', transaction_sn, 'amount', amount, 'balanceAfter', balance_after, 'frozenAfter', frozen_after, 'businessType', business_type, 'type', type, 'remark', remark, 'createTime', create_time) FROM service_staff_wallet_log WHERE (? = 0 OR staff_id = ?) ORDER BY log_id DESC LIMIT ? OFFSET ?",
+    )
+    .bind(staff_id).bind(staff_id).bind(s).bind(off)
+    .fetch_all(&pool(&state))
+    .await
+    .map_err(db)?;
+    ok(serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "total": total, "size": s, "current": p, "pages": (total as u64 + s - 1) / s}))
+}
 
 // post /pos/table/cart/list
 async fn h_22(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<tigshop_core::models::pos::cashier::PosCartVO> {
@@ -445,6 +1020,19 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/o2o/areaStoreManager/del", post(h_1))
         .route("/o2o/areaStoreManager/removeShop", post(h_2))
         .route("/o2o/areaStoreManager/shopList", post(h_3))
+        .route("/o2o/areaStoreManager/detail", get(h_area_detail))
+        .route("/o2o/areaStoreManager/create", post(h_area_create))
+        .route("/o2o/areaStoreManager/update", post(h_area_update))
+        .route("/o2o/areaStoreManager/bindShop", post(h_area_bind_shop))
+        .route("/o2o/areaStoreManager/batch", post(h_area_batch))
+        .route("/o2o/deliveryOrder/list", get(h_delivery_list))
+        .route("/o2o/deliveryOrder/detail", get(h_delivery_detail))
+        .route("/o2o/deliveryOrder/dispatch", post(h_delivery_dispatch))
+        .route("/o2o/deliveryOrder/cancel", post(h_delivery_cancel))
+        .route("/o2o/productOrg/info/{productId}", get(h_product_org_info))
+        .route("/o2o/productOrg/distribution", post(h_product_org_distribution))
+        .route("/o2o/serviceStaffWallet/detail", get(h_staff_wallet_detail))
+        .route("/o2o/serviceStaffWallet/logList", get(h_staff_wallet_log_list))
         .route("/o2o/decorate/decorate/detail", get(h_4))
         .route("/o2o/decorate/decorate/update", post(h_5))
         .route("/o2o/dispatch/assign", post(h_6))
@@ -463,6 +1051,18 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/o2o/tip/batch", post(h_19))
         .route("/o2o/tip/selectAllTip", get(h_20))
         .route("/o2o/tip/tipConfig", get(h_21))
+        .route("/o2o/tip/detail", get(h_tip_detail))
+        .route("/o2o/tip/create", post(h_tip_create))
+        .route("/o2o/tip/update", post(h_tip_update))
+        .route("/o2o/tip/updateField", post(h_tip_update_field))
+        .route("/o2o/serviceStaff/list", get(h_staff_list))
+        .route("/o2o/serviceStaff/detail", get(h_staff_detail))
+        .route("/o2o/serviceStaff/showMobile", get(h_staff_show_mobile))
+        .route("/o2o/serviceStaff/create", post(h_staff_create))
+        .route("/o2o/serviceStaff/update", post(h_staff_update))
+        .route("/o2o/serviceStaff/updateField", post(h_staff_update_field))
+        .route("/o2o/serviceStaff/del", post(h_staff_del))
+        .route("/o2o/serviceStaff/batch", post(h_staff_batch))
         .route("/pos/table/cart/list", post(h_22))
         .route("/pos/table/cart/addToCart", post(h_23))
         .route("/pos/table/cart/removeItem", post(h_24))
