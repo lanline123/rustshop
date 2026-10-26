@@ -1,8 +1,8 @@
 # Rust 接口实现审计（对照 Tigshop Java Apifox 文档）
 
 - 文档接口（HTTP，按 method+path 去重）：1600
-- Rust 源码中能对应到：1570
-- 未找到对应实现：30
+- Rust 源码中能对应到：1571
+- 未找到对应实现：29
 
 > 说明：这是静态审计。判断依据是 Rust 源码中是否出现该路径（含去掉 `/api`、`/adminapi` 前缀后的形式）。
 > “未找到”不一定是完全没写，也可能是路径由常量拼接、特征开关或尚未迁移。
@@ -19,7 +19,6 @@
 | 后台adminapi / vendor --- 供应商组 / 供应商商品控制器 | 2 |
 | 后台adminapi / promotion --- 营销组 / 抽奖活动管理 | 1 |
 | 后台adminapi / buyershow --- 买家秀组 / 买家秀分组管理 | 1 |
-| 后台adminapi / pos --- 收银台组 / 收银台订单结算 | 1 |
 | 后台adminapi / vendor --- 供应商组 / 供应商商品平台端控制器 | 1 |
 | 前台api / user --- 会员中心 / 登录控制器 | 1 |
 | 前台api / promotion----营销 / 礼品卡 | 1 |
@@ -91,12 +90,6 @@
 | 方法 | 路径 | 名称 |
 | --- | --- | --- |
 | POST | `/adminapi/promotion/buyerShow/group/del/{id}` | 删除买家秀分组 |
-
-### 后台adminapi / pos --- 收银台组 / 收银台订单结算（1）
-
-| 方法 | 路径 | 名称 |
-| --- | --- | --- |
-| POST | `/adminapi/pos/order/check/submit` | 提交订单 |
 
 ### 后台adminapi / vendor --- 供应商组 / 供应商商品平台端控制器（1）
 

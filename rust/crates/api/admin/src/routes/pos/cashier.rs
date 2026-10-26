@@ -129,6 +129,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/pos/order/check/getOrderRemark", get(pos_order_remark))
         .route("/pos/order/check/index", post(pos_check_index))
         .route("/pos/order/check/update", post(pos_check_update))
+        .route("/pos/order/check/submit", post(pos_check_submit))
         // 支付（admin 侧最小实现）
         .route("/order/pay/create", post(order_pay_create))
         .route("/order/pay/checkStatus", get(order_pay_check))
@@ -989,6 +990,29 @@ async fn pos_check_update(
         .cart(0, 0, pos_check_table_id(&body))
         .await?;
     ok(serde_json::to_value(cart).unwrap_or(serde_json::Value::Null))
+}
+
+async fn pos_check_submit(
+    State(state): State<AdminState>,
+    Json(body): Json<serde_json::Value>,
+) -> ApiResult<serde_json::Value> {
+    let table_id = pos_check_table_id(&body);
+    if table_id <= 0 {
+        return Err(tigshop_security::web::AppError(tigshop_core::Error::Validation(
+            "缺少 tableId".into(),
+        )));
+    }
+    let dto = PosTableOperateDTO {
+        table_id,
+        user_id: body.get("userId").and_then(serde_json::Value::as_i64).map(|v| v as i32),
+        target_table_id: None,
+        order_id: body.get("orderId").and_then(serde_json::Value::as_i64).map(|v| v as i32),
+        remark: body
+            .get("remark")
+            .and_then(serde_json::Value::as_str)
+            .map(ToString::to_string),
+    };
+    ok(state.pos.cashier.place_order(&dto).await?)
 }
 
 // ————————————————————— 支付 / 门店 / 账号 —————————————————————
