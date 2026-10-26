@@ -939,6 +939,31 @@ async fn h_fin_wallet_income_trend(State(state): State<AdminState>) -> ApiResult
     ok(Value::Array(rows.into_iter().map(|(v,)| v).collect()))
 }
 
+// GET /finance/statement/getStatementDownloadList
+async fn h_statement_download_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let (p, s, off) = page_of(&q);
+    let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
+    let (total,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM statement_download WHERE (? = '%%' OR remark LIKE ?)",
+    )
+    .bind(&kw)
+    .bind(&kw)
+    .fetch_one(&pool(&state))
+    .await
+    .map_err(db)?;
+    let rows: Vec<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('statementDownloadId', statement_download_id, 'vendorId', vendor_id, 'shopId', shop_id, 'gmtCreate', gmt_create, 'startTime', start_time, 'endTime', end_time, 'remark', remark) FROM statement_download WHERE (? = '%%' OR remark LIKE ?) ORDER BY statement_download_id DESC LIMIT ? OFFSET ?",
+    )
+    .bind(&kw)
+    .bind(&kw)
+    .bind(s)
+    .bind(off)
+    .fetch_all(&pool(&state))
+    .await
+    .map_err(db)?;
+    ok(serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "total": total, "page": p, "size": s}))
+}
+
 // 财务提现设置（JSON 配置表）
 cfg_get!(h_fin_delivery_cfg, "o2oDeliveryFundConfig");
 cfg_set!(h_fin_delivery_cfg_save, "o2oDeliveryFundConfig");
@@ -1188,6 +1213,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/finance/deliveryFundManagement/settings/save", post(h_fin_delivery_cfg_save))
         .route("/finance/serverFundManagement/settings/detail", get(h_fin_server_cfg))
         .route("/finance/serverFundManagement/settings/save", post(h_fin_server_cfg_save))
+        .route("/finance/statement/getStatementDownloadList", get(h_statement_download_list))
         .route("/o2o/decorate/decorate/detail", get(h_4))
         .route("/o2o/decorate/decorate/update", post(h_5))
         .route("/o2o/dispatch/assign", post(h_6))

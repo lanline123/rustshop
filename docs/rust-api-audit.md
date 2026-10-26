@@ -1,8 +1,8 @@
 # Rust 接口实现审计（对照 Tigshop Java Apifox 文档）
 
 - 文档接口（HTTP，按 method+path 去重）：1600
-- Rust 源码中能对应到：1555
-- 未找到对应实现：45
+- Rust 源码中能对应到：1556
+- 未找到对应实现：44
 
 > 说明：这是静态审计。判断依据是 Rust 源码中是否出现该路径（含去掉 `/api`、`/adminapi` 前缀后的形式）。
 > “未找到”不一定是完全没写，也可能是路径由常量拼接、特征开关或尚未迁移。
@@ -23,7 +23,6 @@
 | 后台adminapi / pos --- 收银台组 / 收银购物车管理 | 2 |
 | 后台adminapi / vendor --- 供应商组 / 供应商商品控制器 | 2 |
 | 后台adminapi / promotion --- 营销组 / 抽奖活动管理 | 1 |
-| 后台adminapi / finance --- 财务组 / 对账单 | 1 |
 | 后台adminapi / buyershow --- 买家秀组 / 买家秀分组管理 | 1 |
 | 后台adminapi / pos --- 收银台组 / 收银会员 | 1 |
 | 后台adminapi / pos --- 收银台组 / 收银台订单预约 | 1 |
@@ -130,12 +129,6 @@
 | 方法 | 路径 | 名称 |
 | --- | --- | --- |
 | POST | `/adminapi/promotion/lotteryActivity/updateStatus` | 更新活动状态 |
-
-### 后台adminapi / finance --- 财务组 / 对账单（1）
-
-| 方法 | 路径 | 名称 |
-| --- | --- | --- |
-| GET | `/adminapi/finance/statement/getStatementDownloadList` | 对账单下载列表 |
 
 ### 后台adminapi / buyershow --- 买家秀组 / 买家秀分组管理（1）
 
