@@ -148,7 +148,32 @@ POST /api/user/oauth/callback/{source}
 - 审计未实现数：123 → 120
 - commit：`ee8fb75e`
 
-Twitter/X OAuth2 + PKCE 尚未迁移，接口会返回明确业务错误。
+### 2026-10-26 A2.1：Twitter/X OAuth2 + PKCE
+
+- render：生成 code_verifier / S256 challenge，存缓存 10 分钟
+- callback：Basic Auth 换 token，`/2/users/me` 拉用户，绑定 `user_authorize`（type=103）
+- 至此 Google / Facebook / Twitter 三条第三方登录均已迁移
+- `cargo check -p tigshop-services` 通过
+- commit：`8d9fd033`
+
+### 2026-10-26 A3：支付配置（部分）
+
+已补 6 条后台支付配置端点（schema-driven config）：
+
+```text
+GET  /adminapi/setting/config/stripeSettings
+POST /adminapi/setting/config/saveStripe
+GET  /adminapi/setting/config/xenditSettings
+POST /adminapi/setting/config/saveXendit
+GET  /adminapi/setting/config/antomSettings
+POST /adminapi/setting/config/saveAntom
+```
+
+- `ENDPOINTS` 102 → 108，相关测试通过
+- 审计未实现数：120 → 114
+- commit：`a5ed9637`
+
+待补：Stripe/Xendit/Antom 支付回调（需要验签与支付单创建链路）。
 
 ## 每批验收
 
