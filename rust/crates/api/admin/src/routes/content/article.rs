@@ -95,18 +95,83 @@ async fn article_detail(
 /// `POST /adminapi/content/article/create`：新增文章。
 async fn article_create(
     State(state): State<AdminState>,
-    Json(a): Json<Article>,
+    Json(dto): Json<ArticleSaveDTO>,
 ) -> ApiResult<i32> {
-    ok(state.content.article.create(a).await?)
+    ok(state.content.article.create(dto.into_article()).await?)
 }
 
 /// `POST /adminapi/content/article/update`：更新文章。
 async fn article_update(
     State(state): State<AdminState>,
-    Json(a): Json<Article>,
+    Json(dto): Json<ArticleSaveDTO>,
 ) -> ApiResult<&'static str> {
-    state.content.article.update(a).await?;
+    state.content.article.update(dto.into_article()).await?;
     ok("修改成功")
+}
+
+/// 后台文章表单 DTO（兼容 Java 的驼峰字段与 `articleCategoryId` 数组）。
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct ArticleSaveDTO {
+    id: Option<i32>,
+    article_id: Option<i32>,
+    article_title: Option<String>,
+    article_category_id: Option<serde_json::Value>,
+    article_sn: Option<String>,
+    article_thumb: Option<String>,
+    article_tag: Option<String>,
+    article_author: Option<String>,
+    article_type: Option<i32>,
+    content: Option<String>,
+    description: Option<String>,
+    keywords: Option<String>,
+    is_show: Option<i32>,
+    add_time: Option<i32>,
+    is_hot: Option<i32>,
+    is_top: Option<i32>,
+    click_count: Option<i32>,
+    link: Option<String>,
+}
+
+impl ArticleSaveDTO {
+    fn category_id(&self) -> i32 {
+        match self.article_category_id.as_ref() {
+            Some(serde_json::Value::Number(n)) => n.as_i64().unwrap_or(0) as i32,
+            Some(serde_json::Value::Array(a)) => a
+                .first()
+                .and_then(serde_json::Value::as_i64)
+                .unwrap_or(0) as i32,
+            Some(serde_json::Value::String(s)) => s.parse().unwrap_or(0),
+            _ => 0,
+        }
+    }
+
+    fn into_article(self) -> Article {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i32;
+        let category_id = self.category_id();
+        Article {
+            article_id: self.id.or(self.article_id).unwrap_or(0),
+            article_title: self.article_title.unwrap_or_default(),
+            article_category_id: category_id,
+            article_sn: self.article_sn.unwrap_or_default(),
+            article_thumb: self.article_thumb.unwrap_or_default(),
+            article_tag: self.article_tag.unwrap_or_default(),
+            article_author: self.article_author.unwrap_or_default(),
+            article_type: self.article_type.unwrap_or(1),
+            content: self.content.unwrap_or_default(),
+            description: self.description,
+            keywords: self.keywords.unwrap_or_default(),
+            is_show: Some(self.is_show.unwrap_or(1)),
+            add_time: self.add_time.filter(|v| *v > 0).unwrap_or(now),
+            is_hot: self.is_hot.unwrap_or(0),
+            is_top: self.is_top.unwrap_or(0),
+            click_count: self.click_count.unwrap_or(0),
+            link: self.link.unwrap_or_default(),
+        }
+    }
 }
 
 /// 显示状态切换请求。
