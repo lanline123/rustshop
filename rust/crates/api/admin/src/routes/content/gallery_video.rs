@@ -42,10 +42,15 @@ use tigshop_security::web::{ok, ApiResult, AuthUser};
 use crate::AdminState;
 
 /// 本域路由清单（去掉 `/adminapi` 前缀 + 原 Java 方法名）。
-const ROUTE_TABLE: [(&str, &str, &str); 7] = [
+const ROUTE_TABLE: [(&str, &str, &str); 8] = [
     (
         "GET",
         "/setting/galleryVideo/getAllCategory",
+        "GalleryVideoController.treeList",
+    ),
+    (
+        "GET",
+        "/setting/galleryVideo/treeList",
         "GalleryVideoController.treeList",
     ),
     ("GET", "/setting/galleryVideo/list", "GalleryVideoController.list"),
@@ -77,6 +82,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new()
         .route("/setting/galleryVideo/getAllCategory", get(get_all_category))
+        .route("/setting/galleryVideo/treeList", get(get_all_category))
         .route("/setting/galleryVideo/list", get(list))
         .route("/setting/galleryVideo/detail", get(detail))
         .route("/setting/galleryVideo/del", post(del))
@@ -234,7 +240,7 @@ mod tests {
     #[test]
     fn implemented_routes_match_java_contract() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 7);
+        assert_eq!(docs.len(), 8);
         let expected = [
             ("GET", "/adminapi/setting/galleryVideo/getAllCategory"),
             ("GET", "/adminapi/setting/galleryVideo/list"),
@@ -259,7 +265,7 @@ mod tests {
 
     #[test]
     fn route_table_is_unique_and_prefixed() {
-        assert_eq!(ROUTE_TABLE.len(), 7);
+        assert_eq!(ROUTE_TABLE.len(), 8);
         for (i, (_, p, _)) in ROUTE_TABLE.iter().enumerate() {
             assert!(p.starts_with("/setting/galleryVideo/"), "路径前缀错误: {p}");
             for (_, p2, _) in ROUTE_TABLE.iter().skip(i + 1) {
