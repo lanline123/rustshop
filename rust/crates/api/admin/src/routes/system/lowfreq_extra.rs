@@ -1211,7 +1211,6 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/finance/staffFundWalletLog/walletDetail", get(h_fin_wallet_log_detail))
         .route("/finance/deliveryFundManagement/settings/detail", get(h_fin_delivery_cfg))
         .route("/finance/deliveryFundManagement/settings/save", post(h_fin_delivery_cfg_save))
-        .route("/finance/serverFundManagement/settings/detail", get(h_fin_server_cfg))
         .route("/finance/serverFundManagement/settings/save", post(h_fin_server_cfg_save))
         .route("/finance/statement/getStatementDownloadList", get(h_statement_download_list))
         .route("/o2o/decorate/decorate/detail", get(h_4))
