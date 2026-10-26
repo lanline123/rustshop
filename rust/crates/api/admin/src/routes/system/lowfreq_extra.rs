@@ -1,7 +1,7 @@
 //! 低频杂项接口（system::lowfreq_extra） —— 一次性低频接口（b2b2b 5.8.57 新版前端调用，无 Java 参考；
 //! 列名取自 overseas pure.sql，简化口径见各 handler 注释）。
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     routing::{get, post},
     Json, Router,
 };
@@ -693,6 +693,122 @@ async fn h_delivery_cancel(State(state): State<AdminState>, Json(body): Json<Val
     ok(())
 }
 
+// ————————————————————— O2O 商品组织分配 —————————————————————
+
+async fn insert_product_org(
+    state: &AdminState,
+    product_id: i64,
+    org_type: i64,
+    org_id: i64,
+    now: i64,
+) -> Result<(), Error> {
+    sqlx::query("INSERT INTO product_org (product_id, org_type, org_id, add_time) VALUES (?, ?, ?, ?)")
+        .bind(product_id)
+        .bind(org_type)
+        .bind(org_id)
+        .bind(now)
+        .execute(&pool(state))
+        .await
+        .map_err(db)?;
+    Ok(())
+}
+
+// get /o2o/productOrg/info/{productId}
+async fn h_product_org_info(State(state): State<AdminState>, Path(product_id): Path<i64>) -> ApiResult<Value> {
+    let rows: Vec<(i64, i64)> = sqlx::query_as(
+        "SELECT org_type, org_id FROM product_org WHERE product_id = ? ORDER BY product_org_id",
+    )
+    .bind(product_id)
+    .fetch_all(&pool(&state))
+    .await
+    .map_err(db)?;
+    let mut groups: std::collections::BTreeMap<i64, Vec<i64>> = std::collections::BTreeMap::new();
+    for (org_type, org_id) in rows {
+        groups.entry(org_type).or_default().push(org_id);
+    }
+    let org_items: Vec<Value> = groups
+        .into_iter()
+        .map(|(org_type, ids)| serde_json::json!({"orgType": org_type, "isAll": 0, "orgIds": ids}))
+        .collect();
+    ok(serde_json::json!({"productId": product_id, "orgItems": org_items}))
+}
+
+// post /o2o/productOrg/distribution
+async fn h_product_org_distribution(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let product_id = body.get("productId").and_then(Value::as_i64).unwrap_or(0);
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    sqlx::query("DELETE FROM product_org WHERE product_id = ?")
+        .bind(product_id)
+        .execute(&pool(&state))
+        .await
+        .map_err(db)?;
+    let mut pending: Vec<(i64, i64)> = Vec::new();
+    if let Some(items) = body.get("orgItems").and_then(Value::as_array) {
+        for item in items {
+            let org_type = item.get("orgType").and_then(Value::as_i64).unwrap_or(1);
+            for org_id in item.get("orgIds").and_then(Value::as_array).into_iter().flatten() {
+                if let Some(org_id) = org_id.as_i64() {
+                    pending.push((org_type, org_id));
+                }
+            }
+        }
+    }
+    for (key, org_type) in [("regionOrgIds", 2i64), ("shopOrgIds", 1i64)] {
+        for org_id in body.get(key).and_then(Value::as_array).into_iter().flatten() {
+            if let Some(org_id) = org_id.as_i64() {
+                pending.push((org_type, org_id));
+            }
+        }
+    }
+    for (org_type, org_id) in pending {
+        insert_product_org(&state, product_id, org_type, org_id, now).await?;
+    }
+    ok(())
+}
+
+// ————————————————————— O2O 配送员钱包后台 —————————————————————
+
+// get /o2o/serviceStaffWallet/detail
+async fn h_staff_wallet_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let staff_id = q.staff_id.unwrap_or(0);
+    let row: Option<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('walletId', wallet_id, 'staffId', staff_id, 'balance', balance, 'frozenBalance', frozen_balance, 'totalIncome', total_income, 'createTime', create_time, 'updateTime', update_time) FROM service_staff_wallet WHERE staff_id = ?",
+    )
+    .bind(staff_id)
+    .fetch_optional(&pool(&state))
+    .await
+    .map_err(db)?;
+    let (mut obj,) = row.unwrap_or((serde_json::json!({"walletId": 0, "staffId": staff_id, "balance": 0, "frozenBalance": 0, "totalIncome": 0, "createTime": 0, "updateTime": 0}),));
+    let (withdrawn,): (Value,) = sqlx::query_as(
+        "SELECT COALESCE(ABS(SUM(amount)), 0) FROM service_staff_wallet_log WHERE staff_id = ? AND type = 2",
+    )
+    .bind(staff_id)
+    .fetch_one(&pool(&state))
+    .await
+    .map_err(db)?;
+    obj["totalWithdrawn"] = withdrawn;
+    ok(obj)
+}
+
+// get /o2o/serviceStaffWallet/logList
+async fn h_staff_wallet_log_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let (p, s, off) = page_of(&q);
+    let staff_id = q.staff_id.unwrap_or(0);
+    let (total,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM service_staff_wallet_log WHERE (? = 0 OR staff_id = ?)")
+        .bind(staff_id).bind(staff_id)
+        .fetch_one(&pool(&state))
+        .await
+        .map_err(db)?;
+    let rows: Vec<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('logId', log_id, 'staffId', staff_id, 'orderId', order_id, 'withdrawId', withdraw_id, 'transactionSn', transaction_sn, 'amount', amount, 'balanceAfter', balance_after, 'frozenAfter', frozen_after, 'businessType', business_type, 'type', type, 'remark', remark, 'createTime', create_time) FROM service_staff_wallet_log WHERE (? = 0 OR staff_id = ?) ORDER BY log_id DESC LIMIT ? OFFSET ?",
+    )
+    .bind(staff_id).bind(staff_id).bind(s).bind(off)
+    .fetch_all(&pool(&state))
+    .await
+    .map_err(db)?;
+    ok(serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "total": total, "size": s, "current": p, "pages": (total as u64 + s - 1) / s}))
+}
+
 // post /pos/table/cart/list
 async fn h_22(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<tigshop_core::models::pos::cashier::PosCartVO> {
     ok(state.pos.cashier.cart(0, 0, q.id.unwrap_or(0) as i32).await?)
@@ -913,6 +1029,10 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/o2o/deliveryOrder/detail", get(h_delivery_detail))
         .route("/o2o/deliveryOrder/dispatch", post(h_delivery_dispatch))
         .route("/o2o/deliveryOrder/cancel", post(h_delivery_cancel))
+        .route("/o2o/productOrg/info/{productId}", get(h_product_org_info))
+        .route("/o2o/productOrg/distribution", post(h_product_org_distribution))
+        .route("/o2o/serviceStaffWallet/detail", get(h_staff_wallet_detail))
+        .route("/o2o/serviceStaffWallet/logList", get(h_staff_wallet_log_list))
         .route("/o2o/decorate/decorate/detail", get(h_4))
         .route("/o2o/decorate/decorate/update", post(h_5))
         .route("/o2o/dispatch/assign", post(h_6))

@@ -1,8 +1,8 @@
 # Rust 接口实现审计（对照 Tigshop Java Apifox 文档）
 
 - 文档接口（HTTP，按 method+path 去重）：1600
-- Rust 源码中能对应到：1512
-- 未找到对应实现：88
+- Rust 源码中能对应到：1516
+- 未找到对应实现：84
 
 > 说明：这是静态审计。判断依据是 Rust 源码中是否出现该路径（含去掉 `/api`、`/adminapi` 前缀后的形式）。
 > “未找到”不一定是完全没写，也可能是路径由常量拼接、特征开关或尚未迁移。
@@ -30,8 +30,6 @@
 | 后台adminapi / pos --- 收银台组 / 收银台充值 | 2 |
 | 后台adminapi / pos --- 收银台组 / 收银台会员优惠券 | 2 |
 | 后台adminapi / pos --- 收银台组 / 收银购物车管理 | 2 |
-| 后台adminapi / o2o --- 多门店 / 商品分配管理 | 2 |
-| 后台adminapi / o2o --- 多门店 / 配送员钱包（后台） | 2 |
 | 后台adminapi / vendor --- 供应商组 / 供应商商品控制器 | 2 |
 | 前台api / o2o --- 多门店 / 服务人员（配送员 / 服务员端） | 2 |
 | 前台api / o2o --- 多门店 / O2O配置（前端） | 2 |
@@ -210,20 +208,6 @@
 | --- | --- | --- |
 | POST | `/adminapi/pos/cart/updateCheck` | 更新选中状态 |
 | GET | `/adminapi/pos/cart/getCount` | 获取数量 |
-
-### 后台adminapi / o2o --- 多门店 / 商品分配管理（2）
-
-| 方法 | 路径 | 名称 |
-| --- | --- | --- |
-| POST | `/adminapi/o2o/productOrg/distribution` | 分配组织 |
-| GET | `/adminapi/o2o/productOrg/info/{productId}` | 分配组织详情 |
-
-### 后台adminapi / o2o --- 多门店 / 配送员钱包（后台）（2）
-
-| 方法 | 路径 | 名称 |
-| --- | --- | --- |
-| GET | `/adminapi/o2o/serviceStaffWallet/logList` | 查询钱包流水分页 |
-| GET | `/adminapi/o2o/serviceStaffWallet/detail` | 查询配送员钱包详情 |
 
 ### 后台adminapi / vendor --- 供应商组 / 供应商商品控制器（2）
 
