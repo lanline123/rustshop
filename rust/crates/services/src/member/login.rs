@@ -49,8 +49,11 @@
 
 use std::sync::Arc;
 
+use base64::Engine;
 use md5::{Digest, Md5};
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use sha2::Sha256;
 use tigshop_common::utils::now_seconds;
 use tigshop_core::models::member::login::{
     authorize_type_from_client, auto_nickname, email_code_key, password_reset_key, quick_login_flags,
@@ -1177,6 +1180,334 @@ impl LoginService {
         ))
     }
 
+    // ————————————————————— 第三方 OAuth 登录 —————————————————————
+
+    /// `GET /api/user/oauth/render/{source}`：生成第三方授权地址。
+    pub async fn oauth_render(
+        &self,
+        source: &str,
+        return_url: Option<&str>,
+        platform: Option<&str>,
+    ) -> Result<String> {
+        let source = source.to_ascii_lowercase();
+        let platform = platform.unwrap_or("pc");
+        let domain_code = if platform.eq_ignore_ascii_case("h5") {
+            "h5Domain"
+        } else {
+            "pcDomain"
+        };
+        let domain = self
+            .repo()
+            .config_value(domain_code)
+            .await?
+            .filter(|v| !v.trim().is_empty())
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "未配置站点域名"))?;
+        let base = domain.trim_end_matches('/');
+        let redirect_uri = if platform.eq_ignore_ascii_case("h5") {
+            format!("{base}/pages/oauth/callback")
+        } else {
+            format!("{base}/oauth/callback")
+        };
+        let state = uuid::Uuid::new_v4().simple().to_string();
+        let code_verifier = if source == "twitter" {
+            Some(twitter_code_verifier())
+        } else {
+            None
+        };
+        let state_value = OAuthState {
+            redirect_uri: redirect_uri.clone(),
+            return_url: return_url.map(str::to_string),
+            code_verifier: code_verifier.clone(),
+        };
+        let cache = self
+            .cache
+            .as_ref()
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, CACHE_UNAVAILABLE))?;
+        cache
+            .set_json(&oauth_state_key(&state), &state_value, 600)
+            .await?;
+        let state_encoded = oauth_pct(&state);
+        let redirect_encoded = oauth_pct(&redirect_uri);
+        match source.as_str() {
+            "google" => {
+                let client_id = self.oauth_config("googleClientId").await?;
+                Ok(format!(
+                    "https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id={}&redirect_uri={}&scope=openid%20email%20profile&state={}&access_type=online",
+                    oauth_pct(&client_id),
+                    redirect_encoded,
+                    state_encoded
+                ))
+            }
+            "facebook" => {
+                let client_id = self.oauth_config("facebookClientId").await?;
+                Ok(format!(
+                    "https://www.facebook.com/v18.0/dialog/oauth?client_id={}&redirect_uri={}&state={}&scope=public_profile,email",
+                    oauth_pct(&client_id),
+                    redirect_encoded,
+                    state_encoded
+                ))
+            }
+            "twitter" => {
+                let client_id = self.oauth_config("twitterClientId").await?;
+                let verifier = code_verifier.as_deref().unwrap_or_default();
+                let challenge = twitter_code_challenge(verifier);
+                Ok(format!(
+                    "https://twitter.com/i/oauth2/authorize?response_type=code&client_id={}&redirect_uri={}&scope={}&state={}&code_challenge={}&code_challenge_method=S256",
+                    oauth_pct(&client_id),
+                    redirect_encoded,
+                    oauth_pct("users.read tweet.read"),
+                    state_encoded,
+                    oauth_pct(&challenge)
+                ))
+            }
+            _ => Err(Error::biz(SERVICE_DATA_ERROR, "不支持的第三方登录平台")),
+        }
+    }
+
+    /// `POST /api/user/oauth/callback/{source}`：第三方回调用 code 登录。
+    pub async fn oauth_callback(
+        &self,
+        source: &str,
+        code: &str,
+        state: &str,
+    ) -> Result<LoginWechatEventVO> {
+        let source = source.to_ascii_lowercase();
+        let state_key = oauth_state_key(state);
+        let cache = self
+            .cache
+            .as_ref()
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, CACHE_UNAVAILABLE))?;
+        let Some(state_value) = cache.get_json::<OAuthState>(&state_key).await? else {
+            return Err(Error::biz(SERVICE_DATA_ERROR, "授权已过期，请重新登录"));
+        };
+        cache.del(&state_key).await?;
+        let user = match source.as_str() {
+            "google" => self.oauth_google_user(code, &state_value.redirect_uri).await?,
+            "facebook" => self.oauth_facebook_user(code, &state_value.redirect_uri).await?,
+            "twitter" => {
+                self.oauth_twitter_user(
+                    code,
+                    &state_value.redirect_uri,
+                    state_value.code_verifier.as_deref().unwrap_or_default(),
+                )
+                .await?
+            }
+            _ => return Err(Error::biz(SERVICE_DATA_ERROR, "不支持的第三方登录平台")),
+        };
+        let (open_id, nickname, avatar) = user;
+        let authorize_type = match source.as_str() {
+            "google" => 101,
+            "facebook" => 102,
+            _ => 103,
+        };
+        let mut token = None;
+        if let Some((_, user_id)) = self
+            .repo()
+            .find_authorize_by_open(&open_id, authorize_type)
+            .await?
+        {
+            if self.repo().user_status(user_id).await? == Some(USER_STATUS_OK) {
+                token = Some(self.issue_member_token(user_id, &format!("user{user_id}"))?);
+            }
+        }
+        let token = match token {
+            Some(t) => t,
+            None => {
+                let username = self.generate_unique_username().await?;
+                let raw_password = format!("oauth_{}", &uuid::Uuid::new_v4().simple().to_string()[..12]);
+                let password_hash = hash_password(&raw_password)?;
+                let now = now_seconds() as i32;
+                let user_id = self
+                    .repo()
+                    .insert_registered_user(
+                        &username,
+                        &nickname,
+                        &avatar,
+                        "",
+                        &password_hash,
+                        now,
+                        0,
+                    )
+                    .await?;
+                let open_data = serde_json::json!({ "source": source, "openId": open_id }).to_string();
+                self.repo()
+                    .insert_authorize(
+                        authorize_type,
+                        user_id,
+                        &open_id,
+                        Some(&open_data),
+                        &nickname,
+                        &avatar,
+                        Some(&open_id),
+                        now,
+                    )
+                    .await?;
+                self.issue_member_token(user_id, &username)?
+            }
+        };
+        Ok(LoginWechatEventVO {
+            token: Some(token),
+            r#type: 1,
+            open_data: None,
+            return_url: state_value.return_url,
+        })
+    }
+
+    async fn oauth_config(&self, code: &str) -> Result<String> {
+        self.repo()
+            .config_value(code)
+            .await?
+            .filter(|v| !v.trim().is_empty())
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, format!("{code} 未配置")))
+    }
+
+    async fn oauth_google_user(&self, code: &str, redirect_uri: &str) -> Result<(String, String, String)> {
+        let client_id = self.oauth_config("googleClientId").await?;
+        let secret = self.oauth_config("googleClientSecret").await?;
+        let client = reqwest::Client::new();
+        let token: Value = client
+            .post("https://oauth2.googleapis.com/token")
+            .form(&[
+                ("code", code),
+                ("client_id", client_id.as_str()),
+                ("client_secret", secret.as_str()),
+                ("redirect_uri", redirect_uri),
+                ("grant_type", "authorization_code"),
+            ])
+            .send()
+            .await
+            .map_err(|e| Error::biz(SERVICE_DATA_ERROR, format!("Google token 请求失败: {e}")))?
+            .json()
+            .await
+            .map_err(|e| Error::biz(SERVICE_DATA_ERROR, format!("Google token 响应解析失败: {e}")))?;
+        let access = token
+            .get("access_token")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "Google 未返回 access_token"))?;
+        let info: Value = client
+            .get("https://www.googleapis.com/oauth2/v2/userinfo")
+            .bearer_auth(access)
+            .send()
+            .await
+            .map_err(|e| Error::biz(SERVICE_DATA_ERROR, format!("Google 用户信息请求失败: {e}")))?
+            .json()
+            .await
+            .map_err(|e| Error::biz(SERVICE_DATA_ERROR, format!("Google 用户信息解析失败: {e}")))?;
+        let open_id = info
+            .get("id")
+            .or_else(|| info.get("sub"))
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "Google 未返回用户 ID"))?;
+        let nickname = info
+            .get("name")
+            .or_else(|| info.get("email"))
+            .and_then(Value::as_str)
+            .unwrap_or("Google用户");
+        let avatar = info.get("picture").and_then(Value::as_str).unwrap_or("");
+        Ok((open_id.to_string(), nickname.to_string(), truncate_avatar(avatar)))
+    }
+
+    async fn oauth_facebook_user(&self, code: &str, redirect_uri: &str) -> Result<(String, String, String)> {
+        let client_id = self.oauth_config("facebookClientId").await?;
+        let secret = self.oauth_config("facebookClientSecret").await?;
+        let client = reqwest::Client::new();
+        let token: Value = client
+            .get("https://graph.facebook.com/v18.0/oauth/access_token")
+            .query(&[
+                ("client_id", client_id.as_str()),
+                ("client_secret", secret.as_str()),
+                ("redirect_uri", redirect_uri),
+                ("code", code),
+            ])
+            .send()
+            .await
+            .map_err(|e| Error::biz(SERVICE_DATA_ERROR, format!("Facebook token 请求失败: {e}")))?
+            .json()
+            .await
+            .map_err(|e| Error::biz(SERVICE_DATA_ERROR, format!("Facebook token 响应解析失败: {e}")))?;
+        let access = token
+            .get("access_token")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "Facebook 未返回 access_token"))?;
+        let info: Value = client
+            .get("https://graph.facebook.com/me")
+            .query(&[("fields", "id,name,email,picture.type(large)"), ("access_token", access)])
+            .send()
+            .await
+            .map_err(|e| Error::biz(SERVICE_DATA_ERROR, format!("Facebook 用户信息请求失败: {e}")))?
+            .json()
+            .await
+            .map_err(|e| Error::biz(SERVICE_DATA_ERROR, format!("Facebook 用户信息解析失败: {e}")))?;
+        let open_id = info
+            .get("id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "Facebook 未返回用户 ID"))?;
+        let nickname = info
+            .get("name")
+            .or_else(|| info.get("email"))
+            .and_then(Value::as_str)
+            .unwrap_or("Facebook用户");
+        let avatar = info
+            .get("picture")
+            .and_then(|p| p.get("data"))
+            .and_then(|d| d.get("url"))
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        Ok((open_id.to_string(), nickname.to_string(), truncate_avatar(avatar)))
+    }
+
+    async fn oauth_twitter_user(
+        &self,
+        code: &str,
+        redirect_uri: &str,
+        code_verifier: &str,
+    ) -> Result<(String, String, String)> {
+        let client_id = self.oauth_config("twitterClientId").await?;
+        let secret = self.oauth_config("twitterClientSecret").await?;
+        let basic = base64::engine::general_purpose::STANDARD.encode(format!("{client_id}:{secret}"));
+        let client = reqwest::Client::new();
+        let token: Value = client
+            .post("https://api.twitter.com/2/oauth2/token")
+            .header("Authorization", format!("Basic {basic}"))
+            .form(&[
+                ("code", code),
+                ("grant_type", "authorization_code"),
+                ("client_id", client_id.as_str()),
+                ("redirect_uri", redirect_uri),
+                ("code_verifier", code_verifier),
+            ])
+            .send()
+            .await
+            .map_err(|e| Error::biz(SERVICE_DATA_ERROR, format!("Twitter token 请求失败: {e}")))?
+            .json()
+            .await
+            .map_err(|e| Error::biz(SERVICE_DATA_ERROR, format!("Twitter token 响应解析失败: {e}")))?;
+        let access = token
+            .get("access_token")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "Twitter 未返回 access_token"))?;
+        let info: Value = client
+            .get("https://api.twitter.com/2/users/me")
+            .bearer_auth(access)
+            .send()
+            .await
+            .map_err(|e| Error::biz(SERVICE_DATA_ERROR, format!("Twitter 用户信息请求失败: {e}")))?
+            .json()
+            .await
+            .map_err(|e| Error::biz(SERVICE_DATA_ERROR, format!("Twitter 用户信息解析失败: {e}")))?;
+        let data = info.get("data").unwrap_or(&Value::Null);
+        let open_id = data
+            .get("id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "Twitter 未返回用户 ID"))?;
+        let nickname = data
+            .get("name")
+            .or_else(|| data.get("username"))
+            .and_then(Value::as_str)
+            .unwrap_or("Twitter用户");
+        Ok((open_id.to_string(), nickname.to_string(), String::new()))
+    }
+
     /// 会员访问令牌（`sub=userId` / `usr=username` / `typ="member"`）。
     fn issue_member_token(&self, user_id: i32, username: &str) -> Result<String> {
         let (access, _refresh, _expires_in) = self.jwt.issue_pair(
@@ -1186,6 +1517,56 @@ impl LoginService {
             Some(MEMBER_TOKEN_TYPE.to_string()),
         )?;
         Ok(access)
+    }
+}
+
+/// OAuth state 缓存值（Redis 键 `oauth_state:<state>`，TTL 10 分钟）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct OAuthState {
+    redirect_uri: String,
+    return_url: Option<String>,
+    code_verifier: Option<String>,
+}
+
+fn oauth_state_key(state: &str) -> String {
+    format!("oauth_state:{state}")
+}
+
+fn oauth_pct(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for b in value.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                out.push(b as char);
+            }
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
+}
+
+fn twitter_code_verifier() -> String {
+    // RFC 7636：43-128 字符；SHA256(uuid+uuid) 的 base64url 结果固定 43 字符
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    let raw = format!(
+        "{}{}",
+        uuid::Uuid::new_v4().simple(),
+        uuid::Uuid::new_v4().simple()
+    );
+    URL_SAFE_NO_PAD.encode(Sha256::digest(raw.as_bytes()))
+}
+
+fn twitter_code_challenge(verifier: &str) -> String {
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    let digest = Sha256::digest(verifier.as_bytes());
+    URL_SAFE_NO_PAD.encode(digest)
+}
+
+fn truncate_avatar(url: &str) -> String {
+    if url.chars().count() <= 255 {
+        url.to_string()
+    } else {
+        String::new()
     }
 }
 
