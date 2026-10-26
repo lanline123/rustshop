@@ -126,10 +126,29 @@ POST /adminapi/setting/galleryVideo/treeList   （getAllCategory 的文档契约
 
 - service 层原本已存在，本次补挂路由并加入 implemented_routes
 - `cargo check -p tigshop-admin-api --lib` 通过
+- `cargo test -p tigshop-admin-api --lib lang::` 6 passed
 - 审计未实现数：128 → 123
-- commit：`04d78abe`、`ae779a28`
+- commit：`04d78abe`、`ae779a28`、`a0982481`
 
-待继续：A2 OAuth、A3 海外支付回调/配置。
+待继续：A2 OAuth（Google/Facebook 已迁移，Twitter 待补）、A3 海外支付回调/配置。
+
+### 2026-10-26 A2：Google/Facebook OAuth
+
+```text
+GET  /api/user/oauth/render/{source}
+GET  /api/user/oauth/callback/{source}
+POST /api/user/oauth/callback/{source}
+```
+
+- 新增 `services/src/member/login.rs` 的 OAuth render/callback
+- state 存缓存（10 分钟），Google/Facebook token 交换 + 用户信息拉取
+- `user_authorize` 绑定，新用户自动注册并签发会员 JWT
+- 已接入 `api/public` 匿名路由
+- `cargo check -p tigshop-api --lib` 通过
+- 审计未实现数：123 → 120
+- commit：`ee8fb75e`
+
+Twitter/X OAuth2 + PKCE 尚未迁移，接口会返回明确业务错误。
 
 ## 每批验收
 
