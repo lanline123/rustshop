@@ -10,6 +10,39 @@
 
 ## H5
 
+### 2026-10-26 服务人员个人中心
+
+新增：
+
+```text
+src/pages/staff/profile.vue
+pages.json -> pages/staff 分包（profile）
+```
+
+对应接口：
+
+```text
+GET  /api/o2o/serviceStaff/myInfo
+POST /api/o2o/serviceStaff/updateWorkStatus
+GET  /api/o2o/staffWallet/myWallet
+```
+
+功能：
+
+```text
+服务人员资料 / 完成订单数 / 完成金额
+下班 / 空闲 / 忙碌 状态切换
+跳转钱包、配送工作台
+```
+
+构建部署：
+
+```text
+zip sha256：6bb1e310ab88bd8a3665be3bee893a58b82ac0f7863eaf734e42e3bd35ebc145
+备份：/www/backup/mobile.bak.20261026114613
+线上：pages-staff-profile.BcVXBKHn.js -> 200
+```
+
 ### 2026-10-26 配送员端页面
 
 新增：
