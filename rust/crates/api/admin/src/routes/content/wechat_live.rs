@@ -116,6 +116,8 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/content/wechatLive/list", get(list))
         .route("/content/wechatLive/detail", get(detail))
         .route("/content/wechatLive/update", post(update))
+        .route("/promotion/wechatLive/detail", get(detail))
+        .route("/promotion/wechatLive/update", post(update))
         .route("/content/wechatLive/refresh", get(refresh))
         .route("/content/wechatLive/create", post(create))
         .route("/content/wechatLive/delete", post(delete))

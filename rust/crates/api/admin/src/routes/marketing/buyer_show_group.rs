@@ -35,7 +35,7 @@
 //! > 原接口返回 `void`，此处回传主键或提示文案便于排查。
 
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::HeaderMap,
     routing::{get, post},
     Extension, Json, Router,
@@ -61,6 +61,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/promotion/buyerShow/group/detail", get(group_detail))
         .route("/promotion/buyerShow/group/update", post(group_update))
         .route("/promotion/buyerShow/group/del", post(group_delete))
+        .route("/promotion/buyerShow/group/del/{id}", post(group_delete_path))
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。
@@ -165,6 +166,14 @@ async fn group_delete(
     Json(dto): Json<OperateDTO>,
 ) -> ApiResult<&'static str> {
     let id = require_operate_id(dto.id)?;
+    state.marketing.buyer_show_group.delete(id).await?;
+    ok("删除成功")
+}
+
+async fn group_delete_path(
+    State(state): State<AdminState>,
+    Path(id): Path<i32>,
+) -> ApiResult<&'static str> {
     state.marketing.buyer_show_group.delete(id).await?;
     ok("删除成功")
 }

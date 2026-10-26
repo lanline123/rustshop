@@ -37,7 +37,7 @@ use tigshop_security::JwtService;
 use crate::PublicState;
 
 /// 本域 6 条路由（去掉 `/api` 前缀后的路径 + 原 Java handler）。
-const ROUTE_TABLE: [(&str, &str, &str); 6] = [
+const ROUTE_TABLE: [(&str, &str, &str); 7] = [
     (
         "GET",
         "/promotion/giftCardGroups/detail",
@@ -68,6 +68,11 @@ const ROUTE_TABLE: [(&str, &str, &str); 6] = [
         "/promotion/giftCardGroups/getTransferLink",
         "GiftCardGroupsController.getTransferLink",
     ),
+    (
+        "GET",
+        "/promotion/giftCardGroups/showCardPassword",
+        "GiftCardGroupsController.showCardPassword",
+    ),
 ];
 
 /// 礼品卡前台路由（挂载于 `/api` 下，模块自带可选登录态中间件）。
@@ -84,6 +89,10 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route(
             "/promotion/giftCardGroups/getTransferLink",
             get(get_transfer_link),
+        )
+        .route(
+            "/promotion/giftCardGroups/showCardPassword",
+            get(show_card_password),
         )
         .layer(middleware::from_fn_with_state(
             state.jwt.clone(),
@@ -221,6 +230,17 @@ async fn get_transfer_link(
         .await?)
 }
 
+async fn show_card_password(
+    State(state): State<PublicState>,
+    Query(q): Query<TransferLinkQuery>,
+) -> ApiResult<String> {
+    ok(state
+        .marketing
+        .gift_card
+        .show_card_password_by_sn(q.gift_card_sn.as_deref().unwrap_or_default())
+        .await?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -228,7 +248,7 @@ mod tests {
     #[test]
     fn implemented_routes_match_java_contract() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 6);
+        assert_eq!(docs.len(), 7);
         let expected = [
             ("GET", "/api/promotion/giftCardGroups/detail"),
             ("POST", "/api/promotion/giftCardGroups/claim"),
@@ -236,6 +256,7 @@ mod tests {
             ("GET", "/api/promotion/giftCardGroups/isGiftCardExpired"),
             ("POST", "/api/promotion/giftCardGroups/exchange"),
             ("GET", "/api/promotion/giftCardGroups/getTransferLink"),
+            ("GET", "/api/promotion/giftCardGroups/showCardPassword"),
         ];
         for (method, path) in expected {
             assert!(
@@ -253,7 +274,7 @@ mod tests {
 
     #[test]
     fn route_table_paths_stay_relative() {
-        assert_eq!(ROUTE_TABLE.len(), 6);
+        assert_eq!(ROUTE_TABLE.len(), 7);
         for (_, path, _) in ROUTE_TABLE.iter() {
             assert!(!path.contains("/api/"), "{path}");
             assert!(path.starts_with("/promotion/giftCardGroups/"), "{path}");

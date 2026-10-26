@@ -420,6 +420,16 @@ impl GiftCardService {
         Ok(card.card_password)
     }
 
+    /// 按礼品卡 sn 显示卡密码（前台 showCardPassword）。
+    pub async fn show_card_password_by_sn(&self, sn: &str) -> Result<String> {
+        let card = self
+            .repo()
+            .find_by_sn(sn)
+            .await?
+            .ok_or_else(|| Error::biz(500, MSG_CARD_NOT_EXISTS))?;
+        Ok(card.card_password)
+    }
+
     /// 礼品卡兑换详情（Java `giftCardExchangeDetail`）。
     pub async fn gift_card_exchange_detail(&self, gift_cards_id: i32) -> Result<GiftCardDetailVO> {
         let card = self
