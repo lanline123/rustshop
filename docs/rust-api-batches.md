@@ -114,6 +114,36 @@ java/view/admin/src/views/setting/
 
 ## 进度
 
+### 2026-10-26 E1：供应商员工/资金账户/商品
+
+已补 11 条：
+
+```text
+/vendor/adminVendorUser/create|update|modifyUser|info|detail
+/vendor/vendorAccount/create|update|detail
+/vendor/product/create|detail|platform/detail
+```
+
+- 供应商员工表 `admin_user_vendor`
+- 供应商资金账户 `vendor_account`
+- 供应商商品基础新增/详情
+- `cargo check -p tigshop-admin-api` 通过
+- 审计未实现数：29 → 18
+- commit：`047bc34e`
+
+### E 批构建部署（2026-10-26）
+
+```text
+run：40260497154
+artifact：12624273709
+sha256：de2514f52dd6291c69d3fb47dab3f66d2054173a7c0e2e8fcd44885d85fd5a64
+```
+
+```text
+服务 active，health UP
+备份：/www/wwwroot/tigshop-rust/tigshop.preE.bak
+```
+
 ### 2026-10-26 D1：POS 收银台
 
 已补 15 条：
