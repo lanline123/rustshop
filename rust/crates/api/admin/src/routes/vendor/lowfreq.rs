@@ -379,6 +379,103 @@ async fn h_53(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<(
     ok(())
 }
 
+// ————————————————————— 供应商员工 / 资金账户 / 商品 —————————————————————
+
+fn json_i64(body: &Value, key: &str) -> i64 {
+    body.get(key).and_then(Value::as_i64).unwrap_or(0)
+}
+fn json_str(body: &Value, key: &str) -> String {
+    body.get(key).and_then(Value::as_str).unwrap_or_default().to_string()
+}
+
+async fn h_vendor_user_create(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<i64> {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    let r = sqlx::query(
+        "INSERT INTO admin_user_vendor (admin_id, user_id, vendor_id, username, email, avatar, auth_list, is_using, is_admin, add_time, role_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(json_i64(&body, "adminId")).bind(json_i64(&body, "userId")).bind(json_i64(&body, "vendorId"))
+    .bind(json_str(&body, "username")).bind(json_str(&body, "email")).bind(json_str(&body, "avatar"))
+    .bind(json_str(&body, "authList")).bind(json_i64(&body, "isUsing")).bind(json_i64(&body, "isAdmin"))
+    .bind(now).bind(json_i64(&body, "roleId"))
+    .execute(&pool(&state)).await.map_err(db)?;
+    ok(r.last_insert_id() as i64)
+}
+
+async fn h_vendor_user_update(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    sqlx::query(
+        "UPDATE admin_user_vendor SET admin_id = ?, user_id = ?, vendor_id = ?, username = ?, email = ?, avatar = ?, auth_list = ?, is_using = ?, is_admin = ?, role_id = ? WHERE id = ?",
+    )
+    .bind(json_i64(&body, "adminId")).bind(json_i64(&body, "userId")).bind(json_i64(&body, "vendorId"))
+    .bind(json_str(&body, "username")).bind(json_str(&body, "email")).bind(json_str(&body, "avatar"))
+    .bind(json_str(&body, "authList")).bind(json_i64(&body, "isUsing")).bind(json_i64(&body, "isAdmin"))
+    .bind(json_i64(&body, "roleId")).bind(json_i64(&body, "id"))
+    .execute(&pool(&state)).await.map_err(db)?;
+    ok(())
+}
+
+async fn h_vendor_user_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let row: Option<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('id', id, 'adminId', admin_id, 'userId', user_id, 'vendorId', vendor_id, 'username', username, 'email', email, 'avatar', avatar, 'authList', auth_list, 'isUsing', is_using, 'isAdmin', is_admin, 'addTime', add_time, 'roleId', role_id) FROM admin_user_vendor WHERE id = ?",
+    ).bind(q.id.unwrap_or(0)).fetch_optional(&pool(&state)).await.map_err(db)?;
+    ok(row.map(|(v,)| v).unwrap_or(Value::Null))
+}
+
+async fn h_vendor_account_create(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<i64> {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    let r = sqlx::query(
+        "INSERT INTO vendor_account (vendor_id, account_type, account_name, account_no, bank_name, bank_branch, add_time) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(json_i64(&body, "vendorId")).bind(json_i64(&body, "accountType"))
+    .bind(json_str(&body, "accountName")).bind(json_str(&body, "accountNo"))
+    .bind(json_str(&body, "bankName")).bind(json_str(&body, "bankBranch")).bind(now)
+    .execute(&pool(&state)).await.map_err(db)?;
+    ok(r.last_insert_id() as i64)
+}
+
+async fn h_vendor_account_update(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    sqlx::query(
+        "UPDATE vendor_account SET vendor_id = ?, account_type = ?, account_name = ?, account_no = ?, bank_name = ?, bank_branch = ? WHERE account_id = ?",
+    )
+    .bind(json_i64(&body, "vendorId")).bind(json_i64(&body, "accountType"))
+    .bind(json_str(&body, "accountName")).bind(json_str(&body, "accountNo"))
+    .bind(json_str(&body, "bankName")).bind(json_str(&body, "bankBranch"))
+    .bind(json_i64(&body, "accountId"))
+    .execute(&pool(&state)).await.map_err(db)?;
+    ok(())
+}
+
+async fn h_vendor_account_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let row: Option<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('accountId', account_id, 'vendorId', vendor_id, 'accountType', account_type, 'accountName', account_name, 'accountNo', account_no, 'bankName', bank_name, 'bankBranch', bank_branch, 'addTime', add_time) FROM vendor_account WHERE account_id = ?",
+    ).bind(q.id.unwrap_or(0)).fetch_optional(&pool(&state)).await.map_err(db)?;
+    ok(row.map(|(v,)| v).unwrap_or(Value::Null))
+}
+
+async fn h_vendor_product_create(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<i64> {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    let pid = json_i64(&body, "productId");
+    if pid > 0 {
+        sqlx::query("UPDATE product SET product_name = ?, product_price = ? WHERE product_id = ?")
+            .bind(json_str(&body, "productName")).bind(json_str(&body, "productPrice")).bind(pid)
+            .execute(&pool(&state)).await.map_err(db)?;
+        return ok(pid);
+    }
+    let r = sqlx::query(
+        "INSERT INTO product (product_name, product_price, shop_id, vendor_id, add_time) VALUES (?, ?, ?, ?, ?)",
+    )
+    .bind(json_str(&body, "productName")).bind(json_str(&body, "productPrice"))
+    .bind(json_i64(&body, "shopId")).bind(json_i64(&body, "vendorId")).bind(now)
+    .execute(&pool(&state)).await.map_err(db)?;
+    ok(r.last_insert_id() as i64)
+}
+
+async fn h_vendor_product_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let row: Option<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('productId', product_id, 'productName', product_name, 'productPrice', product_price, 'picThumb', pic_thumb, 'shopId', shop_id, 'vendorId', vendor_id, 'addTime', add_time) FROM product WHERE product_id = ?",
+    ).bind(q.product_id.or(q.id).unwrap_or(0)).fetch_optional(&pool(&state)).await.map_err(db)?;
+    ok(row.map(|(v,)| v).unwrap_or(Value::Null))
+}
+
 /// 域路由（挂载于 /adminapi 下）。
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
@@ -396,6 +493,11 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/vendor/vendorShopBind/productList", get(h_10))
         .route("/vendor/vendorShopBind/shopList", get(h_11))
         .route("/vendor/adminVendorUser/list", post(h_12))
+        .route("/vendor/adminVendorUser/create", post(h_vendor_user_create))
+        .route("/vendor/adminVendorUser/update", post(h_vendor_user_update))
+        .route("/vendor/adminVendorUser/modifyUser", post(h_vendor_user_update))
+        .route("/vendor/adminVendorUser/info", get(h_vendor_user_detail))
+        .route("/vendor/adminVendorUser/detail", get(h_vendor_user_detail))
         .route("/vendor/adminVendorUser/batch", post(h_13))
         .route("/vendor/adminVendorUser/del", post(h_14))
         .route("/vendor/adminVendorAccount/index", get(h_15))
@@ -405,6 +507,12 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/vendor/vendorAccount/list", get(h_19))
         .route("/vendor/vendorAccount/logList", get(h_20))
         .route("/vendor/vendorAccount/del", post(h_21))
+        .route("/vendor/vendorAccount/create", post(h_vendor_account_create))
+        .route("/vendor/vendorAccount/update", post(h_vendor_account_update))
+        .route("/vendor/vendorAccount/detail", get(h_vendor_account_detail))
+        .route("/vendor/product/create", post(h_vendor_product_create))
+        .route("/vendor/product/detail", get(h_vendor_product_detail))
+        .route("/vendor/product/platform/detail", get(h_vendor_product_detail))
         .route("/vendor/vendorAccount/config", get(h_22))
         .route("/vendor/vendorAccount/applyShopAgreement", get(h_23))
         .route("/vendor/vendor/delVendor", post(h_24))
