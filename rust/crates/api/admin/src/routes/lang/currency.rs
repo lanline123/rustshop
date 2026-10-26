@@ -21,7 +21,7 @@ use axum::{
 };
 use serde::Deserialize;
 use tigshop_core::models::lang::common::{BatchDTO, OperateDTO, UpdateFieldDTO};
-use tigshop_core::models::lang::currency::{CurrencyListQuery, CurrencyVO};
+use tigshop_core::models::lang::currency::{CurrencyDTO, CurrencyListQuery, CurrencyVO};
 use tigshop_core::models::lang::translations::TranslationTextDTO;
 use tigshop_core::types::PageResult;
 use tigshop_security::web::{ok, ApiResult};
@@ -34,6 +34,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
     Router::new()
         .route("/lang/currency/list", get(list))
         .route("/lang/currency/detail", get(detail))
+        .route("/lang/currency/create", post(create))
         .route("/lang/currency/updateField", post(update_field))
         .route("/lang/currency/del", post(del))
         .route("/lang/currency/batch", post(batch))
@@ -59,6 +60,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     [
         ("GET", "/adminapi/lang/currency/list", "CurrencyController.list"),
         ("GET", "/adminapi/lang/currency/detail", "CurrencyController.detail"),
+        ("POST", "/adminapi/lang/currency/create", "CurrencyController.create"),
         ("POST", "/adminapi/lang/currency/updateField", "CurrencyController.updateField"),
         ("POST", "/adminapi/lang/currency/del", "CurrencyController.del"),
         ("POST", "/adminapi/lang/currency/batch", "CurrencyController.batch"),
@@ -114,6 +116,12 @@ async fn detail(
     Query(q): Query<IdQuery>,
 ) -> ApiResult<Option<CurrencyVO>> {
     ok(state.lang.currency().detail(q.id).await?)
+}
+
+/// `POST /adminapi/lang/currency/create`：新增货币。
+async fn create(State(state): State<AdminState>, Json(dto): Json<CurrencyDTO>) -> ApiResult<()> {
+    state.lang.currency().create(&dto).await?;
+    ok(())
 }
 
 /// `POST /adminapi/lang/currency/updateField`：修改字段（`isDefault` 联动）。
@@ -179,12 +187,9 @@ mod tests {
     #[test]
     fn implemented_routes_match_frontend_contract() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 10);
+        assert_eq!(docs.len(), 11);
         assert_eq!(docs[0].path, "/adminapi/lang/currency/list");
-        assert_eq!(
-            docs[9].path,
-            "/adminapi/lang/currency/translation"
-        );
+        assert!(docs.iter().any(|d| d.path == "/adminapi/lang/currency/translation"));
     }
 
     #[test]
