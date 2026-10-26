@@ -114,6 +114,26 @@ java/view/admin/src/views/setting/
 
 ## 进度
 
+### 2026-10-26 B2：O2O 服务人员
+
+已补 8 条：
+
+```text
+GET  /adminapi/o2o/serviceStaff/list
+GET  /adminapi/o2o/serviceStaff/detail
+GET  /adminapi/o2o/serviceStaff/showMobile
+POST /adminapi/o2o/serviceStaff/create
+POST /adminapi/o2o/serviceStaff/update
+POST /adminapi/o2o/serviceStaff/updateField
+POST /adminapi/o2o/serviceStaff/del
+POST /adminapi/o2o/serviceStaff/batch
+```
+
+- `service_staff` 表 CRUD；updateField 白名单
+- `cargo check -p tigshop-admin-api` 通过
+- 审计未实现数：107 → 99
+- commit：`943659f6`
+
 ### 2026-10-26 B1：O2O 标签管理
 
 在已有低代码路由基础上补齐：
