@@ -114,6 +114,24 @@ java/view/admin/src/views/setting/
 
 ## 进度
 
+### 2026-10-26 B3：O2O 区域管理
+
+已补 5 条：
+
+```text
+GET  /adminapi/o2o/areaStoreManager/detail
+POST /adminapi/o2o/areaStoreManager/create
+POST /adminapi/o2o/areaStoreManager/update
+POST /adminapi/o2o/areaStoreManager/bindShop
+POST /adminapi/o2o/areaStoreManager/batch
+```
+
+- `area_store_manager` + `area_store_manager_shop` 联动
+- create/update 自动重建店铺绑定
+- `cargo check -p tigshop-admin-api` 通过
+- 审计未实现数：99 → 94
+- commit：`3f26125b`
+
 ### 2026-10-26 B2：O2O 服务人员
 
 已补 8 条：
