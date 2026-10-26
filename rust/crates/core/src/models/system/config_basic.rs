@@ -1438,8 +1438,45 @@ static EP101_FIELDS: [FieldSpec; 8] = [
     FieldSpec { field: "posProductSource", code: "posProductSource", ty: ValueType::JsonArray, default: Some("[0]"), is_list: true, label: None, widget: None, required: None, group: None },
 ];
 
-/// 全部 102 个 `ConfigController` 管理端点（顺序 = Java 方法声明顺序）。
-pub static ENDPOINTS: [EndpointSpec; 102] = [
+static EP102_FIELDS: [FieldSpec; 7] = [
+    FieldSpec { field: "useStripe", code: "useStripe", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "stripeCurrency", code: "stripeCurrency", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "stripeSecretKey", code: "stripeSecretKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "stripePublishableKey", code: "stripePublishableKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "stripeWebhookSecret", code: "stripeWebhookSecret", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "stripeCurrencyListStr", code: "stripeCurrencyList", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "stripeCurrencyList", code: "stripeCurrencyList", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+];
+
+static EP104_FIELDS: [FieldSpec; 11] = [
+    FieldSpec { field: "useXendit", code: "useXendit", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "xenditCurrency", code: "xenditCurrency", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "xenditSecretKey", code: "xenditSecretKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "xenditPublicKey", code: "xenditPublicKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "xenditWebhookToken", code: "xenditWebhookToken", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "xenditBaseUrl", code: "xenditBaseUrl", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "xenditSandbox", code: "xenditSandbox", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "xenditPaymentMethods", code: "xenditPaymentMethods", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "xenditInvoiceDuration", code: "xenditInvoiceDuration", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "xenditCurrencyListStr", code: "xenditCurrencyList", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "xenditCurrencyList", code: "xenditCurrencyList", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+];
+
+static EP106_FIELDS: [FieldSpec; 9] = [
+    FieldSpec { field: "useAntom", code: "useAntom", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "antomCurrency", code: "antomCurrency", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "antomClientId", code: "antomClientId", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "antomMerchantPrivateKey", code: "antomMerchantPrivateKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "antomPublicKey", code: "antomPublicKey", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "antomGatewayUrl", code: "antomGatewayUrl", ty: ValueType::Str, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "antomSandbox", code: "antomSandbox", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "antomCurrencyListStr", code: "antomCurrencyList", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "antomCurrencyList", code: "antomCurrencyList", ty: ValueType::Str, default: Some(""), is_list: false, label: None, widget: None, required: None, group: None },
+];
+
+/// 全部 108 个 `ConfigController` 管理端点（顺序 = Java 方法声明顺序）。
+pub static ENDPOINTS: [EndpointSpec; 108] = [
+
     EndpointSpec { path: "/setting/config/basicSettings", verb: Verb::Get, kind: EndpointKind::Group, java_ref: "ConfigController.getBasicSettings", summary: "获取商城设置-基础信息", fields: &EP0_FIELDS, nested: &[] },
     EndpointSpec { path: "/setting/config/saveBasic", verb: Verb::Post, kind: EndpointKind::Group, java_ref: "ConfigController.saveBasic", summary: "保存商城设置-基础信息", fields: &EP1_FIELDS, nested: &[] },
     EndpointSpec { path: "/setting/config/productSettings", verb: Verb::Get, kind: EndpointKind::Group, java_ref: "ConfigController.getProductSettings", summary: "获取商城设置-商品设置", fields: &EP2_FIELDS, nested: &[] },
@@ -1542,6 +1579,12 @@ pub static ENDPOINTS: [EndpointSpec; 102] = [
     EndpointSpec { path: "/setting/config/getWXWorkConfig", verb: Verb::Get, kind: EndpointKind::Group, java_ref: "ConfigController.getWXWorkConfig", summary: "获取企业微信配置", fields: &EP99_FIELDS, nested: &[] },
     EndpointSpec { path: "/setting/config/getCashierOrderSettings", verb: Verb::Get, kind: EndpointKind::Group, java_ref: "ConfigController.getCashierOrderSettings", summary: "获取收银台订单设置", fields: &EP100_FIELDS, nested: &[] },
     EndpointSpec { path: "/setting/config/saveCashierOrderSettings", verb: Verb::Post, kind: EndpointKind::Group, java_ref: "ConfigController.saveCashierOrderSettings", summary: "保存收银台订单设置", fields: &EP101_FIELDS, nested: &[] },
+    EndpointSpec { path: "/setting/config/stripeSettings", verb: Verb::Get, kind: EndpointKind::Group, java_ref: "ConfigController.getStripeSettings", summary: "获取系统设置-Stripe支付设置", fields: &EP102_FIELDS, nested: &[] },
+    EndpointSpec { path: "/setting/config/saveStripe", verb: Verb::Post, kind: EndpointKind::Group, java_ref: "ConfigController.saveStripeSettings", summary: "保存系统设置-Stripe支付设置", fields: &EP102_FIELDS, nested: &[] },
+    EndpointSpec { path: "/setting/config/xenditSettings", verb: Verb::Get, kind: EndpointKind::Group, java_ref: "ConfigController.getXenditSettings", summary: "获取系统设置-Xendit支付设置", fields: &EP104_FIELDS, nested: &[] },
+    EndpointSpec { path: "/setting/config/saveXendit", verb: Verb::Post, kind: EndpointKind::Group, java_ref: "ConfigController.saveXenditSettings", summary: "保存系统设置-Xendit支付设置", fields: &EP104_FIELDS, nested: &[] },
+    EndpointSpec { path: "/setting/config/antomSettings", verb: Verb::Get, kind: EndpointKind::Group, java_ref: "ConfigController.getAntomSettings", summary: "获取系统设置-Antom支付设置", fields: &EP106_FIELDS, nested: &[] },
+    EndpointSpec { path: "/setting/config/saveAntom", verb: Verb::Post, kind: EndpointKind::Group, java_ref: "ConfigController.saveAntomSettings", summary: "保存系统设置-Antom支付设置", fields: &EP106_FIELDS, nested: &[] },
 ];
 
 /// 全部端点。
@@ -1819,7 +1862,7 @@ mod tests {
 
     #[test]
     fn route_specs_count_and_uniqueness() {
-        assert_eq!(ENDPOINTS.len(), 102, "契约共 102 条");
+        assert_eq!(ENDPOINTS.len(), 108, "契约共 108 条");
         assert_eq!(PUBLIC_PATHS.len(), 3, "匿名白名单 3 条");
         let mut seen = std::collections::HashSet::new();
         for ep in ENDPOINTS.iter() {
