@@ -212,13 +212,24 @@ zip sha256：9426cb3bf06e5090cde98526756902e7bdeb664ce1e61c446dfe19bcd302a3ab
 /admin/assets/staffFund-BauBLyJn.js → 200
 ```
 
+线上权限菜单已确认存在：
+
+```text
+staffFundManagement         员工收益管理
+deliveryFundSettingsManage  配送设置
+serverFundSettingsManage    服务设置
+staffFundWalletManage       资金总览
+staffFundWalletLogManage    资金日志
+deliveryStaffWithdrawManage 配送员提现管理
+serverStaffWithdrawManage   服务员提现管理
+```
+
 ### 待补
 
 ```text
-财务员工资金/提现页面
 O2O 标签/服务人员/区域/派送订单/钱包页面
 POS 收银台页面
 供应商管理页面
 ```
 
-> Admin 页面为编译后的 SPA（`java/public/admin` / `java/view/admin`），新增页面需确认构建链后再操作。
+> Admin 页面为编译后的 SPA（`java/public/admin` / `java/view/admin`），已确认可构建、可部署。
