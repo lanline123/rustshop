@@ -49,9 +49,11 @@
 
 use std::sync::Arc;
 
+use base64::Engine;
 use md5::{Digest, Md5};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use sha2::Sha256;
 use tigshop_common::utils::now_seconds;
 use tigshop_core::models::member::login::{
     authorize_type_from_client, auto_nickname, email_code_key, password_reset_key, quick_login_flags,
@@ -1207,9 +1209,15 @@ impl LoginService {
             format!("{base}/oauth/callback")
         };
         let state = uuid::Uuid::new_v4().simple().to_string();
+        let code_verifier = if source == "twitter" {
+            Some(twitter_code_verifier())
+        } else {
+            None
+        };
         let state_value = OAuthState {
             redirect_uri: redirect_uri.clone(),
             return_url: return_url.map(str::to_string),
+            code_verifier: code_verifier.clone(),
         };
         let cache = self
             .cache
@@ -1239,10 +1247,19 @@ impl LoginService {
                     state_encoded
                 ))
             }
-            "twitter" => Err(Error::biz(
-                SERVICE_DATA_ERROR,
-                "Twitter OAuth 尚未迁移，请使用 Google/Facebook 或微信登录",
-            )),
+            "twitter" => {
+                let client_id = self.oauth_config("twitterClientId").await?;
+                let verifier = code_verifier.as_deref().unwrap_or_default();
+                let challenge = twitter_code_challenge(verifier);
+                Ok(format!(
+                    "https://twitter.com/i/oauth2/authorize?response_type=code&client_id={}&redirect_uri={}&scope={}&state={}&code_challenge={}&code_challenge_method=S256",
+                    oauth_pct(&client_id),
+                    redirect_encoded,
+                    oauth_pct("users.read tweet.read"),
+                    state_encoded,
+                    oauth_pct(&challenge)
+                ))
+            }
             _ => Err(Error::biz(SERVICE_DATA_ERROR, "不支持的第三方登录平台")),
         }
     }
@@ -1267,6 +1284,14 @@ impl LoginService {
         let user = match source.as_str() {
             "google" => self.oauth_google_user(code, &state_value.redirect_uri).await?,
             "facebook" => self.oauth_facebook_user(code, &state_value.redirect_uri).await?,
+            "twitter" => {
+                self.oauth_twitter_user(
+                    code,
+                    &state_value.redirect_uri,
+                    state_value.code_verifier.as_deref().unwrap_or_default(),
+                )
+                .await?
+            }
             _ => return Err(Error::biz(SERVICE_DATA_ERROR, "不支持的第三方登录平台")),
         };
         let (open_id, nickname, avatar) = user;
@@ -1431,6 +1456,58 @@ impl LoginService {
         Ok((open_id.to_string(), nickname.to_string(), truncate_avatar(avatar)))
     }
 
+    async fn oauth_twitter_user(
+        &self,
+        code: &str,
+        redirect_uri: &str,
+        code_verifier: &str,
+    ) -> Result<(String, String, String)> {
+        let client_id = self.oauth_config("twitterClientId").await?;
+        let secret = self.oauth_config("twitterClientSecret").await?;
+        let basic = base64::engine::general_purpose::STANDARD.encode(format!("{client_id}:{secret}"));
+        let client = reqwest::Client::new();
+        let token: Value = client
+            .post("https://api.twitter.com/2/oauth2/token")
+            .header("Authorization", format!("Basic {basic}"))
+            .form(&[
+                ("code", code),
+                ("grant_type", "authorization_code"),
+                ("client_id", client_id.as_str()),
+                ("redirect_uri", redirect_uri),
+                ("code_verifier", code_verifier),
+            ])
+            .send()
+            .await
+            .map_err(|e| Error::biz(SERVICE_DATA_ERROR, format!("Twitter token 请求失败: {e}")))?
+            .json()
+            .await
+            .map_err(|e| Error::biz(SERVICE_DATA_ERROR, format!("Twitter token 响应解析失败: {e}")))?;
+        let access = token
+            .get("access_token")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "Twitter 未返回 access_token"))?;
+        let info: Value = client
+            .get("https://api.twitter.com/2/users/me")
+            .bearer_auth(access)
+            .send()
+            .await
+            .map_err(|e| Error::biz(SERVICE_DATA_ERROR, format!("Twitter 用户信息请求失败: {e}")))?
+            .json()
+            .await
+            .map_err(|e| Error::biz(SERVICE_DATA_ERROR, format!("Twitter 用户信息解析失败: {e}")))?;
+        let data = info.get("data").unwrap_or(&Value::Null);
+        let open_id = data
+            .get("id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "Twitter 未返回用户 ID"))?;
+        let nickname = data
+            .get("name")
+            .or_else(|| data.get("username"))
+            .and_then(Value::as_str)
+            .unwrap_or("Twitter用户");
+        Ok((open_id.to_string(), nickname.to_string(), String::new()))
+    }
+
     /// 会员访问令牌（`sub=userId` / `usr=username` / `typ="member"`）。
     fn issue_member_token(&self, user_id: i32, username: &str) -> Result<String> {
         let (access, _refresh, _expires_in) = self.jwt.issue_pair(
@@ -1448,6 +1525,7 @@ impl LoginService {
 struct OAuthState {
     redirect_uri: String,
     return_url: Option<String>,
+    code_verifier: Option<String>,
 }
 
 fn oauth_state_key(state: &str) -> String {
@@ -1465,6 +1543,23 @@ fn oauth_pct(value: &str) -> String {
         }
     }
     out
+}
+
+fn twitter_code_verifier() -> String {
+    // RFC 7636：43-128 字符；SHA256(uuid+uuid) 的 base64url 结果固定 43 字符
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    let raw = format!(
+        "{}{}",
+        uuid::Uuid::new_v4().simple(),
+        uuid::Uuid::new_v4().simple()
+    );
+    URL_SAFE_NO_PAD.encode(Sha256::digest(raw.as_bytes()))
+}
+
+fn twitter_code_challenge(verifier: &str) -> String {
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    let digest = Sha256::digest(verifier.as_bytes());
+    URL_SAFE_NO_PAD.encode(digest)
 }
 
 fn truncate_avatar(url: &str) -> String {
