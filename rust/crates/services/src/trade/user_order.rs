@@ -60,6 +60,27 @@ impl UserOrderService {
         &self.repos.trade.user_order
     }
 
+    pub async fn cycle_cards(
+        &self,
+        user_id: i32,
+        page: u64,
+        size: u64,
+    ) -> Result<(i64, Vec<serde_json::Value>)> {
+        self.repo().cycle_cards(user_id, page, size).await
+    }
+
+    pub async fn cycle_card(&self, user_id: i32, card_id: i32) -> Result<Option<serde_json::Value>> {
+        self.repo().cycle_card(user_id, card_id).await
+    }
+
+    pub async fn cycle_refund_info(&self, user_id: i32, card_id: i32) -> Result<Option<serde_json::Value>> {
+        self.repo().cycle_refund_info(user_id, card_id).await
+    }
+
+    pub async fn cycle_aftersales_check(&self, user_id: i32, order_id: i32) -> Result<serde_json::Value> {
+        self.repo().cycle_aftersales_check(user_id, order_id).await
+    }
+
     /// 订单数量（Java `OrderServiceImpl#orderNum`）。
     pub async fn order_num(&self, user_id: i32) -> Result<OrderNumVO> {
         let repo = self.repo();

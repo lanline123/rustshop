@@ -1,8 +1,8 @@
 # Rust 接口实现审计（对照 Tigshop Java Apifox 文档）
 
 - 文档接口（HTTP，按 method+path 去重）：1600
-- Rust 源码中能对应到：1582
-- 未找到对应实现：18
+- Rust 源码中能对应到：1587
+- 未找到对应实现：13
 
 > 说明：这是静态审计。判断依据是 Rust 源码中是否出现该路径（含去掉 `/api`、`/adminapi` 前缀后的形式）。
 > “未找到”不一定是完全没写，也可能是路径由常量拼接、特征开关或尚未迁移。
@@ -12,7 +12,6 @@
 | 分组 | 数量 |
 | --- | --- |
 | 后台adminapi / authority --- 权限组 / 供应商管理 | 7 |
-| 前台api / cyclecard --- 次卡组 / 次卡权益 | 5 |
 | 后台adminapi / promotion --- 营销组 / 微信直播 | 2 |
 | 后台adminapi / promotion --- 营销组 / 抽奖活动管理 | 1 |
 | 后台adminapi / buyershow --- 买家秀组 / 买家秀分组管理 | 1 |
@@ -32,16 +31,6 @@
 | POST | `/adminapi/authority/suppliers/batch` | 批量操作 |
 | GET | `/adminapi/authority/suppliers/list` | 获取列表 |
 | GET | `/adminapi/authority/suppliers/detail` | 获取详情 |
-
-### 前台api / cyclecard --- 次卡组 / 次卡权益（5）
-
-| 方法 | 路径 | 名称 |
-| --- | --- | --- |
-| GET | `/api/cycleCard/refundInfo/{cardId}` | 查询可退款信息 |
-| GET | `/api/cycleCard/list` | 我的次卡列表 |
-| GET | `/api/cycleCard/detail/{cardId}` | 次卡详情 |
-| GET | `/api/cycleCard/checkUsable/{cardId}` | 校验次卡是否可使用 |
-| GET | `/api/cycleCard/checkAftersales/{orderId}` | 校验次卡订单是否可申请售后 |
 
 ### 后台adminapi / promotion --- 营销组 / 微信直播（2）
 

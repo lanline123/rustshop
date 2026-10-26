@@ -345,6 +345,63 @@ impl UserOrderRepository {
         .map_err(map_err)?;
         Ok(row.0 > 0)
     }
+    /// 我的次卡列表。
+    pub async fn cycle_cards(&self, user_id: i32, page: u64, size: u64) -> Result<(i64, Vec<serde_json::Value>)> {
+        let offset = (page.max(1) - 1) * size;
+        let (total,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM order_cycle_card WHERE user_id = ?",
+        )
+        .bind(user_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        let rows: Vec<(serde_json::Value,)> = sqlx::query_as(
+            "SELECT JSON_OBJECT('cardId', card_id, 'orderId', order_id, 'orderSn', order_sn, 'shopId', shop_id, 'productId', product_id, 'skuId', sku_id, 'productName', product_name, 'productPic', product_pic, 'skuValue', sku_value, 'totalTimes', total_times, 'redeemedTimes', redeemed_times, 'remainingTimes', remaining_times, 'totalAmount', total_amount, 'effectiveTime', effective_time, 'expireTime', expire_time, 'status', status, 'createTime', create_time) FROM order_cycle_card WHERE user_id = ? ORDER BY card_id DESC LIMIT ? OFFSET ?",
+        )
+        .bind(user_id)
+        .bind(size)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok((total, rows.into_iter().map(|(v,)| v).collect()))
+    }
+
+    pub async fn cycle_card(&self, user_id: i32, card_id: i32) -> Result<Option<serde_json::Value>> {
+        let row: Option<(serde_json::Value,)> = sqlx::query_as(
+            "SELECT JSON_OBJECT('cardId', card_id, 'orderId', order_id, 'orderSn', order_sn, 'shopId', shop_id, 'productId', product_id, 'skuId', sku_id, 'productName', product_name, 'productPic', product_pic, 'skuValue', sku_value, 'totalTimes', total_times, 'redeemedTimes', redeemed_times, 'remainingTimes', remaining_times, 'totalAmount', total_amount, 'effectiveType', effective_type, 'effectiveTime', effective_time, 'expireTime', expire_time, 'validityType', validity_type, 'status', status, 'createTime', create_time, 'updateTime', update_time) FROM order_cycle_card WHERE card_id = ? AND user_id = ?",
+        )
+        .bind(card_id)
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.map(|(v,)| v))
+    }
+
+    pub async fn cycle_refund_info(&self, user_id: i32, card_id: i32) -> Result<Option<serde_json::Value>> {
+        let row: Option<(serde_json::Value,)> = sqlx::query_as(
+            "SELECT JSON_OBJECT('cardId', card_id, 'totalTimes', total_times, 'redeemedTimes', redeemed_times, 'remainingTimes', remaining_times, 'totalAmount', total_amount, 'refundable', ROUND(total_amount * remaining_times / GREATEST(total_times, 1), 2), 'status', status) FROM order_cycle_card WHERE card_id = ? AND user_id = ?",
+        )
+        .bind(card_id)
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.map(|(v,)| v))
+    }
+
+    pub async fn cycle_aftersales_check(&self, user_id: i32, order_id: i32) -> Result<serde_json::Value> {
+        let row: Option<(serde_json::Value,)> = sqlx::query_as(
+            "SELECT JSON_OBJECT('orderId', order_id, 'canAftersales', IF(COUNT(*) > 0, 1, 0), 'cardCount', COUNT(*)) FROM order_cycle_card WHERE order_id = ? AND user_id = ?",
+        )
+        .bind(order_id)
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.map(|(v,)| v).unwrap_or(serde_json::json!({"orderId": order_id, "canAftersales": 0, "cardCount": 0})))
+    }
 }
 
 fn map_err(e: sqlx::Error) -> Error {
