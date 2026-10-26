@@ -133,7 +133,33 @@ java/view/admin/src/views/setting/
 - 资金总览/员工列表/收益排行/30 天收入趋势
 - `cargo check -p tigshop-admin-api` 通过
 - 审计未实现数：63 → 44
-- commit：`0ec86e6e`、`76606460`
+- commit：`0ec86e6e`、`76606460`、`db94165c`
+
+### C 批构建部署（2026-10-26）
+
+首次部署 `c8088855` 时因 `/finance/serverFundManagement/settings/detail` 与旧低代码路由重复，进程启动 panic，已立即回滚到 B 批。
+
+修复后重建：
+
+```text
+run：40256433275
+artifact：12623058023
+sha256：cdaa6ca34a5dbf5e8593986f241b6471e890a4584ceb285d3b36187fdd71e205
+```
+
+部署结果：
+
+```text
+服务 active，health UP
+备份：/www/wwwroot/tigshop-rust/tigshop.preCfix.bak
+```
+
+线上复验：
+
+```text
+/api/o2o/deliveryOrder/grabList             → 200
+/api/o2o/config/homeServiceConfig?shopId=1  → 200
+```
 
 ### B 批构建部署（2026-10-26）
 
