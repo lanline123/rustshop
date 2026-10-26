@@ -42,10 +42,15 @@ use tigshop_security::web::{ok, ApiResult, AuthUser};
 use crate::AdminState;
 
 /// 本域路由清单（去掉 `/adminapi` 前缀 + 原 Java 方法名）。
-const ROUTE_TABLE: [(&str, &str, &str); 7] = [
+const ROUTE_TABLE: [(&str, &str, &str); 8] = [
     (
         "GET",
         "/setting/galleryVideo/getAllCategory",
+        "GalleryVideoController.treeList",
+    ),
+    (
+        "GET",
+        "/setting/galleryVideo/treeList",
         "GalleryVideoController.treeList",
     ),
     ("GET", "/setting/galleryVideo/list", "GalleryVideoController.list"),
@@ -77,6 +82,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new()
         .route("/setting/galleryVideo/getAllCategory", get(get_all_category))
+        .route("/setting/galleryVideo/treeList", get(get_all_category))
         .route("/setting/galleryVideo/list", get(list))
         .route("/setting/galleryVideo/detail", get(detail))
         .route("/setting/galleryVideo/del", post(del))

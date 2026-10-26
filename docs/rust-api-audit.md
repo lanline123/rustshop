@@ -1,8 +1,8 @@
 # Rust 接口实现审计（对照 Tigshop Java Apifox 文档）
 
 - 文档接口（HTTP，按 method+path 去重）：1600
-- Rust 源码中能对应到：1476
-- 未找到对应实现：124
+- Rust 源码中能对应到：1477
+- 未找到对应实现：123
 
 > 说明：这是静态审计。判断依据是 Rust 源码中是否出现该路径（含去掉 `/api`、`/adminapi` 前缀后的形式）。
 > “未找到”不一定是完全没写，也可能是路径由常量拼接、特征开关或尚未迁移。
@@ -43,7 +43,6 @@
 | 前台api / o2o --- 多门店 / 服务人员（配送员 / 服务员端） | 2 |
 | 前台api / o2o --- 多门店 / O2O配置（前端） | 2 |
 | 后台adminapi / promotion --- 营销组 / 抽奖活动管理 | 1 |
-| 后台adminapi / setting --- 配置组 / 视频相册后台管理接口 | 1 |
 | 后台adminapi / finance --- 财务组 / 对账单 | 1 |
 | 后台adminapi / finance --- 财务组 / 服务员资金管理 - 服务设置 | 1 |
 | 后台adminapi / buyershow --- 买家秀组 / 买家秀分组管理 | 1 |
@@ -329,12 +328,6 @@
 | 方法 | 路径 | 名称 |
 | --- | --- | --- |
 | POST | `/adminapi/promotion/lotteryActivity/updateStatus` | 更新活动状态 |
-
-### 后台adminapi / setting --- 配置组 / 视频相册后台管理接口（1）
-
-| 方法 | 路径 | 名称 |
-| --- | --- | --- |
-| GET | `/adminapi/setting/galleryVideo/treeList` | 视频相册树形列表 |
 
 ### 后台adminapi / finance --- 财务组 / 对账单（1）
 
