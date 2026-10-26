@@ -114,6 +114,42 @@ java/view/admin/src/views/setting/
 
 ## 进度
 
+### 2026-10-26 D1：POS 收银台
+
+已补 15 条：
+
+```text
+/pos/adminUserPos/create|update|updateField|info
+/pos/cart/getCount|updateCheck
+/pos/user/coupon/list|getList
+/pos/user/rechargeOrder/pay|paymentList
+/pos/user/getUserByMobile
+/pos/order/check/index|update|submit
+/pos/order/OrderReservation/list
+```
+
+- 收银员 CRUD/字段更新/详情
+- 购物车数量/选中状态
+- 优惠券列表、充值支付方式、手机号查会员
+- 结算预览/更新/提交（提交接桌台下单）
+- 预约记录列表
+- `cargo check -p tigshop-admin-api` 通过
+- 审计未实现数：44 → 29
+- commit：`ff28dbda`、`f0cd70d6`、`962df258`
+
+### D 批构建部署（2026-10-26）
+
+```text
+run：40258578967
+artifact：12623932545
+sha256：9dd5d377c1adc8d89d76eba3eefe90c888424f47e71e5af3fd7946280a642849
+```
+
+```text
+服务 active，health UP
+备份：/www/wwwroot/tigshop-rust/tigshop.preD.bak
+```
+
 ### 2026-10-26 C1：财务员工资金/提现
 
 已补 19 条：
