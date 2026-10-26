@@ -114,6 +114,22 @@ java/view/admin/src/views/setting/
 
 ## 进度
 
+### 2026-10-26 B1：O2O 标签管理
+
+在已有低代码路由基础上补齐：
+
+```text
+GET  /adminapi/o2o/tip/detail
+POST /adminapi/o2o/tip/create
+POST /adminapi/o2o/tip/update
+POST /adminapi/o2o/tip/updateField
+```
+
+- `tip` 表 CRUD；updateField 仅允许 `tipName`/`status`
+- `cargo check -p tigshop-admin-api` 通过
+- 审计未实现数：111 → 107
+- commit：`edde4878`
+
 ### 2026-10-26 A1：多语言路由已补
 
 ```text
