@@ -47,7 +47,6 @@ pub fn routes(_state: &AdminState) -> Router<AdminState> {
         .route("/content/articleCategory/tree", get(category_tree))
         .route("/content/articleCategory/detail", get(category_detail))
         .route("/content/articleCategory/create", post(category_save))
-        .route("/content/articleCategory/update", post(category_save))
         .route("/content/articleCategory/del", post(category_delete))
 }
 
