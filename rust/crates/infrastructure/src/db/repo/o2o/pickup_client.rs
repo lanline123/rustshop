@@ -7,6 +7,7 @@
 //! - `product_reservation_stock`：到店预约库存日历读（复用 admin 侧仓储逻辑）
 
 use serde::Serialize;
+use serde_json::Value;
 use sqlx::MySqlPool;
 use tigshop_core::{Error, Result};
 
@@ -306,5 +307,155 @@ impl PickupClientRepository {
                 used,
             })
             .collect())
+    }
+
+    // ————————————————————— C 端派送员/服务员 —————————————————————
+
+    /// 当前会员绑定的服务人员。
+    pub async fn staff_by_member(&self, member_id: i32) -> Result<Option<(i32, String, String, i32)>> {
+        sqlx::query_as(
+            "SELECT id, name, phone, type FROM service_staff WHERE member_id = ? AND is_delete = 0 LIMIT 1",
+        )
+        .bind(member_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// C 端派送/服务订单列表。
+    pub async fn delivery_list(
+        &self,
+        staff_id: i32,
+        tab: Option<&str>,
+        page: u64,
+        size: u64,
+    ) -> Result<(i64, Vec<Value>)> {
+        let (status_cond, status_val) = match tab.unwrap_or_default() {
+            "pending" => ("AND status = ?", Some(20)),
+            "processing" => ("AND status = ?", Some(30)),
+            "completed" => ("AND status = ?", Some(40)),
+            _ => ("", None),
+        };
+        let offset = (page.max(1) - 1) * size;
+        let count_sql = format!(
+            "SELECT COUNT(*) FROM delivery_order WHERE staff_id = ? {status_cond}"
+        );
+        let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql)
+        .bind(staff_id);
+        if let Some(v) = status_val {
+            count_q = count_q.bind(v);
+        }
+        let (total,) = count_q.fetch_one(&self.pool).await.map_err(map_err)?;
+        let list_sql = format!(
+            "SELECT JSON_OBJECT('deliveryOrderId', delivery_order_id, 'deliveryOrderSn', delivery_order_sn, 'orderId', order_id, 'orderSn', order_sn, 'shopId', shop_id, 'type', type, 'dispatchMode', dispatch_mode, 'status', status, 'staffId', staff_id, 'staffName', staff_name, 'staffPhone', staff_phone, 'consignee', consignee, 'mobile', mobile, 'address', address, 'regionNames', region_names, 'orderAmount', order_amount, 'buyerNote', buyer_note, 'dispatchTime', dispatch_time, 'grabTime', grab_time, 'pickupTime', pickup_time, 'completeTime', complete_time, 'cancelTime', cancel_time, 'cancelReason', cancel_reason, 'createTime', create_time) FROM delivery_order WHERE staff_id = ? {status_cond} ORDER BY delivery_order_id DESC LIMIT ? OFFSET ?"
+        );
+        let mut q = sqlx::query_as::<_, (Value,)>(&list_sql)
+        .bind(staff_id);
+        if let Some(v) = status_val {
+            q = q.bind(v);
+        }
+        let rows = q.bind(size).bind(offset).fetch_all(&self.pool).await.map_err(map_err)?;
+        Ok((total, rows.into_iter().map(|(v,)| v).collect()))
+    }
+
+    /// C 端派送订单详情（只允许本人订单）。
+    pub async fn delivery_detail(&self, staff_id: i32, id: i32) -> Result<Option<Value>> {
+        let row: Option<(Value,)> = sqlx::query_as(
+            "SELECT JSON_OBJECT('deliveryOrderId', delivery_order_id, 'deliveryOrderSn', delivery_order_sn, 'orderId', order_id, 'orderSn', order_sn, 'shopId', shop_id, 'type', type, 'dispatchMode', dispatch_mode, 'status', status, 'staffId', staff_id, 'staffName', staff_name, 'staffPhone', staff_phone, 'consignee', consignee, 'mobile', mobile, 'address', address, 'regionNames', region_names, 'latitude', latitude, 'longitude', longitude, 'pickupAddress', pickup_address, 'pickupPhone', pickup_phone, 'serviceTime', service_time, 'orderAmount', order_amount, 'buyerNote', buyer_note, 'dispatchTime', dispatch_time, 'grabTime', grab_time, 'pickupTime', pickup_time, 'completeTime', complete_time, 'cancelTime', cancel_time, 'cancelReason', cancel_reason, 'createTime', create_time) FROM delivery_order WHERE delivery_order_id = ? AND staff_id = ?",
+        )
+        .bind(id)
+        .bind(staff_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.map(|(v,)| v))
+    }
+
+    /// 抢单：仅待派发且抢单模式的订单。
+    pub async fn grab_delivery(&self, staff_id: i32, name: &str, phone: &str, id: i32) -> Result<bool> {
+        let now = tigshop_common::utils::now_seconds() as i32;
+        let r = sqlx::query(
+            "UPDATE delivery_order SET staff_id = ?, staff_name = ?, staff_phone = ?, status = 20, grab_time = ? WHERE delivery_order_id = ? AND status = 10 AND dispatch_mode = 1 AND staff_id IS NULL",
+        )
+        .bind(staff_id)
+        .bind(name)
+        .bind(phone)
+        .bind(now)
+        .bind(id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(r.rows_affected() > 0)
+    }
+
+    /// 确认取货/开始服务。
+    pub async fn confirm_pickup(&self, staff_id: i32, id: i32, photos: &str) -> Result<bool> {
+        let now = tigshop_common::utils::now_seconds() as i32;
+        let r = sqlx::query(
+            "UPDATE delivery_order SET status = 30, pickup_time = ?, pickup_photo = ? WHERE delivery_order_id = ? AND staff_id = ? AND status = 20",
+        )
+        .bind(now)
+        .bind(photos)
+        .bind(id)
+        .bind(staff_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(r.rows_affected() > 0)
+    }
+
+    /// 完成配送/服务。
+    pub async fn complete_delivery(&self, staff_id: i32, id: i32, photos: &str) -> Result<bool> {
+        let now = tigshop_common::utils::now_seconds() as i32;
+        let r = sqlx::query(
+            "UPDATE delivery_order SET status = 40, complete_time = ?, complete_photo = ? WHERE delivery_order_id = ? AND staff_id = ? AND status = 30",
+        )
+        .bind(now)
+        .bind(photos)
+        .bind(id)
+        .bind(staff_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(r.rows_affected() > 0)
+    }
+
+    /// C 端取消。
+    pub async fn cancel_delivery(&self, staff_id: i32, id: i32, reason: &str) -> Result<bool> {
+        let now = tigshop_common::utils::now_seconds() as i32;
+        let r = sqlx::query(
+            "UPDATE delivery_order SET status = 50, cancel_reason = ?, cancel_time = ? WHERE delivery_order_id = ? AND staff_id = ? AND status IN (20,30)",
+        )
+        .bind(reason)
+        .bind(now)
+        .bind(id)
+        .bind(staff_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(r.rows_affected() > 0)
+    }
+
+    /// 待抢单列表（抢单模式、未分配）。
+    pub async fn grab_list(&self, page: u64, size: u64, r#type: Option<i32>) -> Result<(i64, Vec<Value>)> {
+        let offset = (page.max(1) - 1) * size;
+        let type_cond = r#type.map(|_| "AND type = ?").unwrap_or("");
+        let count_sql = format!(
+            "SELECT COUNT(*) FROM delivery_order WHERE status = 10 AND dispatch_mode = 1 AND staff_id IS NULL {type_cond}"
+        );
+        let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
+        if let Some(t) = r#type {
+            cq = cq.bind(t);
+        }
+        let (total,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
+        let list_sql = format!(
+            "SELECT JSON_OBJECT('deliveryOrderId', delivery_order_id, 'deliveryOrderSn', delivery_order_sn, 'orderId', order_id, 'orderSn', order_sn, 'shopId', shop_id, 'type', type, 'status', status, 'consignee', consignee, 'mobile', mobile, 'address', address, 'regionNames', region_names, 'orderAmount', order_amount, 'createTime', create_time) FROM delivery_order WHERE status = 10 AND dispatch_mode = 1 AND staff_id IS NULL {type_cond} ORDER BY delivery_order_id DESC LIMIT ? OFFSET ?"
+        );
+        let mut q = sqlx::query_as::<_, (Value,)>(&list_sql);
+        if let Some(t) = r#type {
+            q = q.bind(t);
+        }
+        let rows = q.bind(size).bind(offset).fetch_all(&self.pool).await.map_err(map_err)?;
+        Ok((total, rows.into_iter().map(|(v,)| v).collect()))
     }
 }

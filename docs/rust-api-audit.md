@@ -1,8 +1,8 @@
 # Rust 接口实现审计（对照 Tigshop Java Apifox 文档）
 
 - 文档接口（HTTP，按 method+path 去重）：1600
-- Rust 源码中能对应到：1516
-- 未找到对应实现：84
+- Rust 源码中能对应到：1524
+- 未找到对应实现：76
 
 > 说明：这是静态审计。判断依据是 Rust 源码中是否出现该路径（含去掉 `/api`、`/adminapi` 前缀后的形式）。
 > “未找到”不一定是完全没写，也可能是路径由常量拼接、特征开关或尚未迁移。
@@ -11,7 +11,6 @@
 
 | 分组 | 数量 |
 | --- | --- |
-| 前台api / o2o --- 多门店 / 派送订单（配送员 / 服务员端） | 8 |
 | 后台adminapi / authority --- 权限组 / 供应商管理 | 7 |
 | 前台api / o2o --- 多门店 / 配送员 / 服务员钱包（C 端） | 6 |
 | 后台adminapi / vendor --- 供应商组 / 供应商员工管理 | 5 |
@@ -44,19 +43,6 @@
 | 前台api / promotion----营销 / 礼品卡 | 1 |
 
 ## 缺失接口明细
-
-### 前台api / o2o --- 多门店 / 派送订单（配送员 / 服务员端）（8）
-
-| 方法 | 路径 | 名称 |
-| --- | --- | --- |
-| POST | `/api/o2o/deliveryOrder/grab` | 抢单 |
-| POST | `/api/o2o/deliveryOrder/confirmPickup` | 确认取货/开始服务 |
-| POST | `/api/o2o/deliveryOrder/complete` | 完成配送/服务 |
-| GET | `/api/o2o/deliveryOrder/statistics` | 统计数据 |
-| GET | `/api/o2o/deliveryOrder/myList` | 我的派送订单列表 |
-| GET | `/api/o2o/deliveryOrder/myListTotalCount` | 我的派送订单总数 |
-| GET | `/api/o2o/deliveryOrder/grabList` | 待抢单列表 |
-| GET | `/api/o2o/deliveryOrder/myListTabCounts` | 我的派送订单各 tab 数量 |
 
 ### 后台adminapi / authority --- 权限组 / 供应商管理（7）
 

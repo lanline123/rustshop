@@ -3,6 +3,7 @@
 //! b2b2b 5.8.57 移动端新增接口（无 Java 控制器对应）：自提人信息 CRUD、
 //! 门店自提模板/订单自提单读取、到店预约库存日历。
 
+use serde_json::Value;
 use tigshop_core::Result;
 use tigshop_infrastructure::db::Repositories;
 pub use tigshop_infrastructure::db::repo::o2o::pickup_client::{
@@ -115,5 +116,45 @@ impl PickupClientService {
             .pickup_client
             .stock_calendar(product_id, shop_id, days)
             .await
+    }
+
+    /// 当前会员绑定的服务人员。
+    pub async fn delivery_staff(&self, member_id: i32) -> Result<Option<(i32, String, String, i32)>> {
+        self.repos.o2o.pickup_client.staff_by_member(member_id).await
+    }
+
+    /// C 端派送订单列表。
+    pub async fn delivery_list(
+        &self,
+        staff_id: i32,
+        tab: Option<&str>,
+        page: u64,
+        size: u64,
+    ) -> Result<(i64, Vec<Value>)> {
+        self.repos.o2o.pickup_client.delivery_list(staff_id, tab, page, size).await
+    }
+
+    pub async fn delivery_detail(&self, staff_id: i32, id: i32) -> Result<Option<Value>> {
+        self.repos.o2o.pickup_client.delivery_detail(staff_id, id).await
+    }
+
+    pub async fn grab_delivery(&self, staff_id: i32, name: &str, phone: &str, id: i32) -> Result<bool> {
+        self.repos.o2o.pickup_client.grab_delivery(staff_id, name, phone, id).await
+    }
+
+    pub async fn confirm_pickup(&self, staff_id: i32, id: i32, photos: &str) -> Result<bool> {
+        self.repos.o2o.pickup_client.confirm_pickup(staff_id, id, photos).await
+    }
+
+    pub async fn complete_delivery(&self, staff_id: i32, id: i32, photos: &str) -> Result<bool> {
+        self.repos.o2o.pickup_client.complete_delivery(staff_id, id, photos).await
+    }
+
+    pub async fn cancel_delivery(&self, staff_id: i32, id: i32, reason: &str) -> Result<bool> {
+        self.repos.o2o.pickup_client.cancel_delivery(staff_id, id, reason).await
+    }
+
+    pub async fn grab_list(&self, page: u64, size: u64, r#type: Option<i32>) -> Result<(i64, Vec<Value>)> {
+        self.repos.o2o.pickup_client.grab_list(page, size, r#type).await
     }
 }

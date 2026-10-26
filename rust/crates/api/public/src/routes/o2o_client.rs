@@ -34,7 +34,7 @@ use tigshop_services::o2o::pickup_client::StockDayVO;
 use crate::PublicState;
 
 /// 本域路由（挂载于 `/api` 下）。
-const ROUTE_TABLE: [(&str, &str, &str); 10] = [
+const ROUTE_TABLE: [(&str, &str, &str); 20] = [
     ("GET", "/o2o/userPickup/getUserPickups", "UserPickupController.getUserPickups"),
     ("GET", "/o2o/userPickup/detail", "UserPickupController.detail"),
     ("POST", "/o2o/userPickup/create", "UserPickupController.create"),
@@ -45,6 +45,16 @@ const ROUTE_TABLE: [(&str, &str, &str); 10] = [
     ("GET", "/o2o/orderPickup/getDeliveryOptions", "OrderPickupController.getDeliveryOptions"),
     ("GET", "/o2o/OrderReservation/getStockCalendar", "OrderReservationController.getStockCalendar"),
     ("GET", "/o2o/storeSearch/getStoreProduct", "StoreSearchController.getStoreProduct"),
+    ("POST", "/o2o/deliveryOrder/grab", "DeliveryOrderController.grab"),
+    ("POST", "/o2o/deliveryOrder/confirmPickup", "DeliveryOrderController.confirmPickup"),
+    ("POST", "/o2o/deliveryOrder/complete", "DeliveryOrderController.complete"),
+    ("POST", "/o2o/deliveryOrder/cancel", "DeliveryOrderController.cancel"),
+    ("GET", "/o2o/deliveryOrder/statistics", "DeliveryOrderController.statistics"),
+    ("GET", "/o2o/deliveryOrder/myList", "DeliveryOrderController.myList"),
+    ("GET", "/o2o/deliveryOrder/myListTotalCount", "DeliveryOrderController.myListTotalCount"),
+    ("GET", "/o2o/deliveryOrder/grabList", "DeliveryOrderController.grabList"),
+    ("GET", "/o2o/deliveryOrder/detail", "DeliveryOrderController.detail"),
+    ("GET", "/o2o/deliveryOrder/myListTabCounts", "DeliveryOrderController.myListTabCounts"),
 ];
 
 /// o2o 前台路由（挂载于 `/api` 下）。
@@ -59,8 +69,24 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
             state.jwt.clone(),
             optional_auth,
         ));
+    let delivery = Router::new()
+        .route("/o2o/deliveryOrder/grab", post(delivery_grab))
+        .route("/o2o/deliveryOrder/confirmPickup", post(delivery_confirm))
+        .route("/o2o/deliveryOrder/complete", post(delivery_complete))
+        .route("/o2o/deliveryOrder/cancel", post(delivery_cancel))
+        .route("/o2o/deliveryOrder/statistics", get(delivery_statistics))
+        .route("/o2o/deliveryOrder/myList", get(delivery_my_list))
+        .route("/o2o/deliveryOrder/myListTotalCount", get(delivery_total_count))
+        .route("/o2o/deliveryOrder/grabList", get(delivery_grab_list))
+        .route("/o2o/deliveryOrder/detail", get(delivery_detail))
+        .route("/o2o/deliveryOrder/myListTabCounts", get(delivery_tab_counts))
+        .layer(middleware::from_fn_with_state(
+            state.jwt.clone(),
+            optional_auth,
+        ));
     Router::new()
         .merge(pickup)
+        .merge(delivery)
         .route(
             "/o2o/orderPickup/getShopPickupTpl",
             get(shop_pickup_tpl),
@@ -176,6 +202,195 @@ async fn pickup_del(
 }
 
 /// 当前会员 id（未登录 → 401「请先登录」，与 cart_summary 同口径）。
+// ————————————————————— C 端派送/服务订单 —————————————————————
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct DeliveryListQuery {
+    page: Option<u64>,
+    size: Option<u64>,
+    tab: Option<String>,
+    r#type: Option<i32>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct DeliveryIdQuery {
+    id: Option<i32>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct DeliveryAction {
+    delivery_order_id: Option<i32>,
+    #[serde(default)]
+    photo: Vec<String>,
+    cancel_reason: Option<String>,
+}
+
+async fn delivery_staff_of(
+    state: &PublicState,
+    uid: i32,
+) -> std::result::Result<(i32, String, String), tigshop_security::web::AppError> {
+    state
+        .o2o
+        .pickup_client
+        .delivery_staff(uid)
+        .await?
+        .map(|(id, name, phone, _)| (id, name, phone))
+        .ok_or_else(|| tigshop_security::web::AppError(tigshop_core::Error::biz(1001, "当前账号未绑定服务人员")))
+}
+
+async fn delivery_my_list(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+    Query(q): Query<DeliveryListQuery>,
+) -> ApiResult<Value> {
+    let (staff_id, _, _) = delivery_staff_of(&state, current_user_id(auth)?).await?;
+    let page = q.page.unwrap_or(1).max(1);
+    let size = q.size.unwrap_or(10).clamp(1, 100);
+    let (total, records) = state
+        .o2o
+        .pickup_client
+        .delivery_list(staff_id, q.tab.as_deref(), page, size)
+        .await?;
+    ok(serde_json::json!({"records": records, "total": total, "size": size, "current": page, "pages": (total as u64 + size - 1) / size}))
+}
+
+async fn delivery_total_count(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+) -> ApiResult<i64> {
+    let (staff_id, _, _) = delivery_staff_of(&state, current_user_id(auth)?).await?;
+    let (total, _) = state
+        .o2o
+        .pickup_client
+        .delivery_list(staff_id, None, 1, 1)
+        .await?;
+    ok(total)
+}
+
+async fn delivery_grab_list(
+    State(state): State<PublicState>,
+    Query(q): Query<DeliveryListQuery>,
+) -> ApiResult<Value> {
+    let page = q.page.unwrap_or(1).max(1);
+    let size = q.size.unwrap_or(10).clamp(1, 100);
+    let (total, records) = state
+        .o2o
+        .pickup_client
+        .grab_list(page, size, q.r#type)
+        .await?;
+    ok(serde_json::json!({"records": records, "total": total, "size": size, "current": page, "pages": (total as u64 + size - 1) / size}))
+}
+
+async fn delivery_detail(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+    Query(q): Query<DeliveryIdQuery>,
+) -> ApiResult<Value> {
+    let (staff_id, _, _) = delivery_staff_of(&state, current_user_id(auth)?).await?;
+    ok(state
+        .o2o
+        .pickup_client
+        .delivery_detail(staff_id, q.id.unwrap_or(0))
+        .await?
+        .unwrap_or(Value::Null))
+}
+
+async fn delivery_grab(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+    Json(dto): Json<DeliveryAction>,
+) -> ApiResult<()> {
+    let (staff_id, name, phone) = delivery_staff_of(&state, current_user_id(auth)?).await?;
+    let ok_flag = state
+        .o2o
+        .pickup_client
+        .grab_delivery(staff_id, &name, &phone, dto.delivery_order_id.unwrap_or(0))
+        .await?;
+    if !ok_flag {
+        return Err(tigshop_security::web::AppError(tigshop_core::Error::biz(1001, "该订单已被抢或不可抢")));
+    }
+    ok(())
+}
+
+async fn delivery_confirm(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+    Json(dto): Json<DeliveryAction>,
+) -> ApiResult<()> {
+    let (staff_id, _, _) = delivery_staff_of(&state, current_user_id(auth)?).await?;
+    let photos = serde_json::to_string(&dto.photo).unwrap_or_else(|_| "[]".into());
+    let ok_flag = state
+        .o2o
+        .pickup_client
+        .confirm_pickup(staff_id, dto.delivery_order_id.unwrap_or(0), &photos)
+        .await?;
+    if !ok_flag {
+        return Err(tigshop_security::web::AppError(tigshop_core::Error::biz(1001, "订单状态不允许确认取货")));
+    }
+    ok(())
+}
+
+async fn delivery_complete(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+    Json(dto): Json<DeliveryAction>,
+) -> ApiResult<()> {
+    let (staff_id, _, _) = delivery_staff_of(&state, current_user_id(auth)?).await?;
+    let photos = serde_json::to_string(&dto.photo).unwrap_or_else(|_| "[]".into());
+    let ok_flag = state
+        .o2o
+        .pickup_client
+        .complete_delivery(staff_id, dto.delivery_order_id.unwrap_or(0), &photos)
+        .await?;
+    if !ok_flag {
+        return Err(tigshop_security::web::AppError(tigshop_core::Error::biz(1001, "订单状态不允许完成")));
+    }
+    ok(())
+}
+
+async fn delivery_cancel(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+    Json(dto): Json<DeliveryAction>,
+) -> ApiResult<()> {
+    let (staff_id, _, _) = delivery_staff_of(&state, current_user_id(auth)?).await?;
+    let ok_flag = state
+        .o2o
+        .pickup_client
+        .cancel_delivery(
+            staff_id,
+            dto.delivery_order_id.unwrap_or(0),
+            dto.cancel_reason.as_deref().unwrap_or_default(),
+        )
+        .await?;
+    if !ok_flag {
+        return Err(tigshop_security::web::AppError(tigshop_core::Error::biz(1001, "订单状态不允许取消")));
+    }
+    ok(())
+}
+
+async fn delivery_statistics(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+) -> ApiResult<Value> {
+    let (staff_id, _, _) = delivery_staff_of(&state, current_user_id(auth)?).await?;
+    let (total, _) = state.o2o.pickup_client.delivery_list(staff_id, None, 1, 1).await?;
+    let (pending, _) = state.o2o.pickup_client.delivery_list(staff_id, Some("pending"), 1, 1).await?;
+    let (processing, _) = state.o2o.pickup_client.delivery_list(staff_id, Some("processing"), 1, 1).await?;
+    let (completed, _) = state.o2o.pickup_client.delivery_list(staff_id, Some("completed"), 1, 1).await?;
+    ok(serde_json::json!({"total": total, "pending": pending, "processing": processing, "completed": completed}))
+}
+
+async fn delivery_tab_counts(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+) -> ApiResult<Value> {
+    delivery_statistics(State(state), auth).await
+}
+
 fn current_user_id(auth: Option<Extension<AuthUser>>) -> std::result::Result<i32, tigshop_security::web::AppError> {
     auth.map(|Extension(user)| user.id)
         .filter(|id| *id > 0)
