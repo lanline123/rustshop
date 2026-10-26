@@ -1,8 +1,8 @@
 # Rust 接口实现审计（对照 Tigshop Java Apifox 文档）
 
 - 文档接口（HTTP，按 method+path 去重）：1600
-- Rust 源码中能对应到：1489
-- 未找到对应实现：111
+- Rust 源码中能对应到：1493
+- 未找到对应实现：107
 
 > 说明：这是静态审计。判断依据是 Rust 源码中是否出现该路径（含去掉 `/api`、`/adminapi` 前缀后的形式）。
 > “未找到”不一定是完全没写，也可能是路径由常量拼接、特征开关或尚未迁移。
@@ -20,7 +20,6 @@
 | 前台api / cyclecard --- 次卡组 / 次卡权益 | 5 |
 | 后台adminapi / finance --- 财务组 / 员工资金总览 | 4 |
 | 后台adminapi / pos --- 收银台组 / 收银台员工管理 | 4 |
-| 后台adminapi / o2o --- 多门店 / 标签管理 | 4 |
 | 后台adminapi / o2o --- 多门店 / 派送订单管理 | 4 |
 | 后台adminapi / finance --- 财务组 / 员工提现管理 | 3 |
 | 后台adminapi / finance --- 财务组 / 服务员提现管理 | 3 |
@@ -149,15 +148,6 @@
 | POST | `/adminapi/pos/adminUserPos/updateField` | 更新字段 |
 | POST | `/adminapi/pos/adminUserPos/create` | 创建收银台员工 |
 | GET | `/adminapi/pos/adminUserPos/info` | 获取收银台员工信息 |
-
-### 后台adminapi / o2o --- 多门店 / 标签管理（4）
-
-| 方法 | 路径 | 名称 |
-| --- | --- | --- |
-| POST | `/adminapi/o2o/tip/update` | 修改标签 |
-| POST | `/adminapi/o2o/tip/updateField` | 更新字段 |
-| POST | `/adminapi/o2o/tip/create` | 添加标签 |
-| GET | `/adminapi/o2o/tip/detail` | 详情 |
 
 ### 后台adminapi / o2o --- 多门店 / 派送订单管理（4）
 

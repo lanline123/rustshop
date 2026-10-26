@@ -35,6 +35,8 @@ pub struct Pg {
     pub product_id: Option<i64>,
     pub order_id: Option<i32>,
     pub parent_id: Option<i32>,
+    pub tip_id: Option<i64>,
+    pub tip_name: Option<String>,
 }
 
 fn page_of(q: &Pg) -> (u64, u64, u64) {
@@ -233,6 +235,74 @@ async fn h_20(State(state): State<AdminState>) -> ApiResult<Value> {
 
 // get /o2o/tip/tipConfig
 cfg_get!(h_21, "o2oTipConfig");
+
+// get /o2o/tip/detail
+async fn h_tip_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let id = q.id.or(q.tip_id).unwrap_or(0);
+    let row: Option<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('tipId', tip_id, 'tipName', tip_name, 'status', status, 'addTime', add_time) FROM tip WHERE tip_id = ?",
+    )
+    .bind(id)
+    .fetch_optional(&pool(&state))
+    .await
+    .map_err(db)?;
+    ok(row.map(|(v,)| v).unwrap_or(Value::Null))
+}
+
+// post /o2o/tip/create
+async fn h_tip_create(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<i64> {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    let r = sqlx::query("INSERT INTO tip (tip_name, status, add_time) VALUES (?, ?, ?)")
+        .bind(q.tip_name.unwrap_or_default())
+        .bind(q.status.unwrap_or(1))
+        .bind(now)
+        .execute(&pool(&state))
+        .await
+        .map_err(db)?;
+    ok(r.last_insert_id() as i64)
+}
+
+// post /o2o/tip/update
+async fn h_tip_update(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<()> {
+    let id = q.tip_id.or(q.id).unwrap_or(0);
+    sqlx::query("UPDATE tip SET tip_name = ?, status = ? WHERE tip_id = ?")
+        .bind(q.tip_name.unwrap_or_default())
+        .bind(q.status.unwrap_or(0))
+        .bind(id)
+        .execute(&pool(&state))
+        .await
+        .map_err(db)?;
+    ok(())
+}
+
+// post /o2o/tip/updateField
+async fn h_tip_update_field(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<()> {
+    let id = q.id.or(q.tip_id).unwrap_or(0);
+    let field = q.field.unwrap_or_default();
+    let column = match field.as_str() {
+        "tipName" | "tip_name" => "tip_name",
+        "status" => "status",
+        other => return Err(tigshop_security::web::AppError(Error::Validation(format!("不支持字段 {other}")))),
+    };
+    let val = q.value.unwrap_or(Value::Null);
+    let sql = format!("UPDATE tip SET {column} = ? WHERE tip_id = ?");
+    if column == "status" {
+        sqlx::query(&sql)
+            .bind(val.as_i64().unwrap_or(0))
+            .bind(id)
+            .execute(&pool(&state))
+            .await
+            .map_err(db)?;
+    } else {
+        sqlx::query(&sql)
+            .bind(val.as_str().unwrap_or_default())
+            .bind(id)
+            .execute(&pool(&state))
+            .await
+            .map_err(db)?;
+    }
+    ok(())
+}
 
 // post /pos/table/cart/list
 async fn h_22(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<tigshop_core::models::pos::cashier::PosCartVO> {
@@ -463,6 +533,10 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/o2o/tip/batch", post(h_19))
         .route("/o2o/tip/selectAllTip", get(h_20))
         .route("/o2o/tip/tipConfig", get(h_21))
+        .route("/o2o/tip/detail", get(h_tip_detail))
+        .route("/o2o/tip/create", post(h_tip_create))
+        .route("/o2o/tip/update", post(h_tip_update))
+        .route("/o2o/tip/updateField", post(h_tip_update_field))
         .route("/pos/table/cart/list", post(h_22))
         .route("/pos/table/cart/addToCart", post(h_23))
         .route("/pos/table/cart/removeItem", post(h_24))
