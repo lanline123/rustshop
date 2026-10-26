@@ -190,6 +190,32 @@ POST /api/order/pay/notify/xendit
 - 审计未实现数：114 → 111
 - commit：`1daf41bb`
 
+### A 批构建部署（2026-10-26）
+
+```text
+run：40250056157
+head：263f6e5e80de
+artifact：12620537466
+sha256：a14ec787b152e6b89eb23f40640d6301c91548bbe8ab512b4c058379c6ff9124
+```
+
+部署结果：
+
+```text
+服务 active，health UP
+备份：/www/wwwroot/tigshop-rust/tigshop.batchA.bak
+```
+
+线上验证：
+
+```text
+/api/user/oauth/render/google   → 200，已生成 Google 授权地址
+/api/user/oauth/render/facebook → 200，已生成 Facebook 授权地址
+/api/user/oauth/render/twitter  → 1001 twitterClientId 未配置
+```
+
+说明：Twitter 代码已完成，但后台尚未配置 twitterClientId/Secret。
+
 ## 每批验收
 
 ```text
