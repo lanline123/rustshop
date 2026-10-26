@@ -10,6 +10,50 @@
 
 ## H5
 
+### 2026-10-26 配送员端页面
+
+新增：
+
+```text
+src/api/o2o/delivery.ts
+src/pages/delivery/list.vue
+src/pages/delivery/detail.vue
+src/pages/delivery/wallet.vue
+pages.json -> pages/delivery 分包（list/detail/wallet）
+```
+
+对应接口：
+
+```text
+GET  /api/o2o/deliveryOrder/grabList
+GET  /api/o2o/deliveryOrder/myList
+GET  /api/o2o/deliveryOrder/detail
+POST /api/o2o/deliveryOrder/grab
+POST /api/o2o/deliveryOrder/confirmPickup
+POST /api/o2o/deliveryOrder/complete
+POST /api/o2o/deliveryOrder/cancel
+GET  /api/o2o/staffWallet/myWallet
+GET  /api/o2o/staffWallet/myLogs
+GET  /api/o2o/staffAccount/list
+POST /api/o2o/staffWallet/applyWithdraw
+```
+
+构建部署：
+
+```text
+zip sha256：f8127aed9344da01a7a38aa2e5b97264f306676f364a725cfca1505ab584e605
+备份：/www/backup/mobile.bak.20261026114146
+```
+
+线上验证：
+
+```text
+/mobile/ -> 200（移动 UA）
+assets/pages-delivery-list.Dt9JNF-9.js   -> 200
+assets/pages-delivery-detail.CGfVI-Mo.js -> 200
+assets/pages-delivery-wallet.BGxwEHHV.js -> 200
+```
+
 ### 2026-10-26 次卡页面
 
 新增：
