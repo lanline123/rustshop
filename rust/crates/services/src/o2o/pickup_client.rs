@@ -139,6 +139,44 @@ impl PickupClientService {
         self.repos.o2o.pickup_client.wallet_logs(staff_id, page, size).await
     }
 
+    pub async fn accounts(&self, user_id: i32) -> Result<Vec<Value>> {
+        self.repos.o2o.pickup_client.accounts_of_user(user_id).await
+    }
+
+    pub async fn save_account(
+        &self,
+        user_id: i32,
+        account_id: i32,
+        account_type: i32,
+        account_name: &str,
+        account_no: &str,
+        bank_name: &str,
+    ) -> Result<i32> {
+        self.repos
+            .o2o
+            .pickup_client
+            .save_account(user_id, account_id, account_type, account_name, account_no, bank_name)
+            .await
+    }
+
+    pub async fn delete_account(&self, user_id: i32, account_id: i32) -> Result<()> {
+        self.repos.o2o.pickup_client.delete_account(user_id, account_id).await
+    }
+
+    pub async fn withdraw_list(
+        &self,
+        staff_id: i32,
+        status: Option<i32>,
+        page: u64,
+        size: u64,
+    ) -> Result<(i64, Vec<Value>)> {
+        self.repos.o2o.pickup_client.withdraw_list(staff_id, status, page, size).await
+    }
+
+    pub async fn withdraw_detail(&self, staff_id: i32, id: i32) -> Result<Option<Value>> {
+        self.repos.o2o.pickup_client.withdraw_detail(staff_id, id).await
+    }
+
     /// C 端派送订单列表。
     pub async fn delivery_list(
         &self,

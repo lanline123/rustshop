@@ -381,6 +381,108 @@ impl PickupClientRepository {
         Ok((total, rows.into_iter().map(|(v,)| v).collect()))
     }
 
+    // ————————————————————— 收款账号 / 提现查询 —————————————————————
+
+    pub async fn accounts_of_user(&self, user_id: i32) -> Result<Vec<Value>> {
+        let rows: Vec<(Value,)> = sqlx::query_as(
+            "SELECT JSON_OBJECT('accountId', account_id, 'accountType', account_type, 'accountName', account_name, 'accountNo', account_no, 'bankName', bank_name, 'identity', identity) FROM user_withdraw_account WHERE user_id = ? ORDER BY account_id DESC",
+        )
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(rows.into_iter().map(|(v,)| v).collect())
+    }
+
+    pub async fn save_account(
+        &self,
+        user_id: i32,
+        account_id: i32,
+        account_type: i32,
+        account_name: &str,
+        account_no: &str,
+        bank_name: &str,
+    ) -> Result<i32> {
+        if account_id > 0 {
+            sqlx::query("UPDATE user_withdraw_account SET account_type = ?, account_name = ?, account_no = ?, bank_name = ? WHERE account_id = ? AND user_id = ?")
+                .bind(account_type)
+                .bind(account_name)
+                .bind(account_no)
+                .bind(bank_name)
+                .bind(account_id)
+                .bind(user_id)
+                .execute(&self.pool)
+                .await
+                .map_err(map_err)?;
+            Ok(account_id)
+        } else {
+            let r = sqlx::query("INSERT INTO user_withdraw_account (user_id, account_type, account_name, account_no, bank_name) VALUES (?, ?, ?, ?, ?)")
+                .bind(user_id)
+                .bind(account_type)
+                .bind(account_name)
+                .bind(account_no)
+                .bind(bank_name)
+                .execute(&self.pool)
+                .await
+                .map_err(map_err)?;
+            Ok(i32::try_from(r.last_insert_id()).unwrap_or(0))
+        }
+    }
+
+    pub async fn delete_account(&self, user_id: i32, account_id: i32) -> Result<()> {
+        sqlx::query("DELETE FROM user_withdraw_account WHERE account_id = ? AND user_id = ?")
+            .bind(account_id)
+            .bind(user_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(())
+    }
+
+    pub async fn withdraw_list(
+        &self,
+        staff_id: i32,
+        status: Option<i32>,
+        page: u64,
+        size: u64,
+    ) -> Result<(i64, Vec<Value>)> {
+        let offset = (page.max(1) - 1) * size;
+        let status = status.unwrap_or(-1);
+        let (total,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM service_staff_withdraw WHERE staff_id = ? AND is_delete = 0 AND (? = -1 OR status = ?)",
+        )
+        .bind(staff_id)
+        .bind(status)
+        .bind(status)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        let rows: Vec<(Value,)> = sqlx::query_as(
+            "SELECT JSON_OBJECT('withdrawId', withdraw_id, 'withdrawSn', withdraw_sn, 'staffId', staff_id, 'businessType', business_type, 'amount', amount, 'status', status, 'accountId', account_id, 'accountType', account_type, 'accountName', account_name, 'accountNo', account_no, 'bankName', bank_name, 'adminRemark', admin_remark, 'paymentVoucher', payment_voucher, 'rejectReason', reject_reason, 'applyTime', apply_time, 'auditTime', audit_time) FROM service_staff_withdraw WHERE staff_id = ? AND is_delete = 0 AND (? = -1 OR status = ?) ORDER BY withdraw_id DESC LIMIT ? OFFSET ?",
+        )
+        .bind(staff_id)
+        .bind(status)
+        .bind(status)
+        .bind(size)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok((total, rows.into_iter().map(|(v,)| v).collect()))
+    }
+
+    pub async fn withdraw_detail(&self, staff_id: i32, id: i32) -> Result<Option<Value>> {
+        let row: Option<(Value,)> = sqlx::query_as(
+            "SELECT JSON_OBJECT('withdrawId', withdraw_id, 'withdrawSn', withdraw_sn, 'staffId', staff_id, 'businessType', business_type, 'amount', amount, 'status', status, 'accountId', account_id, 'accountType', account_type, 'accountName', account_name, 'accountNo', account_no, 'bankName', bank_name, 'adminRemark', admin_remark, 'paymentVoucher', payment_voucher, 'rejectReason', reject_reason, 'applyTime', apply_time, 'auditTime', audit_time) FROM service_staff_withdraw WHERE withdraw_id = ? AND staff_id = ? AND is_delete = 0",
+        )
+        .bind(id)
+        .bind(staff_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.map(|(v,)| v))
+    }
+
     pub async fn delivery_list(
         &self,
         staff_id: i32,

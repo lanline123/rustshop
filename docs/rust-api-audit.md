@@ -1,8 +1,8 @@
 # Rust 接口实现审计（对照 Tigshop Java Apifox 文档）
 
 - 文档接口（HTTP，按 method+path 去重）：1600
-- Rust 源码中能对应到：1528
-- 未找到对应实现：72
+- Rust 源码中能对应到：1534
+- 未找到对应实现：66
 
 > 说明：这是静态审计。判断依据是 Rust 源码中是否出现该路径（含去掉 `/api`、`/adminapi` 前缀后的形式）。
 > “未找到”不一定是完全没写，也可能是路径由常量拼接、特征开关或尚未迁移。
@@ -16,13 +16,11 @@
 | 前台api / cyclecard --- 次卡组 / 次卡权益 | 5 |
 | 后台adminapi / finance --- 财务组 / 员工资金总览 | 4 |
 | 后台adminapi / pos --- 收银台组 / 收银台员工管理 | 4 |
-| 前台api / o2o --- 多门店 / 配送员 / 服务员钱包（C 端） | 4 |
 | 后台adminapi / finance --- 财务组 / 员工提现管理 | 3 |
 | 后台adminapi / finance --- 财务组 / 服务员提现管理 | 3 |
 | 后台adminapi / finance --- 财务组 / 配送员提现管理 | 3 |
 | 后台adminapi / pos --- 收银台组 / 收银台订单结算 | 3 |
 | 后台adminapi / vendor --- 供应商组 / 供应商资金变化 | 3 |
-| 前台api / o2o --- 多门店 / 配送员收款账号（C 端） | 3 |
 | 后台adminapi / promotion --- 营销组 / 微信直播 | 2 |
 | 后台adminapi / finance --- 财务组 / 配送员资金管理 - 配送设置 | 2 |
 | 后台adminapi / finance --- 财务组 / 员工资金日志 | 2 |
@@ -40,6 +38,7 @@
 | 后台adminapi / vendor --- 供应商组 / 供应商商品平台端控制器 | 1 |
 | 前台api / user --- 会员中心 / 登录控制器 | 1 |
 | 前台api / promotion----营销 / 礼品卡 | 1 |
+| 前台api / o2o --- 多门店 / 配送员 / 服务员钱包（C 端） | 1 |
 
 ## 缺失接口明细
 
@@ -93,15 +92,6 @@
 | POST | `/adminapi/pos/adminUserPos/create` | 创建收银台员工 |
 | GET | `/adminapi/pos/adminUserPos/info` | 获取收银台员工信息 |
 
-### 前台api / o2o --- 多门店 / 配送员 / 服务员钱包（C 端）（4）
-
-| 方法 | 路径 | 名称 |
-| --- | --- | --- |
-| POST | `/api/o2o/staffWallet/applyWithdraw` | 提交提现申请（按 staff.type 路由 delivery / server service） |
-| GET | `/api/o2o/staffWallet/withdrawConfig` | 查询提现规则（按 staff.type 路由 delivery / server 配置） |
-| GET | `/api/o2o/staffWallet/myWithdrawList` | 查询个人提现申请记录（按 staff.type 自动过滤业务类型） |
-| GET | `/api/o2o/staffWallet/myWithdrawDetail` | 查询个人提现申请详情 |
-
 ### 后台adminapi / finance --- 财务组 / 员工提现管理（3）
 
 | 方法 | 路径 | 名称 |
@@ -141,14 +131,6 @@
 | POST | `/adminapi/vendor/vendorAccount/update` | 编辑 |
 | POST | `/adminapi/vendor/vendorAccount/create` | 创建 |
 | GET | `/adminapi/vendor/vendorAccount/detail` | 获取详情 |
-
-### 前台api / o2o --- 多门店 / 配送员收款账号（C 端）（3）
-
-| 方法 | 路径 | 名称 |
-| --- | --- | --- |
-| POST | `/api/o2o/staffAccount/save` | 新增或修改收款账号 |
-| POST | `/api/o2o/staffAccount/del` | 删除收款账号 |
-| GET | `/api/o2o/staffAccount/list` | 查询个人收款账号列表 |
 
 ### 后台adminapi / promotion --- 营销组 / 微信直播（2）
 
@@ -259,3 +241,9 @@
 | 方法 | 路径 | 名称 |
 | --- | --- | --- |
 | GET | `/api/promotion/giftCardGroups/showCardPassword` | 礼品卡密码显示 |
+
+### 前台api / o2o --- 多门店 / 配送员 / 服务员钱包（C 端）（1）
+
+| 方法 | 路径 | 名称 |
+| --- | --- | --- |
+| POST | `/api/o2o/staffWallet/applyWithdraw` | 提交提现申请（按 staff.type 路由 delivery / server service） |

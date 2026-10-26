@@ -34,7 +34,7 @@ use tigshop_services::o2o::pickup_client::StockDayVO;
 use crate::PublicState;
 
 /// 本域路由（挂载于 `/api` 下）。
-const ROUTE_TABLE: [(&str, &str, &str); 24] = [
+const ROUTE_TABLE: [(&str, &str, &str); 30] = [
     ("GET", "/o2o/userPickup/getUserPickups", "UserPickupController.getUserPickups"),
     ("GET", "/o2o/userPickup/detail", "UserPickupController.detail"),
     ("POST", "/o2o/userPickup/create", "UserPickupController.create"),
@@ -59,6 +59,12 @@ const ROUTE_TABLE: [(&str, &str, &str); 24] = [
     ("POST", "/o2o/serviceStaff/updateWorkStatus", "ServiceStaffController.updateWorkStatus"),
     ("GET", "/o2o/staffWallet/myWallet", "StaffWalletController.myWallet"),
     ("GET", "/o2o/staffWallet/myLogs", "StaffWalletController.myLogs"),
+    ("GET", "/o2o/staffWallet/withdrawConfig", "StaffWalletController.withdrawConfig"),
+    ("GET", "/o2o/staffWallet/myWithdrawList", "StaffWalletController.myWithdrawList"),
+    ("GET", "/o2o/staffWallet/myWithdrawDetail", "StaffWalletController.myWithdrawDetail"),
+    ("GET", "/o2o/staffAccount/list", "StaffAccountController.list"),
+    ("POST", "/o2o/staffAccount/save", "StaffAccountController.save"),
+    ("POST", "/o2o/staffAccount/del", "StaffAccountController.del"),
 ];
 
 /// o2o 前台路由（挂载于 `/api` 下）。
@@ -88,6 +94,12 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/o2o/serviceStaff/updateWorkStatus", post(staff_update_work_status))
         .route("/o2o/staffWallet/myWallet", get(staff_wallet))
         .route("/o2o/staffWallet/myLogs", get(staff_wallet_logs))
+        .route("/o2o/staffWallet/withdrawConfig", get(staff_withdraw_config))
+        .route("/o2o/staffWallet/myWithdrawList", get(staff_withdraw_list))
+        .route("/o2o/staffWallet/myWithdrawDetail", get(staff_withdraw_detail))
+        .route("/o2o/staffAccount/list", get(staff_accounts))
+        .route("/o2o/staffAccount/save", post(staff_account_save))
+        .route("/o2o/staffAccount/del", post(staff_account_del))
         .layer(middleware::from_fn_with_state(
             state.jwt.clone(),
             optional_auth,
@@ -459,6 +471,133 @@ async fn staff_wallet_logs(
         .my_wallet_logs(staff_id, page, size)
         .await?;
     ok(serde_json::json!({"records": records, "total": total, "size": size, "current": page, "pages": (total as u64 + size - 1) / size}))
+}
+
+// ————————————————————— C 端收款账号 / 提现 —————————————————————
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct StaffAccountBody {
+    account_id: Option<i32>,
+    account_type: Option<i32>,
+    account_name: Option<String>,
+    account_no: Option<String>,
+    bank_name: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct WithdrawListQuery {
+    status: Option<i32>,
+    page: Option<u64>,
+    size: Option<u64>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct WithdrawDetailQuery {
+    withdraw_id: Option<i32>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct AccountIdQuery {
+    account_id: Option<i32>,
+}
+
+async fn staff_accounts(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+) -> ApiResult<Value> {
+    let uid = current_user_id(auth)?;
+    ok(Value::Array(state.o2o.pickup_client.accounts(uid).await?))
+}
+
+async fn staff_account_save(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+    Json(body): Json<StaffAccountBody>,
+) -> ApiResult<i32> {
+    let uid = current_user_id(auth)?;
+    ok(state
+        .o2o
+        .pickup_client
+        .save_account(
+            uid,
+            body.account_id.unwrap_or(0),
+            body.account_type.unwrap_or(1),
+            body.account_name.as_deref().unwrap_or_default(),
+            body.account_no.as_deref().unwrap_or_default(),
+            body.bank_name.as_deref().unwrap_or_default(),
+        )
+        .await?)
+}
+
+async fn staff_account_del(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+    Query(q): Query<AccountIdQuery>,
+) -> ApiResult<()> {
+    let uid = current_user_id(auth)?;
+    state
+        .o2o
+        .pickup_client
+        .delete_account(uid, q.account_id.unwrap_or(0))
+        .await?;
+    ok(())
+}
+
+async fn staff_withdraw_config(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+) -> ApiResult<Value> {
+    let uid = current_user_id(auth)?;
+    let (_, _, _, staff_type) = state
+        .o2o
+        .pickup_client
+        .delivery_staff(uid)
+        .await?
+        .ok_or_else(|| tigshop_security::web::AppError(tigshop_core::Error::biz(1001, "当前账号未绑定服务人员")))?;
+    let code = if staff_type == 2 {
+        "o2oServerWithdrawConfig"
+    } else {
+        "o2oDeliveryWithdrawConfig"
+    };
+    let raw = state.system.config_basic.repo().find_by_code(code).await?;
+    let value = raw
+        .and_then(|s| serde_json::from_str::<Value>(&s).ok())
+        .unwrap_or_else(|| serde_json::json!({}));
+    ok(value)
+}
+
+async fn staff_withdraw_list(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+    Query(q): Query<WithdrawListQuery>,
+) -> ApiResult<Value> {
+    let (staff_id, _, _) = delivery_staff_of(&state, current_user_id(auth)?).await?;
+    let page = q.page.unwrap_or(1).max(1);
+    let size = q.size.unwrap_or(10).clamp(1, 100);
+    let (total, records) = state
+        .o2o
+        .pickup_client
+        .withdraw_list(staff_id, q.status, page, size)
+        .await?;
+    ok(serde_json::json!({"records": records, "total": total, "size": size, "current": page, "pages": (total as u64 + size - 1) / size}))
+}
+
+async fn staff_withdraw_detail(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+    Query(q): Query<WithdrawDetailQuery>,
+) -> ApiResult<Value> {
+    let (staff_id, _, _) = delivery_staff_of(&state, current_user_id(auth)?).await?;
+    ok(state
+        .o2o
+        .pickup_client
+        .withdraw_detail(staff_id, q.withdraw_id.unwrap_or(0))
+        .await?
+        .unwrap_or(Value::Null))
 }
 
 fn current_user_id(auth: Option<Extension<AuthUser>>) -> std::result::Result<i32, tigshop_security::web::AppError> {
