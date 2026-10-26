@@ -995,6 +995,93 @@ cfg_set!(h_fin_delivery_cfg_save, "o2oDeliveryFundConfig");
 cfg_get!(h_fin_server_cfg, "o2oServerFundConfig");
 cfg_set!(h_fin_server_cfg_save, "o2oServerFundConfig");
 
+// ————————————————————— 权限组：供应商 —————————————————————
+
+async fn h_supplier_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let (p, s, off) = page_of(&q);
+    let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
+    let (total,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM suppliers WHERE suppliers_name LIKE ? OR contact_name LIKE ?",
+    ).bind(&kw).bind(&kw).fetch_one(&pool(&state)).await.map_err(db)?;
+    let rows: Vec<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('suppliersId', suppliers_id, 'suppliersName', suppliers_name, 'suppliersDesc', suppliers_desc, 'isCheck', is_check, 'country', country, 'province', province, 'city', city, 'district', district, 'contactName', contact_name, 'contactPhone', contact_phone, 'contactAddress', contact_address, 'isShow', is_show, 'shopId', shop_id) FROM suppliers WHERE suppliers_name LIKE ? OR contact_name LIKE ? ORDER BY suppliers_id DESC LIMIT ? OFFSET ?",
+    ).bind(&kw).bind(&kw).bind(s).bind(off).fetch_all(&pool(&state)).await.map_err(db)?;
+    ok(serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "total": total, "page": p, "size": s}))
+}
+
+async fn h_supplier_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let row: Option<(Value,)> = sqlx::query_as(
+        "SELECT JSON_OBJECT('suppliersId', suppliers_id, 'suppliersName', suppliers_name, 'suppliersDesc', suppliers_desc, 'isCheck', is_check, 'country', country, 'province', province, 'city', city, 'district', district, 'contactName', contact_name, 'contactPhone', contact_phone, 'contactAddress', contact_address, 'isShow', is_show, 'shopId', shop_id) FROM suppliers WHERE suppliers_id = ?",
+    ).bind(q.id.unwrap_or(0)).fetch_optional(&pool(&state)).await.map_err(db)?;
+    ok(row.map(|(v,)| v).unwrap_or(Value::Null))
+}
+
+async fn h_supplier_save(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<i64> {
+    let gs = |k: &str| body.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
+    let gi = |k: &str| body.get(k).and_then(Value::as_i64).unwrap_or(0);
+    let id = gi("suppliersId");
+    if id > 0 {
+        sqlx::query("UPDATE suppliers SET suppliers_name = ?, suppliers_desc = ?, is_check = ?, country = ?, province = ?, city = ?, district = ?, contact_name = ?, contact_phone = ?, contact_address = ?, is_show = ?, shop_id = ? WHERE suppliers_id = ?")
+            .bind(gs("suppliersName")).bind(gs("suppliersDesc")).bind(gi("isCheck"))
+            .bind(gi("country")).bind(gi("province")).bind(gi("city")).bind(gi("district"))
+            .bind(gs("contactName")).bind(gs("contactPhone")).bind(gs("contactAddress"))
+            .bind(gi("isShow")).bind(gi("shopId")).bind(id)
+            .execute(&pool(&state)).await.map_err(db)?;
+        return ok(id);
+    }
+    let r = sqlx::query("INSERT INTO suppliers (suppliers_name, suppliers_desc, is_check, country, province, city, district, contact_name, contact_phone, contact_address, is_show, shop_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .bind(gs("suppliersName")).bind(gs("suppliersDesc")).bind(gi("isCheck"))
+        .bind(gi("country")).bind(gi("province")).bind(gi("city")).bind(gi("district"))
+        .bind(gs("contactName")).bind(gs("contactPhone")).bind(gs("contactAddress"))
+        .bind(gi("isShow")).bind(gi("shopId"))
+        .execute(&pool(&state)).await.map_err(db)?;
+    ok(r.last_insert_id() as i64)
+}
+
+async fn h_supplier_update_field(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    let field = body.get("field").and_then(Value::as_str).unwrap_or_default();
+    let column = match field {
+        "isCheck" | "is_check" => "is_check",
+        "isShow" | "is_show" => "is_show",
+        "suppliersName" | "suppliers_name" => "suppliers_name",
+        other => return Err(tigshop_security::web::AppError(Error::Validation(format!("不支持字段 {other}")))),
+    };
+    let val = body.get("val").cloned().or_else(|| body.get("value").cloned()).unwrap_or(Value::Null);
+    let sql = format!("UPDATE suppliers SET {column} = ? WHERE suppliers_id = ?");
+    if matches!(column, "is_check" | "is_show") {
+        sqlx::query(&sql).bind(val.as_i64().unwrap_or(0)).bind(id).execute(&pool(&state)).await.map_err(db)?;
+    } else {
+        sqlx::query(&sql).bind(val.as_str().unwrap_or_default()).bind(id).execute(&pool(&state)).await.map_err(db)?;
+    }
+    ok(())
+}
+
+async fn h_supplier_del(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let ids = json_ids(&body);
+    if ids.is_empty() {
+        return Err(tigshop_security::web::AppError(Error::Validation("缺少 id".into())));
+    }
+    let list = ids.iter().map(ToString::to_string).collect::<Vec<_>>().join(",");
+    sqlx::query(&format!("DELETE FROM suppliers WHERE suppliers_id IN ({list})"))
+        .execute(&pool(&state)).await.map_err(db)?;
+    ok(())
+}
+
+async fn h_supplier_batch(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    h_supplier_del(State(state), Json(body)).await
+}
+
+// POST /promotion/lotteryActivity/updateStatus
+async fn h_lottery_update_status(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let id = body.get("activityId").or_else(|| body.get("id")).and_then(Value::as_i64).unwrap_or(0);
+    let status = body.get("status").and_then(Value::as_i64).unwrap_or(0);
+    sqlx::query("UPDATE lottery_activity SET status = ? WHERE activity_id = ?")
+        .bind(status).bind(id)
+        .execute(&pool(&state)).await.map_err(db)?;
+    ok(())
+}
+
 // post /pos/table/cart/list
 async fn h_22(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<tigshop_core::models::pos::cashier::PosCartVO> {
     ok(state.pos.cashier.cart(0, 0, q.id.unwrap_or(0) as i32).await?)
@@ -1239,6 +1326,14 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/finance/serverFundManagement/settings/save", post(h_fin_server_cfg_save))
         .route("/finance/statement/getStatementDownloadList", get(h_statement_download_list))
         .route("/pos/order/OrderReservation/list", get(h_order_reservation_list))
+        .route("/authority/suppliers/list", get(h_supplier_list))
+        .route("/authority/suppliers/detail", get(h_supplier_detail))
+        .route("/authority/suppliers/create", post(h_supplier_save))
+        .route("/authority/suppliers/update", post(h_supplier_save))
+        .route("/authority/suppliers/updateField", post(h_supplier_update_field))
+        .route("/authority/suppliers/del", post(h_supplier_del))
+        .route("/authority/suppliers/batch", post(h_supplier_batch))
+        .route("/promotion/lotteryActivity/updateStatus", post(h_lottery_update_status))
         .route("/o2o/decorate/decorate/detail", get(h_4))
         .route("/o2o/decorate/decorate/update", post(h_5))
         .route("/o2o/dispatch/assign", post(h_6))
