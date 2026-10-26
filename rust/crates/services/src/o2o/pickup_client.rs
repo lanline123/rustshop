@@ -177,6 +177,29 @@ impl PickupClientService {
         self.repos.o2o.pickup_client.withdraw_detail(staff_id, id).await
     }
 
+    pub async fn apply_withdraw(
+        &self,
+        staff_id: i32,
+        business_type: i32,
+        amount: rust_decimal::Decimal,
+        account_id: i32,
+        remark: &str,
+    ) -> Result<i32> {
+        self.repos
+            .o2o
+            .pickup_client
+            .apply_withdraw(staff_id, business_type, amount, account_id, remark)
+            .await
+    }
+
+    pub async fn local_delivery_config(&self, shop_id: i32) -> Result<Value> {
+        self.repos.o2o.pickup_client.local_delivery_config(shop_id).await
+    }
+
+    pub async fn home_service_config(&self, shop_id: i32) -> Result<Value> {
+        self.repos.o2o.pickup_client.home_service_config(shop_id).await
+    }
+
     /// C 端派送订单列表。
     pub async fn delivery_list(
         &self,

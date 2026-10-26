@@ -483,6 +483,129 @@ impl PickupClientRepository {
         Ok(row.map(|(v,)| v))
     }
 
+    /// 申请提现：冻结余额 + 提现单 + 流水，单事务。
+    pub async fn apply_withdraw(
+        &self,
+        staff_id: i32,
+        business_type: i32,
+        amount: rust_decimal::Decimal,
+        account_id: i32,
+        remark: &str,
+    ) -> Result<i32> {
+        if amount <= rust_decimal::Decimal::ZERO {
+            return Err(Error::Validation("提现金额必须大于 0".into()));
+        }
+        let mut tx = self.pool.begin().await.map_err(map_err)?;
+        let account: Option<(i32, String, String, String)> = sqlx::query_as(
+            "SELECT account_type, account_name, account_no, bank_name FROM user_withdraw_account WHERE account_id = ?",
+        )
+        .bind(account_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(map_err)?;
+        let (account_type, account_name, account_no, bank_name) =
+            account.ok_or_else(|| Error::Validation("收款账号不存在".into()))?;
+        let balance: Option<(rust_decimal::Decimal,)> = sqlx::query_as(
+            "SELECT balance FROM service_staff_wallet WHERE staff_id = ? FOR UPDATE",
+        )
+        .bind(staff_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(map_err)?;
+        let Some((balance,)) = balance else {
+            return Err(Error::Validation("钱包不存在".into()));
+        };
+        if balance < amount {
+            return Err(Error::Validation("可提现余额不足".into()));
+        }
+        let now = tigshop_common::utils::now_seconds() as i64;
+        let withdraw_sn = format!("WD{now}{staff_id}");
+        let r = sqlx::query(
+            "INSERT INTO service_staff_withdraw (withdraw_sn, staff_id, business_type, amount, status, account_id, account_type, account_name, account_no, bank_name, apply_time, frequency_unit, period_start, period_end, create_time, update_time) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 'day', ?, ?, ?, ?)",
+        )
+        .bind(&withdraw_sn)
+        .bind(staff_id)
+        .bind(business_type)
+        .bind(amount)
+        .bind(account_id)
+        .bind(account_type)
+        .bind(&account_name)
+        .bind(&account_no)
+        .bind(&bank_name)
+        .bind(now)
+        .bind(now / 86400 * 86400)
+        .bind(now / 86400 * 86400 + 86400)
+        .bind(now)
+        .bind(now)
+        .execute(&mut *tx)
+        .await
+        .map_err(map_err)?;
+        let withdraw_id = i32::try_from(r.last_insert_id()).unwrap_or(0);
+        sqlx::query("UPDATE service_staff_wallet SET balance = balance - ?, frozen_balance = frozen_balance + ?, update_time = ? WHERE staff_id = ?")
+            .bind(amount)
+            .bind(amount)
+            .bind(now)
+            .bind(staff_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(map_err)?;
+        sqlx::query("INSERT INTO service_staff_wallet_log (staff_id, amount, balance_after, frozen_after, business_type, type, remark, create_time) VALUES (?, ?, ?, ?, ?, 4, ?, ?)")
+            .bind(staff_id)
+            .bind(-amount)
+            .bind(balance - amount)
+            .bind(amount)
+            .bind(business_type)
+            .bind(remark)
+            .bind(now)
+            .execute(&mut *tx)
+            .await
+            .map_err(map_err)?;
+        tx.commit().await.map_err(map_err)?;
+        Ok(withdraw_id)
+    }
+
+    /// 门店同城配送配置 + 距离溢价。
+    pub async fn local_delivery_config(&self, shop_id: i32) -> Result<Value> {
+        let row: Option<(Value,)> = sqlx::query_as(
+            "SELECT JSON_OBJECT('shopId', shop_id, 'enabled', enabled, 'deliveryRadius', delivery_radius, 'minOrderAmount', min_order_amount, 'baseDeliveryFee', base_delivery_fee, 'distancePricingEnabled', distance_pricing_enabled) FROM shop_local_delivery_config WHERE shop_id = ?",
+        )
+        .bind(shop_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        let Some((mut obj,)) = row else { return Ok(Value::Null) };
+        let rows: Vec<(Value,)> = sqlx::query_as(
+            "SELECT JSON_OBJECT('distanceThreshold', p.distance_threshold, 'distanceUnit', p.distance_unit, 'additionalFee', p.additional_fee) FROM shop_local_delivery_distance_pricing p JOIN shop_local_delivery_config c ON c.shop_local_delivery_config_id = p.shop_local_delivery_config_id WHERE c.shop_id = ? ORDER BY p.sort_order",
+        )
+        .bind(shop_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        obj["distancePricing"] = Value::Array(rows.into_iter().map(|(v,)| v).collect());
+        Ok(obj)
+    }
+
+    /// 门店上门服务配置 + 距离溢价。
+    pub async fn home_service_config(&self, shop_id: i32) -> Result<Value> {
+        let row: Option<(Value,)> = sqlx::query_as(
+            "SELECT JSON_OBJECT('shopId', shop_id, 'enabled', enabled, 'serviceRadius', service_radius, 'homeFee', home_fee, 'distancePricingEnabled', distance_pricing_enabled, 'orderDispatchMode', order_dispatch_mode, 'beforeServicePhotoEnabled', before_service_photo_enabled, 'afterServicePhotoEnabled', after_service_photo_enabled) FROM shop_home_service_config WHERE shop_id = ?",
+        )
+        .bind(shop_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        let Some((mut obj,)) = row else { return Ok(Value::Null) };
+        let rows: Vec<(Value,)> = sqlx::query_as(
+            "SELECT JSON_OBJECT('distanceThreshold', p.distance_threshold, 'distanceUnit', p.distance_unit, 'additionalFee', p.additional_fee) FROM shop_home_service_distance_pricing p JOIN shop_home_service_config c ON c.shop_home_service_config_id = p.shop_home_service_config_id WHERE c.shop_id = ? ORDER BY p.sort_order",
+        )
+        .bind(shop_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        obj["distancePricing"] = Value::Array(rows.into_iter().map(|(v,)| v).collect());
+        Ok(obj)
+    }
+
     pub async fn delivery_list(
         &self,
         staff_id: i32,

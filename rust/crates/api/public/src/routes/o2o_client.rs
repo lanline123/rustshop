@@ -34,7 +34,7 @@ use tigshop_services::o2o::pickup_client::StockDayVO;
 use crate::PublicState;
 
 /// 本域路由（挂载于 `/api` 下）。
-const ROUTE_TABLE: [(&str, &str, &str); 30] = [
+const ROUTE_TABLE: [(&str, &str, &str); 33] = [
     ("GET", "/o2o/userPickup/getUserPickups", "UserPickupController.getUserPickups"),
     ("GET", "/o2o/userPickup/detail", "UserPickupController.detail"),
     ("POST", "/o2o/userPickup/create", "UserPickupController.create"),
@@ -65,6 +65,9 @@ const ROUTE_TABLE: [(&str, &str, &str); 30] = [
     ("GET", "/o2o/staffAccount/list", "StaffAccountController.list"),
     ("POST", "/o2o/staffAccount/save", "StaffAccountController.save"),
     ("POST", "/o2o/staffAccount/del", "StaffAccountController.del"),
+    ("POST", "/o2o/staffWallet/applyWithdraw", "StaffWalletController.applyWithdraw"),
+    ("GET", "/o2o/config/localDeliveryConfig", "O2oConfigController.localDeliveryConfig"),
+    ("GET", "/o2o/config/homeServiceConfig", "O2oConfigController.homeServiceConfig"),
 ];
 
 /// o2o 前台路由（挂载于 `/api` 下）。
@@ -100,6 +103,9 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/o2o/staffAccount/list", get(staff_accounts))
         .route("/o2o/staffAccount/save", post(staff_account_save))
         .route("/o2o/staffAccount/del", post(staff_account_del))
+        .route("/o2o/staffWallet/applyWithdraw", post(staff_apply_withdraw))
+        .route("/o2o/config/localDeliveryConfig", get(local_delivery_config))
+        .route("/o2o/config/homeServiceConfig", get(home_service_config))
         .layer(middleware::from_fn_with_state(
             state.jwt.clone(),
             optional_auth,
@@ -598,6 +604,75 @@ async fn staff_withdraw_detail(
         .withdraw_detail(staff_id, q.withdraw_id.unwrap_or(0))
         .await?
         .unwrap_or(Value::Null))
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct ApplyWithdrawBody {
+    amount: Option<Value>,
+    account_id: Option<i32>,
+    remark: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct ShopConfigQuery {
+    shop_id: Option<i32>,
+}
+
+async fn staff_apply_withdraw(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+    Json(body): Json<ApplyWithdrawBody>,
+) -> ApiResult<i32> {
+    use std::str::FromStr;
+    let (staff_id, _, _, staff_type) = state
+        .o2o
+        .pickup_client
+        .delivery_staff(current_user_id(auth)?)
+        .await?
+        .ok_or_else(|| tigshop_security::web::AppError(tigshop_core::Error::biz(1001, "当前账号未绑定服务人员")))?;
+    let amount_text = match body.amount.as_ref() {
+        Some(Value::Number(n)) => n.to_string(),
+        Some(Value::String(s)) => s.clone(),
+        _ => return Err(tigshop_security::web::AppError(tigshop_core::Error::Validation("提现金额不能为空".into()))),
+    };
+    let amount = rust_decimal::Decimal::from_str(&amount_text)
+        .map_err(|_| tigshop_security::web::AppError(tigshop_core::Error::Validation("提现金额格式错误".into())))?;
+    let business_type = if staff_type == 2 { 2 } else { 1 };
+    ok(state
+        .o2o
+        .pickup_client
+        .apply_withdraw(
+            staff_id,
+            business_type,
+            amount,
+            body.account_id.unwrap_or(0),
+            body.remark.as_deref().unwrap_or_default(),
+        )
+        .await?)
+}
+
+async fn local_delivery_config(
+    State(state): State<PublicState>,
+    Query(q): Query<ShopConfigQuery>,
+) -> ApiResult<Value> {
+    ok(state
+        .o2o
+        .pickup_client
+        .local_delivery_config(q.shop_id.unwrap_or(0))
+        .await?)
+}
+
+async fn home_service_config(
+    State(state): State<PublicState>,
+    Query(q): Query<ShopConfigQuery>,
+) -> ApiResult<Value> {
+    ok(state
+        .o2o
+        .pickup_client
+        .home_service_config(q.shop_id.unwrap_or(0))
+        .await?)
 }
 
 fn current_user_id(auth: Option<Extension<AuthUser>>) -> std::result::Result<i32, tigshop_security::web::AppError> {
