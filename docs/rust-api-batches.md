@@ -175,6 +175,21 @@ POST /adminapi/setting/config/saveAntom
 
 待补：Stripe/Xendit/Antom 支付回调（需要验签与支付单创建链路）。
 
+### 2026-10-26 A3.1：Stripe / Xendit 回调验签
+
+```text
+POST /api/order/pay/notify/stripe
+POST /api/order/pay/notify/xendit
+```
+
+- Stripe：`Stripe-Signature` HMAC-SHA256 验签，只处理 `payment_intent.succeeded` / `checkout.session.completed`
+- Xendit：`x-callback-token` 常量时间校验，只处理 `PAID` / `SETTLED`
+- 成功后调用 `mark_paid_by_pay_sn` + `settle_order_by_pay_sn`
+- Antom：路由已注册，但 RSA 验签未完成，返回明确 1001，不会接受支付通知
+- `cargo check -p tigshop-api` 通过
+- 审计未实现数：114 → 111
+- commit：`1daf41bb`
+
 ## 每批验收
 
 ```text
