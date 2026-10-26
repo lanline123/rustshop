@@ -12,6 +12,7 @@ use std::collections::{BTreeMap, HashMap};
 use aes_gcm::aead::{Aead, KeyInit, Payload};
 use aes_gcm::{Aes256Gcm, Nonce};
 use base64::Engine;
+use hmac::{Hmac, Mac};
 use rsa::pkcs8::{DecodePrivateKey, DecodePublicKey};
 use rsa::{Pkcs1v15Sign, RsaPrivateKey, RsaPublicKey};
 use sha2::{Digest, Sha256};
@@ -497,4 +498,52 @@ mod tests {
         let key = RsaPrivateKey::from_pkcs8_pem(&private_pem).unwrap();
         assert_eq!(key.size() * 8, 1024);
     }
+}
+
+
+// —————————————————————————————— Stripe / Xendit 回调验签 ——————————————————————————————
+
+/// 校验 Stripe webhook 签名（`Stripe-Signature: t=...,v1=...`）。
+pub fn stripe_verify_webhook(secret: &str, header: &str, payload: &str) -> Result<()> {
+    let mut timestamp = "";
+    let mut signatures: Vec<&str> = Vec::new();
+    for part in header.split(',') {
+        let mut kv = part.splitn(2, '=');
+        let key = kv.next().unwrap_or("").trim();
+        let value = kv.next().unwrap_or("").trim();
+        match key {
+            "t" => timestamp = value,
+            "v1" => signatures.push(value),
+            _ => {}
+        }
+    }
+    if timestamp.is_empty() || signatures.is_empty() {
+        return Err(Error::biz(1001, "Stripe 回调签名头格式错误"));
+    }
+    let signed = format!("{timestamp}.{payload}");
+    let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(secret.as_bytes())
+        .map_err(|e| Error::Internal(format!("Stripe 签名初始化失败: {e}")))?;
+    mac.update(signed.as_bytes());
+    for sig in signatures {
+        if let Ok(bytes) = hex::decode(sig) {
+            if mac.clone().verify_slice(&bytes).is_ok() {
+                return Ok(());
+            }
+        }
+    }
+    Err(Error::biz(1001, "Stripe 回调验签失败"))
+}
+
+/// 校验 Xendit 回调 token（常量时间比较）。
+pub fn xendit_verify_token(expected: &str, actual: &str) -> bool {
+    let a = expected.as_bytes();
+    let b = actual.as_bytes();
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff = 0u8;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
 }
