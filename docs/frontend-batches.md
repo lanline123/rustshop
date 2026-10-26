@@ -226,12 +226,36 @@ deliveryStaffWithdrawManage 配送员提现管理
 serverStaffWithdrawManage   服务员提现管理
 ```
 
-### 待补
+## 线上验收（2026-10-26）
 
 ```text
-O2O 标签/服务人员/区域/派送订单/钱包页面
+https://battery.recy.cc/adminapi/health → 200
+https://battery.recy.cc/admin/           → 200
+https://battery.recy.cc/oauth/callback   → 200
+https://battery.recy.cc/cycleCard        → 200
+https://battery.recy.cc/mobile/          → 200
+```
+
+后端接口审计：`docs/rust-api-audit.md` 未实现 **0**。
+
+## 结论
+
+- 后端 128 个缺失接口已全部补齐并部署
+- H5：次卡、配送员订单/钱包、服务人员个人中心已上线
+- PC：OAuth 回调、次卡页面已上线
+- Admin：员工收益/提现/资金日志/设置页面已上线，权限菜单已核对
+
+## 仍未覆盖
+
+- 独立 POS 前端（`o2o.recy.cc`）源码不在当前工作区
+- H5 次卡兑换/退款申请需要后端新增业务接口，当前仅展示与可用性校验
+- PC 端 O2O 页面为静态补充页，未并入 Nuxt 构建
+
+## 待补
+
+```text
+O2O 标签/服务人员/区域/派送订单/钱包页面（Admin 部分页面）
 POS 收银台页面
 供应商管理页面
 ```
 
-> Admin 页面为编译后的 SPA（`java/public/admin` / `java/view/admin`），已确认可构建、可部署。
