@@ -9,7 +9,6 @@ import {
   Select,
   SideSheet,
   Switch,
-  Tabs,
   Toast,
 } from '@douyinfe/semi-ui';
 import { apiGet, apiPost, isDemo } from '../api';
@@ -69,6 +68,14 @@ const emptyValues = {
   isSupportCod: true,
 };
 
+const sections = [
+  { key: 'basic', label: '基本信息' },
+  { key: 'sale', label: '销售信息' },
+  { key: 'logistics', label: '物流及配送' },
+  { key: 'detail', label: '商品详情' },
+  { key: 'advanced', label: '高级信息' },
+];
+
 export default function ProductFormModal({
   visible,
   productId,
@@ -79,9 +86,7 @@ export default function ProductFormModal({
 }: ProductFormModalProps) {
   const [formApi, setFormApi] = useState<any>(null);
   const [saving, setSaving] = useState(false);
-  const [tab, setTab] = useState(
-    () => new URLSearchParams(window.location.search).get('tab') || 'basic',
-  );
+  const [activeSection, setActiveSection] = useState('basic');
   const [shippingTpls, setShippingTpls] = useState<ShippingTpl[]>([
     { shippingTplId: 1, shippingTplName: '默认模板' },
   ]);
@@ -163,6 +168,11 @@ export default function ProductFormModal({
     };
   }, [visible, productId, formApi]);
 
+  const scrollTo = (key: string) => {
+    setActiveSection(key);
+    document.getElementById(`product-section-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   const submit = async () => {
     if (isDemo()) {
       Toast.warning({ content: '演示模式不支持保存，请登录后操作' });
@@ -232,12 +242,13 @@ export default function ProductFormModal({
 
   return (
     <SideSheet
+      className="product-form-sheet"
       title={productId ? '编辑商品' : '新增商品'}
       visible={visible}
       onCancel={onCancel}
-      width={760}
+      width={950}
       placement="right"
-      bodyStyle={{ padding: '0 24px 16px', overflowY: 'auto' }}
+      bodyStyle={{ padding: 0, overflowY: 'auto' }}
       footer={
         <div className="modal-footer">
           <Button onClick={onCancel}>取消</Button>
@@ -247,273 +258,249 @@ export default function ProductFormModal({
         </div>
       }
     >
+      <div className="product-form-nav">
+        {sections.map((section) => (
+          <button
+            type="button"
+            key={section.key}
+            className={activeSection === section.key ? 'is-active' : ''}
+            onClick={() => scrollTo(section.key)}
+          >
+            {section.label}
+          </button>
+        ))}
+      </div>
+
       <Form
         getFormApi={setFormApi}
         initValues={emptyValues}
-        labelPosition="top"
-        style={{ width: '100%' }}
+        labelPosition="left"
+        labelWidth={110}
+        labelAlign="right"
+        className="product-form"
       >
-        <Tabs
-          type="button"
-          activeKey={tab}
-          onChange={setTab}
-          keepDOM
-          lazyRender={false}
-          tabList={[
-            { tab: '基本信息', itemKey: 'basic' },
-            { tab: '销售信息', itemKey: 'sale' },
-            { tab: '物流配送', itemKey: 'logistics' },
-            { tab: '商品详情', itemKey: 'detail' },
-            { tab: '高级信息', itemKey: 'advanced' },
-          ]}
-        >
-          <Tabs.TabPane itemKey="basic">
-            <Row gutter={16}>
-              <Col span={16}>
-                <Form.Input
-                  field="productName"
-                  label="商品名称"
-                  placeholder="请输入商品名称"
-                  rules={[{ required: true, message: '请输入商品名称' }]}
-                />
-              </Col>
-              <Col span={8}>
-                <Form.Select
-                  field="productType"
-                  label="商品类型"
-                  disabled={Boolean(productId)}
-                  optionList={[
-                    { label: '普通商品', value: 1 },
-                    { label: '虚拟商品', value: 2 },
-                    { label: '电子卡券', value: 3 },
-                    { label: '预约到店', value: 5 },
-                    { label: '上门服务', value: 6 },
-                  ]}
-                />
-              </Col>
-              <Col span={12}>
-                <Form.Select
-                  field="categoryId"
-                  label="商品类目"
-                  placeholder="请选择商品类目"
-                  filter
-                  optionList={categories.map((item) => ({ label: item.name, value: item.id }))}
-                  rules={[{ required: true, message: '请选择商品类目' }]}
-                />
-              </Col>
-              <Col span={12}>
-                <Form.Select
-                  field="brandId"
-                  label="商品品牌"
-                  placeholder="请选择品牌"
-                  filter
-                  showClear
-                  optionList={brands.map((item) => ({ label: item.name, value: item.id }))}
-                />
-              </Col>
-              <Col span={12}>
-                <Form.Input field="productSn" label="商品编码" placeholder="不填自动生成" />
-              </Col>
-              <Col span={12}>
-                <Form.Input field="productTsn" label="商品条码" placeholder="如 69 开头的 13 位标准码" />
-              </Col>
-              <Col span={12}>
-                <Form.InputNumber
-                  field="productWeight"
-                  label="商品重量（kg）"
-                  min={0}
-                  precision={3}
-                  style={{ width: '100%' }}
-                />
-              </Col>
-              <Col span={12}>
-                <Form.RadioGroup
-                  field="productStatus"
-                  label="是否上架"
-                  type="button"
-                  options={[
-                    { label: '上架', value: 1 },
-                    { label: '下架', value: 0 },
-                  ]}
-                />
-              </Col>
-              <Col span={24}>
-                <Form.Input field="picUrl" label="商品主图" placeholder="https://..." />
-              </Col>
-              <Col span={24}>
-                <Form.TextArea
-                  field="galleryText"
-                  label="商品相册"
-                  placeholder="每行一个图片地址，第一张作为主图"
-                  autosize={{ minRows: 3, maxRows: 6 }}
-                  extraText="支持多图，按行分隔；保存后会同步到商品相册。"
-                />
-              </Col>
-              <Col span={24}>
-                <Form.Input field="productVideo" label="商品视频" placeholder="视频地址，可留空" />
-              </Col>
-              <Col span={24}>
-                <Form.Input
-                  field="keywords"
-                  label="搜索关键词"
-                  placeholder="多个关键词用空格分隔，为空时按商品名称分词"
-                />
-              </Col>
-              <Col span={24}>
-                <Form.TextArea
-                  field="productBrief"
-                  label="商品描述"
-                  placeholder="用于商品列表和搜索展示"
-                  autosize={{ minRows: 2, maxRows: 4 }}
-                />
-              </Col>
-            </Row>
-          </Tabs.TabPane>
+        <section id="product-section-basic" className="product-section">
+          <div className="product-section-title">基本信息</div>
+          <Form.Select
+            field="productType"
+            label="商品类型"
+            disabled={Boolean(productId)}
+            style={{ width: 360 }}
+            optionList={[
+              { label: '普通商品', value: 1 },
+              { label: '虚拟商品', value: 2 },
+              { label: '电子卡券', value: 3 },
+              { label: '预约到店', value: 5 },
+              { label: '上门服务', value: 6 },
+            ]}
+            extraText="商品类型发布后不可修改。"
+          />
+          <Form.Input
+            field="productName"
+            label="商品名称"
+            placeholder="请输入商品名称"
+            style={{ width: 420 }}
+            rules={[{ required: true, message: '请输入商品名称' }]}
+          />
+          <Form.Select
+            field="categoryId"
+            label="商品类目"
+            placeholder="请选择商品类目"
+            filter
+            style={{ width: 360 }}
+            optionList={categories.map((item) => ({ label: item.name, value: item.id }))}
+            rules={[{ required: true, message: '请选择商品类目' }]}
+          />
+          <Form.Select
+            field="brandId"
+            label="商品品牌"
+            placeholder="请选择商品品牌"
+            filter
+            showClear
+            style={{ width: 360 }}
+            optionList={brands.map((item) => ({ label: item.name, value: item.id }))}
+          />
+          <Form.Input field="productSn" label="商品编码" placeholder="不填自动生成" style={{ width: 360 }} />
+          <Form.Input
+            field="productTsn"
+            label="商品条码"
+            placeholder="如 69 开头的 13 位标准码"
+            style={{ width: 360 }}
+            extraText="用于快速识别商品所标记的编码。"
+          />
+          <Form.InputNumber
+            field="productWeight"
+            label="商品重量"
+            min={0}
+            precision={3}
+            style={{ width: 360 }}
+            suffix="kg"
+          />
+          <Form.RadioGroup
+            field="productStatus"
+            label="是否上架"
+            type="button"
+            options={[
+              { label: '上架', value: 1 },
+              { label: '下架', value: 0 },
+            ]}
+            extraText="上架则允许销售，未审核商品无法手动上架。"
+          />
+          <Form.Input field="picUrl" label="商品主图" placeholder="https://..." style={{ width: 520 }} />
+          <Form.TextArea
+            field="galleryText"
+            label="商品相册"
+            placeholder="每行一个图片地址，第一张作为商品主图"
+            style={{ width: 620 }}
+            autosize={{ minRows: 3, maxRows: 6 }}
+            extraText="支持多图，按行分隔，保存后同步到商品相册。"
+          />
+          <Form.Input
+            field="productVideo"
+            label="商品视频"
+            placeholder="视频地址，可留空"
+            style={{ width: 520 }}
+          />
+          <Form.Input
+            field="keywords"
+            label="搜索关键词"
+            placeholder="多个关键词用空格分隔"
+            style={{ width: 520 }}
+            extraText="为空时按商品名称自动分词。"
+          />
+          <Form.TextArea
+            field="productBrief"
+            label="商品描述"
+            placeholder="用于商品列表和搜索展示"
+            style={{ width: 620 }}
+            autosize={{ minRows: 2, maxRows: 4 }}
+          />
+        </section>
 
-          <Tabs.TabPane itemKey="sale">
-            <Row gutter={16}>
-              <Col span={8}>
-                <Form.InputNumber
-                  field="productPrice"
-                  label="销售价"
-                  min={0}
-                  precision={2}
-                  style={{ width: '100%' }}
-                  rules={[{ required: true, message: '请输入销售价' }]}
-                />
-              </Col>
-              <Col span={8}>
-                <Form.InputNumber
-                  field="marketPrice"
-                  label="市场价"
-                  min={0}
-                  precision={2}
-                  style={{ width: '100%' }}
-                />
-              </Col>
-              <Col span={8}>
-                <Form.InputNumber
-                  field="costPrice"
-                  label="成本价"
-                  min={0}
-                  precision={2}
-                  style={{ width: '100%' }}
-                />
-              </Col>
-              <Col span={8}>
-                <Form.InputNumber
-                  field="productStock"
-                  label="库存"
-                  min={0}
-                  precision={0}
-                  style={{ width: '100%' }}
-                />
-              </Col>
-              <Col span={8}>
-                <Form.InputNumber
-                  field="limitNumber"
-                  label="限购数量（0 不限购）"
-                  min={0}
-                  precision={0}
-                  style={{ width: '100%' }}
-                />
-              </Col>
-              <Col span={8}>
-                <Form.InputNumber
-                  field="virtualSales"
-                  label="虚拟销量"
-                  min={0}
-                  precision={0}
-                  style={{ width: '100%' }}
-                />
-              </Col>
-              <Col span={24}>
-                <Form.RadioGroup
-                  field="saleMode"
-                  label="销售模式"
-                  type="button"
-                  options={[
-                    { label: '现货销售', value: 0 },
-                    { label: '预售模式', value: 1 },
-                  ]}
-                  extraText="预售模式需在商品详情中配置预售时间，当前先保存销售模式。"
-                />
-              </Col>
-            </Row>
-          </Tabs.TabPane>
+        <section id="product-section-sale" className="product-section">
+          <div className="product-section-title">销售信息</div>
+          <Form.RadioGroup
+            field="saleMode"
+            label="销售模式"
+            type="button"
+            options={[
+              { label: '现货销售', value: 0 },
+              { label: '预售模式', value: 1 },
+            ]}
+          />
+          <Row gutter={0}>
+            <Col span={12}>
+              <Form.InputNumber
+                field="productPrice"
+                label="销售价"
+                min={0}
+                precision={2}
+                style={{ width: 260 }}
+                rules={[{ required: true, message: '请输入销售价' }]}
+              />
+            </Col>
+            <Col span={12}>
+              <Form.InputNumber
+                field="marketPrice"
+                label="市场价"
+                min={0}
+                precision={2}
+                style={{ width: 260 }}
+              />
+            </Col>
+            <Col span={12}>
+              <Form.InputNumber
+                field="costPrice"
+                label="成本价"
+                min={0}
+                precision={2}
+                style={{ width: 260 }}
+              />
+            </Col>
+            <Col span={12}>
+              <Form.InputNumber
+                field="productStock"
+                label="商品库存"
+                min={0}
+                precision={0}
+                style={{ width: 260 }}
+              />
+            </Col>
+            <Col span={12}>
+              <Form.InputNumber
+                field="limitNumber"
+                label="限购数量"
+                min={0}
+                precision={0}
+                style={{ width: 260 }}
+                extraText="0 表示不限购"
+              />
+            </Col>
+            <Col span={12}>
+              <Form.InputNumber
+                field="virtualSales"
+                label="虚拟销量"
+                min={0}
+                precision={0}
+                style={{ width: 260 }}
+                extraText="仅展示，不是真实销量"
+              />
+            </Col>
+          </Row>
+        </section>
 
-          <Tabs.TabPane itemKey="logistics">
-            <Row gutter={16}>
-              <Col span={24}>
-                <Form.Select
-                  field="shippingTplId"
-                  label="运费模板"
-                  placeholder="请选择运费模板"
-                  filter
-                  optionList={shippingTpls.map((item) => ({
-                    label: item.shippingTplName,
-                    value: item.shippingTplId,
-                  }))}
-                />
-              </Col>
-              <Col span={8}>
-                <Form.Switch field="freeShipping" label="包邮" />
-              </Col>
-              <Col span={8}>
-                <Form.Switch field="isLogistics" label="快递发货" />
-              </Col>
-              <Col span={8}>
-                <Form.Switch field="isShopPickup" label="到店自提" />
-              </Col>
-              <Col span={8}>
-                <Form.Switch field="noShipping" label="无需配送" />
-              </Col>
-            </Row>
-          </Tabs.TabPane>
+        <section id="product-section-logistics" className="product-section">
+          <div className="product-section-title">物流及配送</div>
+          <Form.Select
+            field="shippingTplId"
+            label="运费模板"
+            placeholder="请选择运费模板"
+            filter
+            style={{ width: 360 }}
+            optionList={shippingTpls.map((item) => ({
+              label: item.shippingTplName,
+              value: item.shippingTplId,
+            }))}
+          />
+          <Form.Switch field="freeShipping" label="包邮" extraText="开启后前台展示包邮。" />
+          <Form.Switch field="isLogistics" label="快递发货" />
+          <Form.Switch field="isShopPickup" label="到店自提" />
+          <Form.Switch field="noShipping" label="无需配送" />
+        </section>
 
-          <Tabs.TabPane itemKey="detail">
-            <Form.TextArea
-              field="productDesc"
-              label="商品详情"
-              placeholder="支持 HTML 或纯文本"
-              autosize={{ minRows: 10, maxRows: 18 }}
-              extraText="商品详情会展示在 PC / H5 商品详情页。"
-            />
-            <Form.TextArea
-              field="remark"
-              label="备注"
-              placeholder="内部备注，仅后台可见"
-              autosize={{ minRows: 3, maxRows: 6 }}
-            />
-          </Tabs.TabPane>
+        <section id="product-section-detail" className="product-section">
+          <div className="product-section-title">商品详情</div>
+          <Form.TextArea
+            field="productDesc"
+            label="商品详情"
+            placeholder="支持 HTML 或纯文本"
+            style={{ width: 720 }}
+            autosize={{ minRows: 12, maxRows: 22 }}
+            extraText="商品详情会展示在 PC / H5 商品详情页。"
+          />
+          <Form.TextArea
+            field="remark"
+            label="备注"
+            placeholder="内部备注，仅后台可见"
+            style={{ width: 720 }}
+            autosize={{ minRows: 3, maxRows: 6 }}
+          />
+        </section>
 
-          <Tabs.TabPane itemKey="advanced">
-            <Row gutter={16}>
-              <Col span={8}>
-                <Form.Switch field="isBest" label="精品推荐" />
-              </Col>
-              <Col span={8}>
-                <Form.Switch field="isNew" label="新品推荐" />
-              </Col>
-              <Col span={8}>
-                <Form.Switch field="isHot" label="热销推荐" />
-              </Col>
-              <Col span={8}>
-                <Form.Switch field="isSupportReturn" label="支持退货" />
-              </Col>
-              <Col span={8}>
-                <Form.Switch field="isSupportCod" label="支持货到付款" />
-              </Col>
-              <Col span={24}>
-                <Form.Input
-                  field="seoIdentification"
-                  label="SEO 关键词"
-                  placeholder="用于商品详情页 SEO 关键词"
-                />
-              </Col>
-            </Row>
-          </Tabs.TabPane>
-        </Tabs>
+        <section id="product-section-advanced" className="product-section">
+          <div className="product-section-title">高级信息</div>
+          <Form.Switch field="isBest" label="精品推荐" />
+          <Form.Switch field="isNew" label="新品推荐" />
+          <Form.Switch field="isHot" label="热销推荐" />
+          <Form.Switch field="isSupportReturn" label="支持退货" />
+          <Form.Switch field="isSupportCod" label="支持货到付款" />
+          <Form.Input
+            field="seoIdentification"
+            label="SEO 关键词"
+            placeholder="用于商品详情页 SEO 关键词"
+            style={{ width: 520 }}
+          />
+        </section>
       </Form>
     </SideSheet>
   );
