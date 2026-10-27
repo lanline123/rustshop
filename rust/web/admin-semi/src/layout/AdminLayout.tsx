@@ -17,7 +17,16 @@ interface AdminLayoutProps {
 export default function AdminLayout({ page, onPageChange, onLogout, children }: AdminLayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
   const activeGroup =
-    navGroups.find((group) => group.items.some((item) => item.key === page)) || navGroups[2];
+    navGroups.find((group) =>
+      group.items.some(
+        (item) => item.key === page || item.children?.some((child) => child.key === page),
+      ),
+    ) || navGroups[2];
+
+  const activeParent = activeGroup.items.find(
+    (item) => item.key === page || item.children?.some((child) => child.key === page),
+  );
+  const hasThirdLevel = Boolean(activeParent?.children?.length);
 
   return (
     <div className={`app-shell ${collapsed ? 'is-collapsed' : ''}`}>
@@ -41,7 +50,10 @@ export default function AdminLayout({ page, onPageChange, onLogout, children }: 
                   <button
                     type="button"
                     className={`rail-item ${active ? 'is-active' : ''}`}
-                    onClick={() => onPageChange(group.items[0].key)}
+                    onClick={() => {
+                      const first = group.items[0];
+                      onPageChange(first.children?.[0]?.key || first.key);
+                    }}
                   >
                     <span className="rail-icon">{group.icon}</span>
                     {!collapsed && <span className="rail-label">{group.label}</span>}
@@ -55,17 +67,36 @@ export default function AdminLayout({ page, onPageChange, onLogout, children }: 
             <div className="submenu">
               <div className="submenu-title">{activeGroup.label}</div>
               <div className="submenu-list">
-                {activeGroup.items.map((item) => (
-                  <button
-                    type="button"
-                    className={`submenu-item ${page === item.key ? 'is-active' : ''}`}
-                    onClick={() => onPageChange(item.key)}
-                    key={item.key}
-                  >
-                    <span className="submenu-dot" />
-                    <span>{item.label}</span>
-                  </button>
-                ))}
+                {activeGroup.items.map((item) =>
+                  item.children?.length ? (
+                    <div className="submenu-section" key={item.key}>
+                      <div className="submenu-section-title">{item.label}</div>
+                      {item.children.map((child) => (
+                        <button
+                          type="button"
+                          className={`submenu-item submenu-item-child ${
+                            page === child.key ? 'is-active' : ''
+                          }`}
+                          onClick={() => onPageChange(child.key)}
+                          key={child.key}
+                        >
+                          <span className="submenu-dot" />
+                          <span>{child.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className={`submenu-item ${page === item.key ? 'is-active' : ''}`}
+                      onClick={() => onPageChange(item.key)}
+                      key={item.key}
+                    >
+                      <span className="submenu-dot" />
+                      <span>{item.label}</span>
+                    </button>
+                  ),
+                )}
               </div>
             </div>
           )}
@@ -103,6 +134,12 @@ export default function AdminLayout({ page, onPageChange, onLogout, children }: 
               <span className="breadcrumb-muted">首页</span>
               <span className="breadcrumb-sep">/</span>
               <span className="breadcrumb-muted">{activeGroup.label}</span>
+              {hasThirdLevel && (
+                <>
+                  <span className="breadcrumb-sep">/</span>
+                  <span className="breadcrumb-muted">{activeParent?.label}</span>
+                </>
+              )}
               <span className="breadcrumb-sep">/</span>
               <span className="breadcrumb-current">{pageTitles[page] || page}</span>
             </div>
