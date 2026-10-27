@@ -118,6 +118,45 @@ impl ContentService {
         Ok(())
     }
 
+    /// 文章批量操作（对齐 Java `ArticleServiceImpl#batch`）。
+    ///
+    /// 支持 `del` / `show` / `hide` / `moveCat`；`moveCat` 取
+    /// `target_cat` 最后一个分类，与 Java 实现一致。
+    pub async fn batch(
+        &self,
+        ids: &[i32],
+        action: &str,
+        target_cat: Option<&[i32]>,
+    ) -> Result<()> {
+        match action {
+            "del" => {
+                for id in ids {
+                    self.repos.content.article.delete(*id).await?;
+                }
+            }
+            "show" | "hide" => {
+                let is_show = i32::from(action == "show");
+                for id in ids {
+                    self.repos.content.article.set_show(*id, is_show).await?;
+                }
+            }
+            "moveCat" => {
+                let category_id = target_cat
+                    .and_then(|items| items.last().copied())
+                    .ok_or_else(|| Error::Validation("目标分类不能为空".into()))?;
+                for id in ids {
+                    self.repos
+                        .content
+                        .article
+                        .set_category(*id, category_id)
+                        .await?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
     // ————————————————————— 文章分类 —————————————————————
 
     /// 全部文章分类（平铺）。

@@ -219,6 +219,17 @@ impl ArticleRepository {
         Ok(r.rows_affected() > 0)
     }
 
+    /// 批量转移文章分类。
+    pub async fn set_category(&self, article_id: i32, category_id: i32) -> Result<bool> {
+        let r = sqlx::query("UPDATE article SET article_category_id = ? WHERE article_id = ?")
+            .bind(category_id)
+            .bind(article_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(r.rows_affected() > 0)
+    }
+
     // ————————————————————— 文章分类 —————————————————————
 
     /// 全部文章分类（按 sort_order 排序）。

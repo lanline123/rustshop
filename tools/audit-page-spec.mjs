@@ -75,6 +75,9 @@ const batchLabels = {
   points: '批量加积分',
   balance: '批量加余额',
   delete: '批量删除',
+  show: '批量显示',
+  hide: '批量隐藏',
+  moveCat: '批量转移分类',
 };
 for (const action of spec.batch || []) {
   const label = batchLabels[action] || action;

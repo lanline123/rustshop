@@ -9,14 +9,13 @@
   "filters": ["keyword", "articleCategoryId", "isShow", "isHot"],
   "columns": ["文章标题", "文章分类", "文章重要性", "发布时间", "是否热门", "是否显示"],
   "actions": ["edit", "delete"],
-  "batch": [],
+  "batch": ["delete", "show", "hide", "moveCat"],
   "sort": [],
   "backendReady": {
-    "batch": false,
+    "batch": true,
     "sort": false
   },
   "notes": [
-    "Rust 未提供 /content/article/batch，因此批量删除/显示/隐藏/转移分类未实现。",
     "Rust 文章列表 VO 不含 articleSn/articleType，列表未展示这两列。"
   ]
 }

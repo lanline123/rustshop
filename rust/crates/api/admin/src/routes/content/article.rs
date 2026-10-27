@@ -10,6 +10,7 @@
 //! | `POST /adminapi/content/article/update`      | `ArticleController.update` |
 //! | `POST /adminapi/content/article/updateField` | `ArticleController.updateField`（显示/隐藏） |
 //! | `POST /adminapi/content/article/del`         | `ArticleController.del` |
+//! | `POST /adminapi/content/article/batch`       | `ArticleController.batch` |
 //! | `GET  /adminapi/content/articleCategory/list`   | `ArticleCategoryController.list` |
 //! | `GET  /adminapi/content/articleCategory/tree`   | `ArticleCategoryController.tree` |
 //! | `GET  /adminapi/content/articleCategory/detail` | `ArticleCategoryController.detail` |
@@ -43,6 +44,7 @@ pub fn routes(_state: &AdminState) -> Router<AdminState> {
         .route("/content/article/update", post(article_update))
         .route("/content/article/updateField", post(article_set_show))
         .route("/content/article/del", post(article_delete))
+        .route("/content/article/batch", post(article_batch))
         .route("/content/articleCategory/list", get(category_list))
         .route("/content/articleCategory/tree", get(category_tree))
         .route("/content/articleCategory/detail", get(category_detail))
@@ -203,6 +205,29 @@ async fn article_delete(
 #[derive(Debug, Deserialize)]
 struct IdBody {
     id: i32,
+}
+
+/// 文章批量操作入参（对应 Java `ArticleBatchParam`）。
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct ArticleBatchDTO {
+    ids: Vec<i32>,
+    #[serde(rename = "type")]
+    type_: String,
+    target_cat: Option<Vec<i32>>,
+}
+
+/// `POST /adminapi/content/article/batch`：批量删除/显示/隐藏/转移分类。
+async fn article_batch(
+    State(state): State<AdminState>,
+    Json(dto): Json<ArticleBatchDTO>,
+) -> ApiResult<&'static str> {
+    state
+        .content
+        .article
+        .batch(&dto.ids, &dto.type_, dto.target_cat.as_deref())
+        .await?;
+    ok("操作成功")
 }
 
 /// `GET /adminapi/content/articleCategory/list`：文章分类平铺列表。

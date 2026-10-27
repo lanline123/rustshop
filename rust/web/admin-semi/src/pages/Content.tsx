@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Card,
+  Modal,
   Popconfirm,
+  Select,
   Space,
   Switch,
   Table,
@@ -72,6 +74,10 @@ export default function Content() {
   const [catMode, setCatMode] = useState<'create' | 'edit'>('create');
   const [catInitial, setCatInitial] = useState<Record<string, any>>({});
   const [catSaving, setCatSaving] = useState(false);
+  const [moveVisible, setMoveVisible] = useState(false);
+  const [moveIds, setMoveIds] = useState<number[]>([]);
+  const [moveCategoryId, setMoveCategoryId] = useState<number | undefined>(undefined);
+  const [moveClear, setMoveClear] = useState<(() => void) | null>(null);
 
   const loadCategories = () => {
     if (isDemo()) return;
@@ -188,6 +194,39 @@ export default function Content() {
     }
   };
 
+  const batchArticle = async (
+    action: 'del' | 'show' | 'hide' | 'moveCat',
+    ids: number[],
+    clear: () => void,
+    targetCat?: number,
+  ) => {
+    try {
+      await apiPost('/content/article/batch', {
+        ids,
+        type: action,
+        targetCat: action === 'moveCat' ? [targetCat] : undefined,
+      });
+      Toast.success({ content: '批量操作成功' });
+      clear();
+      setReloadKey((key) => key + 1);
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : '批量操作失败' });
+    }
+  };
+
+  const confirmBatch = (
+    title: string,
+    action: 'del' | 'show' | 'hide',
+    ids: number[],
+    clear: () => void,
+  ) => {
+    Modal.confirm({
+      title,
+      content: `将对 ${ids.length} 篇文章执行操作`,
+      onOk: () => batchArticle(action, ids, clear),
+    });
+  };
+
   return (
     <>
       <div className="content-tabs">
@@ -208,6 +247,34 @@ export default function Content() {
           api="/content/article/list"
           rowKey="articleId"
           pageSize={10}
+          selectable
+          batchActions={(rows, clear) => {
+            const ids = rows.map((row) => row.articleId);
+            return (
+              <Space>
+                <Button size="small" onClick={() => confirmBatch('批量删除文章', 'del', ids, clear)}>
+                  批量删除
+                </Button>
+                <Button size="small" onClick={() => confirmBatch('批量显示文章', 'show', ids, clear)}>
+                  批量显示
+                </Button>
+                <Button size="small" onClick={() => confirmBatch('批量隐藏文章', 'hide', ids, clear)}>
+                  批量隐藏
+                </Button>
+                <Button
+                  size="small"
+                  onClick={() => {
+                    setMoveIds(ids);
+                    setMoveCategoryId(undefined);
+                    setMoveClear(() => clear);
+                    setMoveVisible(true);
+                  }}
+                >
+                  批量转移分类
+                </Button>
+              </Space>
+            );
+          }}
           filters={[
             {
               field: 'keyword',
@@ -483,6 +550,44 @@ export default function Content() {
           />
         </>
       )}
+
+      <Modal
+        title="批量转移分类"
+        visible={moveVisible}
+        onCancel={() => setMoveVisible(false)}
+        width={480}
+        footer={
+          <Space>
+            <Button onClick={() => setMoveVisible(false)}>取消</Button>
+            <Button
+              theme="solid"
+              type="primary"
+              onClick={async () => {
+                if (!moveCategoryId) {
+                  Toast.warning({ content: '请选择目标分类' });
+                  return;
+                }
+                await batchArticle('moveCat', moveIds, moveClear || (() => undefined), moveCategoryId);
+                setMoveVisible(false);
+              }}
+            >
+              确认转移
+            </Button>
+          </Space>
+        }
+      >
+        <div style={{ marginBottom: 10 }}>已选择 {moveIds.length} 篇文章</div>
+        <Select
+          placeholder="请选择目标分类"
+          value={moveCategoryId}
+          onChange={(value) => setMoveCategoryId(Number(value))}
+          optionList={categories.map((item) => ({
+            label: item.articleCategoryName,
+            value: item.articleCategoryId,
+          }))}
+          style={{ width: '100%' }}
+        />
+      </Modal>
     </>
   );
 }
