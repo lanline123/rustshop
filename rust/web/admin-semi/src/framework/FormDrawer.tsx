@@ -67,7 +67,7 @@ export default function FormDrawer({
       }
       visible={visible}
       onCancel={onCancel}
-      width={config.width || 950}
+      width={config.width || 560}
       placement="right"
       bodyStyle={{ padding: 0, overflowY: 'auto' }}
       footer={

@@ -69,6 +69,7 @@ export default function Members() {
       drawer={{
         title: '会员',
         addText: '新增会员',
+        width: 560,
         createApi: '/user/user/create',
         updateApi: '/user/user/update',
         deleteApi: '/user/user/del',
