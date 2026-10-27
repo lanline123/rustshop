@@ -191,16 +191,52 @@ node tools/audit-admin-page.mjs user/user/List rust/web/admin-semi/src/pages/Mem
 旧页面字段 → 新页面缺失字段
 ```
 
+## PageSpec 功能审计（强制）
+
+每个页面必须有一份 spec：
+
+```text
+rust/web/admin-semi/src/pages/specs/members.json
+```
+
+包含：
+
+```text
+旧页面路径
+Drawer 宽度
+筛选项
+表格列
+行操作
+批量操作
+排序
+后端未就绪能力
+```
+
+运行：
+
+```bash
+node tools/audit-page-spec.mjs rust/web/admin-semi/src/pages/specs/members.json
+```
+
+必须输出：
+
+```text
+PASS: PageSpec 校验通过
+```
+
+否则该页面不能算迁移完成。
+
 这样能避免“页面看似做完，实际漏筛选/漏字段/漏操作”的问题。
 
 迁移完成标准：
 
 ```text
 1. audit 脚本无高优先级缺失
-2. 抽屉宽度与原版一致或明确说明
-3. 新增/编辑字段与 $t label 对照完成
-4. 列表筛选、列、行操作、批量操作逐项对照
-5. 真实登录 + 页面截图验证
+2. PageSpec 审计 PASS
+3. 抽屉宽度与原版一致或明确说明
+4. 新增/编辑字段与 $t label 对照完成
+5. 列表筛选、列、行操作、批量操作逐项对照
+6. 真实登录 + 页面截图验证
 ```
 
 ## 并行方式

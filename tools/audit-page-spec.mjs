@@ -1,0 +1,111 @@
+#!/usr/bin/env node
+/**
+ * 按 PageSpec 审计一个迁移页面。
+ *
+ * 用法：
+ *   node tools/audit-page-spec.mjs rust/web/admin-semi/src/pages/specs/members.json
+ */
+import fs from 'node:fs';
+import path from 'node:path';
+
+const specPath = process.argv[2];
+if (!specPath) {
+  console.error('用法: node tools/audit-page-spec.mjs <spec.json>');
+  process.exit(1);
+}
+
+const spec = JSON.parse(fs.readFileSync(path.resolve(specPath), 'utf8'));
+const componentPath = path.resolve(spec.component);
+const source = fs.readFileSync(componentPath, 'utf8');
+const inventory = JSON.parse(
+  fs.readFileSync(path.resolve('docs/admin-migration-inventory.json'), 'utf8'),
+);
+
+const failures = [];
+const warnings = [];
+
+const oldPage =
+  inventory.pages.find((item) => item.rel === spec.page) ||
+  inventory.pages.find((item) => item.rel.endsWith(spec.page));
+if (!oldPage) failures.push(`找不到旧页面清单: ${spec.page}`);
+
+if (spec.drawer?.width) {
+  const width = Number(spec.drawer.width);
+  const widthPattern = new RegExp(`width\\s*:\\s*${width}\\b`);
+  if (!widthPattern.test(source)) {
+    failures.push(`Drawer 宽度未配置为 ${width}px`);
+  }
+}
+if (spec.drawer?.labelWidth) {
+  if (!source.includes(`labelWidth: '${spec.drawer.labelWidth}'`) && !source.includes(`labelWidth: "${spec.drawer.labelWidth}"`)) {
+    failures.push(`labelWidth 未配置为 ${spec.drawer.labelWidth}`);
+  }
+}
+
+for (const field of spec.filters || []) {
+  if (!source.includes(`field: '${field}'`) && !source.includes(`field: "${field}"`)) {
+    failures.push(`缺少筛选项: ${field}`);
+  }
+}
+
+const actionLabels = {
+  detail: '查看',
+  tags: '标签',
+  orders: '查看订单',
+  account: '账目明细',
+  edit: '编辑',
+  delete: '删除',
+};
+for (const action of spec.actions || []) {
+  const label = actionLabels[action] || action;
+  if (!source.includes(label)) failures.push(`缺少行操作: ${action} (${label})`);
+}
+
+const batchLabels = {
+  tags: '批量打标签',
+  rank: '批量改等级',
+  points: '批量加积分',
+  balance: '批量加余额',
+  delete: '批量删除',
+};
+for (const action of spec.batch || []) {
+  const label = batchLabels[action] || action;
+  if (!source.includes(label)) failures.push(`缺少批量操作: ${action} (${label})`);
+}
+
+for (const column of spec.columns || []) {
+  if (!source.includes(column)) warnings.push(`列标题未逐字出现: ${column}`);
+}
+
+const filterParams = oldPage?.models
+  ? [...new Set(oldPage.models.filter((model) => model.startsWith('filterParams.')))]
+  : [];
+for (const model of filterParams) {
+  const field = model.replace('filterParams.', '').split('.')[0];
+  if (!source.includes(field)) warnings.push(`旧筛选字段未在新页面出现: ${field}`);
+}
+
+if (!spec.backendReady?.importUser) {
+  warnings.push('导入客户：后端未迁移，前端未实现（已在 spec 中标记）');
+}
+if (!spec.backendReady?.sort) {
+  warnings.push('列排序：后端未提供排序能力（已在 spec 中标记）');
+}
+
+console.log(`PageSpec: ${specPath}`);
+console.log(`组件: ${spec.component}`);
+console.log(`筛选项: ${(spec.filters || []).length}`);
+console.log(`行操作: ${(spec.actions || []).length}`);
+console.log(`批量操作: ${(spec.batch || []).length}`);
+console.log('');
+
+if (warnings.length) {
+  console.log('WARN:');
+  warnings.forEach((item) => console.log(`  - ${item}`));
+}
+if (failures.length) {
+  console.log('FAIL:');
+  failures.forEach((item) => console.log(`  - ${item}`));
+  process.exit(1);
+}
+console.log('PASS: PageSpec 校验通过');

@@ -131,9 +131,10 @@ src/pages/Members.tsx
 ```bash
 cd ../..
 node tools/audit-admin-page.mjs user/user/List rust/web/admin-semi/src/pages/Members.tsx
+node tools/audit-page-spec.mjs rust/web/admin-semi/src/pages/specs/members.json
 ```
 
-该脚本会输出旧页面中未出现在新页面的 label / prop，避免漏字段。
+PageSpec 审计会检查抽屉宽度、筛选、行操作、批量操作、列标题，必须 PASS。
 
 ## 旧系统迁移资料
 
