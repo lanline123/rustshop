@@ -95,6 +95,7 @@ export interface MemberRow {
   regTime: string;
   rankName: string;
   isSvip: number;
+  status?: number;
 }
 
 export interface ArticleRow {

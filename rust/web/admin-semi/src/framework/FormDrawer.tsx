@@ -69,8 +69,7 @@ export default function FormDrawer({
       onCancel={onCancel}
       width={config.width || 560}
       placement="right"
-      bodyStyle={{ padding: 0, overflowY: 'auto' }}
-      footer={
+      bodyStyle={{ padding: 0, overflowY: 'auto' }}      footer={
         <div className="modal-footer">
           <Button onClick={onCancel}>取消</Button>
           <Button theme="solid" type="primary" loading={saving} onClick={submit}>
@@ -101,34 +100,47 @@ export default function FormDrawer({
         onChange={(state) => setValues(state.values)}
         className="product-form"
       >
-        {config.sections.map((section) => (
-          <section
-            id={`framework-section-${section.key}`}
-            className="product-section"
-            key={section.key}
-          >
-            <div className="product-section-title">{section.title}</div>
-            {section.description && (
-              <div className="framework-section-desc">{section.description}</div>
-            )}
-            {section.fields.map((field) =>
-              field.span && field.span < 24 ? (
-                <Row gutter={16} key={field.field}>
-                  <Col span={field.span}>
-                    <FieldRenderer config={field} formApi={formApi} values={values} />
-                  </Col>
-                </Row>
-              ) : (
-                <FieldRenderer
-                  key={field.field}
-                  config={field}
-                  formApi={formApi}
-                  values={values}
-                />
-              ),
-            )}
-          </section>
-        ))}
+        {config.sections.map((section) => {
+          const fields = section.fields.filter(
+            (field) => !field.visibleWhen || field.visibleWhen(mode),
+          );
+          return (
+            <section
+              id={`framework-section-${section.key}`}
+              className="product-section"
+              key={section.key}
+            >
+              <div className="product-section-title">{section.title}</div>
+              {section.description && (
+                <div className="framework-section-desc">{section.description}</div>
+              )}
+              {fields.map((field) =>
+                field.span && field.span < 24 ? (
+                  <Row gutter={16} key={field.field}>
+                    <Col span={field.span}>
+                      <FieldRenderer
+                        config={field}
+                        formApi={formApi}
+                        values={values}
+                        mode={mode}
+                        inputWidth={config.inputWidth}
+                      />
+                    </Col>
+                  </Row>
+                ) : (
+                  <FieldRenderer
+                    key={field.field}
+                    config={field}
+                    formApi={formApi}
+                    values={values}
+                    mode={mode}
+                    inputWidth={config.inputWidth}
+                  />
+                ),
+              )}
+            </section>
+          );
+        })}
       </Form>
     </SideSheet>
   );

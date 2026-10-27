@@ -74,6 +74,17 @@ src/framework/FormDrawer.tsx     表单抽屉：锚点、分组、横向标签�
 src/framework/FieldRenderer.tsx  字段渲染：input/textarea/number/select/radio/switch/date/custom
 ```
 
+已支持：
+
+```text
+labelWidth: 'auto'
+inputWidth 控制输入框宽度
+visibleWhen 按新增/编辑控制字段显示
+requiredWhen 按新增/编辑控制必填
+optionsApi 远程下拉选项
+custom 自定义字段渲染
+```
+
 一个标准列表页现在只需要配置：
 
 ```tsx

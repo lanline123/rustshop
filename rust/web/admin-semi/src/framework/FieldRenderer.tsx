@@ -1,17 +1,62 @@
+import { useEffect, useState } from 'react';
 import { Form } from '@douyinfe/semi-ui';
-import type { FieldConfig } from './types';
+import { apiGet } from '../api';
+import type { FieldConfig, OptionItem } from './types';
 
 interface FieldRendererProps {
   config: FieldConfig;
   formApi: any;
   values: Record<string, any>;
+  mode: 'create' | 'edit';
+  inputWidth?: number;
 }
 
-export default function FieldRenderer({ config, formApi, values }: FieldRendererProps) {
-  const width = config.width ?? 360;
+function RemoteSelect({
+  config,
+  common,
+}: {
+  config: FieldConfig;
+  common: Record<string, any>;
+}) {
+  const [options, setOptions] = useState<OptionItem[]>(config.options || []);
+
+  useEffect(() => {
+    if (!config.optionsApi) return;
+    let alive = true;
+    apiGet<any>(config.optionsApi, { page: 1, size: 200, ...config.optionsParams })
+      .then((result) => {
+        if (!alive) return;
+        const list = Array.isArray(result) ? result : result?.records || result?.list || [];
+        const labelKey = config.optionLabel || 'label';
+        const valueKey = config.optionValue || 'value';
+        setOptions(
+          list.map((item: Record<string, any>) => ({
+            label: String(item[labelKey] ?? item.name ?? item.label ?? ''),
+            value: item[valueKey] ?? item.id ?? item.value,
+          })),
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [config.optionsApi, config.optionLabel, config.optionValue, config.optionsParams]);
+
+  return <Form.Select {...(common as any)} filter optionList={options} />;
+}
+
+export default function FieldRenderer({
+  config,
+  formApi,
+  values,
+  mode,
+  inputWidth,
+}: FieldRendererProps) {
+  const width = config.width ?? config.inputWidth ?? inputWidth ?? 360;
+  const required = config.required || config.requiredWhen?.(mode);
   const rules =
     config.rules ??
-    (config.required ? [{ required: true, message: `请填写${config.label}` }] : undefined);
+    (required ? [{ required: true, message: `请填写${config.label}` }] : undefined);
   const common = {
     field: config.field,
     label: config.label,
@@ -26,7 +71,7 @@ export default function FieldRenderer({ config, formApi, values }: FieldRenderer
     return (
       <div className="framework-custom-field">
         <label className="framework-custom-label">{config.label}</label>
-        <div className="framework-custom-content">{config.render({ formApi, values })}</div>
+        <div className="framework-custom-content">{config.render({ formApi, values, mode })}</div>
       </div>
     );
   }
@@ -37,14 +82,8 @@ export default function FieldRenderer({ config, formApi, values }: FieldRenderer
     case 'number':
       return <Form.InputNumber {...common} min={0} style={{ width }} />;
     case 'select':
-      return (
-        <Form.Select
-          {...common}
-          filter
-          showClear
-          optionList={config.options || []}
-        />
-      );
+      if (config.optionsApi) return <RemoteSelect config={config} common={common} />;
+      return <Form.Select {...common} filter showClear optionList={config.options || []} />;
     case 'radio':
       return <Form.RadioGroup {...common} type="button" options={config.options || []} />;
     case 'switch':

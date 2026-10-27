@@ -24,11 +24,21 @@ export interface FieldConfig {
   placeholder?: string;
   extraText?: string;
   width?: number | string;
+  inputWidth?: number;
   span?: number;
   rules?: Array<Record<string, unknown>>;
   disabled?: boolean;
   initValue?: unknown;
-  render?: (ctx: { formApi: any; values: Record<string, any> }) => ReactNode;
+  /** 按新增/编辑模式控制是否显示 */
+  visibleWhen?: (mode: 'create' | 'edit') => boolean;
+  /** 按新增/编辑模式控制是否必填 */
+  requiredWhen?: (mode: 'create' | 'edit') => boolean;
+  /** 远程选项接口，默认取 records 或数组 */
+  optionsApi?: string;
+  optionsParams?: Record<string, unknown>;
+  optionLabel?: string;
+  optionValue?: string;
+  render?: (ctx: { formApi: any; values: Record<string, any>; mode: 'create' | 'edit' }) => ReactNode;
 }
 
 export interface FormSectionConfig {
@@ -42,7 +52,8 @@ export interface FormDrawerConfig {
   title?: string;
   addText?: string;
   width?: number;
-  labelWidth?: number;
+  labelWidth?: number | string;
+  inputWidth?: number;
   labelPosition?: 'left' | 'top';
   sections: FormSectionConfig[];
   createApi: string;
