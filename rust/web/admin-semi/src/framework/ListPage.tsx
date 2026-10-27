@@ -71,6 +71,7 @@ export default function ListPage<T extends Record<string, any>>({
   pageSize = 10,
   drawer,
   showEdit = true,
+  actionWidth = 160,
   selectable = false,
   batchActions,
   filterLayout = 'inline',
@@ -232,14 +233,15 @@ export default function ListPage<T extends Record<string, any>>({
     return option ? `：${option.label}` : `：${value}`;
   };
   const scrollX =
-    columns.reduce((sum, column) => sum + (column.width || 150), 0) + (hasActions ? 160 : 0);
+    columns.reduce((sum, column) => sum + (column.width || 150), 0) + (hasActions ? actionWidth : 0);
   const tableColumns = [
     ...columns,
     ...(hasActions
       ? [
           {
             title: '操作',
-            width: 160,
+            width: actionWidth,
+            fixed: 'right',
             render: (_: unknown, record: T) => (
               <Space spacing={2}>
                 {drawer && showEdit && (

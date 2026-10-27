@@ -356,6 +356,7 @@ export default function Members() {
         rowKey="userId"
         pageSize={10}
         showEdit={false}
+        actionWidth={250}
         selectable
         filterLayout="popover"
         onDataLoaded={({ total, rows }) =>

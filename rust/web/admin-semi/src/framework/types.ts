@@ -90,6 +90,7 @@ export interface ListPageProps<T = any> {
   pageSize?: number;
   drawer?: FormDrawerConfig;
   showEdit?: boolean;
+  actionWidth?: number;
   selectable?: boolean;
   batchActions?: (selectedRows: T[], clear: () => void) => ReactNode;
   filterLayout?: 'inline' | 'popover';
