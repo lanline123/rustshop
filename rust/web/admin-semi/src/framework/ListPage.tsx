@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Button,
   Card,
@@ -89,6 +89,8 @@ export default function ListPage<T extends Record<string, any>>({
   const [reloadKey, setReloadKey] = useState(0);
   const [filterValues, setFilterValues] = useState<Record<string, any>>({});
   const [selectedKeys, setSelectedKeys] = useState<Array<string | number>>([]);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [drawerMode, setDrawerMode] = useState<'create' | 'edit'>('create');
   const [drawerInitial, setDrawerInitial] = useState<Record<string, any>>({});
@@ -209,6 +211,16 @@ export default function ListPage<T extends Record<string, any>>({
     }
   };
 
+  useEffect(() => {
+    const element = cardRef.current;
+    if (!(element instanceof Element)) return;
+    const observer = new ResizeObserver((entries) => {
+      setContainerWidth(entries[0]?.contentRect.width || 0);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
   const hasActions = Boolean(drawer || rowActions);
   const selectedRows = rows.filter((row) => selectedKeys.includes(row[rowKey]));
   const activeEntries = Object.entries(filterValues).filter(
@@ -252,7 +264,8 @@ export default function ListPage<T extends Record<string, any>>({
 
   return (
     <>
-      <Card className="table-card" shadows="hover">
+      <div ref={cardRef}>
+        <Card className="table-card" shadows="hover">
         <div className={`table-toolbar ${filterLayout === 'popover' ? 'is-popover' : ''}`}>
           <Space>
             {filters[0] && (
@@ -371,7 +384,7 @@ export default function ListPage<T extends Record<string, any>>({
               : undefined
           }
           onRow={onRowClick ? (record) => ({ onClick: () => onRowClick(record as T) }) : undefined}
-          scroll={scrollX > 0 ? { x: scrollX } : undefined}
+          scroll={containerWidth > 0 && scrollX > containerWidth - 48 ? { x: scrollX } : undefined}
           pagination={{
             currentPage: page,
             pageSize,
@@ -381,6 +394,7 @@ export default function ListPage<T extends Record<string, any>>({
           columns={tableColumns as any}
         />
       </Card>
+      </div>
 
       {drawer && (
         <FormDrawer
