@@ -49,8 +49,8 @@ GET /adminapi/content/articleCategory/list 文章分类
 ```text
 登录
 数据看板
-商品管理
-订单管理
+商品管理（新增 / 编辑 / 上下架 / 删除）
+订单管理（列表 / 详情 / 发货）
 会员管理
 内容管理（文章 / 分类）
 ```

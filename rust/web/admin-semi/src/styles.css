@@ -887,3 +887,47 @@ body {
     display: none;
   }
 }
+
+/* ============ 弹窗 / 详情 ============ */
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.detail-section-title {
+  margin: 20px 0 10px;
+  padding-top: 16px;
+  border-top: 1px solid #f0f2f5;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.order-summary {
+  display: flex;
+  justify-content: flex-end;
+  gap: 28px;
+  margin-top: 16px;
+  padding: 16px 18px;
+  border-radius: 9px;
+  background: #f8fafc;
+  font-size: 13px;
+}
+
+.order-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.order-summary b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.order-summary-total b {
+  color: var(--primary);
+  font-size: 16px;
+}
