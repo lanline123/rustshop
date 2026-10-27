@@ -120,7 +120,7 @@ const columns: ColumnConfig<MemberRow>[] = [
   {
     title: '累计消费次数 / 累计消费金额',
     dataIndex: 'orderAmount',
-    width: 160,
+    width: 270,
     render: (value: string, record) => (
       <div className="member-asset-cell">
         <div className="money">¥ {Number(value || 0).toLocaleString()}</div>
