@@ -5,12 +5,13 @@ import {
   DatePicker,
   Input,
   Popconfirm,
+  Popover,
   Select,
   Space,
   Table,
   Toast,
 } from '@douyinfe/semi-ui';
-import { IconPlus, IconRefresh, IconSearch } from '@douyinfe/semi-icons';
+import { IconClose, IconPlus, IconRefresh, IconSearch } from '@douyinfe/semi-icons';
 import { apiGet, apiPost, isDemo } from '../api';
 import type { FilterConfig, ListPageProps } from './types';
 import FormDrawer from './FormDrawer';
@@ -68,6 +69,8 @@ export default function ListPage<T extends Record<string, any>>({
   showEdit = true,
   selectable = false,
   batchActions,
+  filterLayout = 'inline',
+  onDataLoaded,
   toolbarExtra,
   cardTitle,
   onRowClick,
@@ -105,6 +108,7 @@ export default function ListPage<T extends Record<string, any>>({
         if (!alive) return;
         setRows(result.records || []);
         setTotal(result.total || 0);
+        onDataLoaded?.({ total: result.total || 0, rows: result.records || [] });
       })
       .catch((error) => alive && Toast.error({ content: error.message }))
       .finally(() => alive && setLoading(false));
@@ -195,6 +199,14 @@ export default function ListPage<T extends Record<string, any>>({
 
   const hasActions = Boolean(drawer || rowActions);
   const selectedRows = rows.filter((row) => selectedKeys.includes(row[rowKey]));
+  const activeEntries = Object.entries(filterValues).filter(
+    ([, value]) => value !== '' && value !== undefined && value !== null,
+  );
+  const displayFilterValue = (field: string, value: any) => {
+    const config = filterMap[field];
+    const option = config?.options?.find((item) => item.value === value);
+    return option ? `：${option.label}` : `：${value}`;
+  };
   const scrollX =
     columns.reduce((sum, column) => sum + (column.width || 150), 0) + (hasActions ? 160 : 0);
   const tableColumns = [
@@ -229,31 +241,64 @@ export default function ListPage<T extends Record<string, any>>({
   return (
     <>
       <Card className="table-card" shadows="hover">
-        <div className="table-toolbar">
+        <div className={`table-toolbar ${filterLayout === 'popover' ? 'is-popover' : ''}`}>
           <Space>
-            {filters.map((filter) => (
-              <span key={filter.field} className="framework-filter">
-                {renderFilter(filterMap[filter.field], filterValues[filter.field], (value) =>
-                  setFilterValues((current) => ({ ...current, [filter.field]: value })),
+            {filters[0] && (
+              <span className="framework-filter">
+                {renderFilter(filterMap[filters[0].field], filterValues[filters[0].field], (value) =>
+                  setFilterValues((current) => ({ ...current, [filters[0].field]: value })),
                 )}
               </span>
-            ))}
-            {filters.length > 0 && (
-              <>
-                <Button theme="solid" type="primary" icon={<IconSearch />} onClick={search}>
-                  查询
+            )}
+            {filters[0] && (
+              <Button theme="solid" type="primary" icon={<IconSearch />} onClick={search}>
+                搜索
+              </Button>
+            )}
+            {filterLayout === 'popover' && filters.length > 1 ? (
+              <Popover
+                trigger="click"
+                position="bottomLeft"
+                content={
+                  <div className="framework-filter-popover">
+                    {filters.slice(1).map((filter) => (
+                      <div className="framework-filter-row" key={filter.field}>
+                        <label>{filter.label}</label>
+                        {renderFilter(filter, filterValues[filter.field], (value) =>
+                          setFilterValues((current) => ({ ...current, [filter.field]: value })),
+                        )}
+                      </div>
+                    ))}
+                    <div className="framework-filter-actions">
+                      <Button onClick={reset}>重置</Button>
+                      <Button theme="solid" type="primary" onClick={search}>
+                        应用筛选
+                      </Button>
+                    </div>
+                  </div>
+                }
+              >
+                <Button>
+                  筛选
+                  {activeEntries.length > 0 ? ` (${activeEntries.length})` : ''}
                 </Button>
-                <Button onClick={reset}>重置</Button>
+              </Popover>
+            ) : (
+              <>
+                {filters.slice(1).map((filter) => (
+                  <span key={filter.field} className="framework-filter">
+                    {renderFilter(filter, filterValues[filter.field], (value) =>
+                      setFilterValues((current) => ({ ...current, [filter.field]: value })),
+                    )}
+                  </span>
+                ))}
+                {filters.length > 0 && (
+                  <Button onClick={reset}>重置</Button>
+                )}
               </>
             )}
           </Space>
           <Space>
-            {batchActions && selectedRows.length > 0 && (
-              <>
-                <span className="framework-selected-count">已选 {selectedRows.length} 项</span>
-                {batchActions(selectedRows, () => setSelectedKeys([]))}
-              </>
-            )}
             {toolbarExtra}
             <Button icon={<IconRefresh />} onClick={() => setReloadKey((key) => key + 1)}>
               刷新
@@ -265,6 +310,41 @@ export default function ListPage<T extends Record<string, any>>({
             )}
           </Space>
         </div>
+
+        {filterLayout === 'popover' && activeEntries.length > 0 && (
+          <div className="framework-active-filters">
+            <span className="framework-active-label">已选条件</span>
+            {activeEntries.map(([field, value]) => (
+              <span className="framework-filter-chip" key={field}>
+                {filterMap[field]?.label || field}
+                {displayFilterValue(field, value)}
+                <IconClose
+                  size="small"
+                  onClick={() =>
+                    setFilterValues((current) => {
+                      const next = { ...current };
+                      delete next[field];
+                      return next;
+                    })
+                  }
+                />
+              </span>
+            ))}
+            <button type="button" onClick={reset}>
+              清空
+            </button>
+          </div>
+        )}
+
+        {batchActions && selectedRows.length > 0 && (
+          <div className="batch-floating-bar">
+            <span>已选择 {selectedRows.length} 项</span>
+            {batchActions(selectedRows, () => setSelectedKeys([]))}
+            <Button theme="borderless" size="small" onClick={() => setSelectedKeys([])}>
+              取消选择
+            </Button>
+          </div>
+        )}
 
         <Table
           loading={loading}

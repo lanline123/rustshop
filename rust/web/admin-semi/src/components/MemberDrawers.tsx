@@ -77,6 +77,25 @@ export function MemberDetailDrawer({ visible, member, onCancel }: DrawerProps) {
         </div>
       </div>
 
+      <div className="member-detail-metrics">
+        <div>
+          <span>可用余额</span>
+          <b>¥ {data.balance ?? '0.00'}</b>
+        </div>
+        <div>
+          <span>冻结资金</span>
+          <b>¥ {data.frozenBalance ?? '0.00'}</b>
+        </div>
+        <div>
+          <span>消费积分</span>
+          <b>{data.points ?? 0}</b>
+        </div>
+        <div>
+          <span>累计消费</span>
+          <b>¥ {data.orderAmount ?? '0.00'}</b>
+        </div>
+      </div>
+
       <div className="detail-section-title">基本信息</div>
       <Descriptions
         column={3}

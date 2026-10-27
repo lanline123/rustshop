@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Avatar,
   Button,
+  Dropdown,
   InputNumber,
   Modal,
   Select,
@@ -52,9 +53,9 @@ function MemberStatusSwitch({ record }: { record: MemberRow }) {
 
 const columns: ColumnConfig<MemberRow>[] = [
   {
-    title: '客户名称',
+    title: '客户',
     dataIndex: 'username',
-    width: 240,
+    width: 250,
     render: (value: string, record) => (
       <div className="member-cell">
         {record.avatar ? (
@@ -66,8 +67,8 @@ const columns: ColumnConfig<MemberRow>[] = [
         )}
         <div>
           <div className="member-name-line">
-            {record.mark ? <Tag color="red">标记</Tag> : null}
             <span>{record.nickname || value}</span>
+            {record.mark ? <Tag color="red" size="small">标记</Tag> : null}
           </div>
           <Text type="tertiary" size="small">
             {record.mobile || `ID ${record.userId}`}
@@ -84,47 +85,54 @@ const columns: ColumnConfig<MemberRow>[] = [
     ),
   },
   {
-    title: '客户等级',
+    title: '等级 / 认证',
     dataIndex: 'rankName',
-    width: 120,
-    render: (value: string) => <Tag color="blue">{value || '普通会员'}</Tag>,
-  },
-  {
-    title: '是否认证',
-    dataIndex: 'isCompanyAuth',
-    width: 100,
-    render: (value: number) => (
-      <span className={value ? 'text-success' : 'text-warning'}>{value ? '已认证' : '未认证'}</span>
+    width: 150,
+    render: (value: string, record) => (
+      <div className="member-rank-cell">
+        <Tag color="blue">{value || '普通会员'}</Tag>
+        <Text type={record.isCompanyAuth ? 'success' : 'tertiary'} size="small">
+          {record.isCompanyAuth ? '已认证' : '未认证'}
+        </Text>
+      </div>
     ),
   },
   {
-    title: '余额',
+    title: '资产',
     dataIndex: 'balance',
-    width: 130,
+    width: 170,
     render: (value: string, record) => (
-      <div>
+      <div className="member-asset-cell">
         <div className="money">¥ {Number(value || 0).toLocaleString()}</div>
         {Number(record.frozenBalance || 0) > 0 && (
           <Text type="tertiary" size="small">
             冻结 ¥ {record.frozenBalance}
           </Text>
         )}
+        <Text type="tertiary" size="small">
+          积分 {record.points ?? 0}
+        </Text>
       </div>
     ),
   },
-  { title: '消费积分', dataIndex: 'points', width: 90 },
-  { title: '累计消费次数', dataIndex: 'orderCount', width: 110 },
   {
-    title: '累计消费金额',
+    title: '消费',
     dataIndex: 'orderAmount',
-    width: 130,
-    render: (value: string) => `¥ ${Number(value || 0).toLocaleString()}`,
+    width: 160,
+    render: (value: string, record) => (
+      <div className="member-asset-cell">
+        <div className="money">¥ {Number(value || 0).toLocaleString()}</div>
+        <Text type="tertiary" size="small">
+          {record.orderCount ?? 0} 笔
+        </Text>
+      </div>
+    ),
   },
   { title: '注册日期', dataIndex: 'regTime', width: 160 },
   {
-    title: '是否启用',
+    title: '状态',
     dataIndex: 'status',
-    width: 90,
+    width: 80,
     render: (_: unknown, record: MemberRow) => <MemberStatusSwitch record={record} />,
   },
 ];
@@ -241,6 +249,7 @@ export default function Members() {
   const [batchType, setBatchType] = useState<'rank' | 'points' | 'balance' | null>(null);
   const [batchIds, setBatchIds] = useState<number[]>([]);
   const [batchClear, setBatchClear] = useState<(() => void) | null>(null);
+  const [summary, setSummary] = useState({ total: 0, enabled: 0, certified: 0 });
 
   const startBatch = (type: 'rank' | 'points' | 'balance', rows: MemberRow[], clear: () => void) => {
     setBatchType(type);
@@ -265,6 +274,21 @@ export default function Members() {
 
   return (
     <>
+      <div className="member-overview">
+        <div className="member-overview-item">
+          <span>客户总数</span>
+          <b>{summary.total}</b>
+        </div>
+        <div className="member-overview-item">
+          <span>当前页启用</span>
+          <b>{summary.enabled}</b>
+        </div>
+        <div className="member-overview-item">
+          <span>当前页企业认证</span>
+          <b>{summary.certified}</b>
+        </div>
+      </div>
+
       <ListPage<MemberRow>
         key={reloadKey}
         api="/user/user/list"
@@ -272,6 +296,14 @@ export default function Members() {
         pageSize={10}
         showEdit={false}
         selectable
+        filterLayout="popover"
+        onDataLoaded={({ total, rows }) =>
+          setSummary({
+            total,
+            enabled: rows.filter((row) => row.status === 1).length,
+            certified: rows.filter((row) => row.isCompanyAuth === 1).length,
+          })
+        }
         batchActions={(rows, clear) => (
           <Space>
             <Button size="small" onClick={() => startBatch('rank', rows, clear)}>
@@ -331,15 +363,19 @@ export default function Members() {
             <Button theme="borderless" size="small" onClick={() => open('detail', record)}>
               查看
             </Button>
-            <Button theme="borderless" size="small" onClick={() => open('tags', record)}>
-              标签
-            </Button>
-            <Button theme="borderless" size="small" onClick={() => open('orders', record)}>
-              查看订单
-            </Button>
-            <Button theme="borderless" size="small" onClick={() => open('account', record)}>
-              账目明细
-            </Button>
+            <Dropdown
+              trigger="click"
+              position="bottomRight"
+              menu={[
+                { node: 'item', name: '标签', onClick: () => open('tags', record) },
+                { node: 'item', name: '查看订单', onClick: () => open('orders', record) },
+                { node: 'item', name: '账目明细', onClick: () => open('account', record) },
+              ]}
+            >
+              <Button theme="borderless" size="small">
+                更多
+              </Button>
+            </Dropdown>
           </Space>
         )}
         drawer={{

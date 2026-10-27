@@ -92,6 +92,8 @@ export interface ListPageProps<T = any> {
   showEdit?: boolean;
   selectable?: boolean;
   batchActions?: (selectedRows: T[], clear: () => void) => ReactNode;
+  filterLayout?: 'inline' | 'popover';
+  onDataLoaded?: (info: { total: number; rows: T[] }) => void;
   toolbarExtra?: ReactNode;
   cardTitle?: ReactNode;
   onRowClick?: (record: T) => void;
