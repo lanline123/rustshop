@@ -1413,3 +1413,26 @@ body {
 .member-detail-metrics b {
   font-size: 18px;
 }
+
+.member-fund-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.member-fund-form > label {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.member-fund-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.member-fund-row > span:first-child {
+  width: 80px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}

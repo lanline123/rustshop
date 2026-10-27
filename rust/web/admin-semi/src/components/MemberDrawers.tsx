@@ -4,6 +4,9 @@ import {
   Button,
   CheckboxGroup,
   Descriptions,
+  Input,
+  InputNumber,
+  Modal,
   Select,
   SideSheet,
   Space,
@@ -23,7 +26,13 @@ interface DrawerProps {
   onCancel: () => void;
 }
 
-export function MemberDetailDrawer({ visible, member, onCancel }: DrawerProps) {
+export function MemberDetailDrawer({
+  visible,
+  member,
+  onCancel,
+  onEdit,
+  onFund,
+}: DrawerProps & { onEdit?: () => void; onFund?: () => void }) {
   const [detail, setDetail] = useState<Record<string, any> | null>(null);
   const [tags, setTags] = useState<Array<Record<string, any>>>([]);
 
@@ -52,7 +61,17 @@ export function MemberDetailDrawer({ visible, member, onCancel }: DrawerProps) {
       width={800}
       placement="right"
       bodyStyle={{ padding: '16px 24px', overflowY: 'auto' }}
-      footer={<Button onClick={onCancel}>关闭</Button>}
+      footer={
+        <Space>
+          <Button onClick={onCancel}>关闭</Button>
+          {onEdit && <Button onClick={onEdit}>编辑客户</Button>}
+          {onFund && (
+            <Button theme="solid" type="primary" onClick={onFund}>
+              资金管理
+            </Button>
+          )}
+        </Space>
+      }
     >
       <div className="member-detail-head">
         <Avatar src={data.avatar} size="large" color="blue">
@@ -145,7 +164,12 @@ export function MemberDetailDrawer({ visible, member, onCancel }: DrawerProps) {
   );
 }
 
-export function MemberAccountDrawer({ visible, member, onCancel }: DrawerProps) {
+export function MemberAccountDrawer({
+  visible,
+  member,
+  onCancel,
+  onFund,
+}: DrawerProps & { onFund?: () => void }) {
   const [rows, setRows] = useState<Array<Record<string, any>>>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -195,6 +219,11 @@ export function MemberAccountDrawer({ visible, member, onCancel }: DrawerProps) 
           ]}
           style={{ width: 160 }}
         />
+        {onFund && (
+          <Button theme="solid" type="primary" onClick={onFund}>
+            调节客户账户
+          </Button>
+        )}
       </Space>
       <Table
         dataSource={rows}
@@ -364,5 +393,126 @@ export function MemberTagsDrawer({
         </Typography.Text>
       )}
     </SideSheet>
+  );
+}
+
+export function MemberFundModal({
+  visible,
+  member,
+  onCancel,
+  onSuccess,
+}: DrawerProps & { onSuccess: () => void }) {
+  const [reason, setReason] = useState('');
+  const [form, setForm] = useState({
+    typeBalance: 1,
+    balance: 0,
+    typeFrozenBalance: 1,
+    frozenBalance: 0,
+    typePoints: 1,
+    points: 0,
+    typeGrowthPoints: 1,
+    growthPoints: 0,
+  });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setReason('');
+      setForm({
+        typeBalance: 1,
+        balance: 0,
+        typeFrozenBalance: 1,
+        frozenBalance: 0,
+        typePoints: 1,
+        points: 0,
+        typeGrowthPoints: 1,
+        growthPoints: 0,
+      });
+    }
+  }, [visible]);
+
+  const submit = async () => {
+    if (!member) return;
+    if (!reason.trim()) {
+      Toast.warning({ content: '请填写资金变动说明' });
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload: Record<string, any> = { id: member.userId, changeDesc: reason.trim() };
+      if (Number(form.balance) > 0) {
+        payload.typeBalance = form.typeBalance;
+        payload.balance = form.balance;
+      }
+      if (Number(form.frozenBalance) > 0) {
+        payload.typeFrozenBalance = form.typeFrozenBalance;
+        payload.frozenBalance = form.frozenBalance;
+      }
+      if (Number(form.points) > 0) {
+        payload.typePoints = form.typePoints;
+        payload.points = form.points;
+      }
+      if (Number(form.growthPoints) > 0) {
+        payload.typeGrowthPoints = form.typeGrowthPoints;
+        payload.growthPoints = form.growthPoints;
+      }
+      await apiPost('/user/user/fundManagement', payload);
+      Toast.success({ content: '账户已调整' });
+      onSuccess();
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : '账户调整失败' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const rows: Array<{ label: string; amountKey: keyof typeof form; typeKey: keyof typeof form }> = [
+    { label: '可用余额', amountKey: 'balance', typeKey: 'typeBalance' },
+    { label: '冻结资金', amountKey: 'frozenBalance', typeKey: 'typeFrozenBalance' },
+    { label: '消费积分', amountKey: 'points', typeKey: 'typePoints' },
+    { label: '成长积分', amountKey: 'growthPoints', typeKey: 'typeGrowthPoints' },
+  ];
+
+  return (
+    <Modal
+      title="资金管理"
+      visible={visible}
+      onCancel={onCancel}
+      width={560}
+      footer={
+        <Space>
+          <Button onClick={onCancel}>取消</Button>
+          <Button theme="solid" type="primary" loading={saving} onClick={submit}>
+            确认调整
+          </Button>
+        </Space>
+      }
+    >
+      <div className="member-fund-form">
+        <label>变动说明</label>
+        <Input value={reason} onChange={setReason} placeholder="请输入资金变动说明" />
+        {rows.map((row) => (
+          <div className="member-fund-row" key={row.label}>
+            <span>{row.label}</span>
+            <Select
+              value={form[row.typeKey]}
+              onChange={(value) => setForm({ ...form, [row.typeKey]: Number(value) })}
+              optionList={[
+                { label: '增加', value: 1 },
+                { label: '减少', value: 2 },
+              ]}
+              style={{ width: 100 }}
+            />
+            <InputNumber
+              value={form[row.amountKey]}
+              min={0}
+              precision={row.label.includes('积分') ? 0 : 2}
+              onChange={(value) => setForm({ ...form, [row.amountKey]: Number(value) })}
+              style={{ width: 200 }}
+            />
+          </div>
+        ))}
+      </div>
+    </Modal>
   );
 }

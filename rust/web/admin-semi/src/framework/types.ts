@@ -67,7 +67,7 @@ export interface FormDrawerConfig {
 export interface FilterConfig {
   field: string;
   label: string;
-  type?: 'input' | 'select' | 'number' | 'date';
+  type?: 'input' | 'select' | 'number' | 'date' | 'tags';
   options?: OptionItem[];
   placeholder?: string;
   width?: number | string;
@@ -94,6 +94,8 @@ export interface ListPageProps<T = any> {
   batchActions?: (selectedRows: T[], clear: () => void) => ReactNode;
   filterLayout?: 'inline' | 'popover';
   onDataLoaded?: (info: { total: number; rows: T[] }) => void;
+  editRequest?: T | null;
+  onEditRequestHandled?: () => void;
   toolbarExtra?: ReactNode;
   cardTitle?: ReactNode;
   onRowClick?: (record: T) => void;

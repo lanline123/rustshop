@@ -14,11 +14,13 @@ import {
 } from '@douyinfe/semi-ui';
 import { apiGet, apiPost, isDemo } from '../api';
 import ListPage from '../framework/ListPage';
+import TagFilter from '../framework/TagFilter';
 import type { ColumnConfig } from '../framework/types';
 import type { MemberRow } from '../types';
 import {
   MemberAccountDrawer,
   MemberDetailDrawer,
+  MemberFundModal,
   MemberOrdersDrawer,
   MemberTagsDrawer,
 } from '../components/MemberDrawers';
@@ -85,7 +87,7 @@ const columns: ColumnConfig<MemberRow>[] = [
     ),
   },
   {
-    title: '等级 / 认证',
+    title: '等级 / 是否认证',
     dataIndex: 'rankName',
     width: 150,
     render: (value: string, record) => (
@@ -110,13 +112,13 @@ const columns: ColumnConfig<MemberRow>[] = [
           </Text>
         )}
         <Text type="tertiary" size="small">
-          积分 {record.points ?? 0}
+          消费积分 {record.points ?? 0}
         </Text>
       </div>
     ),
   },
   {
-    title: '消费',
+    title: '累计消费次数 / 累计消费金额',
     dataIndex: 'orderAmount',
     width: 160,
     render: (value: string, record) => (
@@ -130,7 +132,7 @@ const columns: ColumnConfig<MemberRow>[] = [
   },
   { title: '注册日期', dataIndex: 'regTime', width: 160 },
   {
-    title: '状态',
+    title: '是否启用',
     dataIndex: 'status',
     width: 80,
     render: (_: unknown, record: MemberRow) => <MemberStatusSwitch record={record} />,
@@ -242,6 +244,61 @@ function BatchMemberModal({
   );
 }
 
+function BatchTagModal({
+  visible,
+  userIds,
+  onCancel,
+  onSuccess,
+}: {
+  visible: boolean;
+  userIds: number[];
+  onCancel: () => void;
+  onSuccess: () => void;
+}) {
+  const [tagIds, setTagIds] = useState<Array<string | number>>([]);
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    if (!tagIds.length) {
+      Toast.warning({ content: '请选择标签' });
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiPost('/user/userMemberTag/batchBindTags', {
+        userIds,
+        tagIds: tagIds.map(Number),
+      });
+      Toast.success({ content: '批量打标签成功' });
+      onSuccess();
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : '批量打标签失败' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      title="批量打标签"
+      visible={visible}
+      onCancel={onCancel}
+      width={520}
+      footer={
+        <Space>
+          <Button onClick={onCancel}>取消</Button>
+          <Button theme="solid" type="primary" loading={saving} onClick={submit}>
+            确认
+          </Button>
+        </Space>
+      }
+    >
+      <div style={{ marginBottom: 8 }}>已选择 {userIds.length} 位客户</div>
+      <TagFilter value={tagIds} onChange={setTagIds} width={360} />
+    </Modal>
+  );
+}
+
 export default function Members() {
   const [activeMember, setActiveMember] = useState<MemberRow | null>(null);
   const [action, setAction] = useState<MemberAction>(null);
@@ -250,6 +307,10 @@ export default function Members() {
   const [batchIds, setBatchIds] = useState<number[]>([]);
   const [batchClear, setBatchClear] = useState<(() => void) | null>(null);
   const [summary, setSummary] = useState({ total: 0, enabled: 0, certified: 0 });
+  const [editRequest, setEditRequest] = useState<MemberRow | null>(null);
+  const [fundMember, setFundMember] = useState<MemberRow | null>(null);
+  const [batchTagVisible, setBatchTagVisible] = useState(false);
+  const [batchTagIds, setBatchTagIds] = useState<number[]>([]);
 
   const startBatch = (type: 'rank' | 'points' | 'balance', rows: MemberRow[], clear: () => void) => {
     setBatchType(type);
@@ -304,8 +365,19 @@ export default function Members() {
             certified: rows.filter((row) => row.isCompanyAuth === 1).length,
           })
         }
+        editRequest={editRequest}
+        onEditRequestHandled={() => setEditRequest(null)}
         batchActions={(rows, clear) => (
           <Space>
+            <Button
+              size="small"
+              onClick={() => {
+                setBatchTagIds(rows.map((row) => row.userId));
+                setBatchTagVisible(true);
+              }}
+            >
+              批量打标签
+            </Button>
             <Button size="small" onClick={() => startBatch('rank', rows, clear)}>
               批量改等级
             </Button>
@@ -355,6 +427,12 @@ export default function Members() {
             label: '积分小于',
             type: 'number',
             width: 130,
+          },
+          {
+            field: 'tagIds',
+            label: '客户标签',
+            type: 'tags',
+            width: 240,
           },
         ]}
         columns={columns}
@@ -429,7 +507,16 @@ export default function Members() {
         }}
       />
 
-      <MemberDetailDrawer visible={action === 'detail'} member={activeMember} onCancel={close} />
+      <MemberDetailDrawer
+        visible={action === 'detail'}
+        member={activeMember}
+        onCancel={close}
+        onEdit={() => {
+          setEditRequest(activeMember);
+          close();
+        }}
+        onFund={() => setFundMember(activeMember)}
+      />
       <MemberTagsDrawer
         visible={action === 'tags'}
         member={activeMember}
@@ -437,7 +524,33 @@ export default function Members() {
         onSaved={() => setReloadKey((key) => key + 1)}
       />
       <MemberOrdersDrawer visible={action === 'orders'} member={activeMember} onCancel={close} />
-      <MemberAccountDrawer visible={action === 'account'} member={activeMember} onCancel={close} />
+      <MemberAccountDrawer
+        visible={action === 'account'}
+        member={activeMember}
+        onCancel={close}
+        onFund={() => setFundMember(activeMember)}
+      />
+
+      <MemberFundModal
+        visible={fundMember !== null}
+        member={fundMember}
+        onCancel={() => setFundMember(null)}
+        onSuccess={() => {
+          setFundMember(null);
+          setReloadKey((key) => key + 1);
+        }}
+      />
+
+      <BatchTagModal
+        visible={batchTagVisible}
+        userIds={batchTagIds}
+        onCancel={() => setBatchTagVisible(false)}
+        onSuccess={() => {
+          setBatchTagVisible(false);
+          setBatchTagIds([]);
+          setReloadKey((key) => key + 1);
+        }}
+      />
 
       <BatchMemberModal
         visible={batchType !== null}

@@ -15,6 +15,7 @@ import { IconClose, IconPlus, IconRefresh, IconSearch } from '@douyinfe/semi-ico
 import { apiGet, apiPost, isDemo } from '../api';
 import type { FilterConfig, ListPageProps } from './types';
 import FormDrawer from './FormDrawer';
+import TagFilter from './TagFilter';
 
 function renderFilter(
   filter: FilterConfig,
@@ -22,6 +23,9 @@ function renderFilter(
   onChange: (value: any) => void,
 ) {
   const style = { width: filter.width || 180 };
+  if (filter.type === 'tags') {
+    return <TagFilter value={value} onChange={onChange} width={Number(filter.width) || 220} />;
+  }
   if (filter.type === 'select') {
     return (
       <Select
@@ -71,6 +75,8 @@ export default function ListPage<T extends Record<string, any>>({
   batchActions,
   filterLayout = 'inline',
   onDataLoaded,
+  editRequest,
+  onEditRequestHandled,
   toolbarExtra,
   cardTitle,
   onRowClick,
@@ -163,6 +169,12 @@ export default function ListPage<T extends Record<string, any>>({
     }
     setDrawerVisible(true);
   };
+
+  useEffect(() => {
+    if (!editRequest) return;
+    void openEdit(editRequest);
+    onEditRequestHandled?.();
+  }, [editRequest]);
 
   const save = async (payload: Record<string, any>) => {
     if (!drawer) return;
