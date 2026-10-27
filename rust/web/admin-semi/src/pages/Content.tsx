@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Card,
+  Popconfirm,
   Space,
   Switch,
   Table,
@@ -12,6 +13,7 @@ import {
 } from '@douyinfe/semi-ui';
 import { apiGet, apiPost, isDemo } from '../api';
 import ListPage from '../framework/ListPage';
+import FormDrawer from '../framework/FormDrawer';
 import type { ColumnConfig } from '../framework/types';
 import type { ArticleCategoryRow, ArticleRow } from '../types';
 import ImageUploader from '../components/ImageUploader';
@@ -66,16 +68,20 @@ export default function Content() {
   const [tab, setTab] = useState('articles');
   const [categories, setCategories] = useState<ArticleCategoryRow[]>([]);
   const [reloadKey, setReloadKey] = useState(0);
+  const [catDrawerVisible, setCatDrawerVisible] = useState(false);
+  const [catMode, setCatMode] = useState<'create' | 'edit'>('create');
+  const [catInitial, setCatInitial] = useState<Record<string, any>>({});
+  const [catSaving, setCatSaving] = useState(false);
+
+  const loadCategories = () => {
+    if (isDemo()) return;
+    apiGet<ArticleCategoryRow[]>('/content/articleCategory/list')
+      .then((result) => setCategories(result || []))
+      .catch(() => undefined);
+  };
 
   useEffect(() => {
-    if (isDemo()) return;
-    let alive = true;
-    apiGet<ArticleCategoryRow[]>('/content/articleCategory/list')
-      .then((result) => alive && setCategories(result || []))
-      .catch(() => undefined);
-    return () => {
-      alive = false;
-    };
+    loadCategories();
   }, []);
 
   const categoryName = (id: number) =>
@@ -132,6 +138,55 @@ export default function Content() {
     ],
     [categories],
   );
+
+  const openCreateCategory = () => {
+    setCatMode('create');
+    setCatInitial({ parentId: 0, sortOrder: 50 });
+    setCatDrawerVisible(true);
+  };
+
+  const openEditCategory = (record: ArticleCategoryRow) => {
+    setCatMode('edit');
+    setCatInitial({
+      articleCategoryId: record.articleCategoryId,
+      articleCategoryName: record.articleCategoryName,
+      parentId: record.parentId || 0,
+      sortOrder: record.sortOrder ?? 50,
+    });
+    setCatDrawerVisible(true);
+  };
+
+  const saveCategory = async (payload: Record<string, any>) => {
+    setCatSaving(true);
+    try {
+      await apiPost(
+        catMode === 'create' ? '/content/articleCategory/create' : '/content/articleCategory/update',
+        {
+          ...payload,
+          articleCategoryId: catMode === 'create' ? undefined : catInitial.articleCategoryId,
+          parentId: Number(payload.parentId || 0),
+          sortOrder: Number(payload.sortOrder || 50),
+        },
+      );
+      Toast.success({ content: catMode === 'create' ? '分类已创建' : '分类已更新' });
+      setCatDrawerVisible(false);
+      loadCategories();
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : '保存分类失败' });
+    } finally {
+      setCatSaving(false);
+    }
+  };
+
+  const removeCategory = async (record: ArticleCategoryRow) => {
+    try {
+      await apiPost('/content/articleCategory/del', { id: record.articleCategoryId });
+      Toast.success({ content: '分类已删除' });
+      loadCategories();
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : '删除分类失败' });
+    }
+  };
 
   return (
     <>
@@ -317,25 +372,116 @@ export default function Content() {
       )}
 
       {tab === 'categories' && (
-        <Card className="table-card" shadows="hover">
-          <div className="table-toolbar">
-            <Text type="tertiary">共 {categories.length} 个文章分类</Text>
-            <Button theme="solid" type="primary">
-              新增分类
-            </Button>
-          </div>
-          <Table
-            dataSource={categories}
-            rowKey="articleCategoryId"
-            pagination={false}
-            columns={[
-              { title: 'ID', dataIndex: 'articleCategoryId', width: 80 },
-              { title: '分类名称', dataIndex: 'articleCategoryName' },
-              { title: '标识', dataIndex: 'categorySn', render: (value: string) => value || '-' },
-              { title: '父级 ID', dataIndex: 'parentId', width: 100 },
-            ]}
+        <>
+          <Card className="table-card" shadows="hover">
+            <div className="table-toolbar">
+              <Text type="tertiary">共 {categories.length} 个文章分类</Text>
+              <Button theme="solid" type="primary" onClick={openCreateCategory}>
+                新增分类
+              </Button>
+            </div>
+            <Table
+              dataSource={categories}
+              rowKey="articleCategoryId"
+              pagination={false}
+              columns={[
+                { title: 'ID', dataIndex: 'articleCategoryId', width: 80 },
+                { title: '分类名称', dataIndex: 'articleCategoryName' },
+                {
+                  title: '上级分类',
+                  dataIndex: 'parentId',
+                  width: 160,
+                  render: (value: number) =>
+                    value
+                      ? categories.find((item) => item.articleCategoryId === value)
+                          ?.articleCategoryName || `分类 ${value}`
+                      : '顶级分类',
+                },
+                { title: '标识', dataIndex: 'categorySn', width: 130, render: (value: string) => value || '-' },
+                { title: '排序', dataIndex: 'sortOrder', width: 90 },
+                {
+                  title: '操作',
+                  width: 150,
+                  render: (_: unknown, record: ArticleCategoryRow) => (
+                    <Space>
+                      <Button
+                        theme="borderless"
+                        size="small"
+                        onClick={() => openEditCategory(record)}
+                      >
+                        编辑
+                      </Button>
+                      <Popconfirm
+                        title="确定删除该分类？分类下有文章或子分类时不能删除。"
+                        onConfirm={() => removeCategory(record)}
+                      >
+                        <Button theme="borderless" type="danger" size="small">
+                          删除
+                        </Button>
+                      </Popconfirm>
+                    </Space>
+                  ),
+                },
+              ]}
+            />
+          </Card>
+
+          <FormDrawer
+            visible={catDrawerVisible}
+            mode={catMode}
+            initialValues={catInitial}
+            saving={catSaving}
+            onCancel={() => setCatDrawerVisible(false)}
+            onSubmit={saveCategory}
+            config={{
+              title: '文章分类',
+              addText: '新增分类',
+              width: 560,
+              labelWidth: 'auto',
+              inputWidth: 420,
+              createApi: '/content/articleCategory/create',
+              updateApi: '/content/articleCategory/update',
+              sections: [
+                {
+                  key: 'basic',
+                  title: '分类信息',
+                  fields: [
+                    {
+                      field: 'articleCategoryName',
+                      label: '分类名称',
+                      required: true,
+                      placeholder: '请输入分类名称',
+                    },
+                    {
+                      field: 'parentId',
+                      label: '上级分类',
+                      type: 'select',
+                      options: [
+                        { label: '顶级分类', value: 0 },
+                        ...categories
+                          .filter((item) => item.articleCategoryId !== catInitial.articleCategoryId)
+                          .map((item) => ({
+                            label: item.articleCategoryName,
+                            value: item.articleCategoryId,
+                          })),
+                      ],
+                    },
+                    {
+                      field: 'sortOrder',
+                      label: '排序',
+                      type: 'number',
+                    },
+                  ],
+                },
+              ],
+              toPayload: (values) => ({
+                articleCategoryName: values.articleCategoryName,
+                parentId: values.parentId ?? 0,
+                sortOrder: values.sortOrder ?? 50,
+              }),
+            }}
           />
-        </Card>
+        </>
       )}
     </>
   );

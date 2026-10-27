@@ -133,4 +133,6 @@ export interface ArticleCategoryRow {
   articleCategoryName: string;
   parentId: number;
   categorySn: string;
+  sortOrder?: number;
+  categoryType?: number;
 }
