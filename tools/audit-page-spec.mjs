@@ -96,6 +96,39 @@ for (const model of filterParams) {
   if (!source.includes(field)) warnings.push(`旧筛选字段未在新页面出现: ${field}`);
 }
 
+if (spec.table) {
+  const pageDir = path.dirname(componentPath);
+  const listPageSource = fs.readFileSync(path.join(pageDir, '../framework/ListPage.tsx'), 'utf8');
+  const stylesSource = fs.readFileSync(path.join(pageDir, '../styles.css'), 'utf8');
+
+  if (spec.table.fillWidth) {
+    if (!listPageSource.includes('ResizeObserver')) failures.push('表格未启用容器宽度自适应');
+    if (!stylesSource.includes('max-width: none')) failures.push('页面容器仍有最大宽度限制');
+  }
+  if (spec.table.headerNowrap && !stylesSource.includes('white-space: nowrap')) {
+    failures.push('表头未设置 nowrap');
+  }
+  if (spec.table.action?.fixed === 'right' && !listPageSource.includes("fixed: 'right'")) {
+    failures.push('操作列未固定到右侧');
+  }
+  const actionWidth = spec.table.action?.width;
+  if (actionWidth && !source.includes(`actionWidth={${actionWidth}}`)) {
+    failures.push(`操作列宽度未配置为 ${actionWidth}px`);
+  }
+  for (const header of spec.table.longHeaders || []) {
+    const index = source.indexOf(header.label);
+    if (index < 0) {
+      failures.push(`长列标题未找到: ${header.label}`);
+      continue;
+    }
+    const segment = source.slice(index, index + 320);
+    const match = segment.match(/width:\s*(\d+)/);
+    if (!match || Number(match[1]) < header.minWidth) {
+      failures.push(`长列表头宽度不足: ${header.label} < ${header.minWidth}px`);
+    }
+  }
+}
+
 if (spec.backendReady?.importUser === false) {
   warnings.push('导入客户：后端未迁移，前端未实现（已在 spec 中标记）');
 }

@@ -10,6 +10,15 @@
   "columns": ["文章标题", "文章分类", "文章重要性", "发布时间", "是否热门", "是否显示"],
   "actions": ["edit", "delete"],
   "batch": ["delete", "show", "hide", "moveCat"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 110
+    },
+    "longHeaders": []
+  },
   "sort": [],
   "backendReady": {
     "batch": true,

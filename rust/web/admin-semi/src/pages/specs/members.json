@@ -17,6 +17,20 @@
   ],
   "actions": ["detail", "tags", "orders", "account"],
   "batch": ["tags", "rank", "points", "balance"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 250
+    },
+    "longHeaders": [
+      {
+        "label": "累计消费次数 / 累计消费金额",
+        "minWidth": 270
+      }
+    ]
+  },
   "sort": [],
   "backendReady": {
     "importUser": false,

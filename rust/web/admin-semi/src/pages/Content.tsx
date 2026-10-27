@@ -247,6 +247,7 @@ export default function Content() {
           api="/content/article/list"
           rowKey="articleId"
           pageSize={10}
+          actionWidth={110}
           selectable
           batchActions={(rows, clear) => {
             const ids = rows.map((row) => row.articleId);
