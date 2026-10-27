@@ -64,6 +64,53 @@ GET /adminapi/content/articleCategory/list 文章分类
 系统设置
 ```
 
+## 迁移引擎
+
+已内置配置驱动页面引擎：
+
+```text
+src/framework/ListPage.tsx       列表页：筛选、分页、工具栏、新增/编辑/删除
+src/framework/FormDrawer.tsx     表单抽屉：锚点、分组、横向标签、字段渲染
+src/framework/FieldRenderer.tsx  字段渲染：input/textarea/number/select/radio/switch/date/custom
+```
+
+一个标准列表页现在只需要配置：
+
+```tsx
+<ListPage
+  api="/product/brand/list"
+  rowKey="brandId"
+  filters={[{ field: 'keyword', label: '品牌名称', type: 'input' }]}
+  columns={[
+    { title: '品牌名称', dataIndex: 'brandName' },
+    { title: '排序', dataIndex: 'sortOrder' },
+  ]}
+  drawer={{
+    title: '品牌',
+    addText: '新增品牌',
+    createApi: '/product/brand/create',
+    updateApi: '/product/brand/update',
+    deleteApi: '/product/brand/del',
+    idField: 'brandId',
+    sections: [{ key: 'basic', title: '基本信息', fields: [] }],
+  }}
+/>
+```
+
+会员管理已经迁移到该引擎：
+
+```text
+src/pages/Members.tsx
+```
+
+## 旧系统迁移资料
+
+```text
+docs/admin-semi-migration-strategy.md   迁移策略
+docs/admin-migration-inventory.json     1170 个旧页面/API/字段清单
+tools/extract-admin-inventory.mjs       旧源码扫描脚本
+```
+
 ## 构建
 
 ```bash

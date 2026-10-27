@@ -1190,3 +1190,35 @@ body {
   font-style: normal;
   color: #98a2b3;
 }
+
+/* 迁移引擎 */
+.framework-custom-field {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.framework-custom-label {
+  width: 110px;
+  flex-shrink: 0;
+  padding-top: 6px;
+  padding-right: 12px;
+  color: #475467;
+  font-size: 13px;
+  text-align: right;
+}
+
+.framework-custom-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.framework-section-desc {
+  margin: -8px 0 14px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.framework-filter {
+  display: inline-flex;
+}
