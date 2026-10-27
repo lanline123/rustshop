@@ -44,14 +44,17 @@ export const pageTitles: Record<PageKey, string> = {
 
 const menuGroups: Array<{
   title: string;
+  icon: ReactNode;
   items: Array<{ key: PageKey; label: string; icon: ReactNode }>;
 }> = [
   {
     title: '概览',
+    icon: <IconHome />,
     items: [{ key: 'dashboard', label: '数据看板', icon: <IconHome /> }],
   },
   {
     title: '交易',
+    icon: <IconShoppingBag />,
     items: [
       { key: 'products', label: '商品管理', icon: <IconShoppingBag /> },
       { key: 'orders', label: '订单管理', icon: <IconOrderedList /> },
@@ -60,10 +63,12 @@ const menuGroups: Array<{
   },
   {
     title: '用户',
+    icon: <IconUser />,
     items: [{ key: 'members', label: '会员管理', icon: <IconUser /> }],
   },
   {
     title: '内容',
+    icon: <IconFile />,
     items: [
       { key: 'content', label: '内容管理', icon: <IconFile /> },
       { key: 'marketing', label: '营销中心', icon: <IconGift /> },
@@ -71,6 +76,7 @@ const menuGroups: Array<{
   },
   {
     title: '系统',
+    icon: <IconSetting />,
     items: [
       { key: 'finance', label: '财务中心', icon: <IconCreditCard /> },
       { key: 'settings', label: '系统设置', icon: <IconSetting /> },
@@ -87,11 +93,13 @@ interface AdminLayoutProps {
 
 export default function AdminLayout({ page, onPageChange, onLogout, children }: AdminLayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const activeGroup =
+    menuGroups.find((group) => group.items.some((item) => item.key === page)) || menuGroups[0];
 
   return (
     <div className={`app-shell ${collapsed ? 'is-collapsed' : ''}`}>
       <aside className="sidebar">
-        <div className="brand">
+        <div className={`brand ${collapsed ? 'brand-collapsed' : ''}`}>
           <span className="brand-mark">W</span>
           {!collapsed && (
             <div className="brand-text">
@@ -101,42 +109,61 @@ export default function AdminLayout({ page, onPageChange, onLogout, children }: 
           )}
         </div>
 
-        <nav className="side-nav">
-          {menuGroups.map((group) => (
-            <div className="nav-group" key={group.title}>
-              {!collapsed && <div className="nav-group-title">{group.title}</div>}
-              {group.items.map((item) => (
-                <Tooltip content={item.label} position="right" key={item.key} disabled={!collapsed}>
+        <div className="sidebar-body">
+          <div className="rail">
+            {menuGroups.map((group) => {
+              const active = activeGroup.title === group.title;
+              return (
+                <Tooltip content={group.title} position="right" disabled={!collapsed} key={group.title}>
                   <button
                     type="button"
-                    className={`nav-item ${page === item.key ? 'is-active' : ''}`}
-                    onClick={() => onPageChange(item.key)}
+                    className={`rail-item ${active ? 'is-active' : ''}`}
+                    onClick={() => onPageChange(group.items[0].key)}
                   >
-                    <span className="nav-icon">{item.icon}</span>
-                    {!collapsed && <span className="nav-label">{item.label}</span>}
+                    <span className="rail-icon">{group.icon}</span>
+                    {!collapsed && <span className="rail-label">{group.title}</span>}
                   </button>
                 </Tooltip>
-              ))}
+              );
+            })}
+          </div>
+
+          {!collapsed && (
+            <div className="submenu">
+              <div className="submenu-title">{activeGroup.title}</div>
+              <div className="submenu-list">
+                {activeGroup.items.map((item) => (
+                  <button
+                    type="button"
+                    className={`submenu-item ${page === item.key ? 'is-active' : ''}`}
+                    onClick={() => onPageChange(item.key)}
+                    key={item.key}
+                  >
+                    <span className="submenu-icon">{item.icon}</span>
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          ))}
-        </nav>
+          )}
+        </div>
 
         <div className="side-footer">
           {!collapsed ? (
-            <div className="side-help">
-              <IconHelpCircle />
-              <span>帮助与文档</span>
-            </div>
+            <>
+              <div className="side-help">
+                <IconHelpCircle />
+                <span>帮助与文档</span>
+              </div>
+              <div className="side-version">v0.1.0 · Semi UI</div>
+            </>
           ) : (
             <Tooltip content="帮助与文档" position="right">
-              <button type="button" className="nav-item">
-                <span className="nav-icon">
-                  <IconHelpCircle />
-                </span>
+              <button type="button" className="rail-help">
+                <IconHelpCircle />
               </button>
             </Tooltip>
           )}
-          {!collapsed && <div className="side-version">v0.1.0 · Semi UI</div>}
         </div>
       </aside>
 
@@ -151,6 +178,8 @@ export default function AdminLayout({ page, onPageChange, onLogout, children }: 
             />
             <div className="breadcrumb">
               <span className="breadcrumb-muted">首页</span>
+              <span className="breadcrumb-sep">/</span>
+              <span className="breadcrumb-muted">{activeGroup.title}</span>
               <span className="breadcrumb-sep">/</span>
               <span className="breadcrumb-current">{pageTitles[page]}</span>
             </div>
