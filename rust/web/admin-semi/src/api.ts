@@ -114,3 +114,30 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   }
   return json.data as T;
 }
+
+export async function apiUpload<T>(
+  path: string,
+  file: File,
+  fields?: Record<string, string>,
+): Promise<T> {
+  const form = new FormData();
+  form.append('file', file);
+  Object.entries(fields || {}).forEach(([key, value]) => form.append(key, value));
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${getToken()}`,
+    },
+    body: form,
+  });
+  const json = await readJson(res);
+  if (res.status === 401 || json.code === 401) {
+    clearToken();
+    window.location.reload();
+    throw new Error('登录已过期，请重新登录');
+  }
+  if (!res.ok || json.code !== 0) {
+    throw new Error(json.msg || '上传失败');
+  }
+  return json.data as T;
+}

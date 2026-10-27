@@ -5,13 +5,17 @@ import {
   Form,
   Input,
   InputNumber,
+  RadioGroup,
   Row,
   Select,
   SideSheet,
   Switch,
   Toast,
 } from '@douyinfe/semi-ui';
+import { IconPlus } from '@douyinfe/semi-icons';
 import { apiGet, apiPost, isDemo } from '../api';
+import ImageUploader from './ImageUploader';
+import RichTextEditor from './RichTextEditor';
 
 interface Option {
   id: number;
@@ -45,8 +49,6 @@ const emptyValues = {
   productStock: 0,
   productStatus: 1,
   productBrief: '',
-  picUrl: '',
-  galleryText: '',
   productVideo: '',
   productDesc: '',
   remark: '',
@@ -87,6 +89,16 @@ export default function ProductFormModal({
   const [formApi, setFormApi] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [activeSection, setActiveSection] = useState('basic');
+  const [galleryUrls, setGalleryUrls] = useState<string[]>([]);
+  const [productDesc, setProductDesc] = useState('');
+  const [skuType, setSkuType] = useState(
+    () => (new URLSearchParams(window.location.search).get('sku') === '2' ? 2 : 1),
+  );
+  const [skuRows, setSkuRows] = useState<Array<Record<string, any>>>(() =>
+    new URLSearchParams(window.location.search).get('sku') === '2'
+      ? [{ skuValue: '', skuSn: '', skuPrice: 0, marketPrice: 0, costPrice: 0, skuStock: 0 }]
+      : [],
+  );
   const [shippingTpls, setShippingTpls] = useState<ShippingTpl[]>([
     { shippingTplId: 1, shippingTplName: '默认模板' },
   ]);
@@ -114,15 +126,36 @@ export default function ProductFormModal({
     if (!productId) {
       formApi.reset();
       formApi.setValues(emptyValues, { isOverride: true });
+      setGalleryUrls([]);
+      setProductDesc('');
+      if (!isDemo()) {
+        setSkuType(1);
+        setSkuRows([]);
+      }
       return;
     }
     let alive = true;
     apiGet<Record<string, any>>('/product/product/detail', { id: productId })
       .then((detail) => {
         if (!alive) return;
-        const galleryUrls = (detail.imgList || [])
+        const images = (detail.imgList || [])
           .map((item: any) => item.picUrl)
           .filter(Boolean);
+        if (!images.length && detail.picUrl) images.push(detail.picUrl);
+        setGalleryUrls(images);
+        setProductDesc(detail.productDesc || '');
+        setSkuType(Number(detail.skuType || 1));
+        setSkuRows(
+          (detail.productList || []).map((sku: any) => ({
+            skuId: sku.skuId,
+            skuValue: sku.skuValue || '',
+            skuSn: sku.skuSn || '',
+            skuPrice: Number(sku.skuPrice || 0),
+            marketPrice: Number(sku.marketPrice || 0),
+            costPrice: Number(sku.costPrice || 0),
+            skuStock: Number(sku.skuStock || 0),
+          })),
+        );
         formApi.setValues(
           {
             productType: Number(detail.productType || 1),
@@ -137,8 +170,6 @@ export default function ProductFormModal({
             productStock: Number(detail.productStock || 0),
             productStatus: Number(detail.productStatus ?? 1),
             productBrief: detail.productBrief || '',
-            picUrl: detail.picUrl || '',
-            galleryText: galleryUrls.join('\n'),
             productVideo: detail.productVideo || '',
             productDesc: detail.productDesc || '',
             remark: detail.remark || '',
@@ -173,6 +204,14 @@ export default function ProductFormModal({
     document.getElementById(`product-section-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  useEffect(() => {
+    if (!visible) return;
+    const section = new URLSearchParams(window.location.search).get('section');
+    if (!section) return;
+    const timer = window.setTimeout(() => scrollTo(section), 300);
+    return () => window.clearTimeout(timer);
+  }, [visible]);
+
   const submit = async () => {
     if (isDemo()) {
       Toast.warning({ content: '演示模式不支持保存，请登录后操作' });
@@ -185,12 +224,22 @@ export default function ProductFormModal({
     } catch {
       return;
     }
+    if (skuType === 2) {
+      if (!skuRows.length) {
+        Toast.warning({ content: '请至少添加一个规格' });
+        return;
+      }
+      if (skuRows.some((row) => !String(row.skuValue || '').trim())) {
+        Toast.warning({ content: '请填写完整的规格值' });
+        return;
+      }
+      if (skuRows.some((row) => row.skuPrice === undefined || Number(row.skuPrice) < 0)) {
+        Toast.warning({ content: '请填写规格价格' });
+        return;
+      }
+    }
     setSaving(true);
     try {
-      const galleryUrls = String(values.galleryText || '')
-        .split('\n')
-        .map((line) => line.trim())
-        .filter(Boolean);
       const payload = {
         productId: productId || undefined,
         productType: values.productType,
@@ -205,9 +254,9 @@ export default function ProductFormModal({
         productStock: values.productStock,
         productStatus: values.productStatus,
         productBrief: values.productBrief,
-        picUrl: values.picUrl,
+        picUrl: galleryUrls[0] || '',
         productVideo: values.productVideo,
-        productDesc: values.productDesc,
+        productDesc,
         remark: values.remark,
         keywords: values.keywords,
         productWeight: values.productWeight,
@@ -226,8 +275,22 @@ export default function ProductFormModal({
         isSupportReturn: values.isSupportReturn ? 1 : 0,
         isSupportCod: values.isSupportCod ? 1 : 0,
         imgList: galleryUrls.map((picUrl) => ({ picUrl })),
-        skuType: 1,
-        productList: [],
+        skuType,
+        productList:
+          skuType === 2
+            ? skuRows.map((row) => ({
+                skuId: row.skuId,
+                skuValue: row.skuValue,
+                skuSn: row.skuSn,
+                skuPrice: row.skuPrice,
+                marketPrice: row.marketPrice,
+                costPrice: row.costPrice,
+                skuStock: row.skuStock,
+                isEnabled: 1,
+                skuData: [{ name: '规格', value: row.skuValue }],
+                attrValues: [row.skuValue],
+              }))
+            : [],
       };
       await apiPost(productId ? '/product/product/update' : '/product/product/create', payload);
       Toast.success({ content: productId ? '商品已更新' : '商品已创建' });
@@ -346,15 +409,12 @@ export default function ProductFormModal({
             ]}
             extraText="上架则允许销售，未审核商品无法手动上架。"
           />
-          <Form.Input field="picUrl" label="商品主图" placeholder="https://..." style={{ width: 520 }} />
-          <Form.TextArea
-            field="galleryText"
-            label="商品相册"
-            placeholder="每行一个图片地址，第一张作为商品主图"
-            style={{ width: 620 }}
-            autosize={{ minRows: 3, maxRows: 6 }}
-            extraText="支持多图，按行分隔，保存后同步到商品相册。"
-          />
+          <div className="product-image-field">
+            <label className="product-image-label">商品图片</label>
+            <div className="product-image-content">
+              <ImageUploader value={galleryUrls} onChange={setGalleryUrls} />
+            </div>
+          </div>
           <Form.Input
             field="productVideo"
             label="商品视频"
@@ -388,6 +448,129 @@ export default function ProductFormModal({
               { label: '预售模式', value: 1 },
             ]}
           />
+          <div className="sku-type-row">
+            <label className="product-image-label">规格类型</label>
+            <RadioGroup
+              value={skuType}
+              onChange={(value) => {
+                const next = Number(value);
+                setSkuType(next);
+                if (next === 2 && !skuRows.length) {
+                  setSkuRows([
+                    {
+                      skuValue: '',
+                      skuSn: '',
+                      skuPrice: 0,
+                      marketPrice: 0,
+                      costPrice: 0,
+                      skuStock: 0,
+                    },
+                  ]);
+                }
+              }}
+              options={[
+                { label: '单规格', value: 1 },
+                { label: '多规格', value: 2 },
+              ]}
+            />
+          </div>
+          {skuType === 2 && (
+            <div className="sku-editor">
+              <div className="sku-editor-head">
+                <span>规格值</span>
+                <span>规格编码</span>
+                <span>销售价</span>
+                <span>市场价</span>
+                <span>成本价</span>
+                <span>库存</span>
+                <span>操作</span>
+              </div>
+              {skuRows.map((row, index) => (
+                <div className="sku-editor-row" key={index}>
+                  <Input
+                    value={row.skuValue}
+                    placeholder="如：红色 / L"
+                    onChange={(value) =>
+                      setSkuRows((rows) =>
+                        rows.map((item, i) => (i === index ? { ...item, skuValue: value } : item)),
+                      )
+                    }
+                  />
+                  <Input
+                    value={row.skuSn}
+                    placeholder="不填自动生成"
+                    onChange={(value) =>
+                      setSkuRows((rows) =>
+                        rows.map((item, i) => (i === index ? { ...item, skuSn: value } : item)),
+                      )
+                    }
+                  />
+                  <InputNumber
+                    value={row.skuPrice}
+                    min={0}
+                    precision={2}
+                    style={{ width: '100%' }}
+                    onChange={(value) =>
+                      setSkuRows((rows) =>
+                        rows.map((item, i) => (i === index ? { ...item, skuPrice: value } : item)),
+                      )
+                    }
+                  />
+                  <InputNumber
+                    value={row.marketPrice}
+                    min={0}
+                    precision={2}
+                    style={{ width: '100%' }}
+                    onChange={(value) =>
+                      setSkuRows((rows) =>
+                        rows.map((item, i) => (i === index ? { ...item, marketPrice: value } : item)),
+                      )
+                    }
+                  />
+                  <InputNumber
+                    value={row.costPrice}
+                    min={0}
+                    precision={2}
+                    style={{ width: '100%' }}
+                    onChange={(value) =>
+                      setSkuRows((rows) =>
+                        rows.map((item, i) => (i === index ? { ...item, costPrice: value } : item)),
+                      )
+                    }
+                  />
+                  <InputNumber
+                    value={row.skuStock}
+                    min={0}
+                    precision={0}
+                    style={{ width: '100%' }}
+                    onChange={(value) =>
+                      setSkuRows((rows) =>
+                        rows.map((item, i) => (i === index ? { ...item, skuStock: value } : item)),
+                      )
+                    }
+                  />
+                  <Button
+                    type="danger"
+                    theme="borderless"
+                    onClick={() => setSkuRows((rows) => rows.filter((_, i) => i !== index))}
+                  >
+                    删除
+                  </Button>
+                </div>
+              ))}
+              <Button
+                icon={<IconPlus />}
+                onClick={() =>
+                  setSkuRows((rows) => [
+                    ...rows,
+                    { skuValue: '', skuSn: '', skuPrice: 0, marketPrice: 0, costPrice: 0, skuStock: 0 },
+                  ])
+                }
+              >
+                添加规格
+              </Button>
+            </div>
+          )}
           <Row gutter={0}>
             <Col span={12}>
               <Form.InputNumber
@@ -470,14 +653,12 @@ export default function ProductFormModal({
 
         <section id="product-section-detail" className="product-section">
           <div className="product-section-title">商品详情</div>
-          <Form.TextArea
-            field="productDesc"
-            label="商品详情"
-            placeholder="支持 HTML 或纯文本"
-            style={{ width: 720 }}
-            autosize={{ minRows: 12, maxRows: 22 }}
-            extraText="商品详情会展示在 PC / H5 商品详情页。"
-          />
+          <div className="product-image-field">
+            <label className="product-image-label">商品详情</label>
+            <div className="product-image-content">
+              <RichTextEditor value={productDesc} onChange={setProductDesc} height={380} />
+            </div>
+          </div>
           <Form.TextArea
             field="remark"
             label="备注"
