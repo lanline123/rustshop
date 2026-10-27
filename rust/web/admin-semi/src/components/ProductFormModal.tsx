@@ -5,7 +5,7 @@ import {
   Form,
   Input,
   InputNumber,
-  Modal,
+  SideSheet,
   Row,
   Select,
   Toast,
@@ -134,12 +134,13 @@ export default function ProductFormModal({
   };
 
   return (
-    <Modal
+    <SideSheet
       title={productId ? '编辑商品' : '新增商品'}
       visible={visible}
       onCancel={onCancel}
-      width={760}
-      bodyStyle={{ padding: '20px 24px 8px', maxHeight: '62vh', overflowY: 'auto' }}
+      width={680}
+      placement="right"
+      bodyStyle={{ padding: '8px 24px 16px', overflowY: 'auto' }}
       footer={
         <div className="modal-footer">
           <Button onClick={onCancel}>取消</Button>
@@ -251,6 +252,6 @@ export default function ProductFormModal({
           />
         </Form.Section>
       </Form>
-    </Modal>
+    </SideSheet>
   );
 }
