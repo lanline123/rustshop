@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { Avatar, Button, Input, Layout, Nav, Space, Typography } from '@douyinfe/semi-ui';
+import { useState, type ReactNode } from 'react';
+import { Avatar, Badge, Button, Input, Tooltip, Typography } from '@douyinfe/semi-ui';
 import {
   IconBell,
   IconComment,
@@ -7,7 +7,9 @@ import {
   IconExit,
   IconFile,
   IconGift,
+  IconHelpCircle,
   IconHome,
+  IconMenu,
   IconOrderedList,
   IconSearch,
   IconSetting,
@@ -15,7 +17,7 @@ import {
   IconUser,
 } from '@douyinfe/semi-icons';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 export type PageKey =
   | 'dashboard'
@@ -40,16 +42,40 @@ export const pageTitles: Record<PageKey, string> = {
   settings: '系统设置',
 };
 
-const navItems = [
-  { itemKey: 'dashboard', text: '数据看板', icon: <IconHome /> },
-  { itemKey: 'products', text: '商品管理', icon: <IconShoppingBag /> },
-  { itemKey: 'orders', text: '订单管理', icon: <IconOrderedList /> },
-  { itemKey: 'members', text: '会员管理', icon: <IconUser /> },
-  { itemKey: 'aftersales', text: '售后管理', icon: <IconComment /> },
-  { itemKey: 'marketing', text: '营销中心', icon: <IconGift /> },
-  { itemKey: 'content', text: '内容管理', icon: <IconFile /> },
-  { itemKey: 'finance', text: '财务中心', icon: <IconCreditCard /> },
-  { itemKey: 'settings', text: '系统设置', icon: <IconSetting /> },
+const menuGroups: Array<{
+  title: string;
+  items: Array<{ key: PageKey; label: string; icon: ReactNode }>;
+}> = [
+  {
+    title: '概览',
+    items: [{ key: 'dashboard', label: '数据看板', icon: <IconHome /> }],
+  },
+  {
+    title: '交易',
+    items: [
+      { key: 'products', label: '商品管理', icon: <IconShoppingBag /> },
+      { key: 'orders', label: '订单管理', icon: <IconOrderedList /> },
+      { key: 'aftersales', label: '售后管理', icon: <IconComment /> },
+    ],
+  },
+  {
+    title: '用户',
+    items: [{ key: 'members', label: '会员管理', icon: <IconUser /> }],
+  },
+  {
+    title: '内容',
+    items: [
+      { key: 'content', label: '内容管理', icon: <IconFile /> },
+      { key: 'marketing', label: '营销中心', icon: <IconGift /> },
+    ],
+  },
+  {
+    title: '系统',
+    items: [
+      { key: 'finance', label: '财务中心', icon: <IconCreditCard /> },
+      { key: 'settings', label: '系统设置', icon: <IconSetting /> },
+    ],
+  },
 ];
 
 interface AdminLayoutProps {
@@ -60,65 +86,115 @@ interface AdminLayoutProps {
 }
 
 export default function AdminLayout({ page, onPageChange, onLogout, children }: AdminLayoutProps) {
+  const [collapsed, setCollapsed] = useState(false);
+
   return (
-    <Layout className="admin-layout">
-      <Layout.Sider className="admin-sider" style={{ width: 232 }}>
-        <div className="sider-logo">
-          <span className="sider-logo-mark">W</span>
-          <div>
-            <div className="sider-logo-name">万物新生</div>
-            <div className="sider-logo-sub">运营管理后台</div>
-          </div>
+    <div className={`app-shell ${collapsed ? 'is-collapsed' : ''}`}>
+      <aside className="sidebar">
+        <div className="brand">
+          <span className="brand-mark">W</span>
+          {!collapsed && (
+            <div className="brand-text">
+              <div className="brand-name">万物新生</div>
+              <div className="brand-sub">运营管理后台</div>
+            </div>
+          )}
         </div>
 
-        <Nav
-          className="admin-nav"
-          items={navItems}
-          selectedKeys={[page]}
-          onSelect={({ itemKey }) => onPageChange(itemKey as PageKey)}
-        />
-      </Layout.Sider>
+        <nav className="side-nav">
+          {menuGroups.map((group) => (
+            <div className="nav-group" key={group.title}>
+              {!collapsed && <div className="nav-group-title">{group.title}</div>}
+              {group.items.map((item) => (
+                <Tooltip content={item.label} position="right" key={item.key} disabled={!collapsed}>
+                  <button
+                    type="button"
+                    className={`nav-item ${page === item.key ? 'is-active' : ''}`}
+                    onClick={() => onPageChange(item.key)}
+                  >
+                    <span className="nav-icon">{item.icon}</span>
+                    {!collapsed && <span className="nav-label">{item.label}</span>}
+                  </button>
+                </Tooltip>
+              ))}
+            </div>
+          ))}
+        </nav>
 
-      <Layout>
-        <Layout.Header className="admin-header">
-          <div className="header-left">
-            <Title heading={5} style={{ margin: 0 }}>
-              {pageTitles[page]}
-            </Title>
-            <Text type="tertiary" size="small">
-              万物新生 · 运营管理后台
-            </Text>
+        <div className="side-footer">
+          {!collapsed ? (
+            <div className="side-help">
+              <IconHelpCircle />
+              <span>帮助与文档</span>
+            </div>
+          ) : (
+            <Tooltip content="帮助与文档" position="right">
+              <button type="button" className="nav-item">
+                <span className="nav-icon">
+                  <IconHelpCircle />
+                </span>
+              </button>
+            </Tooltip>
+          )}
+          {!collapsed && <div className="side-version">v0.1.0 · Semi UI</div>}
+        </div>
+      </aside>
+
+      <div className="main-shell">
+        <header className="topbar">
+          <div className="topbar-left">
+            <Button
+              icon={<IconMenu />}
+              theme="borderless"
+              className="collapse-btn"
+              onClick={() => setCollapsed((value) => !value)}
+            />
+            <div className="breadcrumb">
+              <span className="breadcrumb-muted">首页</span>
+              <span className="breadcrumb-sep">/</span>
+              <span className="breadcrumb-current">{pageTitles[page]}</span>
+            </div>
           </div>
 
-          <Space spacing={10} align="center">
+          <div className="topbar-right">
             <Input
-              className="header-search"
+              className="topbar-search"
               prefix={<IconSearch />}
               placeholder="搜索商品、订单、会员"
               onEnterPress={(value) => {
-                const keyword = String(value || '').trim();
-                if (keyword) {
-                  onPageChange('products');
-                }
+                if (String(value || '').trim()) onPageChange('products');
               }}
             />
-            <Button icon={<IconBell />} theme="borderless" />
-            <div className="header-user">
+            <Badge count={3} dot>
+              <Button icon={<IconBell />} theme="borderless" className="icon-btn" />
+            </Badge>
+            <div className="account">
               <Avatar color="blue" size="small">
                 管
               </Avatar>
-              <span>admin</span>
+              <div className="account-text">
+                <span className="account-name">admin</span>
+                <span className="account-role">平台管理员</span>
+              </div>
             </div>
-            <Button icon={<IconExit />} theme="borderless" onClick={onLogout}>
-              退出
-            </Button>
-          </Space>
-        </Layout.Header>
+            <Button icon={<IconExit />} theme="borderless" className="icon-btn" onClick={onLogout} />
+          </div>
+        </header>
 
-        <Layout.Content className="admin-content">
-          <div className="content-inner">{children}</div>
-        </Layout.Content>
-      </Layout>
-    </Layout>
+        <main className="page-content">
+          <div className="page-inner">
+            <div className="page-heading">
+              <div>
+                <h1 className="page-title">{pageTitles[page]}</h1>
+                <Text type="tertiary" size="small">
+                  万物新生 · 运营管理后台
+                </Text>
+              </div>
+            </div>
+            {children}
+          </div>
+        </main>
+      </div>
+    </div>
   );
 }

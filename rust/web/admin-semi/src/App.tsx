@@ -10,14 +10,37 @@ import Content from './pages/Content';
 import Placeholder from './pages/Placeholder';
 
 const placeholderPages: PageKey[] = ['aftersales', 'marketing', 'finance', 'settings'];
+const allPages: PageKey[] = [
+  'dashboard',
+  'products',
+  'orders',
+  'members',
+  'aftersales',
+  'marketing',
+  'content',
+  'finance',
+  'settings',
+];
 
 if (new URLSearchParams(window.location.search).get('demo') === '1') {
   enterDemo();
 }
 
+function initialPage(): PageKey {
+  const value = new URLSearchParams(window.location.search).get('page') as PageKey | null;
+  return value && allPages.includes(value) ? value : 'dashboard';
+}
+
 export default function App() {
   const [authed, setAuthed] = useState(() => Boolean(getToken() || isDemo()));
-  const [page, setPage] = useState<PageKey>('dashboard');
+  const [page, setPage] = useState<PageKey>(initialPage);
+
+  const changePage = (next: PageKey) => {
+    setPage(next);
+    const url = new URL(window.location.href);
+    url.searchParams.set('page', next);
+    window.history.replaceState(null, '', url);
+  };
 
   if (!authed) {
     return <Login onSuccess={() => setAuthed(true)} />;
@@ -26,13 +49,13 @@ export default function App() {
   return (
     <AdminLayout
       page={page}
-      onPageChange={setPage}
+      onPageChange={changePage}
       onLogout={() => {
         clearToken();
         setAuthed(false);
       }}
     >
-      {page === 'dashboard' && <Dashboard onNavigate={setPage} />}
+      {page === 'dashboard' && <Dashboard onNavigate={changePage} />}
       {page === 'products' && <Products />}
       {page === 'orders' && <Orders />}
       {page === 'members' && <Members />}
