@@ -110,12 +110,22 @@ export interface ArticleRow {
   articleId: number;
   articleTitle: string;
   articleCategoryId: number;
+  articleCategoryName?: string;
+  articleThumb?: string;
   articleAuthor: string;
+  articleSn?: string;
+  articleTag?: string;
+  articleType?: number;
+  articleTypeText?: string;
   description: string;
   isShow: number;
   isHot: number;
+  isTop: number;
   clickCount: number;
   addTime: number;
+  link?: string;
+  keywords?: string;
+  content?: string;
 }
 
 export interface ArticleCategoryRow {

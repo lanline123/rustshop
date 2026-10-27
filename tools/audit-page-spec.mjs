@@ -57,6 +57,14 @@ const actionLabels = {
   delete: '删除',
 };
 for (const action of spec.actions || []) {
+  if (action === 'edit') {
+    if (!source.includes('drawer=') && !source.includes('drawer:')) failures.push('缺少编辑入口');
+    continue;
+  }
+  if (action === 'delete') {
+    if (!source.includes('deleteApi')) failures.push('缺少删除入口(deleteApi)');
+    continue;
+  }
   const label = actionLabels[action] || action;
   if (!source.includes(label)) failures.push(`缺少行操作: ${action} (${label})`);
 }
@@ -85,10 +93,13 @@ for (const model of filterParams) {
   if (!source.includes(field)) warnings.push(`旧筛选字段未在新页面出现: ${field}`);
 }
 
-if (!spec.backendReady?.importUser) {
+if (spec.backendReady?.importUser === false) {
   warnings.push('导入客户：后端未迁移，前端未实现（已在 spec 中标记）');
 }
-if (!spec.backendReady?.sort) {
+if (spec.backendReady?.batch === false) {
+  warnings.push('批量操作：后端未迁移（已在 spec 中标记）');
+}
+if (spec.backendReady?.sort === false) {
   warnings.push('列排序：后端未提供排序能力（已在 spec 中标记）');
 }
 
