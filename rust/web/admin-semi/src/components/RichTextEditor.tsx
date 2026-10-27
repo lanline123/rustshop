@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
+import { Toast } from '@douyinfe/semi-ui';
 import '@wangeditor/editor/dist/css/style.css';
 import { Editor, Toolbar } from '@wangeditor/editor-for-react';
 import type { IDomEditor, IEditorConfig, IToolbarConfig } from '@wangeditor/editor';
+import { apiUpload } from '../api';
+
+interface UploadResult {
+  picUrl: string;
+}
 
 interface RichTextEditorProps {
   value: string;
@@ -25,8 +31,17 @@ export default function RichTextEditor({
     placeholder,
     MENU_CONF: {
       uploadImage: {
-        // 图片上传仍走商品相册接口时再扩展；当前仅支持粘贴/外链图片。
-        customUpload: async () => undefined,
+        async customUpload(file: File, insertFn: (url: string, alt: string, href: string) => void) {
+          try {
+            const result = await apiUpload<UploadResult>(
+              '/setting/galleryPic/uploadImg?galleryId=0',
+              file,
+            );
+            insertFn(result.picUrl, file.name, result.picUrl);
+          } catch (error) {
+            Toast.error({ content: error instanceof Error ? error.message : '图片上传失败' });
+          }
+        },
       },
     },
   };
