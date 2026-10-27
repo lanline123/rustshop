@@ -1,11 +1,30 @@
-import { useState } from 'react';
-import { Avatar, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
-import { apiPost, isDemo } from '../api';
+import { useEffect, useState } from 'react';
+import {
+  Avatar,
+  Button,
+  InputNumber,
+  Modal,
+  Select,
+  Space,
+  Switch,
+  Tag,
+  Toast,
+  Typography,
+} from '@douyinfe/semi-ui';
+import { apiGet, apiPost, isDemo } from '../api';
 import ListPage from '../framework/ListPage';
 import type { ColumnConfig } from '../framework/types';
 import type { MemberRow } from '../types';
+import {
+  MemberAccountDrawer,
+  MemberDetailDrawer,
+  MemberOrdersDrawer,
+  MemberTagsDrawer,
+} from '../components/MemberDrawers';
 
 const { Text } = Typography;
+
+type MemberAction = 'detail' | 'tags' | 'orders' | 'account' | null;
 
 function MemberStatusSwitch({ record }: { record: MemberRow }) {
   const [checked, setChecked] = useState(record.status === 1);
@@ -33,8 +52,9 @@ function MemberStatusSwitch({ record }: { record: MemberRow }) {
 
 const columns: ColumnConfig<MemberRow>[] = [
   {
-    title: '会员',
+    title: '客户名称',
     dataIndex: 'username',
+    width: 240,
     render: (value: string, record) => (
       <div className="member-cell">
         {record.avatar ? (
@@ -45,35 +65,62 @@ const columns: ColumnConfig<MemberRow>[] = [
           </Avatar>
         )}
         <div>
-          <div>{record.nickname || value}</div>
+          <div className="member-name-line">
+            {record.mark ? <Tag color="red">标记</Tag> : null}
+            <span>{record.nickname || value}</span>
+          </div>
           <Text type="tertiary" size="small">
-            ID {record.userId}
+            {record.mobile || `ID ${record.userId}`}
           </Text>
+          {record.fromTagName && (
+            <div>
+              <Tag color="blue" size="small">
+                {record.fromTagName}
+              </Tag>
+            </div>
+          )}
         </div>
       </div>
     ),
   },
-  { title: '手机号', dataIndex: 'mobile', render: (value: string) => value || '-' },
   {
-    title: '会员等级',
+    title: '客户等级',
     dataIndex: 'rankName',
+    width: 120,
     render: (value: string) => <Tag color="blue">{value || '普通会员'}</Tag>,
+  },
+  {
+    title: '是否认证',
+    dataIndex: 'isCompanyAuth',
+    width: 100,
+    render: (value: number) => (
+      <span className={value ? 'text-success' : 'text-warning'}>{value ? '已认证' : '未认证'}</span>
+    ),
   },
   {
     title: '余额',
     dataIndex: 'balance',
-    width: 110,
-    render: (value: string) => <span className="money">¥ {Number(value || 0).toLocaleString()}</span>,
+    width: 130,
+    render: (value: string, record) => (
+      <div>
+        <div className="money">¥ {Number(value || 0).toLocaleString()}</div>
+        {Number(record.frozenBalance || 0) > 0 && (
+          <Text type="tertiary" size="small">
+            冻结 ¥ {record.frozenBalance}
+          </Text>
+        )}
+      </div>
+    ),
   },
-  { title: '积分', dataIndex: 'points', width: 80 },
-  { title: '订单数', dataIndex: 'orderCount', width: 80 },
+  { title: '消费积分', dataIndex: 'points', width: 90 },
+  { title: '累计消费次数', dataIndex: 'orderCount', width: 110 },
   {
-    title: '累计消费',
+    title: '累计消费金额',
     dataIndex: 'orderAmount',
     width: 130,
     render: (value: string) => `¥ ${Number(value || 0).toLocaleString()}`,
   },
-  { title: '注册时间', dataIndex: 'regTime', width: 160 },
+  { title: '注册日期', dataIndex: 'regTime', width: 160 },
   {
     title: '是否启用',
     dataIndex: 'status',
@@ -82,72 +129,291 @@ const columns: ColumnConfig<MemberRow>[] = [
   },
 ];
 
-export default function Members() {
+function BatchMemberModal({
+  visible,
+  type,
+  ids,
+  onCancel,
+  onSuccess,
+}: {
+  visible: boolean;
+  type: 'rank' | 'points' | 'balance' | null;
+  ids: number[];
+  onCancel: () => void;
+  onSuccess: () => void;
+}) {
+  const [value, setValue] = useState<number | string>(0);
+  const [rankId, setRankId] = useState<number | undefined>(undefined);
+  const [ranks, setRanks] = useState<Array<{ rankId: number; rankName: string }>>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!visible || type !== 'rank' || ranks.length) return;
+    apiGet<Array<{ rankId: number; rankName: string }>>('/user/userRank/list', { size: 200 })
+      .then((result) => setRanks(Array.isArray(result) ? result : []))
+      .catch(() => undefined);
+  }, [visible, type, ranks.length]);
+
+  const title =
+    type === 'rank' ? '批量修改客户等级' : type === 'points' ? '批量增加客户积分' : '批量增加客户余额';
+
+  const submit = async () => {
+    if (isDemo()) {
+      Toast.warning({ content: '演示模式不支持操作' });
+      return;
+    }
+    if (type === 'rank' && !rankId) {
+      Toast.warning({ content: '请选择客户等级' });
+      return;
+    }
+    setSaving(true);
+    try {
+      const body: Record<string, any> = {
+        ids,
+        type: type === 'rank' ? 'setRank' : type === 'points' ? 'incrPoints' : 'incrBalance',
+      };
+      if (type === 'rank') body.rankId = rankId;
+      if (type === 'points') body.value = Number(value);
+      if (type === 'balance') body.balance = Number(value);
+      await apiPost('/user/user/batch', body);
+      Toast.success({ content: '批量操作成功' });
+      onSuccess();
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : '批量操作失败' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <ListPage<MemberRow>
-      api="/user/user/list"
-      rowKey="userId"
-      pageSize={10}
-      filters={[
-        {
-          field: 'keyword',
-          label: '搜索会员',
-          type: 'input',
-          placeholder: '搜索用户名 / 手机号 / 昵称',
-          width: 300,
-        },
-      ]}
-      columns={columns}
-      drawer={{
-        title: '客户',
-        addText: '添加客户',
-        width: 560,
-        labelWidth: 'auto',
-        inputWidth: 420,
-        createApi: '/user/user/create',
-        updateApi: '/user/user/update',
-        deleteApi: '/user/user/del',
-        idField: 'userId',
-        sections: [
+    <Modal
+      title={title}
+      visible={visible}
+      onCancel={onCancel}
+      width={480}
+      footer={
+        <Space>
+          <Button onClick={onCancel}>取消</Button>
+          <Button theme="solid" type="primary" loading={saving} onClick={submit}>
+            确认
+          </Button>
+        </Space>
+      }
+    >
+      <div className="batch-member-form">
+        <div>已选择 {ids.length} 位客户</div>
+        {type === 'rank' && (
+          <Select
+            placeholder="请选择客户等级"
+            value={rankId}
+            onChange={(next) => setRankId(Number(next))}
+            optionList={ranks.map((rank) => ({ label: rank.rankName, value: rank.rankId }))}
+            style={{ width: 260, marginTop: 12 }}
+          />
+        )}
+        {type === 'points' && (
+          <InputNumber
+            value={value}
+            min={1}
+            precision={0}
+            onChange={(next) => setValue(next as number)}
+            style={{ width: 260, marginTop: 12 }}
+          />
+        )}
+        {type === 'balance' && (
+          <InputNumber
+            value={value}
+            min={0.01}
+            precision={2}
+            onChange={(next) => setValue(next as number)}
+            style={{ width: 260, marginTop: 12 }}
+          />
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+export default function Members() {
+  const [activeMember, setActiveMember] = useState<MemberRow | null>(null);
+  const [action, setAction] = useState<MemberAction>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [batchType, setBatchType] = useState<'rank' | 'points' | 'balance' | null>(null);
+  const [batchIds, setBatchIds] = useState<number[]>([]);
+  const [batchClear, setBatchClear] = useState<(() => void) | null>(null);
+
+  const startBatch = (type: 'rank' | 'points' | 'balance', rows: MemberRow[], clear: () => void) => {
+    setBatchType(type);
+    setBatchIds(rows.map((row) => row.userId));
+    setBatchClear(() => clear);
+  };
+
+  const closeBatch = () => {
+    setBatchType(null);
+    setBatchIds([]);
+  };
+
+  const open = (next: MemberAction, record: MemberRow) => {
+    setActiveMember(record);
+    setAction(next);
+  };
+
+  const close = () => {
+    setAction(null);
+    setActiveMember(null);
+  };
+
+  return (
+    <>
+      <ListPage<MemberRow>
+        key={reloadKey}
+        api="/user/user/list"
+        rowKey="userId"
+        pageSize={10}
+        showEdit={false}
+        selectable
+        batchActions={(rows, clear) => (
+          <Space>
+            <Button size="small" onClick={() => startBatch('rank', rows, clear)}>
+              批量改等级
+            </Button>
+            <Button size="small" onClick={() => startBatch('points', rows, clear)}>
+              批量加积分
+            </Button>
+            <Button size="small" onClick={() => startBatch('balance', rows, clear)}>
+              批量加余额
+            </Button>
+          </Space>
+        )}
+        filters={[
           {
-            key: 'basic',
-            title: '客户信息',
-            fields: [
-              {
-                field: 'username',
-                label: '客户名称',
-                required: true,
-                placeholder: '请输入客户名称',
-                visibleWhen: (mode) => mode === 'create',
-              },
-              { field: 'mobile', label: '手机号码', placeholder: '请输入手机号码' },
-              { field: 'email', label: '邮箱地址', placeholder: '请输入邮箱地址' },
-              {
-                field: 'password',
-                label: '新密码',
-                placeholder: '新增时必填，编辑留空不修改',
-                requiredWhen: (mode) => mode === 'create',
-              },
-              {
-                field: 'pwdConfirm',
-                label: '确认密码',
-                placeholder: '请再次输入密码',
-                requiredWhen: (mode) => mode === 'create',
-              },
-              {
-                field: 'rankId',
-                label: '客户等级',
-                type: 'select',
-                placeholder: '请选择客户等级',
-                optionsApi: '/user/userRank/list',
-                optionsParams: { size: 200 },
-                optionLabel: 'rankName',
-                optionValue: 'rankId',
-              },
+            field: 'keyword',
+            label: '客户信息',
+            type: 'input',
+            placeholder: '客户名称 / 手机号 / 邮箱',
+            width: 260,
+          },
+          {
+            field: 'fromTag',
+            label: '客户筛选',
+            type: 'select',
+            width: 140,
+            options: [
+              { label: '微信公众号', value: 1 },
+              { label: '微信小程序', value: 2 },
+              { label: 'H5', value: 3 },
+              { label: 'PC', value: 4 },
+              { label: 'APP', value: 5 },
             ],
           },
-        ],
-      }}
-    />
+          {
+            field: 'balance',
+            label: '余额大于',
+            type: 'number',
+            width: 130,
+          },
+          {
+            field: 'pointsGt',
+            label: '积分大于',
+            type: 'number',
+            width: 130,
+          },
+          {
+            field: 'pointsLt',
+            label: '积分小于',
+            type: 'number',
+            width: 130,
+          },
+        ]}
+        columns={columns}
+        rowActions={(record) => (
+          <Space spacing={2}>
+            <Button theme="borderless" size="small" onClick={() => open('detail', record)}>
+              查看
+            </Button>
+            <Button theme="borderless" size="small" onClick={() => open('tags', record)}>
+              标签
+            </Button>
+            <Button theme="borderless" size="small" onClick={() => open('orders', record)}>
+              查看订单
+            </Button>
+            <Button theme="borderless" size="small" onClick={() => open('account', record)}>
+              账目明细
+            </Button>
+          </Space>
+        )}
+        drawer={{
+          title: '客户',
+          addText: '添加客户',
+          width: 560,
+          labelWidth: 'auto',
+          inputWidth: 420,
+          createApi: '/user/user/create',
+          updateApi: '/user/user/update',
+          idField: 'userId',
+          sections: [
+            {
+              key: 'basic',
+              title: '客户信息',
+              fields: [
+                {
+                  field: 'username',
+                  label: '客户名称',
+                  required: true,
+                  placeholder: '请输入客户名称',
+                  visibleWhen: (mode) => mode === 'create',
+                },
+                { field: 'mobile', label: '手机号码', placeholder: '请输入手机号码' },
+                { field: 'email', label: '邮箱地址', placeholder: '请输入邮箱地址' },
+                {
+                  field: 'password',
+                  label: '新密码',
+                  placeholder: '新增时必填，编辑留空不修改',
+                  requiredWhen: (mode) => mode === 'create',
+                },
+                {
+                  field: 'pwdConfirm',
+                  label: '确认密码',
+                  placeholder: '请再次输入密码',
+                  requiredWhen: (mode) => mode === 'create',
+                },
+                {
+                  field: 'rankId',
+                  label: '客户等级',
+                  type: 'select',
+                  placeholder: '请选择客户等级',
+                  optionsApi: '/user/userRank/list',
+                  optionsParams: { size: 200 },
+                  optionLabel: 'rankName',
+                  optionValue: 'rankId',
+                },
+              ],
+            },
+          ],
+        }}
+      />
+
+      <MemberDetailDrawer visible={action === 'detail'} member={activeMember} onCancel={close} />
+      <MemberTagsDrawer
+        visible={action === 'tags'}
+        member={activeMember}
+        onCancel={close}
+        onSaved={() => setReloadKey((key) => key + 1)}
+      />
+      <MemberOrdersDrawer visible={action === 'orders'} member={activeMember} onCancel={close} />
+      <MemberAccountDrawer visible={action === 'account'} member={activeMember} onCancel={close} />
+
+      <BatchMemberModal
+        visible={batchType !== null}
+        type={batchType}
+        ids={batchIds}
+        onCancel={closeBatch}
+        onSuccess={() => {
+          batchClear?.();
+          closeBatch();
+          setReloadKey((key) => key + 1);
+        }}
+      />
+    </>
   );
 }

@@ -114,6 +114,15 @@ custom 自定义字段渲染
 src/pages/Members.tsx
 ```
 
+迁移后对照旧源码审计：
+
+```bash
+cd ../..
+node tools/audit-admin-page.mjs user/user/List rust/web/admin-semi/src/pages/Members.tsx
+```
+
+该脚本会输出旧页面中未出现在新页面的 label / prop，避免漏字段。
+
 ## 旧系统迁移资料
 
 ```text

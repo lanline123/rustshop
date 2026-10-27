@@ -1222,3 +1222,48 @@ body {
 .framework-filter {
   display: inline-flex;
 }
+
+.member-name-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.text-success {
+  color: var(--success);
+}
+
+.text-warning {
+  color: var(--warning);
+}
+
+.member-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.member-detail-name {
+  font-size: 18px;
+  font-weight: 650;
+  margin-bottom: 4px;
+}
+
+.member-detail-tags {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.framework-filter .semi-select,
+.framework-filter .semi-input-wrapper {
+  min-width: 120px;
+}
+
+.table-toolbar > .semi-space {
+  flex-wrap: wrap;
+}

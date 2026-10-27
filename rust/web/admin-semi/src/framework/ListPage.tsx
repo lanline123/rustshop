@@ -65,6 +65,9 @@ export default function ListPage<T extends Record<string, any>>({
   query,
   pageSize = 10,
   drawer,
+  showEdit = true,
+  selectable = false,
+  batchActions,
   toolbarExtra,
   cardTitle,
   onRowClick,
@@ -76,6 +79,7 @@ export default function ListPage<T extends Record<string, any>>({
   const [loading, setLoading] = useState(!isDemo());
   const [reloadKey, setReloadKey] = useState(0);
   const [filterValues, setFilterValues] = useState<Record<string, any>>({});
+  const [selectedKeys, setSelectedKeys] = useState<Array<string | number>>([]);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [drawerMode, setDrawerMode] = useState<'create' | 'edit'>('create');
   const [drawerInitial, setDrawerInitial] = useState<Record<string, any>>({});
@@ -190,6 +194,9 @@ export default function ListPage<T extends Record<string, any>>({
   };
 
   const hasActions = Boolean(drawer || rowActions);
+  const selectedRows = rows.filter((row) => selectedKeys.includes(row[rowKey]));
+  const scrollX =
+    columns.reduce((sum, column) => sum + (column.width || 150), 0) + (hasActions ? 160 : 0);
   const tableColumns = [
     ...columns,
     ...(hasActions
@@ -199,7 +206,7 @@ export default function ListPage<T extends Record<string, any>>({
             width: 160,
             render: (_: unknown, record: T) => (
               <Space spacing={2}>
-                {drawer && (
+                {drawer && showEdit && (
                   <Button theme="borderless" size="small" onClick={() => openEdit(record)}>
                     编辑
                   </Button>
@@ -241,6 +248,12 @@ export default function ListPage<T extends Record<string, any>>({
             )}
           </Space>
           <Space>
+            {batchActions && selectedRows.length > 0 && (
+              <>
+                <span className="framework-selected-count">已选 {selectedRows.length} 项</span>
+                {batchActions(selectedRows, () => setSelectedKeys([]))}
+              </>
+            )}
             {toolbarExtra}
             <Button icon={<IconRefresh />} onClick={() => setReloadKey((key) => key + 1)}>
               刷新
@@ -257,7 +270,16 @@ export default function ListPage<T extends Record<string, any>>({
           loading={loading}
           dataSource={rows}
           rowKey={rowKey}
+          rowSelection={
+            selectable
+              ? {
+                  selectedRowKeys: selectedKeys,
+                  onChange: (keys) => setSelectedKeys((keys || []) as Array<string | number>),
+                }
+              : undefined
+          }
           onRow={onRowClick ? (record) => ({ onClick: () => onRowClick(record as T) }) : undefined}
+          scroll={scrollX > 0 ? { x: scrollX } : undefined}
           pagination={{
             currentPage: page,
             pageSize,

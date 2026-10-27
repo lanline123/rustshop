@@ -96,6 +96,14 @@ export interface MemberRow {
   rankName: string;
   isSvip: number;
   status?: number;
+  fromTag?: number;
+  fromTagName?: string;
+  isCompanyAuth?: number;
+  frozenBalance?: string;
+  rankLogo?: string;
+  mark?: number;
+  adminNote?: string;
+  growthPoints?: number;
 }
 
 export interface ArticleRow {

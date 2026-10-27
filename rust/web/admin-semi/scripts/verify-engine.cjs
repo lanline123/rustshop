@@ -18,6 +18,13 @@ const { chromium } = require('playwright-core');
   await page.waitForTimeout(2000);
   console.log('member rows:', await page.locator('.semi-table-tbody .semi-table-row').count());
 
+  await page.getByText('查看', { exact: true }).first().click();
+  await page.waitForTimeout(1200);
+  console.log('detail drawer:', await page.locator('.semi-sidesheet-inner').count());
+  await page.screenshot({ path: 'preview-member-detail.png' });
+  await page.getByText('关闭', { exact: true }).click();
+  await page.waitForTimeout(400);
+
   await page.getByText('添加客户', { exact: true }).click();
   await page.waitForTimeout(800);
   console.log('drawer:', await page.locator('.semi-sidesheet-inner').count());

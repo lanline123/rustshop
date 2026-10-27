@@ -89,6 +89,9 @@ export interface ListPageProps<T = any> {
   query?: Record<string, unknown>;
   pageSize?: number;
   drawer?: FormDrawerConfig;
+  showEdit?: boolean;
+  selectable?: boolean;
+  batchActions?: (selectedRows: T[], clear: () => void) => ReactNode;
   toolbarExtra?: ReactNode;
   cardTitle?: ReactNode;
   onRowClick?: (record: T) => void;
