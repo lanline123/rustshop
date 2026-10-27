@@ -282,7 +282,7 @@ body {
 
 /* 两级侧栏：一级分类 + 二级菜单（贴近原版结构） */
 .sidebar {
-  width: 328px;
+  width: 348px;
 }
 
 .brand-collapsed {
@@ -309,29 +309,32 @@ body {
 
 .rail-item {
   width: 100%;
-  min-height: 58px;
+  min-height: 42px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 8px 4px;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 12px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 8px;
   background: transparent;
   color: #4a5a78;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .rail-icon {
+  width: 18px;
   display: inline-flex;
-  font-size: 19px;
+  justify-content: center;
+  font-size: 17px;
 }
 
 .rail-label {
-  line-height: 16px;
+  line-height: 18px;
+  white-space: nowrap;
 }
 
 .rail-item:hover {
@@ -408,7 +411,9 @@ body {
 }
 
 .is-collapsed .rail-item {
-  min-height: 52px;
+  min-height: 44px;
+  justify-content: center;
+  padding: 0;
 }
 
 .rail-help {
