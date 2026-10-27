@@ -1,0 +1,420 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', sans-serif;
+  background: #f4f6f9;
+  color: #1c1f23;
+}
+
+/* 登录页 */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 100px;
+  padding: 48px;
+  background:
+    radial-gradient(circle at 18% 22%, rgba(79, 140, 255, 0.35) 0, transparent 42%),
+    radial-gradient(circle at 82% 78%, rgba(123, 92, 255, 0.25) 0, transparent 45%),
+    linear-gradient(135deg, #0b1327 0%, #101b33 52%, #070c17 100%);
+}
+
+.login-brand {
+  width: 460px;
+}
+
+.login-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #4f8cff, #7b5cff);
+  box-shadow: 0 16px 40px rgba(79, 140, 255, 0.35);
+}
+
+.login-brand-line {
+  width: 72px;
+  height: 3px;
+  margin: 32px 0;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #4f8cff, transparent);
+}
+
+.login-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.login-points span {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.login-card {
+  width: 400px;
+  padding: 10px 6px;
+  border-radius: 18px;
+}
+
+.login-demo {
+  margin-top: 10px;
+  text-align: center;
+}
+
+.login-footer {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid #f0f1f3;
+  text-align: center;
+}
+
+/* 后台布局 */
+.admin-layout {
+  height: 100vh;
+}
+
+.admin-sider {
+  background: #111827 !important;
+  border-right: 1px solid #1f2937;
+}
+
+.sider-logo {
+  height: 72px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px;
+}
+
+.sider-logo-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  background: linear-gradient(135deg, #4f8cff, #7b5cff);
+  box-shadow: 0 6px 16px rgba(79, 140, 255, 0.35);
+}
+
+.sider-logo-name {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.sider-logo-sub {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.admin-nav {
+  background: transparent !important;
+}
+
+.admin-nav .semi-navigation-item {
+  color: rgba(255, 255, 255, 0.68);
+  border-radius: 8px;
+  margin: 2px 10px;
+}
+
+.admin-nav .semi-navigation-item-selected {
+  color: #fff;
+  background: rgba(79, 140, 255, 0.2);
+}
+
+.admin-nav .semi-navigation-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.admin-nav .semi-navigation-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.admin-header {
+  height: 72px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  border-bottom: 1px solid #e8eaed;
+}
+
+.header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.header-search {
+  width: 260px;
+  border-radius: 8px;
+}
+
+.header-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.admin-content {
+  padding: 24px;
+  overflow: auto;
+  background: #f4f6f9;
+}
+
+.content-inner {
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+.full-width {
+  width: 100%;
+}
+
+/* 看板 */
+.welcome-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.stat-card {
+  border-radius: 12px;
+  min-height: 132px;
+}
+
+.stat-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.stat-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4f8cff;
+  background: rgba(79, 140, 255, 0.12);
+  font-size: 20px;
+}
+
+.trend-up,
+.trend-down {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.trend-up {
+  color: #00a870;
+}
+
+.trend-down {
+  color: #f56a00;
+}
+
+.chart-placeholder {
+  height: 250px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.chart-bars {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  padding: 0 8px;
+}
+
+.chart-bar {
+  flex: 1;
+  min-height: 8px;
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(180deg, #4f8cff, rgba(79, 140, 255, 0.18));
+}
+
+.chart-labels {
+  display: flex;
+  gap: 18px;
+  padding: 10px 8px 0;
+  color: #8f959e;
+  font-size: 12px;
+}
+
+.chart-labels span {
+  flex: 1;
+  text-align: center;
+}
+
+.todo-card {
+  height: 100%;
+}
+
+.todo-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0;
+  border-bottom: 1px solid #f0f1f3;
+  cursor: pointer;
+}
+
+.todo-row:last-child {
+  border-bottom: none;
+}
+
+.todo-row:hover {
+  opacity: 0.75;
+}
+
+.todo-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #4f8cff;
+  background: rgba(79, 140, 255, 0.1);
+}
+
+/* 表格页 */
+.table-card {
+  border-radius: 12px;
+}
+
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.product-cell,
+.member-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.product-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4f8cff;
+  font-weight: 700;
+  background: rgba(79, 140, 255, 0.1);
+}
+
+.product-name {
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.money {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.mono {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: 13px;
+}
+
+/* 占位页 */
+.placeholder-hero {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  border-radius: 12px;
+}
+
+.placeholder-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4f8cff;
+  background: rgba(79, 140, 255, 0.12);
+  font-size: 26px;
+}
+
+.feature-card {
+  min-height: 150px;
+  border-radius: 12px;
+}
+
+@media (max-width: 1100px) {
+  .login-page {
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  .login-brand {
+    width: 100%;
+    max-width: 460px;
+    text-align: center;
+  }
+
+  .login-brand-line,
+  .login-logo {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .login-points {
+    justify-content: center;
+  }
+
+  .header-search {
+    display: none;
+  }
+}
