@@ -8,27 +8,17 @@ import Orders from './pages/Orders';
 import Members from './pages/Members';
 import Content from './pages/Content';
 import Placeholder from './pages/Placeholder';
+import { pageTitles } from './config/adminMenu';
 
-const placeholderPages: PageKey[] = ['aftersales', 'marketing', 'finance', 'settings'];
-const allPages: PageKey[] = [
-  'dashboard',
-  'products',
-  'orders',
-  'members',
-  'aftersales',
-  'marketing',
-  'content',
-  'finance',
-  'settings',
-];
+const knownPages = new Set(['dashboard', 'products', 'orders', 'members', 'content']);
 
 if (new URLSearchParams(window.location.search).get('demo') === '1') {
   enterDemo();
 }
 
 function initialPage(): PageKey {
-  const value = new URLSearchParams(window.location.search).get('page') as PageKey | null;
-  return value && allPages.includes(value) ? value : 'dashboard';
+  const value = new URLSearchParams(window.location.search).get('page');
+  return value && pageTitles[value] ? value : 'dashboard';
 }
 
 export default function App() {
@@ -60,7 +50,7 @@ export default function App() {
       {page === 'orders' && <Orders />}
       {page === 'members' && <Members />}
       {page === 'content' && <Content />}
-      {placeholderPages.includes(page) && <Placeholder page={page} />}
+      {!knownPages.has(page) && <Placeholder page={page} />}
     </AdminLayout>
   );
 }

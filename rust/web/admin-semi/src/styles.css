@@ -1436,3 +1436,15 @@ body {
   color: var(--text-secondary);
   font-size: 13px;
 }
+
+.submenu-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #cbd5e1;
+  flex-shrink: 0;
+}
+
+.submenu-item.is-active .submenu-dot {
+  background: var(--primary);
+}
