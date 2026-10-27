@@ -13,12 +13,14 @@ export default defineConfig({
     port: 3002,
     proxy: {
       '/adminapi': {
-        target: 'http://127.0.0.1:8080',
+        target: 'https://battery.recy.cc',
         changeOrigin: true,
+        secure: false,
       },
       '/static': {
-        target: 'http://127.0.0.1:8080',
+        target: 'https://battery.recy.cc',
         changeOrigin: true,
+        secure: false,
       },
     },
   },

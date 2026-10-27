@@ -4,11 +4,13 @@ import {
   Button,
   Descriptions,
   Form,
+  InputNumber,
   Modal,
-  Select,
+  SideSheet,
   Space,
   Table,
   Tag,
+  TextArea,
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
@@ -42,6 +44,9 @@ interface OrderDetail extends Record<string, any> {
   paidAmount: string;
   productAmount: string;
   shippingFee: string;
+  invoiceFee: string;
+  serviceFee: string;
+  discountAmount: string;
   couponAmount: string;
   addTime: string;
   payTime: string;
@@ -73,18 +78,19 @@ const statusColor: Record<string, string> = {
 
 export default function OrderDetailModal({ visible, orderId, onCancel, onChanged }: OrderDetailModalProps) {
   const [detail, setDetail] = useState<OrderDetail | null>(null);
-  const [loading, setLoading] = useState(false);
   const [logistics, setLogistics] = useState<LogisticsOption[]>([]);
   const [deliverOpen, setDeliverOpen] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [moneyOpen, setMoneyOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!visible || !orderId) return;
     let alive = true;
-    setLoading(true);
     apiGet<OrderDetail>('/order/order/detail', { id: orderId })
       .then((result) => alive && setDetail(result))
-      .catch((error) => alive && Toast.error({ content: error.message }))
-      .finally(() => alive && setLoading(false));
+      .catch((error) => alive && Toast.error({ content: error.message }));
     apiGet<{ records: Array<{ logisticsId: number; logisticsName: string }> }>(
       '/setting/logisticsCompany/list',
       { page: 1, size: 100 },
@@ -99,15 +105,25 @@ export default function OrderDetailModal({ visible, orderId, onCancel, onChanged
     return () => {
       alive = false;
     };
-  }, [visible, orderId]);
+  }, [visible, orderId, reloadKey]);
 
-  const canDeliver = detail?.orderStatus === 1;
+  const refresh = () => {
+    setReloadKey((key) => key + 1);
+    onChanged();
+  };
+
+  const canDeliver = detail?.availableActions?.deliver === true;
+  const canCancel = detail?.availableActions?.cancelOrder === true;
+  const canModifyMoney = detail?.availableActions?.modifyOrderMoney === true;
 
   const descriptions = useMemo(() => {
     if (!detail) return [];
     return [
       { key: '订单号', value: <span className="mono">{detail.orderSn}</span> },
-      { key: '订单状态', value: <Tag color={(statusColor[detail.orderStatusName] || 'blue') as any}>{detail.orderStatusName}</Tag> },
+      {
+        key: '订单状态',
+        value: <Tag color={(statusColor[detail.orderStatusName] || 'blue') as any}>{detail.orderStatusName}</Tag>,
+      },
       { key: '支付状态', value: detail.payStatusName },
       { key: '收货人', value: detail.consignee },
       { key: '联系电话', value: detail.mobile },
@@ -119,24 +135,34 @@ export default function OrderDetailModal({ visible, orderId, onCancel, onChanged
       { key: '物流公司', value: detail.logisticsName || '-' },
       { key: '物流单号', value: detail.trackingNo || '-', span: 2 },
       { key: '买家备注', value: detail.buyerNote || '-', span: 3 },
+      { key: '商家备注', value: detail.adminNote || '-', span: 3 },
     ];
   }, [detail]);
 
   return (
     <>
-      <Modal
+      <SideSheet
         title="订单详情"
         visible={visible}
         onCancel={onCancel}
-        width={920}
+        width={900}
+        placement="right"
+        bodyStyle={{ padding: '8px 24px 20px', overflowY: 'auto' }}
         footer={
           <Space>
-            <Button onClick={onCancel}>关闭</Button>
+            <Button onClick={() => setNoteOpen(true)}>备注</Button>
+            {canModifyMoney && <Button onClick={() => setMoneyOpen(true)}>改价</Button>}
+            {canCancel && (
+              <Button type="danger" theme="borderless" onClick={() => setCancelOpen(true)}>
+                取消订单
+              </Button>
+            )}
             {canDeliver && (
               <Button theme="solid" type="primary" onClick={() => setDeliverOpen(true)}>
                 发货
               </Button>
             )}
+            <Button onClick={onCancel}>关闭</Button>
           </Space>
         }
       >
@@ -169,13 +195,9 @@ export default function OrderDetailModal({ visible, orderId, onCancel, onChanged
                     </div>
                   ),
                 },
-                { title: '单价', dataIndex: 'price', width: 120, render: (value: string) => `¥ ${value}` },
-                { title: '数量', dataIndex: 'quantity', width: 80 },
-                {
-                  title: '已发货',
-                  dataIndex: 'deliveryQuantity',
-                  width: 90,
-                },
+                { title: '单价', dataIndex: 'price', width: 110, render: (value: string) => `¥ ${value}` },
+                { title: '数量', dataIndex: 'quantity', width: 70 },
+                { title: '已发货', dataIndex: 'deliveryQuantity', width: 80 },
               ]}
             />
 
@@ -190,7 +212,7 @@ export default function OrderDetailModal({ visible, orderId, onCancel, onChanged
               </div>
               <div>
                 <span>优惠</span>
-                <b>- ¥ {detail.couponAmount}</b>
+                <b>- ¥ {detail.discountAmount || detail.couponAmount}</b>
               </div>
               <div className="order-summary-total">
                 <span>实付金额</span>
@@ -199,7 +221,7 @@ export default function OrderDetailModal({ visible, orderId, onCancel, onChanged
             </div>
           </>
         )}
-      </Modal>
+      </SideSheet>
 
       <DeliverModal
         visible={deliverOpen}
@@ -208,6 +230,37 @@ export default function OrderDetailModal({ visible, orderId, onCancel, onChanged
         onCancel={() => setDeliverOpen(false)}
         onSuccess={() => {
           setDeliverOpen(false);
+          refresh();
+          onCancel();
+        }}
+      />
+
+      <OrderNoteModal
+        visible={noteOpen}
+        detail={detail}
+        onCancel={() => setNoteOpen(false)}
+        onSuccess={() => {
+          setNoteOpen(false);
+          refresh();
+        }}
+      />
+
+      <OrderMoneyModal
+        visible={moneyOpen}
+        detail={detail}
+        onCancel={() => setMoneyOpen(false)}
+        onSuccess={() => {
+          setMoneyOpen(false);
+          refresh();
+        }}
+      />
+
+      <OrderCancelModal
+        visible={cancelOpen}
+        detail={detail}
+        onCancel={() => setCancelOpen(false)}
+        onSuccess={() => {
+          setCancelOpen(false);
           onChanged();
           onCancel();
         }}
@@ -233,9 +286,7 @@ function DeliverModal({
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (visible && formApi) {
-      formApi.reset();
-    }
+    if (visible && formApi) formApi.reset();
   }, [visible, formApi]);
 
   const submit = async () => {
@@ -308,6 +359,234 @@ function DeliverModal({
       <Text type="tertiary" size="small">
         发货数量按未发货数量自动填充。
       </Text>
+    </Modal>
+  );
+}
+
+function OrderNoteModal({
+  visible,
+  detail,
+  onCancel,
+  onSuccess,
+}: {
+  visible: boolean;
+  detail: OrderDetail | null;
+  onCancel: () => void;
+  onSuccess: () => void;
+}) {
+  const [formApi, setFormApi] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (visible && formApi && detail) {
+      formApi.setValues({ adminNote: detail.adminNote || '', mark: detail.mark || 0 }, { isOverride: true });
+    }
+  }, [visible, formApi, detail]);
+
+  const submit = async () => {
+    if (!detail) return;
+    let values: Record<string, any>;
+    try {
+      values = await formApi.validate();
+    } catch {
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiPost('/order/order/setAdminNote', {
+        id: detail.orderId,
+        adminNote: values.adminNote,
+        mark: values.mark,
+      });
+      Toast.success({ content: '备注已保存' });
+      onSuccess();
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : '保存失败' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      title="订单备注"
+      visible={visible}
+      onCancel={onCancel}
+      width={520}
+      footer={
+        <Space>
+          <Button onClick={onCancel}>取消</Button>
+          <Button theme="solid" type="primary" loading={saving} onClick={submit}>
+            保存
+          </Button>
+        </Space>
+      }
+    >
+      <Form getFormApi={setFormApi} labelPosition="top">
+        <Form.Select
+          field="mark"
+          label="订单标记"
+          optionList={[
+            { label: '无标记', value: 0 },
+            { label: '红色', value: 1 },
+            { label: '黄色', value: 2 },
+            { label: '绿色', value: 3 },
+            { label: '蓝色', value: 4 },
+            { label: '紫色', value: 5 },
+          ]}
+        />
+        <Form.TextArea
+          field="adminNote"
+          label="商家备注"
+          placeholder="仅后台可见"
+          autosize={{ minRows: 4, maxRows: 8 }}
+        />
+      </Form>
+    </Modal>
+  );
+}
+
+function OrderMoneyModal({
+  visible,
+  detail,
+  onCancel,
+  onSuccess,
+}: {
+  visible: boolean;
+  detail: OrderDetail | null;
+  onCancel: () => void;
+  onSuccess: () => void;
+}) {
+  const [formApi, setFormApi] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (visible && formApi && detail) {
+      formApi.setValues(
+        {
+          shippingFee: Number(detail.shippingFee || 0),
+          invoiceFee: Number(detail.invoiceFee || 0),
+          serviceFee: Number(detail.serviceFee || 0),
+          discountAmount: Number(detail.discountAmount || 0),
+        },
+        { isOverride: true },
+      );
+    }
+  }, [visible, formApi, detail]);
+
+  const submit = async () => {
+    if (!detail) return;
+    let values: Record<string, any>;
+    try {
+      values = await formApi.validate();
+    } catch {
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiPost('/order/order/modifyMoney', {
+        id: detail.orderId,
+        shippingFee: values.shippingFee,
+        invoiceFee: values.invoiceFee,
+        serviceFee: values.serviceFee,
+        discountAmount: values.discountAmount,
+      });
+      Toast.success({ content: '订单金额已更新' });
+      onSuccess();
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : '改价失败' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      title="订单改价"
+      visible={visible}
+      onCancel={onCancel}
+      width={520}
+      footer={
+        <Space>
+          <Button onClick={onCancel}>取消</Button>
+          <Button theme="solid" type="primary" loading={saving} onClick={submit}>
+            保存
+          </Button>
+        </Space>
+      }
+    >
+      <Form getFormApi={setFormApi} labelPosition="top">
+        <Form.InputNumber field="shippingFee" label="运费" min={0} precision={2} style={{ width: '100%' }} />
+        <Form.InputNumber field="invoiceFee" label="发票费" min={0} precision={2} style={{ width: '100%' }} />
+        <Form.InputNumber field="serviceFee" label="服务费" min={0} precision={2} style={{ width: '100%' }} />
+        <Form.InputNumber field="discountAmount" label="优惠金额" min={0} precision={2} style={{ width: '100%' }} />
+      </Form>
+      <Text type="tertiary" size="small">
+        修改后将重新计算订单应付金额。
+      </Text>
+    </Modal>
+  );
+}
+
+function OrderCancelModal({
+  visible,
+  detail,
+  onCancel,
+  onSuccess,
+}: {
+  visible: boolean;
+  detail: OrderDetail | null;
+  onCancel: () => void;
+  onSuccess: () => void;
+}) {
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (visible) setReason('');
+  }, [visible]);
+
+  const submit = async () => {
+    if (!detail) return;
+    if (!reason.trim()) {
+      Toast.warning({ content: '请填写取消原因' });
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiPost('/order/order/cancelOrder', { id: detail.orderId, description: reason.trim() });
+      Toast.success({ content: '订单已取消' });
+      onSuccess();
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : '取消失败' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      title="取消订单"
+      visible={visible}
+      onCancel={onCancel}
+      width={480}
+      footer={
+        <Space>
+          <Button onClick={onCancel}>返回</Button>
+          <Button theme="solid" type="danger" loading={saving} onClick={submit}>
+            确认取消
+          </Button>
+        </Space>
+      }
+    >
+      <Text type="warning">取消后订单将不再继续履约，请确认。</Text>
+      <TextArea
+        value={reason}
+        onChange={setReason}
+        placeholder="请填写取消原因"
+        autosize={{ minRows: 3, maxRows: 6 }}
+        style={{ marginTop: 12 }}
+      />
     </Modal>
   );
 }
