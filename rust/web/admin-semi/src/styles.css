@@ -2169,3 +2169,17 @@ body {
   font-size: 10.5px;
   line-height: 1;
 }
+
+/* 配置页统一单列，避免两列阅读顺序割裂 */
+.auto-config-grid {
+  grid-template-columns: 1fr;
+  gap: 10px 0;
+}
+
+.auto-config-field {
+  grid-template-columns: 170px minmax(0, 760px);
+}
+
+.auto-config-field.is-wide {
+  grid-template-columns: 170px minmax(0, 760px);
+}
