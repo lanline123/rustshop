@@ -2063,3 +2063,49 @@ body {
   justify-content: flex-end;
   padding-top: 18px;
 }
+
+.auto-config-card {
+  padding: 6px 20px 20px;
+}
+
+.auto-config-head {
+  padding: 10px 0 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.auto-config-head h3 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.auto-config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 28px;
+}
+
+.auto-config-field {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.auto-config-field.is-wide {
+  grid-column: 1 / -1;
+  align-items: start;
+}
+
+.auto-config-field label {
+  color: var(--text-secondary);
+  text-align: right;
+  font-size: 13px;
+  word-break: break-word;
+}
+
+.auto-config-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 20px;
+}

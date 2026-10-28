@@ -25,10 +25,24 @@ import AccountManage from './pages/AccountManage';
 import TaxRates from './pages/TaxRates';
 import ShippingTypes from './pages/ShippingTypes';
 import ShippingSettingsPage from './pages/ShippingSettings';
+import AutoConfigPage from './pages/AutoConfigPage';
 import Placeholder from './pages/Placeholder';
 import { pageTitles } from './config/adminMenu';
 
-const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'productAttributesTplManage', 'friendLinksManage', 'regionManage', 'logisticsCompanyManage', 'appVersionManage', 'adminLogManage', 'adminUserManage', 'adminRoleManage', 'serviceAgreement', 'privacyAgreement', 'afterSaleService', 'accountManage', 'taxRateManage', 'shippingTypeManage', 'logisticsManage', 'orders', 'members', 'content']);
+const configPages: Record<string, { title: string; getApi: string; saveApi: string }> = {
+  baseBasicManage: { title: '基础信息', getApi: '/setting/config/basicSettings', saveApi: '/setting/config/saveBasic' },
+  baseProductManage: { title: '商品设置', getApi: '/setting/config/productSettings', saveApi: '/setting/config/saveProduct' },
+  baseShoppingManage: { title: '交易设置', getApi: '/setting/config/shoppingSettings', saveApi: '/setting/config/saveShopping' },
+  baseOrderManage: { title: '订单设置', getApi: '/setting/config/orderSettings', saveApi: '/setting/config/saveOrder' },
+  kefuSetting: { title: '客服设置', getApi: '/setting/config/kefuSettings', saveApi: '/setting/config/saveKefu' },
+  globalSetting: { title: '全局设置', getApi: '/setting/config/globalSettings', saveApi: '/setting/config/saveGlobal' },
+  loginSetting: { title: '登录设置', getApi: '/setting/config/loginSettings', saveApi: '/setting/config/saveLogin' },
+  storeAmapSetting: { title: '地图设置', getApi: '/setting/config/mapSettings', saveApi: '/setting/config/saveMapSettings' },
+  personalizedManage: { title: '个性化设置', getApi: '/setting/config/getPersonalizedSetting', saveApi: '/setting/config/savePersonalizedSetting' },
+  baseNoticeManage: { title: '通知设置', getApi: '/setting/config/notifySettings', saveApi: '/setting/config/saveNotify' },
+};
+
+const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'productAttributesTplManage', 'friendLinksManage', 'regionManage', 'logisticsCompanyManage', 'appVersionManage', 'adminLogManage', 'adminUserManage', 'adminRoleManage', 'serviceAgreement', 'privacyAgreement', 'afterSaleService', 'accountManage', 'taxRateManage', 'shippingTypeManage', 'logisticsManage', 'baseBasicManage', 'baseProductManage', 'baseShoppingManage', 'baseOrderManage', 'kefuSetting', 'globalSetting', 'loginSetting', 'storeAmapSetting', 'personalizedManage', 'baseNoticeManage', 'orders', 'members', 'content']);
 
 if (new URLSearchParams(window.location.search).get('demo') === '1') {
   enterDemo();
@@ -88,6 +102,7 @@ export default function App() {
       {page === 'taxRateManage' && <TaxRates />}
       {page === 'shippingTypeManage' && <ShippingTypes />}
       {page === 'logisticsManage' && <ShippingSettingsPage />}
+      {configPages[page] && <AutoConfigPage {...configPages[page]} />}
       {page === 'afterSaleService' && (
         <AgreementPage code="afterSalesService" title="售后服务" description="配置售后服务协议内容与启用状态。" />
       )}
