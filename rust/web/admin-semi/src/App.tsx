@@ -19,10 +19,11 @@ import LogisticsCompanies from './pages/LogisticsCompanies';
 import AppVersion from './pages/AppVersion';
 import AdminLogs from './pages/AdminLogs';
 import AdminUsers from './pages/AdminUsers';
+import Roles from './pages/Roles';
 import Placeholder from './pages/Placeholder';
 import { pageTitles } from './config/adminMenu';
 
-const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'productAttributesTplManage', 'friendLinksManage', 'regionManage', 'logisticsCompanyManage', 'appVersionManage', 'adminLogManage', 'adminUserManage', 'orders', 'members', 'content']);
+const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'productAttributesTplManage', 'friendLinksManage', 'regionManage', 'logisticsCompanyManage', 'appVersionManage', 'adminLogManage', 'adminUserManage', 'adminRoleManage', 'orders', 'members', 'content']);
 
 if (new URLSearchParams(window.location.search).get('demo') === '1') {
   enterDemo();
@@ -71,6 +72,7 @@ export default function App() {
       {page === 'appVersionManage' && <AppVersion />}
       {page === 'adminLogManage' && <AdminLogs />}
       {page === 'adminUserManage' && <AdminUsers />}
+      {page === 'adminRoleManage' && <Roles />}
       {page === 'orders' && <Orders />}
       {page === 'members' && <Members />}
       {page === 'content' && <Content />}

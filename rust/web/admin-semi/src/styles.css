@@ -1694,3 +1694,30 @@ body {
   gap: 12px;
   margin-bottom: 14px;
 }
+
+.authority-tree {
+  width: 100%;
+  max-height: 480px;
+  padding: 10px 12px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.authority-tree-all {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.authority-tree-node {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+.authority-tree-child {
+  margin-left: 22px;
+}
