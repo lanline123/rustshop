@@ -2202,3 +2202,83 @@ body {
 .auto-config-subgroup {
   grid-column: 1 / -1;
 }
+
+/* 配置页现代化排版 */
+.auto-config-card {
+  padding: 8px 24px 24px;
+  border: 1px solid #eef2f7;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.04);
+}
+
+.auto-config-head {
+  padding: 14px 0 16px;
+  margin-bottom: 4px;
+}
+
+.auto-config-section {
+  padding: 24px 0;
+}
+
+.auto-config-section h4 {
+  margin: 0 0 18px;
+  font-size: 15px;
+  letter-spacing: 0.01em;
+}
+
+.auto-config-grid {
+  gap: 18px 0;
+}
+
+.auto-config-field {
+  min-height: 44px;
+  gap: 18px;
+}
+
+.auto-config-field label {
+  padding-top: 9px;
+  color: #475467;
+  font-size: 13.5px;
+  line-height: 20px;
+}
+
+.auto-config-field .semi-input-wrapper,
+.auto-config-field .semi-select,
+.auto-config-field .semi-input-number {
+  min-height: 38px;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.auto-config-field .semi-radioGroup {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+
+.auto-config-field .semi-radio {
+  margin-right: 0;
+}
+
+.auto-config-subgroup {
+  margin: 8px 0 18px;
+  padding: 16px 20px;
+  border-left: 3px solid var(--primary);
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.auto-config-subgroup h5 {
+  margin: 0 0 14px;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+}
+
+.auto-config-subgroup .auto-config-grid {
+  gap: 14px 0;
+}
+
+.auto-config-subgroup .auto-config-field {
+  min-height: 40px;
+}
