@@ -37,6 +37,7 @@ import IntegralLogs from './pages/IntegralLogs';
 import Placeholder from './pages/Placeholder';
 import { pageTitles } from './config/adminMenu';
 import { configSections } from './config/configSections';
+import { configHelp } from './config/configHelp';
 
 type ConfigPageDef = {
   title: string;
@@ -190,6 +191,7 @@ const configPages: Record<string, ConfigPageDef> = {
 
 Object.entries(configPages).forEach(([key, page]) => {
   page.sections = configSections[key];
+  page.fieldHelp = { ...configHelp[key], ...page.fieldHelp };
 });
 
 const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'productAttributesTplManage', 'friendLinksManage', 'regionManage', 'logisticsCompanyManage', 'appVersionManage', 'adminLogManage', 'adminUserManage', 'adminRoleManage', 'serviceAgreement', 'privacyAgreement', 'afterSaleService', 'accountManage', 'taxRateManage', 'shippingTypeManage', 'logisticsManage', 'logisticsCompanyConfigManage', 'payLogManage', 'refundLogManage', 'userBalanceLogManage', 'staffFundWalletLogManage', 'buyerShowManage', 'integralLogManage', 'baseBasicManage', 'baseProductManage', 'baseShoppingManage', 'baseOrderManage', 'kefuSetting', 'globalSetting', 'loginSetting', 'storeAmapSetting', 'personalizedManage', 'baseNoticeManage', 'orders', 'members', 'content']);
