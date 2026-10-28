@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Checkbox, Spin, Typography } from '@douyinfe/semi-ui';
+import { Checkbox, Dropdown, Spin, Typography } from '@douyinfe/semi-ui';
+import { IconChevronDown } from '@douyinfe/semi-icons';
 import { apiGet } from '../api';
 
 const { Text } = Typography;
@@ -50,47 +51,84 @@ export default function AuthorityTree({ value = [], onChange }: AuthorityTreePro
   const allSns = collectSns({ children: tree } as AuthorityNode);
   const effective = value.includes('all') ? allSns : value;
 
-  const toggle = (node: AuthorityNode, checked: boolean) => {
+  const toggleNode = (node: AuthorityNode, checked: boolean) => {
     const sns = collectSns(node);
     const next = new Set(effective);
     sns.forEach((sn) => (checked ? next.add(sn) : next.delete(sn)));
     onChange(Array.from(next));
   };
 
-  const renderNode = (node: AuthorityNode, depth = 0) => {
+  const toggleSingle = (sn: string, checked: boolean) => {
+    const next = new Set(effective);
+    if (checked) next.add(sn);
+    else next.delete(sn);
+    onChange(Array.from(next));
+  };
+
+  const childrenOf = (node: AuthorityNode) => node.children || [];
+
+  const renderChild = (node: AuthorityNode) => {
     const sn = nodeSn(node);
-    const checked = effective.includes(sn);
+    const grandchildren = childrenOf(node);
+    const childAuth = node.childAuth || [];
     return (
-      <div key={sn} className="authority-tree-node" style={{ paddingLeft: depth * 20 }}>
-        <Checkbox checked={checked} onChange={(event) => toggle(node, Boolean(event.target.checked))}>
-          {nodeName(node)}
-        </Checkbox>
-        {(node.childAuth || []).map((auth) => (
+      <div className="authority-child" key={sn}>
+        <div className="authority-child-main">
           <Checkbox
-            key={auth.authSn}
-            className="authority-tree-child"
-            checked={Boolean(auth.authSn && effective.includes(auth.authSn))}
-            onChange={(event) => {
-              const next = new Set(effective);
-              if (auth.authSn) {
-                if (event.target.checked) next.add(auth.authSn);
-                else next.delete(auth.authSn);
-              }
-              onChange(Array.from(next));
-            }}
+            checked={effective.includes(sn)}
+            onChange={(event) => toggleNode(node, Boolean(event.target.checked))}
           >
-            {auth.authName}
+            {nodeName(node)}
           </Checkbox>
-        ))}
-        {(node.children || []).map((child) => renderNode(child, depth + 1))}
+          {childAuth.length > 0 && (
+            <Dropdown
+              trigger="click"
+              position="bottomLeft"
+              content={
+                <div className="authority-child-actions">
+                  {childAuth.map((auth) => (
+                    <Checkbox
+                      key={auth.authSn}
+                      checked={Boolean(auth.authSn && effective.includes(auth.authSn))}
+                      onChange={(event) => {
+                        if (auth.authSn) {
+                          toggleSingle(auth.authSn, Boolean(event.target.checked));
+                        }
+                      }}
+                    >
+                      {auth.authName}
+                    </Checkbox>
+                  ))}
+                </div>
+              }
+            >
+              <span className="authority-child-more">
+                操作权限 <IconChevronDown size="small" />
+              </span>
+            </Dropdown>
+          )}
+        </div>
+        {grandchildren.length > 0 && (
+          <div className="authority-grandchildren">
+            {grandchildren.map((grandchild) => (
+              <Checkbox
+                key={nodeSn(grandchild)}
+                checked={effective.includes(nodeSn(grandchild))}
+                onChange={(event) => toggleNode(grandchild, Boolean(event.target.checked))}
+              >
+                {nodeName(grandchild)}
+              </Checkbox>
+            ))}
+          </div>
+        )}
       </div>
     );
   };
 
   return (
     <Spin spinning={loading}>
-      <div className="authority-tree">
-        <div className="authority-tree-all">
+      <div className="authority-select">
+        <div className="authority-select-head">
           <Checkbox
             checked={value.includes('all')}
             onChange={(event) => onChange(event.target.checked ? ['all'] : [])}
@@ -98,10 +136,32 @@ export default function AuthorityTree({ value = [], onChange }: AuthorityTreePro
             全选
           </Checkbox>
           <Text type="tertiary" size="small">
-            勾选父级会同时选中其子权限
+            权限列表
           </Text>
         </div>
-        {tree.map((node) => renderNode(node))}
+        <div className="authority-select-body">
+          {tree.map((parent) => (
+            <div className="authority-row" key={nodeSn(parent)}>
+              <div className="authority-row-left">
+                <Checkbox
+                  checked={effective.includes(nodeSn(parent))}
+                  onChange={(event) => toggleNode(parent, Boolean(event.target.checked))}
+                >
+                  {nodeName(parent)}
+                </Checkbox>
+              </div>
+              <div className="authority-row-right">
+                {childrenOf(parent).length ? (
+                  childrenOf(parent).map((child) => renderChild(child))
+                ) : (
+                  <Text type="tertiary" size="small">
+                    无子权限
+                  </Text>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </Spin>
   );

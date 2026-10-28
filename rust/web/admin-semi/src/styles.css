@@ -1721,3 +1721,75 @@ body {
 .authority-tree-child {
   margin-left: 22px;
 }
+
+.authority-select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.authority-select-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid #f0f2f5;
+  background: #fafbfc;
+}
+
+.authority-select-body {
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.authority-row {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #f2f4f7;
+}
+
+.authority-row:last-child {
+  border-bottom: 0;
+}
+
+.authority-row-left {
+  padding-top: 2px;
+}
+
+.authority-row-right {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.authority-child-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.authority-child-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.authority-grandchildren {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 5px 0 2px 24px;
+}
+
+.authority-child-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px 4px;
+}
