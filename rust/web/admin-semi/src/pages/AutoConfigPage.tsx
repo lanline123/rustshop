@@ -315,7 +315,7 @@ export default function AutoConfigPage({
           <SecretInput value={text} onChange={(next) => update(key, next)} />
         ) : controls?.[key] === 'options' ? (
           <RadioGroup
-            value={String(value)}
+            value={value as string | number}
             disabled={disabled}
             options={options?.[key] || []}
             onChange={(event) => {
