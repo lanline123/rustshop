@@ -2957,3 +2957,8 @@ body[theme-mode='dark'] .auto-config-field-help {
 .layout-mix .brand-logo {
   max-height: 36px;
 }
+
+.brand {
+  cursor: pointer;
+  user-select: none;
+}

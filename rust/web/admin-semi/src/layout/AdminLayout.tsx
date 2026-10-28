@@ -83,7 +83,16 @@ export default function AdminLayout({ page, layout = 'default', logo, onPageChan
   return (
     <div className={`app-shell layout-${layout} ${collapsed ? 'is-collapsed' : ''}`}>
       <aside className="sidebar">
-        <div className={`brand ${collapsed ? 'brand-collapsed' : ''}`}>
+        <div
+          className={`brand ${collapsed ? 'brand-collapsed' : ''}`}
+          role="button"
+          tabIndex={0}
+          aria-label="返回首页"
+          onClick={() => onPageChange('dashboard')}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') onPageChange('dashboard');
+          }}
+        >
           {logo ? (
             <img className="brand-logo" src={logo} alt="后台 Logo" />
           ) : (
