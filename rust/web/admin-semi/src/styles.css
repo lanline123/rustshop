@@ -2935,3 +2935,8 @@ body[theme-mode='dark'] .auto-config-subgroup-head {
 body[theme-mode='dark'] .auto-config-field-help {
   color: #7d8590;
 }
+
+/* 有字段说明时：控件保持顶部位置，帮助文字在下方 */
+.auto-config-field:has(.auto-config-field-help) {
+  align-items: start;
+}
