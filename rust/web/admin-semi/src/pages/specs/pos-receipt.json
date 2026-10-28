@@ -13,7 +13,7 @@
   "filters": [
     "keyword"
   ],
-  "component": "rust/web/admin-semi/src/pages/PosPages.tsx",
+  "component": "rust/web/admin-semi/src/pages/ReceiptPrinters.tsx",
   "skipOldPage": true,
   "drawer": null,
   "actions": [],

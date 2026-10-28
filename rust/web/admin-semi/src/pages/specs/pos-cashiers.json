@@ -7,10 +7,8 @@
     "账号状态",
     "添加时间"
   ],
-  "filters": [
-    "keyword"
-  ],
-  "component": "rust/web/admin-semi/src/pages/PosPages.tsx",
+  "filters": [],
+  "component": "rust/web/admin-semi/src/pages/PosCashierList.tsx",
   "skipOldPage": true,
   "drawer": null,
   "actions": [],

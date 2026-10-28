@@ -36,7 +36,9 @@ import BuyerShow from './pages/BuyerShow';
 import IntegralLogs from './pages/IntegralLogs';
 import { RefundApplyList, WithdrawApplyList, RechargeOrderList, UserInvoiceList, OrderInvoiceList } from './pages/FinanceLists';
 import { DepositRules, DepositAccounts, DepositQuery, DepositAudit, DepositLogs, CategoryFeeRules, MerchantApplications, SubMerchants, ProfitSharing, StatementDownload } from './pages/FinanceMoreLists';
-import { PosWorkbench, CashierDevices, ReceiptPrinters, CashierList } from './pages/PosPages';
+import { PosWorkbench, CashierDevices } from './pages/PosPages';
+import PosCashierList from './pages/PosCashierList';
+import ReceiptPrintersPage from './pages/ReceiptPrinters';
 import Placeholder from './pages/Placeholder';
 import { pageTitles } from './config/adminMenu';
 import { configSections } from './config/configSections';
@@ -350,8 +352,8 @@ export default function App() {
       {page === 'statementDownload' && <StatementDownload />}
       {page === 'pos0' && <PosWorkbench />}
       {page === 'posCashierDeviceList' && <CashierDevices />}
-      {page === 'posReceiptPrint' && <ReceiptPrinters />}
-      {page === 'posCashierList' && <CashierList />}
+      {page === 'posReceiptPrint' && <ReceiptPrintersPage />}
+      {page === 'posCashierList' && <PosCashierList />}
       {configPages[page] && (
         <AutoConfigPage
           {...configPages[page]}
