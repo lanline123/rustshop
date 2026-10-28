@@ -87,7 +87,15 @@ export default function FieldRenderer({
     case 'radio':
       return <Form.RadioGroup {...common} type="button" options={config.options || []} />;
     case 'switch':
-      return <Form.Switch field={config.field} label={config.label} disabled={config.disabled} />;
+      return (
+        <Form.Switch
+          field={config.field}
+          label={config.label}
+          disabled={config.disabled}
+          checkedText={config.checkedText}
+          uncheckedText={config.uncheckedText}
+        />
+      );
     case 'date':
       return <Form.DatePicker {...common} type="date" />;
     default:

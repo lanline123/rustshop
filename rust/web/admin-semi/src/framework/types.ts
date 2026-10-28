@@ -19,6 +19,8 @@ export interface FieldConfig {
   field: string;
   label: string;
   type?: FieldType;
+  checkedText?: string;
+  uncheckedText?: string;
   options?: OptionItem[];
   required?: boolean;
   placeholder?: string;

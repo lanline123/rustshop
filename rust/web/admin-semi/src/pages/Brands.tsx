@@ -366,12 +366,10 @@ export default function Brands() {
               {
                 field: 'isShow',
                 label: '是否显示',
-                type: 'radio',
+                type: 'switch',
                 initValue: 1,
-                options: [
-                  { label: '是', value: 1 },
-                  { label: '否', value: 0 },
-                ],
+                checkedText: '显示',
+                uncheckedText: '隐藏',
               },
               {
                 field: 'brandIsHot',
@@ -390,6 +388,8 @@ export default function Brands() {
           ...values,
           brandId: values.brandId ? Number(values.brandId) : undefined,
           sortOrder: Number(values.sortOrder || 50),
+          isShow: values.isShow ? 1 : 0,
+          brandIsHot: values.brandIsHot ? 1 : 0,
         }),
       }}
     />
