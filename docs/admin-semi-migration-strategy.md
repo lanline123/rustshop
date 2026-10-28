@@ -1,5 +1,8 @@
 # Java Admin → React + Semi 迁移策略
 
+> 其他 AI / 开发者直接开工入口：先读 `docs/admin-semi-migration-engine.md`。  
+> 引擎命令、PageSpec 模板、AutoConfigPage 规则、历史踩坑和完成标准都在这份手册里。
+
 ## 现状量化
 
 旧系统源码：
