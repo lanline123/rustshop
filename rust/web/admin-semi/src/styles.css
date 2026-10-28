@@ -1945,3 +1945,49 @@ body {
   padding: 0;
   gap: 8px;
 }
+
+.agreement-page {
+  min-height: 600px;
+}
+
+.agreement-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.agreement-head h3 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.agreement-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agreement-editor {
+  min-height: 520px;
+}
+
+.agreement-actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.account-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.account-form label {
+  margin-top: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}

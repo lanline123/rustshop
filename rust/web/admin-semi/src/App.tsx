@@ -20,10 +20,13 @@ import AppVersion from './pages/AppVersion';
 import AdminLogs from './pages/AdminLogs';
 import AdminUsers from './pages/AdminUsers';
 import Roles from './pages/Roles';
+import AgreementPage from './pages/AgreementPage';
+import AccountManage from './pages/AccountManage';
+import TaxRates from './pages/TaxRates';
 import Placeholder from './pages/Placeholder';
 import { pageTitles } from './config/adminMenu';
 
-const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'productAttributesTplManage', 'friendLinksManage', 'regionManage', 'logisticsCompanyManage', 'appVersionManage', 'adminLogManage', 'adminUserManage', 'adminRoleManage', 'orders', 'members', 'content']);
+const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'productAttributesTplManage', 'friendLinksManage', 'regionManage', 'logisticsCompanyManage', 'appVersionManage', 'adminLogManage', 'adminUserManage', 'adminRoleManage', 'serviceAgreement', 'privacyAgreement', 'afterSaleService', 'accountManage', 'taxRateManage', 'orders', 'members', 'content']);
 
 if (new URLSearchParams(window.location.search).get('demo') === '1') {
   enterDemo();
@@ -73,6 +76,17 @@ export default function App() {
       {page === 'adminLogManage' && <AdminLogs />}
       {page === 'adminUserManage' && <AdminUsers />}
       {page === 'adminRoleManage' && <Roles />}
+      {page === 'serviceAgreement' && (
+        <AgreementPage code="termsOfService" title="服务协议" description="配置后台登录服务协议内容与启用状态。" />
+      )}
+      {page === 'privacyAgreement' && (
+        <AgreementPage code="privacyPolicy" title="隐私政策" description="配置后台登录隐私政策内容与启用状态。" />
+      )}
+      {page === 'accountManage' && <AccountManage />}
+      {page === 'taxRateManage' && <TaxRates />}
+      {page === 'afterSaleService' && (
+        <AgreementPage code="afterSalesService" title="售后服务" description="配置售后服务协议内容与启用状态。" />
+      )}
       {page === 'orders' && <Orders />}
       {page === 'members' && <Members />}
       {page === 'content' && <Content />}
