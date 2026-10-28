@@ -85,7 +85,7 @@ export default function FieldRenderer({
       if (config.optionsApi) return <RemoteSelect config={config} common={common} />;
       return <Form.Select {...common} filter showClear optionList={config.options || []} />;
     case 'radio':
-      return <Form.RadioGroup {...common} type="button" options={config.options || []} />;
+      return <Form.RadioGroup {...common} options={config.options || []} />;
     case 'switch':
       return (
         <Form.Switch
