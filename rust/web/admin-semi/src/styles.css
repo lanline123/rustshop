@@ -2451,3 +2451,14 @@ body {
 .auto-config-subgroup .auto-config-field {
   grid-template-columns: 140px minmax(0, 1fr);
 }
+
+/* 公众号授权卡片与控件列左对齐 */
+.auto-config-subgroup {
+  margin-left: 186px;
+}
+
+@media (max-width: 1100px) {
+  .auto-config-subgroup {
+    margin-left: 0;
+  }
+}
