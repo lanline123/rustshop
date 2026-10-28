@@ -17,19 +17,29 @@ const BASE = 'http://127.0.0.1:3002';
   await page.waitForTimeout(2400);
 
   const oauth = page.locator('.auto-config-field').filter({ hasText: '开启公众号授权登录' }).first();
+
+  const wechatGroup = page
+    .locator('.auto-config-subgroup')
+    .filter({ hasText: '公众号授权配置' });
+
+  await oauth.getByText('否', { exact: true }).click();
+  await page.waitForTimeout(350);
+  if ((await wechatGroup.count()) !== 0) {
+    failures.push('关闭公众号授权登录后，公众号授权配置模块仍然显示');
+  }
+
   await oauth.getByText('是', { exact: true }).click();
   await page.waitForTimeout(350);
 
-  const groups = page.locator('.auto-config-subgroup');
-  if ((await groups.count()) !== 1) failures.push('开启公众号授权登录为是时，公众号授权配置模块未显示');
-  const labels = await page.locator('.auto-config-subgroup .auto-config-field label').allInnerTexts();
+  if ((await wechatGroup.count()) !== 1) failures.push('开启公众号授权登录为是时，公众号授权配置模块未显示');
+  const labels = await wechatGroup.locator('.auto-config-field label').allInnerTexts();
   for (const label of ['微信APPID', '微信AppSecret', '微信服务器Token', '微信服务器Secret']) {
     if (!labels.includes(label)) failures.push(`公众号授权配置缺少字段: ${label}`);
   }
 
   await oauth.getByText('否', { exact: true }).click();
   await page.waitForTimeout(350);
-  if ((await groups.count()) !== 0) failures.push('关闭公众号授权登录后，公众号授权配置模块仍然显示');
+  if ((await wechatGroup.count()) !== 0) failures.push('关闭公众号授权登录后，公众号授权配置模块仍然显示');
 
   for (const label of ['PC微信扫码登录', '是否需要绑定手机号', '微信小程序快捷登录']) {
     const field = page.locator('.auto-config-field').filter({ hasText: label }).first();
