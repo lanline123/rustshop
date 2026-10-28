@@ -10,6 +10,9 @@
   --success: #00a870;
   --warning: #ff7d00;
   --radius: 10px;
+  --form-label-width: 120px;
+  --form-row-height: 56px;
+  --form-label-weight: 600;
 }
 
 * {
@@ -1200,12 +1203,13 @@ body {
 }
 
 .framework-custom-label {
-  width: 120px;
+  width: var(--form-label-width);
   flex-shrink: 0;
   padding-top: 6px;
   padding-right: 12px;
   color: #475467;
   font-size: 13px;
+  font-weight: var(--form-label-weight);
   text-align: right;
 }
 
@@ -1471,12 +1475,12 @@ body {
 .framework-switch-field {
   display: flex;
   align-items: center;
-  min-height: 56px;
+  min-height: var(--form-row-height);
 }
 
 .framework-switch-field .framework-custom-label {
   padding-top: 0;
-  font-weight: 600;
+  font-weight: var(--form-label-weight);
   line-height: 32px;
 }
 

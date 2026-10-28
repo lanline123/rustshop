@@ -134,6 +134,13 @@ node tools/audit-admin-page.mjs user/user/List rust/web/admin-semi/src/pages/Mem
 node tools/audit-page-spec.mjs rust/web/admin-semi/src/pages/specs/members.json
 ```
 
+表单布局回归：
+
+```bash
+cd rust/web/admin-semi
+node scripts/verify-form-layout.cjs
+```
+
 PageSpec 审计会检查抽屉宽度、筛选、行操作、批量操作、列标题，必须 PASS。
 
 ## 旧系统迁移资料
