@@ -25,6 +25,8 @@ export interface ConfigFieldRule {
 
 export interface ConfigFieldGroup {
   title: string;
+  description?: string;
+  tag?: string;
   fields: string[];
   visibleWhen?: ConfigWhen;
 }
@@ -365,7 +367,17 @@ export default function AutoConfigPage({
                   if (!items.length) return null;
                   return (
                     <div className="auto-config-subgroup" key={fieldGroup.title}>
-                      <h5>{fieldGroup.title}</h5>
+                      <div className="auto-config-subgroup-head">
+                        <div>
+                          <h5>{fieldGroup.title}</h5>
+                          {fieldGroup.description && (
+                            <p className="auto-config-subgroup-desc">{fieldGroup.description}</p>
+                          )}
+                        </div>
+                        {fieldGroup.tag && (
+                          <span className="auto-config-subgroup-tag">{fieldGroup.tag}</span>
+                        )}
+                      </div>
                       <div className="auto-config-grid">
                         {items.map((item) => renderField(item, isFieldDisabled(item[0])))}
                       </div>
