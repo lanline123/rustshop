@@ -1303,6 +1303,11 @@ fn build_filter(q: &OrderListQuery, platform_view: bool) -> Result<(String, Vec<
         binds.push(Bind::I32(v));
     }
 
+    if let Some(v) = q.is_cycle_order.filter(|v| *v > -1) {
+        conds.push("is_cycle_order = ?".into());
+        binds.push(Bind::I32(v));
+    }
+
     if let Some(v) = q.pay_status.filter(|v| *v != -1) {
         conds.push("pay_status = ?".into());
         binds.push(Bind::I32(v));

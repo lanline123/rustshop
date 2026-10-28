@@ -1,6 +1,6 @@
 const { chromium } = require('playwright-core');
 
-const BASE = 'http://127.0.0.1:3002';
+const BASE = process.env.VERIFY_BASE || 'http://127.0.0.1:3002';
 
 (async () => {
   const browser = await chromium.launch({
@@ -15,6 +15,13 @@ const BASE = 'http://127.0.0.1:3002';
   await page.getByPlaceholder('请输入密码').fill('admin123');
   await page.getByRole('button', { name: '登录' }).click();
   await page.waitForTimeout(2400);
+
+  // 登录后可能进入组织选择页（多组织账号），需先进入管理后台
+  const orgEntry = page.getByText('管理后台', { exact: true }).first();
+  if (await orgEntry.count()) {
+    await orgEntry.click();
+    await page.waitForTimeout(2400);
+  }
 
   const oauth = page.locator('.auto-config-field').filter({ hasText: '开启公众号授权登录' }).first();
 

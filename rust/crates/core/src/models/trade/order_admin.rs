@@ -603,6 +603,8 @@ pub struct OrderListQuery {
     pub is_settlement: Option<i32>,
     /// 是否积分兑换订单（>-1 生效）
     pub is_exchange_order: Option<i32>,
+    /// 是否周期购订单（>-1 生效；周期购订单页使用）
+    pub is_cycle_order: Option<i32>,
     /// 标记（-1 不限）
     pub mark: Option<i32>,
     /// 指定订单ID集合（`1,2` 或 `[1,2]`）

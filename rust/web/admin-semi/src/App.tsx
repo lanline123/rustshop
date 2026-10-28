@@ -39,6 +39,25 @@ import { DepositRules, DepositAccounts, DepositQuery, DepositAudit, DepositLogs,
 import { PosWorkbench, CashierDevices } from './pages/PosPages';
 import PosCashierList from './pages/PosCashierList';
 import ReceiptPrintersPage from './pages/ReceiptPrinters';
+import PaymentSettings from './pages/PaymentSettings';
+import WithdrawalSettings from './pages/WithdrawalSettings';
+import ProfitSharingSettings from './pages/ProfitSharingSettings';
+import DepositSettings from './pages/DepositSettings';
+import ShopSettings from './pages/ShopSettings';
+import AdminMerchantSettings from './pages/AdminMerchantSettings';
+import StaffFundSettings from './pages/StaffFundSettings';
+import DeliverOrders from './pages/DeliverOrders';
+import AftersalesOrders from './pages/AftersalesOrders';
+import OrderExport from './pages/OrderExport';
+import ProxyShopping from './pages/ProxyShopping';
+import Coupons from './pages/Coupons';
+import RechargeSettings from './pages/RechargeSettings';
+import PointsExchanges from './pages/PointsExchanges';
+import ProductGifts from './pages/ProductGifts';
+import Seckills from './pages/Seckills';
+import TimeDiscounts from './pages/TimeDiscounts';
+import ProductPromotions from './pages/ProductPromotions';
+import Groupons from './pages/Groupons';
 import Placeholder from './pages/Placeholder';
 import { pageTitles } from './config/adminMenu';
 import { configSections } from './config/configSections';
@@ -243,7 +262,7 @@ Object.entries(configPages).forEach(([key, page]) => {
   page.fieldHelp = { ...configHelp[key], ...page.fieldHelp };
 });
 
-const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'productAttributesTplManage', 'friendLinksManage', 'regionManage', 'logisticsCompanyManage', 'appVersionManage', 'adminLogManage', 'adminUserManage', 'adminRoleManage', 'serviceAgreement', 'privacyAgreement', 'afterSaleService', 'accountManage', 'taxRateManage', 'shippingTypeManage', 'logisticsManage', 'logisticsCompanyConfigManage', 'payLogManage', 'refundLogManage', 'userBalanceLogManage', 'staffFundWalletLogManage', 'buyerShowManage', 'integralLogManage', 'refundApplyManage', 'userWithdrawApplyManage', 'userRechargeOrderManage', 'userInvoiceManage', 'orderInvoiceManage', 'depositRuleManage', 'depositPayeeAccountManage', 'depositAccountManage', 'depositPaymentAuditManage', 'depositLogManage', 'categoryFeeRuleManage', 'merchantApplicationManage', 'subMerchantManage', 'profitSharingSettlementManage', 'statementDownload', 'pos0', 'posOrderSetting', 'posCashierDeviceList', 'posReceiptPrint', 'posCashierList', 'baseBasicManage', 'baseProductManage', 'baseShoppingManage', 'baseOrderManage', 'kefuSetting', 'globalSetting', 'loginSetting', 'storeAmapSetting', 'personalizedManage', 'baseNoticeManage', 'orders', 'members', 'content']);
+const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'productAttributesTplManage', 'friendLinksManage', 'regionManage', 'logisticsCompanyManage', 'appVersionManage', 'adminLogManage', 'adminUserManage', 'adminRoleManage', 'serviceAgreement', 'privacyAgreement', 'afterSaleService', 'accountManage', 'taxRateManage', 'shippingTypeManage', 'logisticsManage', 'logisticsCompanyConfigManage', 'payLogManage', 'refundLogManage', 'userBalanceLogManage', 'staffFundWalletLogManage', 'buyerShowManage', 'integralLogManage', 'refundApplyManage', 'userWithdrawApplyManage', 'userRechargeOrderManage', 'userInvoiceManage', 'orderInvoiceManage', 'depositRuleManage', 'depositPayeeAccountManage', 'depositAccountManage', 'depositPaymentAuditManage', 'depositLogManage', 'categoryFeeRuleManage', 'merchantApplicationManage', 'subMerchantManage', 'profitSharingSettlementManage', 'statementDownload', 'pos0', 'posOrderSetting', 'posCashierDeviceList', 'posReceiptPrint', 'posCashierList', 'baseBasicManage', 'baseProductManage', 'baseShoppingManage', 'baseOrderManage', 'kefuSetting', 'globalSetting', 'loginSetting', 'storeAmapSetting', 'personalizedManage', 'baseNoticeManage', 'paymentSetting', 'withdrawalSettingManage', 'profitsharingSettingManage', 'depositSettingManage', 'shopSettingsManage', 'adminMerchantSettingsManage', 'deliveryFundSettingsManage', 'serverFundSettingsManage', 'deliverManage', 'aftersalesManage', 'orderExportManage', 'exchangeOrderManage', 'cycleBuyManage', 'proxyShoppingManage', 'couponManage', 'rechargeSettingManage', 'pointsExchangeManage', 'productGiftManage', 'seckillManage', 'limitdiscountManage', 'fullReductionManage', 'grouponPromotionManage', 'orders', 'members', 'content']);
 
 if (new URLSearchParams(window.location.search).get('demo') === '1') {
   enterDemo();
@@ -354,6 +373,28 @@ export default function App() {
       {page === 'posCashierDeviceList' && <CashierDevices />}
       {page === 'posReceiptPrint' && <ReceiptPrintersPage />}
       {page === 'posCashierList' && <PosCashierList />}
+      {page === 'paymentSetting' && <PaymentSettings />}
+      {page === 'withdrawalSettingManage' && <WithdrawalSettings />}
+      {page === 'profitsharingSettingManage' && <ProfitSharingSettings />}
+      {page === 'depositSettingManage' && <DepositSettings />}
+      {page === 'shopSettingsManage' && <ShopSettings />}
+      {page === 'adminMerchantSettingsManage' && <AdminMerchantSettings />}
+      {page === 'deliveryFundSettingsManage' && <StaffFundSettings apiPath="deliveryFundManagement" />}
+      {page === 'serverFundSettingsManage' && <StaffFundSettings apiPath="serverFundManagement" />}
+      {page === 'deliverManage' && <DeliverOrders />}
+      {page === 'exchangeOrderManage' && <DeliverOrders variant="exchange" />}
+      {page === 'cycleBuyManage' && <DeliverOrders variant="cycle" />}
+      {page === 'proxyShoppingManage' && <ProxyShopping />}
+      {page === 'aftersalesManage' && <AftersalesOrders />}
+      {page === 'orderExportManage' && <OrderExport />}
+      {page === 'couponManage' && <Coupons />}
+      {page === 'rechargeSettingManage' && <RechargeSettings />}
+      {page === 'pointsExchangeManage' && <PointsExchanges />}
+      {page === 'productGiftManage' && <ProductGifts />}
+      {page === 'seckillManage' && <Seckills />}
+      {page === 'limitdiscountManage' && <TimeDiscounts />}
+      {page === 'fullReductionManage' && <ProductPromotions />}
+      {page === 'grouponPromotionManage' && <Groupons />}
       {configPages[page] && (
         <AutoConfigPage
           {...configPages[page]}

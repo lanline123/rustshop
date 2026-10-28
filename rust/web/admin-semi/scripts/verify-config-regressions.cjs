@@ -1,6 +1,6 @@
 const { chromium } = require('playwright-core');
 
-const BASE = 'http://127.0.0.1:3002';
+const BASE = process.env.VERIFY_BASE || 'http://127.0.0.1:3002';
 const failures = [];
 
 async function login(page) {

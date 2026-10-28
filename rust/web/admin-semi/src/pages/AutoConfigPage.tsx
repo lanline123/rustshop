@@ -1,5 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Button, Card, ColorPicker, Input, InputNumber, Radio, RadioGroup, Switch, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  Button,
+  Card,
+  CheckboxGroup,
+  ColorPicker,
+  Input,
+  InputNumber,
+  Radio,
+  RadioGroup,
+  Select,
+  Switch,
+  TextArea,
+  Toast,
+  Typography,
+} from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '../api';
 import { configLabels } from '../config/configLabels';
 import ImageUploader from '../components/ImageUploader';
@@ -32,6 +46,23 @@ export interface ConfigFieldGroup {
   visibleWhen?: ConfigWhen;
 }
 
+export interface ConfigRendererContext {
+  value: unknown;
+  values: Record<string, unknown>;
+  update: (key: string, next: unknown) => void;
+}
+
+export type ConfigControlType =
+  | 'radio'
+  | 'switch'
+  | 'segmented'
+  | 'color'
+  | 'options'
+  | 'multi'
+  | 'select'
+  | 'richtext'
+  | 'textarea';
+
 interface AutoConfigPageProps {
   title: string;
   getApi: string;
@@ -39,10 +70,16 @@ interface AutoConfigPageProps {
   sections?: Array<{ title: string; fields: string[] }>;
   rules?: Record<string, ConfigFieldRule>;
   fieldGroups?: ConfigFieldGroup[];
-  controls?: Record<string, 'radio' | 'switch' | 'segmented' | 'color' | 'options'>;
+  controls?: Record<string, ConfigControlType>;
   options?: Record<string, Array<{ label: string; value: string | number; color?: string }>>;
   hiddenFields?: string[];
   fieldHelp?: Record<string, string>;
+  /** 字段中文标签覆盖，优先级高于 configLabels / 内置 labelMap。 */
+  labels?: Record<string, string>;
+  /** 接口未返回时的字段缺省值（如 0/1 证书上传标记），不会覆盖接口返回值。 */
+  defaults?: Record<string, unknown>;
+  /** 特殊字段的自定义控件渲染器（拖拽排序、证书上传等）。 */
+  renderers?: Record<string, (context: ConfigRendererContext) => ReactNode>;
   onSaved?: (values: Record<string, unknown>) => void;
 }
 
@@ -186,6 +223,9 @@ export default function AutoConfigPage({
   options,
   hiddenFields,
   fieldHelp,
+  labels,
+  defaults,
+  renderers,
   onSaved,
 }: AutoConfigPageProps) {
   const [values, setValues] = useState<Record<string, unknown>>({});
@@ -197,7 +237,7 @@ export default function AutoConfigPage({
     setLoading(true);
     apiGet<Record<string, unknown>>(getApi)
       .then((result) => {
-        const data = result || {};
+        const data = { ...defaults, ...(result || {}) };
         setValues(data);
         const drafts: Record<string, string> = {};
         Object.entries(data).forEach(([key, value]) => {
@@ -207,6 +247,7 @@ export default function AutoConfigPage({
       })
       .catch((error) => Toast.error({ content: error instanceof Error ? error.message : '加载失败' }))
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getApi]);
 
   const entries = useMemo(() => Object.entries(values), [values]);
@@ -214,6 +255,8 @@ export default function AutoConfigPage({
   const update = (key: string, value: unknown) => {
     setValues((current) => ({ ...current, [key]: value }));
   };
+
+  const labelOf = (key: string) => labels?.[key] || formatLabel(key);
 
   const save = async () => {
     setSaving(true);
@@ -223,7 +266,7 @@ export default function AutoConfigPage({
         try {
           payload[key] = JSON.parse(raw);
         } catch {
-          throw new Error(`${formatLabel(key)} JSON 格式不正确`);
+          throw new Error(`${labelOf(key)} JSON 格式不正确`);
         }
       });
       await apiPost(saveApi, payload);
@@ -295,11 +338,14 @@ export default function AutoConfigPage({
         key,
       );
     const wide = isObject || isRichText || isImage || isImageList;
+    const custom = renderers?.[key];
     return (
       <div className={`auto-config-field ${wide ? 'is-wide' : ''}`} key={key}>
-        <label>{formatLabel(key)}</label>
+        <label>{labelOf(key)}</label>
         <div className="auto-config-control">
-        {isImageList ? (
+        {custom ? (
+          custom({ value, values, update })
+        ) : isImageList ? (
           <ImageUploader
             value={(value as string[]) || []}
             onChange={(next) => update(key, next)}
@@ -335,6 +381,42 @@ export default function AutoConfigPage({
               );
               update(key, selected?.value ?? event.target.value);
             }}
+          />
+        ) : controls?.[key] === 'multi' ? (
+          <CheckboxGroup
+            value={
+              Array.isArray(value)
+                ? (value as Array<string | number>)
+                : String(value ?? '')
+                    .split(',')
+                    .map((item) => item.trim())
+                    .filter(Boolean)
+            }
+            disabled={disabled}
+            options={options?.[key] || []}
+            onChange={(next) =>
+              update(key, Array.isArray(value) ? next : (next as Array<string | number>).join(','))
+            }
+          />
+        ) : controls?.[key] === 'select' ? (
+          <Select
+            style={{ width: 450 }}
+            value={(value as string | number) ?? ''}
+            disabled={disabled}
+            optionList={(options?.[key] || []).map((option) => ({
+              label: option.label,
+              value: option.value,
+            }))}
+            onChange={(next) => update(key, next)}
+          />
+        ) : controls?.[key] === 'richtext' ? (
+          <RichTextEditor value={text} onChange={(next) => update(key, next)} height={260} />
+        ) : controls?.[key] === 'textarea' ? (
+          <TextArea
+            value={text}
+            disabled={disabled}
+            autosize={{ minRows: 4, maxRows: 8 }}
+            onChange={(next) => update(key, next)}
           />
         ) : controls?.[key] === 'color' ? (
           <div className="auto-config-color-list">

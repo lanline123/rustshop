@@ -44,7 +44,6 @@ pub fn routes(_state: &AdminState) -> Router<AdminState> {
         .route("/content/article/update", post(article_update))
         .route("/content/article/updateField", post(article_set_show))
         .route("/content/article/del", post(article_delete))
-        .route("/content/article/batch", post(article_batch))
         .route("/content/articleCategory/list", get(category_list))
         .route("/content/articleCategory/tree", get(category_tree))
         .route("/content/articleCategory/detail", get(category_detail))
