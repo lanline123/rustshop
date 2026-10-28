@@ -4,6 +4,7 @@ import { apiGet, apiPost, isDemo } from '../api';
 import FormDrawer from '../framework/FormDrawer';
 import ImageUploader from './ImageUploader';
 import RichTextEditor from './RichTextEditor';
+import ProductPicker from './ProductPicker';
 
 interface Option {
   id: number;
@@ -515,13 +516,14 @@ export default function ProductFormDrawer({
               {
                 field: 'productRelated',
                 label: '相关商品',
-                type: 'select',
-                multiple: true,
-                optionsApi: '/product/product/list',
-                optionsParams: { page: 1, pageSize: 100 },
-                optionLabel: 'productName',
-                optionValue: 'productId',
-                placeholder: '最多添加 10 个商品',
+                type: 'custom',
+                render: ({ formApi, values }) => (
+                  <ProductPicker
+                    value={values.productRelated || []}
+                    onChange={(ids) => formApi?.setValue('productRelated', ids)}
+                    max={10}
+                  />
+                ),
               },
               {
                 field: 'productArticleList',
