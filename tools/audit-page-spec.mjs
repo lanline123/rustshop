@@ -27,7 +27,7 @@ const warnings = [];
 const oldPage =
   inventory.pages.find((item) => item.rel === spec.page) ||
   inventory.pages.find((item) => item.rel.endsWith(spec.page));
-if (!oldPage) failures.push(`找不到旧页面清单: ${spec.page}`);
+if (!oldPage && !spec.skipOldPage) failures.push(`找不到旧页面清单: ${spec.page}`);
 
 if (spec.drawer?.width) {
   const width = Number(spec.drawer.width);

@@ -36,6 +36,7 @@ import BuyerShow from './pages/BuyerShow';
 import IntegralLogs from './pages/IntegralLogs';
 import { RefundApplyList, WithdrawApplyList, RechargeOrderList, UserInvoiceList, OrderInvoiceList } from './pages/FinanceLists';
 import { DepositRules, DepositAccounts, DepositQuery, DepositAudit, DepositLogs, CategoryFeeRules, MerchantApplications, SubMerchants, ProfitSharing, StatementDownload } from './pages/FinanceMoreLists';
+import { PosWorkbench, CashierDevices, ReceiptPrinters, CashierList } from './pages/PosPages';
 import Placeholder from './pages/Placeholder';
 import { pageTitles } from './config/adminMenu';
 import { configSections } from './config/configSections';
@@ -55,6 +56,42 @@ type ConfigPageDef = {
 };
 
 const configPages: Record<string, ConfigPageDef> = {
+  posOrderSetting: {
+    title: '收银设置',
+    getApi: '/setting/config/getCashierOrderSettings',
+    saveApi: '/setting/config/saveCashierOrderSettings',
+    controls: {
+      autoPrintOnlineOrder: 'options',
+      autoPrintOfflineOrder: 'options',
+      defaultCollectionMethod: 'options',
+    },
+    options: {
+      autoPrintOnlineOrder: [
+        { label: '开启', value: 1 },
+        { label: '关闭', value: 2 },
+      ],
+      autoPrintOfflineOrder: [
+        { label: '开启', value: 1 },
+        { label: '关闭', value: 2 },
+      ],
+      defaultCollectionMethod: [
+        { label: '现金支付', value: 1 },
+        { label: '扫码支付', value: 2 },
+        { label: '余额支付', value: 3 },
+        { label: '积分支付', value: 4 },
+      ],
+    },
+    fieldHelp: {
+      autoEraseZero: '开启后订单结算时自动向下抹除零头',
+      autoDeductionPoints: '开启后若商品设置了可使用积分抵扣，在结算时可自动抵扣金额',
+      autoPrintOnlineOrder: '开启前请先前往小票打印页面配置相关参数',
+      autoPrintOfflineOrder: '开启前请先前往小票打印页面配置相关参数',
+      defaultCollectionMethod: '进入结算页面的默认付款方式',
+      autoAddCartAfterScan: '扫码枪扫描商品条码并回车后自动加入购物车',
+      posProductSource: '请选择至少一个商品来源',
+      shopCommonRemarks: '收银机常用备注，一行一条',
+    },
+  },
   baseBasicManage: { title: '基础信息', getApi: '/setting/config/basicSettings', saveApi: '/setting/config/saveBasic' },
   baseProductManage: { title: '商品设置', getApi: '/setting/config/productSettings', saveApi: '/setting/config/saveProduct' },
   baseShoppingManage: { title: '交易设置', getApi: '/setting/config/shoppingSettings', saveApi: '/setting/config/saveShopping' },
@@ -204,7 +241,7 @@ Object.entries(configPages).forEach(([key, page]) => {
   page.fieldHelp = { ...configHelp[key], ...page.fieldHelp };
 });
 
-const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'productAttributesTplManage', 'friendLinksManage', 'regionManage', 'logisticsCompanyManage', 'appVersionManage', 'adminLogManage', 'adminUserManage', 'adminRoleManage', 'serviceAgreement', 'privacyAgreement', 'afterSaleService', 'accountManage', 'taxRateManage', 'shippingTypeManage', 'logisticsManage', 'logisticsCompanyConfigManage', 'payLogManage', 'refundLogManage', 'userBalanceLogManage', 'staffFundWalletLogManage', 'buyerShowManage', 'integralLogManage', 'refundApplyManage', 'userWithdrawApplyManage', 'userRechargeOrderManage', 'userInvoiceManage', 'orderInvoiceManage', 'depositRuleManage', 'depositPayeeAccountManage', 'depositAccountManage', 'depositPaymentAuditManage', 'depositLogManage', 'categoryFeeRuleManage', 'merchantApplicationManage', 'subMerchantManage', 'profitSharingSettlementManage', 'statementDownload', 'baseBasicManage', 'baseProductManage', 'baseShoppingManage', 'baseOrderManage', 'kefuSetting', 'globalSetting', 'loginSetting', 'storeAmapSetting', 'personalizedManage', 'baseNoticeManage', 'orders', 'members', 'content']);
+const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'productAttributesTplManage', 'friendLinksManage', 'regionManage', 'logisticsCompanyManage', 'appVersionManage', 'adminLogManage', 'adminUserManage', 'adminRoleManage', 'serviceAgreement', 'privacyAgreement', 'afterSaleService', 'accountManage', 'taxRateManage', 'shippingTypeManage', 'logisticsManage', 'logisticsCompanyConfigManage', 'payLogManage', 'refundLogManage', 'userBalanceLogManage', 'staffFundWalletLogManage', 'buyerShowManage', 'integralLogManage', 'refundApplyManage', 'userWithdrawApplyManage', 'userRechargeOrderManage', 'userInvoiceManage', 'orderInvoiceManage', 'depositRuleManage', 'depositPayeeAccountManage', 'depositAccountManage', 'depositPaymentAuditManage', 'depositLogManage', 'categoryFeeRuleManage', 'merchantApplicationManage', 'subMerchantManage', 'profitSharingSettlementManage', 'statementDownload', 'pos0', 'posOrderSetting', 'posCashierDeviceList', 'posReceiptPrint', 'posCashierList', 'baseBasicManage', 'baseProductManage', 'baseShoppingManage', 'baseOrderManage', 'kefuSetting', 'globalSetting', 'loginSetting', 'storeAmapSetting', 'personalizedManage', 'baseNoticeManage', 'orders', 'members', 'content']);
 
 if (new URLSearchParams(window.location.search).get('demo') === '1') {
   enterDemo();
@@ -311,6 +348,10 @@ export default function App() {
       {page === 'subMerchantManage' && <SubMerchants />}
       {page === 'profitSharingSettlementManage' && <ProfitSharing />}
       {page === 'statementDownload' && <StatementDownload />}
+      {page === 'pos0' && <PosWorkbench />}
+      {page === 'posCashierDeviceList' && <CashierDevices />}
+      {page === 'posReceiptPrint' && <ReceiptPrinters />}
+      {page === 'posCashierList' && <CashierList />}
       {configPages[page] && (
         <AutoConfigPage
           {...configPages[page]}

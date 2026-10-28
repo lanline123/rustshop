@@ -322,6 +322,31 @@ export const configSections: Record<string, Array<{ title: string; fields: strin
       ]
     }
   ],
+  "posOrderSetting": [
+    {
+      "title": "收银设置",
+      "fields": [
+        "autoEraseZero",
+        "autoDeductionPoints",
+        "defaultCollectionMethod"
+      ]
+    },
+    {
+      "title": "打印设置",
+      "fields": [
+        "autoPrintOnlineOrder",
+        "autoPrintOfflineOrder"
+      ]
+    },
+    {
+      "title": "商品设置",
+      "fields": [
+        "posProductSource",
+        "autoAddCartAfterScan",
+        "shopCommonRemarks"
+      ]
+    }
+  ],
   "storeAmapSetting": [
     {
       "title": "地图服务商",

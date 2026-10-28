@@ -3145,3 +3145,98 @@ body[theme-mode='dark'] .order-detail-summary {
     flex-direction: column;
   }
 }
+
+.pos-workbench {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.pos-workbench-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 28px 30px;
+  border: 1px solid #e8edf5;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #eef5ff 0%, #ffffff 70%);
+}
+
+.pos-workbench-eyebrow {
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.pos-workbench-hero h2 {
+  margin: 8px 0 6px;
+  color: #101828;
+  font-size: 26px;
+}
+
+.pos-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.pos-stat-card {
+  border-radius: 14px;
+}
+
+.pos-stat-card span {
+  display: block;
+  margin-bottom: 8px;
+  color: #98a2b3;
+  font-size: 13px;
+}
+
+.pos-stat-card b {
+  color: #101828;
+  font-size: 26px;
+}
+
+.pos-workbench-tip {
+  border-radius: 14px;
+}
+
+.pos-workbench-tip b {
+  color: #344054;
+}
+
+.pos-workbench-tip p {
+  margin: 8px 0 0;
+  color: #667085;
+  font-size: 13px;
+}
+
+.cashier-list-card {
+  border-radius: 14px;
+}
+
+.cashier-list-toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.cashier-list-search {
+  width: 260px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  outline: none;
+}
+
+.cashier-list-search:focus {
+  border-color: var(--primary);
+}
+
+.cashier-list-pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
