@@ -52,7 +52,7 @@ export const configLabels: Record<string, string> = {
   "openWechatRegister": "微信小程序快捷登录",
   "wechatShareNeedLogin": "小程序分享是否需要登录",
   "isOpenMobileAreaCode": "手机是否选择区号",
-  "usernamePrefix ": "用户名前缀",
+  "usernamePrefix": "用户名前缀",
   "shopTitleSuffix": "SEO标题后缀",
   "shopTitle": "首页SEO标题",
   "shopKeywords": "首页SEO关键词",

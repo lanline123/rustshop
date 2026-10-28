@@ -182,7 +182,10 @@ export default function AutoConfigPage({ title, getApi, saveApi, sections }: Aut
       }))
       .filter((section) => section.items.length > 0);
     const rest = entries.filter(([key]) => !known.has(key));
-    if (rest.length) result.push({ title: '其它', items: rest });
+    if (rest.length) {
+      if (result.length) result[result.length - 1].items.push(...rest);
+      else result.push({ title: '其它', items: rest });
+    }
     return result;
   }, [entries, sections]);
 

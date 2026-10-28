@@ -78,9 +78,14 @@ export const configSections: Record<string, Array<{ title: string; fields: strin
   ],
   "baseShoppingManage": [
     {
-      "title": "其它",
+      "title": "购物全局设置",
       "fields": [
-        "childAreaNeedRegion",
+        "childAreaNeedRegion"
+      ]
+    },
+    {
+      "title": "积分设置",
+      "fields": [
         "integralName",
         "integralScale",
         "orderSendPoint",
@@ -88,9 +93,19 @@ export const configSections: Record<string, Array<{ title: string; fields: strin
         "commentSendPoint",
         "showSendPoint",
         "useQiandaoPoint",
-        "continuousSignIn",
+        "continuousSignIn"
+      ]
+    },
+    {
+      "title": "发票设置",
+      "fields": [
         "canInvoice",
-        "invoiceAdded",
+        "invoiceAdded"
+      ]
+    },
+    {
+      "title": "退换货设置",
+      "fields": [
         "returnConsignee",
         "returnMobile",
         "returnAddress"
@@ -99,22 +114,42 @@ export const configSections: Record<string, Array<{ title: string; fields: strin
   ],
   "baseOrderManage": [
     {
-      "title": "其它",
+      "title": "基础设置",
       "fields": [
         "autoDeliveryDays",
         "virtualOrderAutoDeliver",
         "autoCancelOrderMinute",
-        "isChangeOrderStatus",
+        "isChangeOrderStatus"
+      ]
+    },
+    {
+      "title": "售后设置",
+      "fields": [
         "afterSalesLimitDays",
         "afterSalesReview",
         "autoReturnGoods",
         "autoReturnGoodsDays",
         "autoConfirmReceiptDays",
         "financialReview",
-        "afterSalesReasonList",
+        "afterSalesReasonList"
+      ]
+    },
+    {
+      "title": "平台管理订单流转设置",
+      "fields": [
         "isPlatformCancelPaidOrder",
-        "isPlatformCancelDeliverOrder",
-        "isShopCancelDeliverOrder",
+        "isPlatformCancelDeliverOrder"
+      ]
+    },
+    {
+      "title": "店铺后台订单流转设置",
+      "fields": [
+        "isShopCancelDeliverOrder"
+      ]
+    },
+    {
+      "title": "平台代客下单设置",
+      "fields": [
         "adminShoppingUsePoint",
         "adminShoppingUseBalance"
       ]
@@ -231,7 +266,7 @@ export const configSections: Record<string, Array<{ title: string; fields: strin
   ],
   "loginSetting": [
     {
-      "title": "其它",
+      "title": "微信登录",
       "fields": [
         "openWechatOauth",
         "wechatAppId",
@@ -241,15 +276,20 @@ export const configSections: Record<string, Array<{ title: string; fields: strin
         "openWechatPcLogin",
         "wechatRegisterBindPhone",
         "openWechatRegister",
-        "wechatShareNeedLogin",
+        "wechatShareNeedLogin"
+      ]
+    },
+    {
+      "title": "基础设置",
+      "fields": [
         "isOpenMobileAreaCode",
-        "usernamePrefix "
+        "usernamePrefix"
       ]
     }
   ],
   "storeAmapSetting": [
     {
-      "title": "其它",
+      "title": "地图服务商",
       "fields": [
         "mapProvider",
         "field"
@@ -258,7 +298,7 @@ export const configSections: Record<string, Array<{ title: string; fields: strin
   ],
   "personalizedManage": [
     {
-      "title": "其它",
+      "title": "猜你喜欢",
       "fields": [
         "guestLikeGoodsName",
         "isGuestLikeGoods",
