@@ -2132,3 +2132,9 @@ body {
   border-radius: 2px;
   vertical-align: -2px;
 }
+
+.secret-input {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}

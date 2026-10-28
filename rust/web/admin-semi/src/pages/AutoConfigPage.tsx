@@ -5,6 +5,7 @@ import { configLabels } from '../config/configLabels';
 import ImageUploader from '../components/ImageUploader';
 import RichTextEditor from '../components/RichTextEditor';
 import RegionSelect from '../components/RegionSelect';
+import SecretInput from '../components/SecretInput';
 
 const { Text } = Typography;
 
@@ -203,6 +204,7 @@ export default function AutoConfigPage({ title, getApi, saveApi, sections }: Aut
     const isRegion = /(^regionId$|provinceId$|cityId$|areaId$|^region$|^province$|^city$|^area$)/i.test(
       key,
     );
+    const isSecret = typeof value === 'string' && /(secret|password|pass|token|key$)/i.test(key);
     const isRichText =
       typeof value === 'string' && /(content|notice|agreement|protocol)/i.test(key);
     const isBinaryFlag =
@@ -241,6 +243,8 @@ export default function AutoConfigPage({ title, getApi, saveApi, sections }: Aut
           />
         ) : isRegion ? (
           <RegionSelect value={value as number | string} onChange={(next) => update(key, next)} />
+        ) : isSecret ? (
+          <SecretInput value={text} onChange={(next) => update(key, next)} />
         ) : isBinaryFlag ? (
           <Switch
             checked={String(value) === '1'}
