@@ -1657,3 +1657,15 @@ body {
 .product-picker-price {
   white-space: nowrap;
 }
+
+.admin-log-request {
+  max-height: 420px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  border-radius: 8px;
+  background: #f7f9fc;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}

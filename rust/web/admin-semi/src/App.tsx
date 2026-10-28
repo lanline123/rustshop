@@ -17,10 +17,11 @@ import FriendLinks from './pages/FriendLinks';
 import Regions from './pages/Regions';
 import LogisticsCompanies from './pages/LogisticsCompanies';
 import AppVersion from './pages/AppVersion';
+import AdminLogs from './pages/AdminLogs';
 import Placeholder from './pages/Placeholder';
 import { pageTitles } from './config/adminMenu';
 
-const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'productAttributesTplManage', 'friendLinksManage', 'regionManage', 'logisticsCompanyManage', 'appVersionManage', 'orders', 'members', 'content']);
+const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'productAttributesTplManage', 'friendLinksManage', 'regionManage', 'logisticsCompanyManage', 'appVersionManage', 'adminLogManage', 'orders', 'members', 'content']);
 
 if (new URLSearchParams(window.location.search).get('demo') === '1') {
   enterDemo();
@@ -67,6 +68,7 @@ export default function App() {
       {page === 'regionManage' && <Regions />}
       {page === 'logisticsCompanyManage' && <LogisticsCompanies />}
       {page === 'appVersionManage' && <AppVersion />}
+      {page === 'adminLogManage' && <AdminLogs />}
       {page === 'orders' && <Orders />}
       {page === 'members' && <Members />}
       {page === 'content' && <Content />}
