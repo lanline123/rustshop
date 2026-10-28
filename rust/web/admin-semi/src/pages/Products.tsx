@@ -16,7 +16,7 @@ import { IconPlus, IconRefresh, IconSearch } from '@douyinfe/semi-icons';
 import { apiGet, apiPost, isDemo } from '../api';
 import { mockProductPage } from '../mock';
 import type { PageResult, ProductRow } from '../types';
-import ProductFormModal from '../components/ProductFormModal';
+import ProductFormDrawer from '../components/ProductFormDrawer';
 
 const { Text } = Typography;
 
@@ -259,7 +259,7 @@ export default function Products() {
         />
       </Card>
 
-      <ProductFormModal
+      <ProductFormDrawer
         visible={modalOpen}
         productId={editingId}
         categories={categories}

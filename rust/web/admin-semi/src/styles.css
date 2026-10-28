@@ -1601,3 +1601,28 @@ body {
   margin-top: 8px;
   padding-left: 140px;
 }
+
+.product-sku-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.product-sku-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.product-sku-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 0.8fr 0.8fr 0.8fr 0.7fr 60px;
+  gap: 8px;
+  align-items: center;
+}
+
+.product-sku-head {
+  color: var(--muted);
+  font-size: 12px;
+}
