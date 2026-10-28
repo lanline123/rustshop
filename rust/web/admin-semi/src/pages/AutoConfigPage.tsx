@@ -39,7 +39,7 @@ interface AutoConfigPageProps {
   sections?: Array<{ title: string; fields: string[] }>;
   rules?: Record<string, ConfigFieldRule>;
   fieldGroups?: ConfigFieldGroup[];
-  controls?: Record<string, 'radio' | 'switch' | 'segmented' | 'color'>;
+  controls?: Record<string, 'radio' | 'switch' | 'segmented' | 'color' | 'options'>;
   options?: Record<string, Array<{ label: string; value: string | number; color?: string }>>;
   hiddenFields?: string[];
   onSaved?: (values: Record<string, unknown>) => void;
@@ -313,6 +313,18 @@ export default function AutoConfigPage({
           <RegionSelect value={value as number | string} onChange={(next) => update(key, next)} />
         ) : isSecret ? (
           <SecretInput value={text} onChange={(next) => update(key, next)} />
+        ) : controls?.[key] === 'options' ? (
+          <RadioGroup
+            value={String(value)}
+            disabled={disabled}
+            options={options?.[key] || []}
+            onChange={(event) => {
+              const selected = (options?.[key] || []).find(
+                (option) => String(option.value) === String(event.target.value),
+              );
+              update(key, selected?.value ?? event.target.value);
+            }}
+          />
         ) : controls?.[key] === 'color' ? (
           <div className="auto-config-color-list">
             {(options?.[key] || []).map((option) => (

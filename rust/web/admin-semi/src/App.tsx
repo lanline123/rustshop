@@ -45,7 +45,7 @@ type ConfigPageDef = {
   sections?: Array<{ title: string; fields: string[] }>;
   rules?: Record<string, ConfigFieldRule>;
   fieldGroups?: ConfigFieldGroup[];
-  controls?: Record<string, 'radio' | 'switch' | 'segmented' | 'color'>;
+  controls?: Record<string, 'radio' | 'switch' | 'segmented' | 'color' | 'options'>;
   options?: Record<string, Array<{ label: string; value: string | number; color?: string }>>;
   hiddenFields?: string[];
 };
@@ -65,6 +65,7 @@ const configPages: Record<string, ConfigPageDef> = {
       primaryColor: 'color',
       layout: 'segmented',
       versionInfoHidden: 'radio',
+      storageType: 'options',
     },
     options: {
       navTheme: [
@@ -84,6 +85,38 @@ const configPages: Record<string, ConfigPageDef> = {
         { label: '顶部菜单', value: 'top' },
         { label: '混合菜单', value: 'mix' },
       ],
+      storageType: [
+        { label: '本地存储', value: 0 },
+        { label: '阿里云 OSS', value: 1 },
+        { label: '腾讯云 COS', value: 2 },
+        { label: '七牛云 KODO', value: 3 },
+        { label: 'AWS S3', value: 4 },
+      ],
+    },
+    hiddenFields: ['storageSaveFullPath'],
+    rules: {
+      storageLocalUrl: { visibleWhen: { field: 'storageType', equals: 0 } },
+      storageOssUrl: { visibleWhen: { field: 'storageType', equals: 1 } },
+      storageOssAccessKeyId: { visibleWhen: { field: 'storageType', equals: 1 } },
+      storageOssAccessKeySecret: { visibleWhen: { field: 'storageType', equals: 1 } },
+      storageOssBucket: { visibleWhen: { field: 'storageType', equals: 1 } },
+      storageOssRegion: { visibleWhen: { field: 'storageType', equals: 1 } },
+      storageCosUrl: { visibleWhen: { field: 'storageType', equals: 2 } },
+      storageCosSecretId: { visibleWhen: { field: 'storageType', equals: 2 } },
+      storageCosSecretKey: { visibleWhen: { field: 'storageType', equals: 2 } },
+      storageCosBucket: { visibleWhen: { field: 'storageType', equals: 2 } },
+      storageCosRegion: { visibleWhen: { field: 'storageType', equals: 2 } },
+      storageQiniuUrl: { visibleWhen: { field: 'storageType', equals: 3 } },
+      storageQiniuAccessKey: { visibleWhen: { field: 'storageType', equals: 3 } },
+      storageQiniuSecretKey: { visibleWhen: { field: 'storageType', equals: 3 } },
+      storageQiniuBucket: { visibleWhen: { field: 'storageType', equals: 3 } },
+      storageQiniuRegion: { visibleWhen: { field: 'storageType', equals: 3 } },
+      storageS3Url: { visibleWhen: { field: 'storageType', equals: 4 } },
+      storageS3AccessKey: { visibleWhen: { field: 'storageType', equals: 4 } },
+      storageS3SecretKey: { visibleWhen: { field: 'storageType', equals: 4 } },
+      storageS3Bucket: { visibleWhen: { field: 'storageType', equals: 4 } },
+      storageS3Region: { visibleWhen: { field: 'storageType', equals: 4 } },
+      storageS3Endpoint: { visibleWhen: { field: 'storageType', equals: 4 } },
     },
   },
   loginSetting: {
