@@ -44,12 +44,13 @@ function loadNavOrder(): string[] {
 interface AdminLayoutProps {
   page: PageKey;
   layout?: string;
+  logo?: string;
   onPageChange: (page: PageKey) => void;
   onLogout: () => void;
   children: ReactNode;
 }
 
-export default function AdminLayout({ page, layout = 'default', onPageChange, onLogout, children }: AdminLayoutProps) {
+export default function AdminLayout({ page, layout = 'default', logo, onPageChange, onLogout, children }: AdminLayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [orderedKeys, setOrderedKeys] = useState<string[]>(loadNavOrder);
   const orderedRef = useRef(orderedKeys);
@@ -83,8 +84,12 @@ export default function AdminLayout({ page, layout = 'default', onPageChange, on
     <div className={`app-shell layout-${layout} ${collapsed ? 'is-collapsed' : ''}`}>
       <aside className="sidebar">
         <div className={`brand ${collapsed ? 'brand-collapsed' : ''}`}>
-          <span className="brand-mark">W</span>
-          {!collapsed && (
+          {logo ? (
+            <img className="brand-logo" src={logo} alt="后台 Logo" />
+          ) : (
+            <span className="brand-mark">W</span>
+          )}
+          {!collapsed && !logo && (
             <div className="brand-text">
               <div className="brand-name">万物新生</div>
               <div className="brand-sub">运营管理后台</div>

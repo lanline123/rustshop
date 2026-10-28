@@ -2,6 +2,7 @@ export interface AppearanceSettings {
   navTheme?: string;
   primaryColor?: string;
   layout?: string;
+  adminLightLogo?: string;
 }
 
 export const primaryColors: Record<string, { primary: string; soft: string }> = {

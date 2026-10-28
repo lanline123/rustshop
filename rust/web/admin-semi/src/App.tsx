@@ -217,6 +217,7 @@ export default function App() {
       navTheme: values.navTheme || 'light',
       primaryColor: values.primaryColor || 'blue',
       layout: values.layout || 'default',
+      adminLightLogo: values.adminLightLogo || '',
     };
     setAppearance(next);
     applyAppearance(next);
@@ -243,6 +244,7 @@ export default function App() {
   return (
     <AdminLayout
       layout={appearance.layout}
+      logo={appearance.adminLightLogo}
       page={page}
       onPageChange={changePage}
       onLogout={() => {
