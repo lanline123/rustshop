@@ -33,6 +33,7 @@
       "mcpChecks": ["Checkbox", "Dropdown"]
     }
   },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-role-authority.cjs"],
   "sort": [],
   "backendReady": {
     "batch": true,

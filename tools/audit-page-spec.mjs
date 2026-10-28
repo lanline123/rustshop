@@ -162,6 +162,12 @@ if (spec.mcpChecks && !spec.mcpChecks.length) {
   failures.push('页面 MCP 文档检查记录为空');
 }
 
+for (const script of spec.interactionChecks || []) {
+  if (!fs.existsSync(path.resolve(script))) {
+    failures.push(`交互测试脚本不存在: ${script}`);
+  }
+}
+
 if (spec.backendReady?.importUser === false) {
   warnings.push('导入客户：后端未迁移，前端未实现（已在 spec 中标记）');
 }

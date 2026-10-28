@@ -239,6 +239,34 @@ PageSpec 必须记录 mcpChecks
 没有 MCP 记录直接 FAIL
 ```
 
+复杂交互页面还必须声明交互脚本：
+
+```json
+{
+  "interactionChecks": [
+    "rust/web/admin-semi/scripts/verify-role-authority.cjs"
+  ]
+}
+```
+
+交互脚本至少检查：
+
+```text
+复选框点击后选中态变化
+父权限联动子权限
+操作权限下拉能打开
+下拉文字包含 编辑 / 删除 / 批量操作
+下拉圆角 / 间距符合原版
+```
+
+后端数据形态也要有测试：
+
+```text
+camelCase 与 snake_case 两种 child_auth JSON 都能解析
+```
+
+部署后必须再跑一次交互脚本，旧后端二进制不算通过。
+
 表格布局部分：
 
 ```json
