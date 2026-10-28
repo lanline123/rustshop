@@ -38,6 +38,7 @@ export interface FieldConfig {
   /** 远程选项接口，默认取 records 或数组 */
   optionsApi?: string;
   optionsParams?: Record<string, unknown>;
+  multiple?: boolean;
   optionLabel?: string;
   optionValue?: string;
   render?: (ctx: { formApi: any; values: Record<string, any>; mode: 'create' | 'edit' }) => ReactNode;

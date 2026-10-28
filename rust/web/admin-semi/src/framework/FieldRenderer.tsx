@@ -42,7 +42,14 @@ function RemoteSelect({
     };
   }, [config.optionsApi, config.optionLabel, config.optionValue, config.optionsParams]);
 
-  return <Form.Select {...(common as any)} filter optionList={options} />;
+  return (
+    <Form.Select
+      {...(common as any)}
+      multiple={config.multiple}
+      filter
+      optionList={options}
+    />
+  );
 }
 
 function SwitchField({

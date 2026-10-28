@@ -8,10 +8,11 @@ import Orders from './pages/Orders';
 import Members from './pages/Members';
 import Content from './pages/Content';
 import Brands from './pages/Brands';
+import ProductGroups from './pages/ProductGroups';
 import Placeholder from './pages/Placeholder';
 import { pageTitles } from './config/adminMenu';
 
-const knownPages = new Set(['dashboard', 'products', 'brandManage', 'orders', 'members', 'content']);
+const knownPages = new Set(['dashboard', 'products', 'brandManage', 'productGroupManage', 'orders', 'members', 'content']);
 
 if (new URLSearchParams(window.location.search).get('demo') === '1') {
   enterDemo();
@@ -49,6 +50,7 @@ export default function App() {
       {page === 'dashboard' && <Dashboard onNavigate={changePage} />}
       {page === 'products' && <Products />}
       {page === 'brandManage' && <Brands />}
+      {page === 'productGroupManage' && <ProductGroups />}
       {page === 'orders' && <Orders />}
       {page === 'members' && <Members />}
       {page === 'content' && <Content />}
