@@ -2375,3 +2375,19 @@ body {
 .auto-config-subgroup .auto-config-field {
   grid-template-columns: 150px minmax(0, 600px);
 }
+
+/* 输入框内容垂直居中 */
+.auto-config-field .semi-input-wrapper {
+  display: flex;
+  align-items: center;
+}
+
+.auto-config-field .semi-input-wrapper input {
+  height: 30px;
+  line-height: 30px;
+}
+
+.auto-config-subgroup .semi-input-wrapper {
+  display: flex;
+  align-items: center;
+}
