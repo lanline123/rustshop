@@ -2462,3 +2462,8 @@ body {
     margin-left: 0;
   }
 }
+
+/* 二级分组标题与子菜单项统一字号 */
+.submenu-item-child {
+  font-size: 13.5px;
+}
