@@ -106,6 +106,15 @@ export interface MemberRow {
   growthPoints?: number;
 }
 
+export interface ProductServiceRow {
+  productServiceId: number;
+  productServiceName: string;
+  productServiceDesc?: string;
+  icoImg?: string;
+  sortOrder?: number;
+  defaultOn?: number;
+}
+
 export interface CategoryRow {
   categoryId: number;
   categoryName: string;
