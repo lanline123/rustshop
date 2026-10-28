@@ -84,6 +84,8 @@ export default function ListPage<T extends Record<string, any>>({
   rowActions,
 }: ListPageProps<T>) {
   const [rows, setRows] = useState<T[]>([]);
+  const resolvedRowKey =
+    typeof rowKey === 'function' ? '__frameworkKey' : (rowKey as string);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(!isDemo());
@@ -101,6 +103,18 @@ export default function ListPage<T extends Record<string, any>>({
   const filterMap = useMemo(
     () => Object.fromEntries(filters.map((item) => [item.field, item])),
     [filters],
+  );
+
+  const tableRows = useMemo(
+    () =>
+      rows.map((row, index) => ({
+        ...(row as Record<string, any>),
+        __frameworkKey:
+          typeof rowKey === 'function'
+            ? (rowKey as (row: T) => string)(row)
+            : String((row as Record<string, any>)[rowKey as string] ?? index),
+      })),
+    [rows, rowKey],
   );
 
   useEffect(() => {
@@ -161,7 +175,7 @@ export default function ListPage<T extends Record<string, any>>({
     if (drawer.detailApi && drawer.idField) {
       try {
         const detail = await apiGet<Record<string, any>>(drawer.detailApi, {
-          id: record[rowKey],
+          id: (record as Record<string, any>)[resolvedRowKey],
         });
         setDrawerInitial(detail || record);
       } catch {
@@ -187,7 +201,7 @@ export default function ListPage<T extends Record<string, any>>({
         drawerMode === 'create' ? drawer.createApi : drawer.updateApi || drawer.createApi;
       const body =
         drawerMode === 'edit' && drawer.idField
-          ? { ...payload, [drawer.idField]: editingRecord?.[rowKey] }
+          ? { ...payload, [drawer.idField]: (editingRecord as Record<string, any>)?.[resolvedRowKey] }
           : payload;
       await apiPost(targetApi, body);
       Toast.success({ content: drawerMode === 'create' ? '创建成功' : '更新成功' });
@@ -204,7 +218,7 @@ export default function ListPage<T extends Record<string, any>>({
   const remove = async (record: T) => {
     if (!drawer?.deleteApi) return;
     try {
-      await apiPost(drawer.deleteApi, { id: record[rowKey] });
+      await apiPost(drawer.deleteApi, { id: (record as Record<string, any>)[resolvedRowKey] });
       Toast.success({ content: '删除成功' });
       setReloadKey((key) => key + 1);
     } catch (error) {
@@ -223,7 +237,9 @@ export default function ListPage<T extends Record<string, any>>({
   }, []);
 
   const hasActions = Boolean(drawer || rowActions);
-  const selectedRows = rows.filter((row) => selectedKeys.includes(row[rowKey]));
+  const selectedRows = rows.filter((row) =>
+    selectedKeys.includes((row as Record<string, any>)[resolvedRowKey]),
+  );
   const activeEntries = Object.entries(filterValues).filter(
     ([, value]) => value !== '' && value !== undefined && value !== null,
   );
@@ -375,8 +391,8 @@ export default function ListPage<T extends Record<string, any>>({
 
         <Table
           loading={loading}
-          dataSource={rows}
-          rowKey={rowKey}
+          dataSource={tableRows}
+          rowKey={resolvedRowKey}
           rowSelection={
             selectable
               ? {
@@ -385,7 +401,7 @@ export default function ListPage<T extends Record<string, any>>({
                 }
               : undefined
           }
-          onRow={onRowClick ? (record) => ({ onClick: () => onRowClick(record as T) }) : undefined}
+          onRow={onRowClick ? (record) => ({ onClick: () => onRowClick(record as unknown as T) }) : undefined}
           scroll={containerWidth > 0 && scrollX > containerWidth - 48 ? { x: scrollX } : undefined}
           pagination={{
             currentPage: page,
