@@ -1472,7 +1472,6 @@ body {
   display: flex;
   align-items: center;
   min-height: 56px;
-  margin-bottom: 14px;
 }
 
 .framework-switch-field .framework-custom-label {
