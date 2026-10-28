@@ -46,11 +46,16 @@ function posPreviewPlugin(): Plugin {
       server.middlewares.use((req, res, next) => {
         const rawUrl = req.url || '/';
         const pathname = decodeURIComponent(rawUrl.split('?')[0]);
-        const isPosRedirect = pathname === '/admin/login/index' && rawUrl.includes('redirect=/pos');
+        const referer = req.headers.referer || '';
+        const isPosRedirect =
+          (pathname === '/admin/login/index' && rawUrl.includes('redirect=/pos')) ||
+          (pathname.startsWith('/admin/assets/') && (referer.includes('/admin/pos') || referer.includes('redirect=/pos')));
         if (!pathname.startsWith('/admin/pos') && !isPosRedirect) return next();
 
-        if (pathname.startsWith('/admin/pos/assets/')) {
-          const relative = pathname.slice('/admin/pos/assets/'.length);
+        if (pathname.startsWith('/admin/pos/assets/') || pathname.startsWith('/admin/assets/')) {
+          const relative = pathname.startsWith('/admin/pos/assets/')
+            ? pathname.slice('/admin/pos/assets/'.length)
+            : pathname.slice('/admin/assets/'.length);
           let filePath = path.join(POS_ASSETS_DIR, relative);
           if (!fs.existsSync(filePath) && relative.startsWith('assets/')) {
             filePath = path.join(POS_ASSETS_DIR, relative.slice('assets/'.length));
