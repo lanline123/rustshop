@@ -1906,3 +1906,10 @@ body {
   gap: 14px 15px;
   padding: 8px 10px;
 }
+
+.authority-grandchild {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}

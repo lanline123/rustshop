@@ -21,9 +21,11 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AuthorityChildDTO {
-    /// 权限名称
+    /// 权限名称（兼容历史 snake_case 数据）
+    #[serde(alias = "auth_name")]
     pub auth_name: Option<String>,
-    /// 权限编号
+    /// 权限编号（兼容历史 snake_case 数据）
+    #[serde(alias = "auth_sn")]
     pub auth_sn: Option<String>,
 }
 
