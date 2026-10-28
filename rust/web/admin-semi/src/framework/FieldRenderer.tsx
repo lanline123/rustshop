@@ -45,6 +45,42 @@ function RemoteSelect({
   return <Form.Select {...(common as any)} filter optionList={options} />;
 }
 
+function SwitchField({
+  config,
+  formApi,
+  values,
+}: {
+  config: FieldConfig;
+  formApi: any;
+  values: Record<string, any>;
+}) {
+  const normalize = (value: any) => value === true || Number(value) === 1;
+  const [checked, setChecked] = useState(normalize(values[config.field]));
+
+  useEffect(() => {
+    setChecked(normalize(values[config.field]));
+  }, [values[config.field]]);
+
+  return (
+    <div className="framework-switch-field">
+      <label className="framework-custom-label">{config.label}</label>
+      <div className="framework-switch-control">
+        <Switch
+          checked={checked}
+          disabled={config.disabled}
+          onChange={(next) => {
+            setChecked(next);
+            formApi?.setValue(config.field, next ? 1 : 0);
+          }}
+        />
+        <span className={checked ? 'framework-switch-on' : 'framework-switch-off'}>
+          {checked ? config.checkedText || '已开启' : config.uncheckedText || '已关闭'}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export default function FieldRenderer({
   config,
   formApi,
@@ -86,27 +122,8 @@ export default function FieldRenderer({
       return <Form.Select {...common} filter showClear optionList={config.options || []} />;
     case 'radio':
       return <Form.RadioGroup {...common} options={config.options || []} />;
-    case 'switch': {
-      const current = values[config.field];
-      const checked = current === true || Number(current) === 1;
-      return (
-        <div className="framework-switch-field">
-          <label className="framework-custom-label">{config.label}</label>
-          <div className="framework-switch-control">
-            <Switch
-              checked={checked}
-              disabled={config.disabled}
-              onChange={(next) => formApi?.setValue(config.field, next ? 1 : 0)}
-            />
-            <span className={checked ? 'framework-switch-on' : 'framework-switch-off'}>
-              {checked
-                ? config.checkedText || '已开启'
-                : config.uncheckedText || '已关闭'}
-            </span>
-          </div>
-        </div>
-      );
-    }
+    case 'switch':
+      return <SwitchField config={config} formApi={formApi} values={values} />;
     case 'date':
       return <Form.DatePicker {...common} type="date" />;
     default:
