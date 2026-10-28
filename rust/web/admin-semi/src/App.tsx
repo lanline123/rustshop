@@ -44,7 +44,8 @@ type ConfigPageDef = {
   sections?: Array<{ title: string; fields: string[] }>;
   rules?: Record<string, ConfigFieldRule>;
   fieldGroups?: ConfigFieldGroup[];
-  controls?: Record<string, 'radio' | 'switch'>;
+  controls?: Record<string, 'radio' | 'switch' | 'segmented' | 'color'>;
+  options?: Record<string, Array<{ label: string; value: string | number; color?: string }>>;
   hiddenFields?: string[];
 };
 
@@ -54,7 +55,36 @@ const configPages: Record<string, ConfigPageDef> = {
   baseShoppingManage: { title: '交易设置', getApi: '/setting/config/shoppingSettings', saveApi: '/setting/config/saveShopping' },
   baseOrderManage: { title: '订单设置', getApi: '/setting/config/orderSettings', saveApi: '/setting/config/saveOrder' },
   kefuSetting: { title: '客服设置', getApi: '/setting/config/kefuSettings', saveApi: '/setting/config/saveKefu' },
-  globalSetting: { title: '全局设置', getApi: '/setting/config/globalSettings', saveApi: '/setting/config/saveGlobal' },
+  globalSetting: {
+    title: '全局设置',
+    getApi: '/setting/config/globalSettings',
+    saveApi: '/setting/config/saveGlobal',
+    controls: {
+      navTheme: 'segmented',
+      primaryColor: 'color',
+      layout: 'segmented',
+      versionInfoHidden: 'radio',
+    },
+    options: {
+      navTheme: [
+        { label: '浅色', value: 'light' },
+        { label: '深色', value: 'dark' },
+      ],
+      primaryColor: [
+        { label: '蓝色', value: 'blue', color: '#1456f0' },
+        { label: '红色', value: 'red', color: '#f5222d' },
+        { label: '橙色', value: 'orange', color: '#faad14' },
+        { label: '绿色', value: 'green', color: '#52c41a' },
+        { label: '紫色', value: 'purple', color: '#722ed1' },
+      ],
+      layout: [
+        { label: '默认', value: 'default' },
+        { label: '侧边菜单', value: 'side' },
+        { label: '顶部菜单', value: 'top' },
+        { label: '混合菜单', value: 'mix' },
+      ],
+    },
+  },
   loginSetting: {
     title: '登录设置',
     getApi: '/setting/config/loginSettings',

@@ -39,7 +39,8 @@ interface AutoConfigPageProps {
   sections?: Array<{ title: string; fields: string[] }>;
   rules?: Record<string, ConfigFieldRule>;
   fieldGroups?: ConfigFieldGroup[];
-  controls?: Record<string, 'radio' | 'switch'>;
+  controls?: Record<string, 'radio' | 'switch' | 'segmented' | 'color'>;
+  options?: Record<string, Array<{ label: string; value: string | number; color?: string }>>;
   hiddenFields?: string[];
 }
 
@@ -85,7 +86,9 @@ const labelMap: Record<string, string> = {
   h5Domain: 'H5 域名',
   isOpenPscws: '开启 PC 客服',
   langOn: '开启多语言',
-  navTheme: '导航主题',
+  navTheme: '外观',
+  primaryColor: '主题色',
+  versionInfoHidden: '是否隐藏版本号',
   layout: '布局',
   defaultCountry: '默认国家',
   autoRedirect: '自动跳转',
@@ -170,6 +173,7 @@ export default function AutoConfigPage({
   rules,
   fieldGroups,
   controls,
+  options,
   hiddenFields,
 }: AutoConfigPageProps) {
   const [values, setValues] = useState<Record<string, unknown>>({});
@@ -306,6 +310,30 @@ export default function AutoConfigPage({
           <RegionSelect value={value as number | string} onChange={(next) => update(key, next)} />
         ) : isSecret ? (
           <SecretInput value={text} onChange={(next) => update(key, next)} />
+        ) : controls?.[key] === 'color' ? (
+          <div className="auto-config-color-list">
+            {(options?.[key] || []).map((option) => (
+              <button
+                type="button"
+                key={String(option.value)}
+                title={option.label}
+                aria-label={option.label}
+                className={`auto-config-color-item ${
+                  String(value) === String(option.value) ? 'is-active' : ''
+                }`}
+                style={{ backgroundColor: option.color }}
+                onClick={() => update(key, option.value)}
+              />
+            ))}
+          </div>
+        ) : controls?.[key] === 'segmented' ? (
+          <RadioGroup
+            type="button"
+            value={String(value)}
+            disabled={disabled}
+            options={options?.[key] || []}
+            onChange={(event) => update(key, event.target.value)}
+          />
         ) : controls?.[key] === 'radio' ? (
           <RadioGroup
             value={String(value)}

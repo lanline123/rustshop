@@ -178,6 +178,16 @@ export const configSections: Record<string, Array<{ title: string; fields: strin
   ],
   "globalSetting": [
     {
+      "title": "后台风格",
+      "fields": [
+        "navTheme",
+        "primaryColor",
+        "layout",
+        "adminLightLogo",
+        "versionInfoHidden"
+      ]
+    },
+    {
       "title": "SEO设置",
       "fields": [
         "shopTitleSuffix",
