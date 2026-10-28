@@ -2920,3 +2920,18 @@ body[theme-mode='dark'] .auto-config-subgroup-head {
   flex: 1;
   min-height: 0;
 }
+
+.auto-config-control {
+  min-width: 0;
+}
+
+.auto-config-field-help {
+  margin: 6px 0 0;
+  color: #98a2b3;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+body[theme-mode='dark'] .auto-config-field-help {
+  color: #7d8590;
+}

@@ -42,6 +42,7 @@ interface AutoConfigPageProps {
   controls?: Record<string, 'radio' | 'switch' | 'segmented' | 'color' | 'options'>;
   options?: Record<string, Array<{ label: string; value: string | number; color?: string }>>;
   hiddenFields?: string[];
+  fieldHelp?: Record<string, string>;
   onSaved?: (values: Record<string, unknown>) => void;
 }
 
@@ -176,6 +177,7 @@ export default function AutoConfigPage({
   controls,
   options,
   hiddenFields,
+  fieldHelp,
   onSaved,
 }: AutoConfigPageProps) {
   const [values, setValues] = useState<Record<string, unknown>>({});
@@ -288,6 +290,7 @@ export default function AutoConfigPage({
     return (
       <div className={`auto-config-field ${wide ? 'is-wide' : ''}`} key={key}>
         <label>{formatLabel(key)}</label>
+        <div className="auto-config-control">
         {isImageList ? (
           <ImageUploader
             value={(value as string[]) || []}
@@ -386,6 +389,8 @@ export default function AutoConfigPage({
             mode={/secret|password|pass/i.test(key) ? 'password' : undefined}
           />
         )}
+        {fieldHelp?.[key] && <p className="auto-config-field-help">{fieldHelp[key]}</p>}
+        </div>
       </div>
     );
   };

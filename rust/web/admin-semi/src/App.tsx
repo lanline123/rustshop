@@ -48,6 +48,7 @@ type ConfigPageDef = {
   controls?: Record<string, 'radio' | 'switch' | 'segmented' | 'color' | 'options'>;
   options?: Record<string, Array<{ label: string; value: string | number; color?: string }>>;
   hiddenFields?: string[];
+  fieldHelp?: Record<string, string>;
 };
 
 const configPages: Record<string, ConfigPageDef> = {
@@ -94,6 +95,22 @@ const configPages: Record<string, ConfigPageDef> = {
       ],
     },
     hiddenFields: ['storageSaveFullPath'],
+    fieldHelp: {
+      storageType: '开启云存储后，图片会直接通过接口上传至指定云存储，不会再保存在本地。',
+      storageLocalUrl: '参考格式： https://oss.***.com/ ，域名结尾必须带斜杠 /',
+      storageOssUrl: '参考格式： https://oss.***.com/ ，域名结尾必须带斜杠 /',
+      storageCosUrl: '参考格式： https://oss.***.com/ ，域名结尾必须带斜杠 /',
+      storageQiniuUrl: '参考格式： https://oss.***.com/ ，域名结尾必须带斜杠 /',
+      storageS3Url: '参考格式： https://oss.***.com/ ，Bucket URL 结尾必须带斜杠 /',
+      storageOssAccessKeyId: '编辑完成后，点击下方提交按钮确认修改，请确保填写正确的 AccessKeyId',
+      storageOssAccessKeySecret: '编辑完成后，点击下方提交按钮确认修改，请确保填写正确的 AccessKeySecret',
+      storageCosSecretId: '编辑完成后，点击下方提交按钮确认修改，请确保填写正确的 SecretId',
+      storageCosSecretKey: '编辑完成后，点击下方提交按钮确认修改，请确保填写正确的 KeySecret',
+      storageQiniuAccessKey: '编辑完成后，点击下方提交按钮确认修改，请确保填写正确的 AccessKey',
+      storageQiniuSecretKey: '编辑完成后，点击下方提交按钮确认修改，请确保填写正确的 SecretKey',
+      storageS3AccessKey: '编辑完成后，点击下方提交按钮确认修改，请确保填写正确的 Access key ID',
+      storageS3SecretKey: '编辑完成后，点击下方提交按钮确认修改，请确保填写正确的 Secret access key',
+    },
     rules: {
       storageLocalUrl: { visibleWhen: { field: 'storageType', equals: 0 } },
       storageOssUrl: { visibleWhen: { field: 'storageType', equals: 1 } },
