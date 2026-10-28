@@ -1499,3 +1499,24 @@ body {
   color: var(--muted);
   font-size: 13px;
 }
+
+.category-expand-btn,
+.category-expand-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.category-expand-btn {
+  border: 1px solid #d0d7e2;
+  border-radius: 4px;
+  background: #fff;
+  color: #475467;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}

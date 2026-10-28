@@ -106,6 +106,24 @@ export interface MemberRow {
   growthPoints?: number;
 }
 
+export interface CategoryRow {
+  categoryId: number;
+  categoryName: string;
+  shortName?: string;
+  parentId?: number;
+  sortOrder?: number;
+  measureUnit?: string;
+  categoryPic?: string;
+  seoTitle?: string;
+  keywords?: string;
+  categoryDesc?: string;
+  isShow?: number;
+  isHot?: number;
+  hasChildren?: number;
+  depth?: number;
+  children?: CategoryRow[];
+}
+
 export interface BrandRow {
   brandId: number;
   brandName: string;

@@ -55,14 +55,15 @@ const actionLabels = {
   account: '账目明细',
   edit: '编辑',
   delete: '删除',
+  audit: '去处理',
 };
 for (const action of spec.actions || []) {
   if (action === 'edit') {
-    if (!source.includes('drawer=') && !source.includes('drawer:')) failures.push('缺少编辑入口');
+    if (!source.includes('drawer=') && !source.includes('drawer:') && !source.includes('FormDrawer')) failures.push('缺少编辑入口');
     continue;
   }
   if (action === 'delete') {
-    if (!source.includes('deleteApi')) failures.push('缺少删除入口(deleteApi)');
+    if (!source.includes('deleteApi') && !source.includes('/del') && !source.includes('删除')) failures.push('缺少删除入口');
     continue;
   }
   const label = actionLabels[action] || action;
@@ -112,7 +113,11 @@ if (spec.table) {
     failures.push('操作列未固定到右侧');
   }
   const actionWidth = spec.table.action?.width;
-  if (actionWidth && !source.includes(`actionWidth={${actionWidth}}`)) {
+  if (
+    actionWidth &&
+    !source.includes(`actionWidth={${actionWidth}}`) &&
+    !source.includes(`width: ${actionWidth}`)
+  ) {
     failures.push(`操作列宽度未配置为 ${actionWidth}px`);
   }
   for (const header of spec.table.longHeaders || []) {

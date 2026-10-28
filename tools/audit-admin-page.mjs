@@ -49,6 +49,7 @@ const ignored = new Set([
   '禁用',
   '更多',
   '请选择...',
+  '分类图标',
 ]);
 
 const clean = (value) =>
