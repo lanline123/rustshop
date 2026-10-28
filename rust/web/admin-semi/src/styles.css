@@ -2371,3 +2371,7 @@ body {
 .auto-config-subgroup .semi-input-wrapper:hover {
   border-color: #b2ccff;
 }
+
+.auto-config-subgroup .auto-config-field {
+  grid-template-columns: 150px minmax(0, 600px);
+}

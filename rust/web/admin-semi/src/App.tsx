@@ -65,6 +65,9 @@ const configPages: Record<string, ConfigPageDef> = {
       wechatRegisterBindPhone: 'radio',
       openWechatRegister: 'radio',
       wechatShareNeedLogin: 'radio',
+      facebookLoginOn: 'radio',
+      googleLoginOn: 'radio',
+      twitterLoginOn: 'radio',
     },
     rules: {
       openWechatPcLogin: {
@@ -81,6 +84,12 @@ const configPages: Record<string, ConfigPageDef> = {
       openWechatRegister: {
         disabledWhen: { field: 'openWechatOauth', equals: 0 },
       },
+      facebookClientId: { visibleWhen: { field: 'facebookLoginOn', equals: 1 } },
+      facebookClientSecret: { visibleWhen: { field: 'facebookLoginOn', equals: 1 } },
+      googleClientId: { visibleWhen: { field: 'googleLoginOn', equals: 1 } },
+      googleClientSecret: { visibleWhen: { field: 'googleLoginOn', equals: 1 } },
+      twitterClientId: { visibleWhen: { field: 'twitterLoginOn', equals: 1 } },
+      twitterClientSecret: { visibleWhen: { field: 'twitterLoginOn', equals: 1 } },
     },
     fieldGroups: [
       {
@@ -91,22 +100,23 @@ const configPages: Record<string, ConfigPageDef> = {
         visibleWhen: { field: 'openWechatOauth', equals: 1 },
       },
       {
-        title: '第三方登录',
-        description: '配置 Facebook、Google、Twitter 登录及对应应用密钥。',
-        tag: '第三方',
-        fields: [
-          'facebookLoginOn',
-          'facebookClientId',
-          'facebookClientSecret',
-          'googleLoginOn',
-          'googleClientId',
-          'googleClientSecret',
-          'twitterLoginOn',
-          'twitterClientId',
-          'twitterClientSecret',
-        ],
+        title: 'Facebook 登录',
+        description: '开启 Facebook 登录后，填写对应应用的 Client ID 与 Secret。',
+        tag: 'Facebook',
+        fields: ['facebookLoginOn', 'facebookClientId', 'facebookClientSecret'],
       },
-    ],
+      {
+        title: 'Google 登录',
+        description: '开启 Google 登录后，填写对应 OAuth 应用的 Client ID 与 Secret。',
+        tag: 'Google',
+        fields: ['googleLoginOn', 'googleClientId', 'googleClientSecret'],
+      },
+      {
+        title: 'Twitter 登录',
+        description: '开启 Twitter 登录后，填写对应应用的 Client ID 与 Secret。',
+        tag: 'Twitter',
+        fields: ['twitterLoginOn', 'twitterClientId', 'twitterClientSecret'],
+      },    ],
   },
   storeAmapSetting: { title: '地图设置', getApi: '/setting/config/mapSettings', saveApi: '/setting/config/saveMapSettings' },
   personalizedManage: { title: '个性化设置', getApi: '/setting/config/getPersonalizedSetting', saveApi: '/setting/config/savePersonalizedSetting' },
