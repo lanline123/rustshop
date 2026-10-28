@@ -2531,3 +2531,16 @@ body {
   font-size: 13.5px;
   line-height: 20px;
 }
+
+/* 去掉 Semi 按钮式单选默认 padding 偏移 */
+.auto-config-field .semi-radio-buttonRadioGroup {
+  padding: 0;
+}
+
+.auto-config-field .semi-radio-addon-buttonRadio {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 16px;
+  line-height: 36px;
+}
