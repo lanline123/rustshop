@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Avatar,
   Button,
-  Descriptions,
   Form,
   InputNumber,
   Modal,
@@ -116,29 +115,6 @@ export default function OrderDetailModal({ visible, orderId, onCancel, onChanged
   const canCancel = detail?.availableActions?.cancelOrder === true;
   const canModifyMoney = detail?.availableActions?.modifyOrderMoney === true;
 
-  const descriptions = useMemo(() => {
-    if (!detail) return [];
-    return [
-      { key: '订单号', value: <span className="mono">{detail.orderSn}</span> },
-      {
-        key: '订单状态',
-        value: <Tag color={(statusColor[detail.orderStatusName] || 'blue') as any}>{detail.orderStatusName}</Tag>,
-      },
-      { key: '支付状态', value: detail.payStatusName },
-      { key: '收货人', value: detail.consignee },
-      { key: '联系电话', value: detail.mobile },
-      { key: '发货状态', value: detail.shippingStatusName || '-' },
-      { key: '收货地址', value: detail.address, span: 2 },
-      { key: '下单时间', value: detail.addTime },
-      { key: '支付时间', value: detail.payTime || '-' },
-      { key: '发货时间', value: detail.shippingTime || '-' },
-      { key: '物流公司', value: detail.logisticsName || '-' },
-      { key: '物流单号', value: detail.trackingNo || '-', span: 2 },
-      { key: '买家备注', value: detail.buyerNote || '-', span: 3 },
-      { key: '商家备注', value: detail.adminNote || '-', span: 3 },
-    ];
-  }, [detail]);
-
   return (
     <>
       <SideSheet
@@ -167,59 +143,128 @@ export default function OrderDetailModal({ visible, orderId, onCancel, onChanged
         }
       >
         {detail && (
-          <>
-            <Descriptions data={descriptions} column={3} layout="horizontal" align="plain" />
+          <div className="order-detail">
+            <div className="order-detail-hero">
+              <div>
+                <div className="order-detail-label">订单号</div>
+                <div className="order-detail-number mono">{detail.orderSn}</div>
+                <div className="order-detail-time">下单时间 {detail.addTime || '-'}</div>
+              </div>
+              <Space wrap>
+                <Tag color={(statusColor[detail.orderStatusName] || 'blue') as any}>
+                  {detail.orderStatusName}
+                </Tag>
+                <Tag color="green">{detail.payStatusName}</Tag>
+                {detail.shippingStatusName && <Tag color="cyan">{detail.shippingStatusName}</Tag>}
+              </Space>
+            </div>
 
-            <div className="detail-section-title">商品明细</div>
-            <Table
-              dataSource={detail.items || []}
-              pagination={false}
-              rowKey="itemId"
-              columns={[
-                {
-                  title: '商品',
-                  dataIndex: 'productName',
-                  render: (value: string, record: OrderItem) => (
-                    <div className="product-cell">
-                      {record.picThumb ? (
-                        <Avatar shape="square" src={record.picThumb} size="small" />
-                      ) : (
-                        <div className="product-thumb">W</div>
-                      )}
-                      <div>
-                        <div>{value}</div>
-                        <Text type="tertiary" size="small">
-                          {record.productSn}
-                        </Text>
-                      </div>
-                    </div>
-                  ),
-                },
-                { title: '单价', dataIndex: 'price', width: 110, render: (value: string) => `¥ ${value}` },
-                { title: '数量', dataIndex: 'quantity', width: 70 },
-                { title: '已发货', dataIndex: 'deliveryQuantity', width: 80 },
-              ]}
-            />
+            <div className="order-detail-grid">
+              <div className="order-detail-card">
+                <div className="order-detail-card-title">收货信息</div>
+                <div className="order-info-row">
+                  <span>收货人</span>
+                  <b>{detail.consignee || '-'}</b>
+                </div>
+                <div className="order-info-row">
+                  <span>联系电话</span>
+                  <b>{detail.mobile || '-'}</b>
+                </div>
+                <div className="order-info-row is-block">
+                  <span>收货地址</span>
+                  <b>{detail.address || '-'}</b>
+                </div>
+              </div>
 
-            <div className="order-summary">
-              <div>
-                <span>商品金额</span>
-                <b>¥ {detail.productAmount}</b>
-              </div>
-              <div>
-                <span>运费</span>
-                <b>¥ {detail.shippingFee}</b>
-              </div>
-              <div>
-                <span>优惠</span>
-                <b>- ¥ {detail.discountAmount || detail.couponAmount}</b>
-              </div>
-              <div className="order-summary-total">
-                <span>实付金额</span>
-                <b>¥ {detail.totalAmount}</b>
+              <div className="order-detail-card">
+                <div className="order-detail-card-title">订单信息</div>
+                <div className="order-info-row">
+                  <span>支付方式</span>
+                  <b>{detail.payName || detail.payStatusName || '-'}</b>
+                </div>
+                <div className="order-info-row">
+                  <span>支付时间</span>
+                  <b>{detail.payTime || '-'}</b>
+                </div>
+                <div className="order-info-row">
+                  <span>发货时间</span>
+                  <b>{detail.shippingTime || '-'}</b>
+                </div>
+                <div className="order-info-row">
+                  <span>物流公司</span>
+                  <b>{detail.logisticsName || '-'}</b>
+                </div>
+                <div className="order-info-row">
+                  <span>物流单号</span>
+                  <b className="mono">{detail.trackingNo || '-'}</b>
+                </div>
               </div>
             </div>
-          </>
+
+            <div className="order-detail-card order-detail-goods">
+              <div className="order-detail-card-title">商品明细</div>
+              <Table
+                dataSource={detail.items || []}
+                pagination={false}
+                rowKey="itemId"
+                columns={[
+                  {
+                    title: '商品',
+                    dataIndex: 'productName',
+                    render: (value: string, record: OrderItem) => (
+                      <div className="product-cell">
+                        {record.picThumb ? (
+                          <Avatar shape="square" src={record.picThumb} size="small" />
+                        ) : (
+                          <div className="product-thumb">W</div>
+                        )}
+                        <div>
+                          <div>{value}</div>
+                          <Text type="tertiary" size="small">
+                            {record.productSn}
+                          </Text>
+                        </div>
+                      </div>
+                    ),
+                  },
+                  { title: '单价', dataIndex: 'price', width: 110, render: (value: string) => `¥ ${value}` },
+                  { title: '数量', dataIndex: 'quantity', width: 70 },
+                  { title: '已发货', dataIndex: 'deliveryQuantity', width: 80 },
+                ]}
+              />
+
+              <div className="order-detail-summary">
+                <div>
+                  <span>商品金额</span>
+                  <b>¥ {detail.productAmount}</b>
+                </div>
+                <div>
+                  <span>运费</span>
+                  <b>¥ {detail.shippingFee}</b>
+                </div>
+                <div>
+                  <span>优惠</span>
+                  <b>- ¥ {detail.discountAmount || detail.couponAmount}</b>
+                </div>
+                <div className="order-detail-total">
+                  <span>实付金额</span>
+                  <b>¥ {detail.totalAmount}</b>
+                </div>
+              </div>
+            </div>
+
+            <div className="order-detail-card">
+              <div className="order-detail-card-title">备注信息</div>
+              <div className="order-info-row is-block">
+                <span>买家备注</span>
+                <b>{detail.buyerNote || '-'}</b>
+              </div>
+              <div className="order-info-row is-block">
+                <span>商家备注</span>
+                <b>{detail.adminNote || '-'}</b>
+              </div>
+            </div>
+          </div>
         )}
       </SideSheet>
 
