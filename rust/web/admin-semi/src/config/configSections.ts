@@ -283,7 +283,8 @@ export const configSections: Record<string, Array<{ title: string; fields: strin
       "title": "基础设置",
       "fields": [
         "isOpenMobileAreaCode",
-        "usernamePrefix"
+        "usernamePrefix",
+        "openEmailRegister"
       ]
     }
   ],

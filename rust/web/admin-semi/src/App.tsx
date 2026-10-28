@@ -45,6 +45,7 @@ type ConfigPageDef = {
   rules?: Record<string, ConfigFieldRule>;
   fieldGroups?: ConfigFieldGroup[];
   controls?: Record<string, 'radio' | 'switch'>;
+  hiddenFields?: string[];
 };
 
 const configPages: Record<string, ConfigPageDef> = {
@@ -88,6 +89,22 @@ const configPages: Record<string, ConfigPageDef> = {
         tag: '微信',
         fields: ['wechatAppId', 'wechatAppSecret', 'wechatServerToken', 'wechatServerSecret'],
         visibleWhen: { field: 'openWechatOauth', equals: 1 },
+      },
+      {
+        title: '第三方登录',
+        description: '配置 Facebook、Google、Twitter 登录及对应应用密钥。',
+        tag: '第三方',
+        fields: [
+          'facebookLoginOn',
+          'facebookClientId',
+          'facebookClientSecret',
+          'googleLoginOn',
+          'googleClientId',
+          'googleClientSecret',
+          'twitterLoginOn',
+          'twitterClientId',
+          'twitterClientSecret',
+        ],
       },
     ],
   },

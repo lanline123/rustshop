@@ -39,6 +39,7 @@ interface AutoConfigPageProps {
   rules?: Record<string, ConfigFieldRule>;
   fieldGroups?: ConfigFieldGroup[];
   controls?: Record<string, 'radio' | 'switch'>;
+  hiddenFields?: string[];
 }
 
 function matchesCondition(condition: ConfigWhen | undefined, values: Record<string, unknown>): boolean {
@@ -168,6 +169,7 @@ export default function AutoConfigPage({
   rules,
   fieldGroups,
   controls,
+  hiddenFields,
 }: AutoConfigPageProps) {
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [jsonDrafts, setJsonDrafts] = useState<Record<string, string>>({});
@@ -235,7 +237,10 @@ export default function AutoConfigPage({
     return result;
   }, [entries, sections]);
 
-  const isFieldVisible = (key: string) => matchesCondition(rules?.[key]?.visibleWhen, values);
+  const isFieldVisible = (key: string) => {
+    if (hiddenFields?.includes(key)) return false;
+    return matchesCondition(rules?.[key]?.visibleWhen, values);
+  };
   const isFieldDisabled = (key: string) => {
     const condition = rules?.[key]?.disabledWhen;
     return condition ? matchesCondition(condition, values) : false;
@@ -341,11 +346,17 @@ export default function AutoConfigPage({
     );
   };
 
+  const visibleEntries = entries.filter(([key]) => {
+    if (!isFieldVisible(key)) return false;
+    const fieldGroup = fieldGroups?.find((item) => item.fields.includes(key));
+    return !fieldGroup || matchesCondition(fieldGroup.visibleWhen, values);
+  });
+
   return (
     <Card className="auto-config-card" shadows="hover">
       <div className="auto-config-head">
         <Text type="tertiary" size="small">
-          共 {entries.length} 项配置
+          共 {visibleEntries.length} 项配置
         </Text>
       </div>
       {grouped.map((group) => {
