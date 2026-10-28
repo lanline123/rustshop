@@ -2515,3 +2515,19 @@ body {
 .auto-config-field .semi-radio-addon-buttonRadio {
   line-height: 1;
 }
+
+/* 外观/布局：标签与按钮式选项同一中线、同字号 */
+.auto-config-field:has(.semi-radioGroup-buttonRadio) {
+  align-items: center;
+}
+
+.auto-config-field:has(.semi-radioGroup-buttonRadio) > label {
+  padding-top: 0;
+  line-height: 38px;
+  font-size: 13.5px;
+}
+
+.auto-config-field .semi-radio-addon-buttonRadio {
+  font-size: 13.5px;
+  line-height: 20px;
+}
