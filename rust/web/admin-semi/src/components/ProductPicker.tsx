@@ -153,8 +153,10 @@ export default function ProductPicker({
             {
               title: '商品价格',
               dataIndex: 'productPrice',
-              width: 110,
-              render: (item: any) => `¥ ${item ?? 0}`,
+              width: 140,
+              render: (item: any) => (
+                <span className="product-picker-price">¥ {item ?? 0}</span>
+              ),
             },
             { title: '商品库存', dataIndex: 'productStock', width: 100 },
             {
@@ -248,8 +250,10 @@ export default function ProductPicker({
             {
               title: '商品价格',
               dataIndex: 'productPrice',
-              width: 110,
-              render: (item: any) => `¥ ${item ?? 0}`,
+              width: 140,
+              render: (item: any) => (
+                <span className="product-picker-price">¥ {item ?? 0}</span>
+              ),
             },
             { title: '商品库存', dataIndex: 'productStock', width: 100 },
           ]}

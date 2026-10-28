@@ -1653,3 +1653,7 @@ body {
   border-radius: 4px;
   background: #f3f5f8;
 }
+
+.product-picker-price {
+  white-space: nowrap;
+}
