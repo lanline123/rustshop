@@ -106,6 +106,21 @@ export interface MemberRow {
   growthPoints?: number;
 }
 
+export interface BrandRow {
+  brandId: number;
+  brandName: string;
+  brandLogo?: string;
+  brandDesc?: string;
+  firstWord?: string;
+  brandIsHot?: number;
+  isShow?: number;
+  sortOrder?: number;
+  status?: number;
+  statusText?: string;
+  rejectRemark?: string;
+  shop?: { shopId: number; shopTitle: string };
+}
+
 export interface ArticleRow {
   articleId: number;
   articleTitle: string;
