@@ -286,6 +286,30 @@ export const configSections: Record<string, Array<{ title: string; fields: strin
         "usernamePrefix",
         "openEmailRegister"
       ]
+    },
+    {
+      "title": "Facebook 登录",
+      "fields": [
+        "facebookLoginOn",
+        "facebookClientId",
+        "facebookClientSecret"
+      ]
+    },
+    {
+      "title": "Google 登录",
+      "fields": [
+        "googleLoginOn",
+        "googleClientId",
+        "googleClientSecret"
+      ]
+    },
+    {
+      "title": "Twitter 登录",
+      "fields": [
+        "twitterLoginOn",
+        "twitterClientId",
+        "twitterClientSecret"
+      ]
     }
   ],
   "storeAmapSetting": [
