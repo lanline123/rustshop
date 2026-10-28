@@ -1,0 +1,22 @@
+{
+  "page": "finance/userRechargeOrder/List.vue",
+  "info": "finance/userRechargeOrder/List.vue",
+  "component": "rust/web/admin-semi/src/pages/FinanceLists.tsx",
+  "filters": [
+    "keyword"
+  ],
+  "columns": [
+    "会员名称",
+    "手机号",
+    "金额",
+    "赠送金额",
+    "到款状态",
+    "操作时间"
+  ],
+  "drawer": null,
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "当前为只读列表，后续补审核/详情操作。"
+  ]
+}

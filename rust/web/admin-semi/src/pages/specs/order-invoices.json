@@ -1,0 +1,21 @@
+{
+  "page": "finance/orderInvoice/List.vue",
+  "info": "finance/orderInvoice/List.vue",
+  "component": "rust/web/admin-semi/src/pages/FinanceLists.tsx",
+  "filters": [
+    "keyword"
+  ],
+  "columns": [
+    "申请会员",
+    "公司名称/抬头",
+    "金额",
+    "申请日期",
+    "申请状态"
+  ],
+  "drawer": null,
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "当前为只读列表，后续补审核/详情操作。"
+  ]
+}

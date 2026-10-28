@@ -34,6 +34,7 @@ import BalanceLogs from './pages/BalanceLogs';
 import StaffWalletLogs from './pages/StaffWalletLogs';
 import BuyerShow from './pages/BuyerShow';
 import IntegralLogs from './pages/IntegralLogs';
+import { RefundApplyList, WithdrawApplyList, RechargeOrderList, UserInvoiceList, OrderInvoiceList } from './pages/FinanceLists';
 import Placeholder from './pages/Placeholder';
 import { pageTitles } from './config/adminMenu';
 import { configSections } from './config/configSections';
@@ -202,7 +203,7 @@ Object.entries(configPages).forEach(([key, page]) => {
   page.fieldHelp = { ...configHelp[key], ...page.fieldHelp };
 });
 
-const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'productAttributesTplManage', 'friendLinksManage', 'regionManage', 'logisticsCompanyManage', 'appVersionManage', 'adminLogManage', 'adminUserManage', 'adminRoleManage', 'serviceAgreement', 'privacyAgreement', 'afterSaleService', 'accountManage', 'taxRateManage', 'shippingTypeManage', 'logisticsManage', 'logisticsCompanyConfigManage', 'payLogManage', 'refundLogManage', 'userBalanceLogManage', 'staffFundWalletLogManage', 'buyerShowManage', 'integralLogManage', 'baseBasicManage', 'baseProductManage', 'baseShoppingManage', 'baseOrderManage', 'kefuSetting', 'globalSetting', 'loginSetting', 'storeAmapSetting', 'personalizedManage', 'baseNoticeManage', 'orders', 'members', 'content']);
+const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'productAttributesTplManage', 'friendLinksManage', 'regionManage', 'logisticsCompanyManage', 'appVersionManage', 'adminLogManage', 'adminUserManage', 'adminRoleManage', 'serviceAgreement', 'privacyAgreement', 'afterSaleService', 'accountManage', 'taxRateManage', 'shippingTypeManage', 'logisticsManage', 'logisticsCompanyConfigManage', 'payLogManage', 'refundLogManage', 'userBalanceLogManage', 'staffFundWalletLogManage', 'buyerShowManage', 'integralLogManage', 'refundApplyManage', 'userWithdrawApplyManage', 'userRechargeOrderManage', 'userInvoiceManage', 'orderInvoiceManage', 'baseBasicManage', 'baseProductManage', 'baseShoppingManage', 'baseOrderManage', 'kefuSetting', 'globalSetting', 'loginSetting', 'storeAmapSetting', 'personalizedManage', 'baseNoticeManage', 'orders', 'members', 'content']);
 
 if (new URLSearchParams(window.location.search).get('demo') === '1') {
   enterDemo();
@@ -294,6 +295,11 @@ export default function App() {
       {page === 'staffFundWalletLogManage' && <StaffWalletLogs />}
       {page === 'buyerShowManage' && <BuyerShow />}
       {page === 'integralLogManage' && <IntegralLogs />}
+      {page === 'refundApplyManage' && <RefundApplyList />}
+      {page === 'userWithdrawApplyManage' && <WithdrawApplyList />}
+      {page === 'userRechargeOrderManage' && <RechargeOrderList />}
+      {page === 'userInvoiceManage' && <UserInvoiceList />}
+      {page === 'orderInvoiceManage' && <OrderInvoiceList />}
       {configPages[page] && (
         <AutoConfigPage
           {...configPages[page]}
