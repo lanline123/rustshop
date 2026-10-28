@@ -106,6 +106,16 @@ export interface MemberRow {
   growthPoints?: number;
 }
 
+export interface RegionRow {
+  regionId: number;
+  regionName: string;
+  parentId?: number;
+  parentName?: string;
+  firstWord?: string;
+  isHot?: number;
+  sortOrder?: number;
+}
+
 export interface ProductServiceRow {
   productServiceId: number;
   productServiceName: string;
