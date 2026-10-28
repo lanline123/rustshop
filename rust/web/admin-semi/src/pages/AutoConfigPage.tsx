@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, Card, Input, InputNumber, Switch, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '../api';
 import { configLabels } from '../config/configLabels';
+import ImageUploader from '../components/ImageUploader';
+import RichTextEditor from '../components/RichTextEditor';
 
 const { Text } = Typography;
 
@@ -184,10 +186,40 @@ export default function AutoConfigPage({ title, getApi, saveApi, sections }: Aut
 
   const renderField = ([key, value]: [string, unknown]) => {
     const isObject = value !== null && typeof value === 'object';
+    const text = value === null || value === undefined ? '' : String(value);
+    const isImage =
+      typeof value === 'string' &&
+      /(logo|img|image|ico|icon|avatar|banner|photo|qrcode)/i.test(key) &&
+      !/(defined|css|size|type|mode|name)/i.test(key);
+    const isRichText =
+      typeof value === 'string' && /(content|notice|agreement|protocol)/i.test(key);
+    const isBinaryFlag =
+      (typeof value === 'number' || typeof value === 'string') &&
+      ['0', '1'].includes(String(value)) &&
+      /(enabled|enable|on$|is[A-Z]|show|open|close|can|use|auto|review|status|powered|hidden|switch|sign|bind)/i.test(
+        key,
+      ) &&
+      !/(type|mode|provider|days|minute|limit|rate|size|count|sort|order|percent|number|price|id|amount)$/i.test(
+        key,
+      );
+    const wide = isObject || isRichText || isImage;
     return (
-      <div className={`auto-config-field ${isObject ? 'is-wide' : ''}`} key={key}>
+      <div className={`auto-config-field ${wide ? 'is-wide' : ''}`} key={key}>
         <label>{formatLabel(key)}</label>
-        {typeof value === 'boolean' ? (
+        {isImage ? (
+          <ImageUploader
+            single
+            value={text ? [text] : []}
+            onChange={(next) => update(key, next[0] || '')}
+          />
+        ) : isRichText ? (
+          <RichTextEditor value={text} onChange={(next) => update(key, next)} height={260} />
+        ) : isBinaryFlag ? (
+          <Switch
+            checked={String(value) === '1'}
+            onChange={(next) => update(key, next ? 1 : 0)}
+          />
+        ) : typeof value === 'boolean' ? (
           <Switch checked={value} onChange={(next) => update(key, next)} />
         ) : typeof value === 'number' ? (
           <InputNumber value={value} onChange={(next) => update(key, Number(next || 0))} />

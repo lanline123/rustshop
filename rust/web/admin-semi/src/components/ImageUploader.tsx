@@ -7,6 +7,7 @@ interface ImageUploaderProps {
   value: string[];
   onChange: (next: string[]) => void;
   max?: number;
+  single?: boolean;
 }
 
 interface UploadResult {
@@ -14,7 +15,7 @@ interface UploadResult {
   picThumb?: string;
 }
 
-export default function ImageUploader({ value, onChange, max = 9 }: ImageUploaderProps) {
+export default function ImageUploader({ value, onChange, max = 9, single = false }: ImageUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -28,9 +29,10 @@ export default function ImageUploader({ value, onChange, max = 9 }: ImageUploade
 
   const upload = async (files: FileList | null) => {
     if (!files || !files.length) return;
-    const remaining = max - value.length;
+    const limit = single ? 1 : max;
+    const remaining = limit - value.length;
     if (remaining <= 0) {
-      Toast.warning({ content: `最多上传 ${max} 张图片` });
+      Toast.warning({ content: `最多上传 ${limit} 张图片` });
       return;
     }
     setUploading(true);
@@ -75,10 +77,10 @@ export default function ImageUploader({ value, onChange, max = 9 }: ImageUploade
       <div className="image-uploader-list">
         {value.map((url, index) => (
           <div className="image-uploader-item" key={`${url}-${index}`}>
-            <img src={url} alt={`商品图片 ${index + 1}`} />
-            {index === 0 && <span className="image-main-badge">主图</span>}
+            <img src={url} alt={`图片 ${index + 1}`} />
+            {!single && index === 0 && <span className="image-main-badge">主图</span>}
             <div className="image-uploader-actions">
-              {index !== 0 && (
+              {!single && index !== 0 && (
                 <button type="button" onClick={() => setMain(index)}>
                   设为主图
                 </button>
@@ -89,7 +91,7 @@ export default function ImageUploader({ value, onChange, max = 9 }: ImageUploade
             </div>
           </div>
         ))}
-        {value.length < max && (
+        {value.length < (single ? 1 : max) && (
           <button type="button" className="image-uploader-add" onClick={pick} disabled={uploading}>
             <IconPlus />
             <span>{uploading ? '上传中...' : '上传图片'}</span>
@@ -97,7 +99,9 @@ export default function ImageUploader({ value, onChange, max = 9 }: ImageUploade
         )}
       </div>
       <div className="image-uploader-tip">
-        支持 JPG / PNG / WebP，最多 {max} 张；第一张作为商品主图，可通过“设为主图”调整顺序。
+        {single
+          ? '支持 JPG / PNG / WebP，单张图片。'
+          : `支持 JPG / PNG / WebP，最多 ${max} 张；第一张作为商品主图，可通过“设为主图”调整顺序。`}
       </div>
     </div>
   );
