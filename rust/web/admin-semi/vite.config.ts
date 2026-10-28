@@ -46,7 +46,8 @@ function posPreviewPlugin(): Plugin {
       server.middlewares.use((req, res, next) => {
         const rawUrl = req.url || '/';
         const pathname = decodeURIComponent(rawUrl.split('?')[0]);
-        if (!pathname.startsWith('/admin/pos')) return next();
+        const isPosRedirect = pathname === '/admin/login/index' && rawUrl.includes('redirect=/pos');
+        if (!pathname.startsWith('/admin/pos') && !isPosRedirect) return next();
 
         if (pathname.startsWith('/admin/pos/assets/')) {
           const relative = pathname.slice('/admin/pos/assets/'.length);
