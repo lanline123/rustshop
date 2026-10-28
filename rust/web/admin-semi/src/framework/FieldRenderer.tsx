@@ -111,6 +111,15 @@ export default function FieldRenderer({
   };
 
   if (config.type === 'custom' && config.render) {
+    if (config.hideLabel) {
+      return (
+        <div className="framework-custom-field is-full">
+          <div className="framework-custom-content is-full">
+            {config.render({ formApi, values, mode })}
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="framework-custom-field">
         <label className="framework-custom-label">{config.label}</label>

@@ -147,6 +147,7 @@ export default function Roles() {
               {
                 field: 'authorityList',
                 label: '权限列表',
+                hideLabel: true,
                 type: 'custom',
                 render: ({ formApi, values }) => (
                   <AuthorityTree

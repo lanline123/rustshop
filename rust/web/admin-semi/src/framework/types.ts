@@ -19,6 +19,7 @@ export type FieldType =
 export interface FieldConfig {
   field: string;
   label: string;
+  hideLabel?: boolean;
   type?: FieldType;
   checkedText?: string;
   uncheckedText?: string;

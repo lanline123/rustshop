@@ -1881,3 +1881,11 @@ body {
 .authority-child-main {
   padding-left: 10px;
 }
+
+.framework-custom-field.is-full {
+  display: block;
+}
+
+.framework-custom-content.is-full {
+  width: 100%;
+}
