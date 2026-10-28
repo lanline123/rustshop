@@ -77,7 +77,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/pos/user/rechargeOrder/paymentList", get(recharge_setting))
         // 商品
         .route("/pos/product/index", get(product_index))
-        .route("/pos/product/getProduct", get(product_get))
+        .route("/pos/product/getProduct", get(product_get).post(product_list_post))
         .route("/pos/product/productDetail", get(product_detail))
         .route("/pos/product/getCategoryInfo", get(product_categories))
         .route("/pos/product/getProductAvailability", get(product_availability))
@@ -92,7 +92,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/pos/cart/changePrice", post(cart_change_price))
         .route("/pos/cart/changePriceShow", post(cart_change_price))
         .route("/pos/cart/pendingOrder", post(cart_pending))
-        .route("/pos/cart/pendingOrderList", post(cart_pending_list))
+        .route("/pos/cart/pendingOrderList", get(cart_pending_list_get).post(cart_pending_list))
         .route("/pos/cart/takePendingOrder", post(cart_take_pending))
         .route("/pos/cart/cancelPendingOrder", post(cart_cancel_pending))
         // 桌台
@@ -530,11 +530,18 @@ async fn product_get(
     ok(res)
 }
 
+/// POS 兼容：旧前端用 POST + `{page,size,cat,keyword}` 拉商品列表。
+async fn product_list_post(
+    State(state): State<AdminState>,
+    Json(q): Json<PosProductQuery>,
+) -> ApiResult<serde_json::Value> {
+    ok(state.pos.cashier.products(&q).await?)
+}
+
 async fn product_detail(
     State(state): State<AdminState>,
     Query(q): Query<PosProductGetQuery>,
-) -> ApiResult<serde_json::Value> {
-    ok(state
+) -> ApiResult<serde_json::Value> {    ok(state
         .pos
         .cashier
         .product_detail(q.product_id.unwrap_or(0))
@@ -668,6 +675,19 @@ async fn cart_pending_list(
     State(state): State<AdminState>,
     Extension(tenant): Extension<TenantContext>,
     Json(q): Json<PosPendingListDTO>,
+) -> ApiResult<serde_json::Value> {
+    ok(state
+        .pos
+        .cashier
+        .pending_list(admin_id_of(&tenant), q.shop_id)
+        .await?)
+}
+
+/// POS 兼容：旧前端用 GET + query 拉取挂单列表。
+async fn cart_pending_list_get(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Query(q): Query<PosPendingListDTO>,
 ) -> ApiResult<serde_json::Value> {
     ok(state
         .pos

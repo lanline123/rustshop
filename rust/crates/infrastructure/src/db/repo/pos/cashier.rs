@@ -782,8 +782,10 @@ impl PosCashierRepository {
         password_hash: &str,
     ) -> Result<i32> {
         let r = sqlx::query(
-            "INSERT INTO user (mobile, nickname, password, add_time) VALUES (?, ?, ?, ?)",
+            "INSERT INTO user (username, avatar, mobile, mobile_validated, nickname, password, reg_time, referrer_user_id) \
+             VALUES (?, '', ?, 1, ?, ?, ?, 0)",
         )
+        .bind(mobile)
         .bind(mobile)
         .bind(nickname)
         .bind(password_hash)
