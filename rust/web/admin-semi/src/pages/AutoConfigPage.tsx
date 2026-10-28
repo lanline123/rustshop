@@ -42,6 +42,7 @@ interface AutoConfigPageProps {
   controls?: Record<string, 'radio' | 'switch' | 'segmented' | 'color'>;
   options?: Record<string, Array<{ label: string; value: string | number; color?: string }>>;
   hiddenFields?: string[];
+  onSaved?: (values: Record<string, unknown>) => void;
 }
 
 function matchesCondition(condition: ConfigWhen | undefined, values: Record<string, unknown>): boolean {
@@ -175,6 +176,7 @@ export default function AutoConfigPage({
   controls,
   options,
   hiddenFields,
+  onSaved,
 }: AutoConfigPageProps) {
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [jsonDrafts, setJsonDrafts] = useState<Record<string, string>>({});
@@ -215,6 +217,7 @@ export default function AutoConfigPage({
         }
       });
       await apiPost(saveApi, payload);
+      onSaved?.(payload);
       Toast.success({ content: '保存成功' });
     } catch (error) {
       Toast.error({ content: error instanceof Error ? error.message : '保存失败' });

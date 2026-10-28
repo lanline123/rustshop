@@ -2544,3 +2544,157 @@ body {
   padding: 0 16px;
   line-height: 36px;
 }
+
+/* 顶部导航布局 */
+.app-shell.layout-top {
+  flex-direction: column;
+}
+
+.layout-top .sidebar {
+  width: 100%;
+  height: auto;
+  flex-direction: row;
+  border-right: 0;
+  border-bottom: 1px solid var(--border);
+  overflow: visible;
+}
+
+.layout-top .brand {
+  height: 52px;
+  border-bottom: 0;
+  border-right: 1px solid var(--border);
+}
+
+.layout-top .sidebar-body {
+  flex: 1;
+  min-width: 0;
+  flex-direction: row;
+  overflow: hidden;
+}
+
+.layout-top .rail {
+  width: auto;
+  flex-direction: row;
+  align-items: center;
+  padding: 6px 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: #eef2ff;
+}
+
+.layout-top .rail-item {
+  width: auto;
+  height: 40px;
+  flex-direction: row;
+  gap: 6px;
+  padding: 0 12px;
+  flex-shrink: 0;
+}
+
+.layout-top .rail-label {
+  display: inline;
+}
+
+.layout-top .submenu {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  border-left: 1px solid var(--border);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.layout-top .submenu-title,
+.layout-top .submenu-section-title,
+.layout-top .side-footer {
+  display: none;
+}
+
+.layout-top .submenu-list {
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+}
+
+.layout-top .submenu-section {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+}
+
+.layout-top .submenu-item {
+  width: auto;
+  height: 36px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.layout-top .main-shell {
+  width: 100%;
+}
+
+/* 深色外观 */
+body[theme-mode='dark'] {
+  background: #0d1117;
+  color: #e6edf3;
+}
+
+body[theme-mode='dark'] .app-shell,
+body[theme-mode='dark'] .main-shell,
+body[theme-mode='dark'] .page-content,
+body[theme-mode='dark'] .topbar,
+body[theme-mode='dark'] .sidebar,
+body[theme-mode='dark'] .submenu,
+body[theme-mode='dark'] .brand {
+  background: #161b22;
+  color: #e6edf3;
+  border-color: #30363d;
+}
+
+body[theme-mode='dark'] .rail {
+  background: #0d1117;
+}
+
+body[theme-mode='dark'] .submenu-item,
+body[theme-mode='dark'] .submenu-section-title,
+body[theme-mode='dark'] .rail-label,
+body[theme-mode='dark'] .breadcrumb {
+  color: #8b949e;
+}
+
+body[theme-mode='dark'] .submenu-item.is-active,
+body[theme-mode='dark'] .rail-item.is-active {
+  background: rgba(22, 93, 255, 0.18);
+  color: #79b8ff;
+}
+
+body[theme-mode='dark'] .semi-card,
+body[theme-mode='dark'] .auto-config-card,
+body[theme-mode='dark'] .auto-config-subgroup {
+  background: #161b22;
+  border-color: #30363d;
+}
+
+body[theme-mode='dark'] .auto-config-field label,
+body[theme-mode='dark'] .config-field label {
+  color: #8b949e;
+}
+
+body[theme-mode='dark'] .auto-config-field .semi-input-wrapper,
+body[theme-mode='dark'] .auto-config-field .semi-select,
+body[theme-mode='dark'] .auto-config-field .semi-input-number {
+  background: #0d1117;
+  border-color: #30363d;
+}
+
+body[theme-mode='dark'] .auto-config-subgroup-head {
+  background: linear-gradient(135deg, #182434 0%, #161b22 72%);
+  border-color: #30363d;
+}
+
+body[theme-mode='dark'] .auto-config-subgroup h5,
+body[theme-mode='dark'] .auto-config-section h4 {
+  color: #e6edf3;
+}

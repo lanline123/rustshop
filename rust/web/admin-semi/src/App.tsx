@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { clearToken, enterDemo, getToken, isDemo } from './api';
+import { useEffect, useState } from 'react';
+import { apiGet, clearToken, enterDemo, getToken, isDemo } from './api';
+import { applyAppearance, type AppearanceSettings } from './theme';
 import AdminLayout, { type PageKey } from './layout/AdminLayout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -155,6 +156,28 @@ function initialPage(): PageKey {
 export default function App() {
   const [authed, setAuthed] = useState(() => Boolean(getToken() || isDemo()));
   const [page, setPage] = useState<PageKey>(initialPage);
+  const [appearance, setAppearance] = useState<AppearanceSettings>({
+    navTheme: 'light',
+    primaryColor: 'blue',
+    layout: 'default',
+  });
+
+  const applyAndStore = (values: AppearanceSettings) => {
+    const next = {
+      navTheme: values.navTheme || 'light',
+      primaryColor: values.primaryColor || 'blue',
+      layout: values.layout || 'default',
+    };
+    setAppearance(next);
+    applyAppearance(next);
+  };
+
+  useEffect(() => {
+    if (!authed) return;
+    apiGet<AppearanceSettings>('/setting/config/globalSettings')
+      .then((result) => applyAndStore(result || {}))
+      .catch(() => applyAppearance({}));
+  }, [authed]);
 
   const changePage = (next: PageKey) => {
     setPage(next);
@@ -169,6 +192,7 @@ export default function App() {
 
   return (
     <AdminLayout
+      layout={appearance.layout}
       page={page}
       onPageChange={changePage}
       onLogout={() => {
@@ -208,7 +232,12 @@ export default function App() {
       {page === 'staffFundWalletLogManage' && <StaffWalletLogs />}
       {page === 'buyerShowManage' && <BuyerShow />}
       {page === 'integralLogManage' && <IntegralLogs />}
-      {configPages[page] && <AutoConfigPage {...configPages[page]} />}
+      {configPages[page] && (
+        <AutoConfigPage
+          {...configPages[page]}
+          onSaved={page === 'globalSetting' ? (values) => applyAndStore(values) : undefined}
+        />
+      )}
       {page === 'afterSaleService' && (
         <AgreementPage code="afterSalesService" title="售后服务" description="配置售后服务协议内容与启用状态。" />
       )}
