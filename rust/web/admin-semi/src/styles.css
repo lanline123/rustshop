@@ -2109,3 +2109,26 @@ body {
   justify-content: flex-end;
   padding-top: 20px;
 }
+
+.auto-config-section {
+  padding: 14px 0;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.auto-config-section h4 {
+  margin: 0 0 14px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.auto-config-section h4::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 13px;
+  margin-right: 8px;
+  background: var(--primary);
+  border-radius: 2px;
+  vertical-align: -2px;
+}

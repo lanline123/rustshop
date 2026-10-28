@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Card, Input, InputNumber, Switch, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '../api';
+import { configLabels } from '../config/configLabels';
 
 const { Text } = Typography;
 
@@ -8,9 +9,18 @@ interface AutoConfigPageProps {
   title: string;
   getApi: string;
   saveApi: string;
+  sections?: Array<{ title: string; fields: string[] }>;
 }
 
 const labelMap: Record<string, string> = {
+  businessLicense: '营业执照',
+  businessLicenseEnabled: '经营许可证开关',
+  businessLicenseType: '经营许可证类型',
+  closeOrder: '关闭下单',
+  closeShop: '关闭商城',
+  ediLicense: '电子营业执照',
+  shopLogo: '商城 Logo',
+  shopRegClosed: '关闭注册',
   shopName: '商城名称',
   shopTitle: '首页 SEO 标题',
   shopTitleSuffix: 'SEO 标题后缀',
@@ -102,6 +112,7 @@ const labelMap: Record<string, string> = {
 };
 
 function formatLabel(key: string) {
+  if (configLabels[key]) return configLabels[key];
   if (labelMap[key]) return labelMap[key];
   return key
     .replace(/([A-Z])/g, ' $1')
@@ -109,7 +120,7 @@ function formatLabel(key: string) {
     .trim();
 }
 
-export default function AutoConfigPage({ title, getApi, saveApi }: AutoConfigPageProps) {
+export default function AutoConfigPage({ title, getApi, saveApi, sections }: AutoConfigPageProps) {
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [jsonDrafts, setJsonDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -157,6 +168,46 @@ export default function AutoConfigPage({ title, getApi, saveApi }: AutoConfigPag
     }
   };
 
+  const grouped = useMemo(() => {
+    if (!sections?.length) return [{ title: '', items: entries }];
+    const known = new Set(sections.flatMap((section) => section.fields));
+    const result = sections
+      .map((section) => ({
+        title: section.title,
+        items: entries.filter(([key]) => section.fields.includes(key)),
+      }))
+      .filter((section) => section.items.length > 0);
+    const rest = entries.filter(([key]) => !known.has(key));
+    if (rest.length) result.push({ title: '其它', items: rest });
+    return result;
+  }, [entries, sections]);
+
+  const renderField = ([key, value]: [string, unknown]) => {
+    const isObject = value !== null && typeof value === 'object';
+    return (
+      <div className={`auto-config-field ${isObject ? 'is-wide' : ''}`} key={key}>
+        <label>{formatLabel(key)}</label>
+        {typeof value === 'boolean' ? (
+          <Switch checked={value} onChange={(next) => update(key, next)} />
+        ) : typeof value === 'number' ? (
+          <InputNumber value={value} onChange={(next) => update(key, Number(next || 0))} />
+        ) : isObject ? (
+          <TextArea
+            value={jsonDrafts[key] || ''}
+            autosize={{ minRows: 3, maxRows: 8 }}
+            onChange={(next) => setJsonDrafts((current) => ({ ...current, [key]: next }))}
+          />
+        ) : (
+          <Input
+            value={String(value ?? '')}
+            onChange={(next) => update(key, next)}
+            mode={/secret|password|pass/i.test(key) ? 'password' : undefined}
+          />
+        )}
+      </div>
+    );
+  };
+
   return (
     <Card className="auto-config-card" shadows="hover">
       <div className="auto-config-head">
@@ -167,33 +218,12 @@ export default function AutoConfigPage({ title, getApi, saveApi }: AutoConfigPag
           </Text>
         </div>
       </div>
-      <div className="auto-config-grid">
-        {entries.map(([key, value]) => {
-          const isObject = value !== null && typeof value === 'object';
-          return (
-            <div className={`auto-config-field ${isObject ? 'is-wide' : ''}`} key={key}>
-              <label>{formatLabel(key)}</label>
-              {typeof value === 'boolean' ? (
-                <Switch checked={value} onChange={(next) => update(key, next)} />
-              ) : typeof value === 'number' ? (
-                <InputNumber value={value} onChange={(next) => update(key, Number(next || 0))} />
-              ) : isObject ? (
-                <TextArea
-                  value={jsonDrafts[key] || ''}
-                  autosize={{ minRows: 3, maxRows: 8 }}
-                  onChange={(next) => setJsonDrafts((current) => ({ ...current, [key]: next }))}
-                />
-              ) : (
-                <Input
-                  value={String(value ?? '')}
-                  onChange={(next) => update(key, next)}
-                  mode={/secret|password|pass/i.test(key) ? 'password' : undefined}
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
+      {grouped.map((group) => (
+        <div className="auto-config-section" key={group.title || 'all'}>
+          {group.title && <h4>{group.title}</h4>}
+          <div className="auto-config-grid">{group.items.map(renderField)}</div>
+        </div>
+      ))}
       <div className="auto-config-actions">
         <Button theme="solid" type="primary" loading={saving || loading} onClick={save}>
           保存

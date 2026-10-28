@@ -28,8 +28,16 @@ import ShippingSettingsPage from './pages/ShippingSettings';
 import AutoConfigPage from './pages/AutoConfigPage';
 import Placeholder from './pages/Placeholder';
 import { pageTitles } from './config/adminMenu';
+import { configSections } from './config/configSections';
 
-const configPages: Record<string, { title: string; getApi: string; saveApi: string }> = {
+type ConfigPageDef = {
+  title: string;
+  getApi: string;
+  saveApi: string;
+  sections?: Array<{ title: string; fields: string[] }>;
+};
+
+const configPages: Record<string, ConfigPageDef> = {
   baseBasicManage: { title: '基础信息', getApi: '/setting/config/basicSettings', saveApi: '/setting/config/saveBasic' },
   baseProductManage: { title: '商品设置', getApi: '/setting/config/productSettings', saveApi: '/setting/config/saveProduct' },
   baseShoppingManage: { title: '交易设置', getApi: '/setting/config/shoppingSettings', saveApi: '/setting/config/saveShopping' },
@@ -41,6 +49,10 @@ const configPages: Record<string, { title: string; getApi: string; saveApi: stri
   personalizedManage: { title: '个性化设置', getApi: '/setting/config/getPersonalizedSetting', saveApi: '/setting/config/savePersonalizedSetting' },
   baseNoticeManage: { title: '通知设置', getApi: '/setting/config/notifySettings', saveApi: '/setting/config/saveNotify' },
 };
+
+Object.entries(configPages).forEach(([key, page]) => {
+  page.sections = configSections[key];
+});
 
 const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'productAttributesTplManage', 'friendLinksManage', 'regionManage', 'logisticsCompanyManage', 'appVersionManage', 'adminLogManage', 'adminUserManage', 'adminRoleManage', 'serviceAgreement', 'privacyAgreement', 'afterSaleService', 'accountManage', 'taxRateManage', 'shippingTypeManage', 'logisticsManage', 'baseBasicManage', 'baseProductManage', 'baseShoppingManage', 'baseOrderManage', 'kefuSetting', 'globalSetting', 'loginSetting', 'storeAmapSetting', 'personalizedManage', 'baseNoticeManage', 'orders', 'members', 'content']);
 
