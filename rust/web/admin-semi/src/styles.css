@@ -1913,3 +1913,35 @@ body {
   gap: 2px;
   min-width: 0;
 }
+
+.authority-actions-popover {
+  min-width: 120px;
+  padding: 8px 12px;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.authority-actions-popover .authority-child-actions {
+  gap: 8px;
+  padding: 0;
+}
+
+.authority-actions-popover .semi-checkbox {
+  height: 22px;
+}
+
+.semi-dropdown-wrapper:has(.authority-child-actions) {
+  min-width: 120px;
+  padding: 8px 12px;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.semi-dropdown-wrapper:has(.authority-child-actions) .authority-child-actions {
+  width: auto;
+  min-width: 100px;
+  padding: 0;
+  gap: 8px;
+}
