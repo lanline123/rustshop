@@ -29,7 +29,7 @@ export function PosWorkbench() {
           <h2>收银工作台</h2>
           <Text type="tertiary">进入 POS 完成开单、收款、挂单与交接班。</Text>
         </div>
-        <Button theme="solid" type="primary" size="large" onClick={() => window.open('/admin/pos', '_blank', 'noopener')}>
+        <Button theme="solid" type="primary" size="large" onClick={() => window.open('/admin/pos/?fromMenu=1', '_blank', 'noopener')}>
           进入收银台
         </Button>
       </div>
