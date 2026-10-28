@@ -27,6 +27,7 @@ export interface ConfigFieldGroup {
   title: string;
   description?: string;
   tag?: string;
+  icon?: string;
   fields: string[];
   visibleWhen?: ConfigWhen;
 }
@@ -379,7 +380,10 @@ export default function AutoConfigPage({
                   return (
                     <div className="auto-config-subgroup" key={fieldGroup.title}>
                       <div className="auto-config-subgroup-head">
-                        <div>
+                        {fieldGroup.icon && (
+                          <span className="auto-config-subgroup-icon">{fieldGroup.icon}</span>
+                        )}
+                        <div className="auto-config-subgroup-head-main">
                           <h5>{fieldGroup.title}</h5>
                           {fieldGroup.description && (
                             <p className="auto-config-subgroup-desc">{fieldGroup.description}</p>
@@ -389,8 +393,10 @@ export default function AutoConfigPage({
                           <span className="auto-config-subgroup-tag">{fieldGroup.tag}</span>
                         )}
                       </div>
-                      <div className="auto-config-grid">
-                        {items.map((item) => renderField(item, isFieldDisabled(item[0])))}
+                      <div className="auto-config-subgroup-body">
+                        <div className="auto-config-grid">
+                          {items.map((item) => renderField(item, isFieldDisabled(item[0])))}
+                        </div>
                       </div>
                     </div>
                   );

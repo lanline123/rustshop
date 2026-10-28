@@ -96,6 +96,7 @@ const configPages: Record<string, ConfigPageDef> = {
         title: '公众号授权配置',
         description: '配置微信公众号授权登录所需的 AppID、密钥与服务器校验信息。',
         tag: '微信',
+        icon: '微',
         fields: ['wechatAppId', 'wechatAppSecret', 'wechatServerToken', 'wechatServerSecret'],
         visibleWhen: { field: 'openWechatOauth', equals: 1 },
       },
