@@ -1991,3 +1991,14 @@ body {
   color: var(--text-secondary);
   font-size: 13px;
 }
+
+.rail-item {
+  user-select: none;
+  touch-action: none;
+}
+
+.rail-item.is-dragging {
+  opacity: 0.55;
+  cursor: grabbing;
+  background: #fff;
+}

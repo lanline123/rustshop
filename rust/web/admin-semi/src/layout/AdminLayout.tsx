@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Avatar, Badge, Button, Input, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { IconBell, IconExit, IconHelpCircle, IconMenu, IconSearch } from '@douyinfe/semi-icons';
 import { navGroups, pageTitles } from '../config/adminMenu';
@@ -6,6 +6,40 @@ import { navGroups, pageTitles } from '../config/adminMenu';
 const { Text } = Typography;
 
 export type PageKey = string;
+
+const NAV_ORDER_KEY = 'admin_nav_order_v1';
+const defaultOrder = [
+  'panel',
+  'pos',
+  'organize',
+  'live',
+  'product',
+  'promotion',
+  'order',
+  'supplyChain',
+  'decorate',
+  'customerService',
+  'salesman',
+  'content',
+  'finance',
+  'user',
+  'authority',
+  'wholesale',
+  'setting',
+];
+
+function loadNavOrder(): string[] {
+  const allKeys = navGroups.map((group) => group.key);
+  let stored: string[] = [];
+  try {
+    const raw = localStorage.getItem(NAV_ORDER_KEY);
+    stored = raw ? JSON.parse(raw) : [];
+  } catch {
+    stored = [];
+  }
+  const valid = stored.filter((key) => allKeys.includes(key));
+  return [...valid, ...defaultOrder.filter((key) => !valid.includes(key))];
+}
 
 interface AdminLayoutProps {
   page: PageKey;
@@ -16,12 +50,28 @@ interface AdminLayoutProps {
 
 export default function AdminLayout({ page, onPageChange, onLogout, children }: AdminLayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [orderedKeys, setOrderedKeys] = useState<string[]>(loadNavOrder);
+  const orderedRef = useRef(orderedKeys);
+  const pressTimer = useRef<number | null>(null);
+  const dragKeyRef = useRef<string | null>(null);
+  const suppressClickRef = useRef(false);
+  const [draggingKey, setDraggingKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    orderedRef.current = orderedKeys;
+  }, [orderedKeys]);
+
+  const groups = useMemo(
+    () => orderedKeys.map((key) => navGroups.find((group) => group.key === key)).filter(Boolean) as typeof navGroups,
+    [orderedKeys],
+  );
+
   const activeGroup =
-    navGroups.find((group) =>
+    groups.find((group) =>
       group.items.some(
         (item) => item.key === page || item.children?.some((child) => child.key === page),
       ),
-    ) || navGroups[2];
+    ) || groups[0];
 
   const activeParent = activeGroup.items.find(
     (item) => item.key === page || item.children?.some((child) => child.key === page),
@@ -43,14 +93,64 @@ export default function AdminLayout({ page, onPageChange, onLogout, children }: 
 
         <div className="sidebar-body">
           <div className="rail">
-            {navGroups.map((group) => {
+            {groups.map((group) => {
               const active = activeGroup.key === group.key;
               return (
                 <Tooltip content={group.label} position="right" disabled={!collapsed} key={group.key}>
                   <button
                     type="button"
-                    className={`rail-item ${active ? 'is-active' : ''}`}
+                    className={`rail-item ${active ? 'is-active' : ''} ${
+                      draggingKey === group.key ? 'is-dragging' : ''
+                    }`}
+                    data-group-key={group.key}
+                    onPointerDown={(event) => {
+                      if (event.button !== 0) return;
+                      suppressClickRef.current = false;
+                      event.currentTarget.setPointerCapture?.(event.pointerId);
+                      if (pressTimer.current) window.clearTimeout(pressTimer.current);
+                      pressTimer.current = window.setTimeout(() => {
+                        dragKeyRef.current = group.key;
+                        setDraggingKey(group.key);
+                        suppressClickRef.current = true;
+                      }, 350);
+                    }}
+                    onPointerMove={(event) => {
+                      if (!dragKeyRef.current) return;
+                      event.preventDefault();
+                      const target = (
+                        document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null
+                      )?.closest('[data-group-key]') as HTMLElement | null;
+                      const targetKey = target?.dataset.groupKey;
+                      if (!targetKey || targetKey === dragKeyRef.current) return;
+                      setOrderedKeys((current) => {
+                        const from = current.indexOf(dragKeyRef.current as string);
+                        const to = current.indexOf(targetKey);
+                        if (from < 0 || to < 0 || from === to) return current;
+                        const next = [...current];
+                        const [moved] = next.splice(from, 1);
+                        next.splice(to, 0, moved);
+                        orderedRef.current = next;
+                        return next;
+                      });
+                    }}
+                    onPointerUp={() => {
+                      if (pressTimer.current) window.clearTimeout(pressTimer.current);
+                      if (dragKeyRef.current) {
+                        localStorage.setItem(NAV_ORDER_KEY, JSON.stringify(orderedRef.current));
+                        dragKeyRef.current = null;
+                        setDraggingKey(null);
+                        window.setTimeout(() => {
+                          suppressClickRef.current = false;
+                        }, 50);
+                      }
+                    }}
+                    onPointerCancel={() => {
+                      if (pressTimer.current) window.clearTimeout(pressTimer.current);
+                      dragKeyRef.current = null;
+                      setDraggingKey(null);
+                    }}
                     onClick={() => {
+                      if (suppressClickRef.current) return;
                       const first = group.items[0];
                       onPageChange(first.children?.[0]?.key || first.key);
                     }}
