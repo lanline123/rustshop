@@ -374,12 +374,10 @@ export default function Brands() {
               {
                 field: 'brandIsHot',
                 label: '是否热门品牌',
-                type: 'radio',
+                type: 'switch',
                 initValue: 0,
-                options: [
-                  { label: '是', value: 1 },
-                  { label: '否', value: 0 },
-                ],
+                checkedText: '热门',
+                uncheckedText: '不热门',
               },
             ],
           },
