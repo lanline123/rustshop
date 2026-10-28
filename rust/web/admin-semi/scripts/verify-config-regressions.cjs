@@ -101,7 +101,7 @@ async function main() {
     }
   }
 
-  // 3. 不再把所有存储字段平铺
+  // 3. 订单设置：售后审核联动自动同意退货\n  await page.goto(${BASE}/?page=baseOrderManage, { waitUntil: 'networkidle' });\n  await page.waitForTimeout(1200);\n  const review = page.locator('.auto-config-field').filter({ hasText: '售后审核' }).first();\n  const autoReturn = page.locator('.auto-config-field').filter({ hasText: '自动同意退货申请' });\n  if ((await review.locator('.semi-switch-checked').count()) > 0) {\n    await review.locator('.semi-switch').click();\n    await page.waitForTimeout(250);\n  }\n  if ((await autoReturn.count()) !== 0) failures.push('关闭售后审核后，自动同意退货申请仍然显示');\n  await review.locator('.semi-switch').click();\n  await page.waitForTimeout(250);\n  if ((await autoReturn.count()) !== 1) failures.push('开启售后审核后，自动同意退货申请未显示');\n\n  // 4. 不再把所有存储字段平铺
   if (labels.length > 8) failures.push('存储设置仍存在字段平铺');
 
   await page.screenshot({ path: 'preview-config-regressions.png' });

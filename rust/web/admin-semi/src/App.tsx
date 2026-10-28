@@ -56,7 +56,15 @@ const configPages: Record<string, ConfigPageDef> = {
   baseBasicManage: { title: '基础信息', getApi: '/setting/config/basicSettings', saveApi: '/setting/config/saveBasic' },
   baseProductManage: { title: '商品设置', getApi: '/setting/config/productSettings', saveApi: '/setting/config/saveProduct' },
   baseShoppingManage: { title: '交易设置', getApi: '/setting/config/shoppingSettings', saveApi: '/setting/config/saveShopping' },
-  baseOrderManage: { title: '订单设置', getApi: '/setting/config/orderSettings', saveApi: '/setting/config/saveOrder' },
+  baseOrderManage: {
+    title: '订单设置',
+    getApi: '/setting/config/orderSettings',
+    saveApi: '/setting/config/saveOrder',
+    rules: {
+      autoReturnGoods: { visibleWhen: { field: 'afterSalesReview', equals: 1 } },
+      autoReturnGoodsDays: { disabledWhen: { field: 'autoReturnGoods', equals: 0 } },
+    },
+  },
   kefuSetting: { title: '客服设置', getApi: '/setting/config/kefuSettings', saveApi: '/setting/config/saveKefu' },
   globalSetting: {
     title: '全局设置',
