@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Input, SideSheet, Space, Table, Toast } from '@douyinfe/semi-ui';
+import { Button, Image, Input, SideSheet, Space, Table, Toast } from '@douyinfe/semi-ui';
 import { apiGet } from '../api';
 
 interface ProductItem {
@@ -8,6 +8,7 @@ interface ProductItem {
   productSn?: string;
   productPrice?: number | string;
   picThumb?: string;
+  picUrl?: string;
   productStock?: number;
 }
 
@@ -125,8 +126,30 @@ export default function ProductPicker({
           rowKey="productId"
           pagination={false}
           columns={[
-            { title: '商品编号', dataIndex: 'productSn', width: 120 },
-            { title: '商品名称', dataIndex: 'productName' },
+            {
+              title: '商品信息',
+              dataIndex: 'productName',
+              render: (_: unknown, record: ProductItem) => (
+                <div className="product-picker-info">
+                  {record.picThumb || record.picUrl ? (
+                    <Image
+                      src={record.picThumb || record.picUrl}
+                      width={40}
+                      height={40}
+                      style={{ objectFit: 'cover', borderRadius: 4 }}
+                    />
+                  ) : (
+                    <span className="product-picker-no-pic" />
+                  )}
+                  <div>
+                    <div>{record.productName}</div>
+                    {record.productSn && (
+                      <div className="product-picker-sn">货号：{record.productSn}</div>
+                    )}
+                  </div>
+                </div>
+              ),
+            },
             {
               title: '商品价格',
               dataIndex: 'productPrice',
@@ -198,8 +221,30 @@ export default function ProductPicker({
             onChange: (next) => loadProducts(next),
           }}
           columns={[
-            { title: '商品编号', dataIndex: 'productSn', width: 120 },
-            { title: '商品名称', dataIndex: 'productName' },
+            {
+              title: '商品信息',
+              dataIndex: 'productName',
+              render: (_: unknown, record: ProductItem) => (
+                <div className="product-picker-info">
+                  {record.picThumb || record.picUrl ? (
+                    <Image
+                      src={record.picThumb || record.picUrl}
+                      width={40}
+                      height={40}
+                      style={{ objectFit: 'cover', borderRadius: 4 }}
+                    />
+                  ) : (
+                    <span className="product-picker-no-pic" />
+                  )}
+                  <div>
+                    <div>{record.productName}</div>
+                    {record.productSn && (
+                      <div className="product-picker-sn">货号：{record.productSn}</div>
+                    )}
+                  </div>
+                </div>
+              ),
+            },
             {
               title: '商品价格',
               dataIndex: 'productPrice',
