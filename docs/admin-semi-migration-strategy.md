@@ -210,7 +210,33 @@ Drawer 宽度
 批量操作
 表格布局
 排序
+复杂控件 widgets
+MCP 文档检查记录
 后端未就绪能力
+```
+
+复杂控件部分：
+
+```json
+{
+  "widgets": {
+    "authorityList": {
+      "type": "authority-select",
+      "component": "rust/web/admin-semi/src/components/AuthorityTree.tsx",
+      "requires": ["authority-select-head", "authority-row", "authority-child-more"],
+      "mcpChecks": ["Checkbox", "Dropdown"]
+    }
+  }
+}
+```
+
+规则：
+
+```text
+涉及新组件 / 复杂交互的页面，必须先查 Semi MCP
+PageSpec 必须记录 mcpChecks
+审计检查组件实现标记和 MCP 记录
+没有 MCP 记录直接 FAIL
 ```
 
 表格布局部分：

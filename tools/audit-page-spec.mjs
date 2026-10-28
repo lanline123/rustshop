@@ -135,6 +135,33 @@ if (spec.table) {
   }
 }
 
+if (spec.widgets) {
+  for (const [name, widget] of Object.entries(spec.widgets)) {
+    if (!widget.mcpChecks || !widget.mcpChecks.length) {
+      failures.push(`复杂控件 ${name} 缺少 MCP 文档检查记录`);
+    }
+    if (!widget.component) {
+      failures.push(`复杂控件 ${name} 未声明组件文件`);
+      continue;
+    }
+    const widgetPath = path.resolve(widget.component);
+    if (!fs.existsSync(widgetPath)) {
+      failures.push(`复杂控件 ${name} 组件不存在: ${widget.component}`);
+      continue;
+    }
+    const widgetSource = fs.readFileSync(widgetPath, 'utf8');
+    for (const required of widget.requires || []) {
+      if (!widgetSource.includes(required)) {
+        failures.push(`复杂控件 ${name} 缺少实现标记: ${required}`);
+      }
+    }
+  }
+}
+
+if (spec.mcpChecks && !spec.mcpChecks.length) {
+  failures.push('页面 MCP 文档检查记录为空');
+}
+
 if (spec.backendReady?.importUser === false) {
   warnings.push('导入客户：后端未迁移，前端未实现（已在 spec 中标记）');
 }

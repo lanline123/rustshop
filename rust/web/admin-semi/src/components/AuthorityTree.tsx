@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Checkbox, Dropdown, Spin, Typography } from '@douyinfe/semi-ui';
 import { IconChevronDown } from '@douyinfe/semi-icons';
 import { apiGet } from '../api';
+import { useControlledField } from '../framework/useControlledField';
 
 const { Text } = Typography;
 
@@ -39,16 +40,7 @@ function collectSns(node: AuthorityNode, out: string[] = []) {
 export default function AuthorityTree({ value = [], onChange }: AuthorityTreeProps) {
   const [tree, setTree] = useState<AuthorityNode[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selected, setSelected] = useState<string[]>(value);
-
-  useEffect(() => {
-    setSelected(value);
-  }, [JSON.stringify(value)]);
-
-  const apply = (next: string[]) => {
-    setSelected(next);
-    onChange(next);
-  };
+  const [selected, apply] = useControlledField<string[]>(value, onChange);
 
   useEffect(() => {
     setLoading(true);
@@ -84,6 +76,7 @@ export default function AuthorityTree({ value = [], onChange }: AuthorityTreePro
       <Dropdown
         trigger="click"
         position="bottomLeft"
+        contentClassName="authority-actions-popover"
         content={
           <div className="authority-child-actions">
             {childAuth.map((auth) => (

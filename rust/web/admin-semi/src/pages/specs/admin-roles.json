@@ -19,6 +19,20 @@
     },
     "longHeaders": []
   },
+  "widgets": {
+    "authorityList": {
+      "type": "authority-select",
+      "component": "rust/web/admin-semi/src/components/AuthorityTree.tsx",
+      "requires": [
+        "authority-select-head",
+        "authority-row",
+        "authority-child-more",
+        "authority-grandchildren",
+        "useControlledField"
+      ],
+      "mcpChecks": ["Checkbox", "Dropdown"]
+    }
+  },
   "sort": [],
   "backendReady": {
     "batch": true,
