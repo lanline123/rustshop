@@ -1877,3 +1877,7 @@ body {
 .authority-select-head {
   justify-content: flex-start;
 }
+
+.authority-child-main {
+  padding-left: 10px;
+}
