@@ -2138,3 +2138,22 @@ body {
   align-items: center;
   gap: 4px;
 }
+
+/* 二级菜单滚动条隐藏，仍保留滚动能力 */
+.submenu {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.submenu::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* 二级分组标题，例如“商城设置”“配送设置组” */
+.submenu-section-title {
+  color: #667085;
+  font-size: 13.5px;
+  font-weight: 600;
+}
