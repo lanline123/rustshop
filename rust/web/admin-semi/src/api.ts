@@ -52,6 +52,13 @@ export function getToken(): string {
   return localStorage.getItem('admin_access_token') || '';
 }
 
+export function getContextHeaders(): Record<string, string> {
+  const adminType = localStorage.getItem('adminType') || '';
+  const shopId = localStorage.getItem('shopId') || '';
+  if (!adminType || adminType === 'admin') return {};
+  return { 'x-admin-type': adminType, ...(shopId ? { 'x-shop-id': shopId } : {}) };
+}
+
 export function setToken(token: string) {
   localStorage.setItem('admin_access_token', token);
 }
@@ -59,6 +66,9 @@ export function setToken(token: string) {
 export function clearToken() {
   localStorage.removeItem('admin_access_token');
   localStorage.removeItem('admin_demo');
+  localStorage.removeItem('adminType');
+  localStorage.removeItem('shopId');
+  localStorage.removeItem('shopTitle');
 }
 
 export function isDemo() {
@@ -86,6 +96,7 @@ export async function apiGet<T>(path: string, params?: Record<string, unknown>):
   const res = await fetch(`${API_BASE}${path}${suffix}`, {
     headers: {
       Authorization: `Bearer ${getToken()}`,
+      ...getContextHeaders(),
     },
   });
   const json = await readJson(res);
@@ -106,6 +117,7 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${getToken()}`,
+      ...getContextHeaders(),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -133,6 +145,7 @@ export async function apiUpload<T>(
     method: 'POST',
     headers: {
       Authorization: `Bearer ${getToken()}`,
+      ...getContextHeaders(),
     },
     body: form,
   });
