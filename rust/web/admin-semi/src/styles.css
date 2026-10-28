@@ -2002,3 +2002,64 @@ body {
   cursor: grabbing;
   background: #fff;
 }
+
+.config-page {
+  width: 100%;
+}
+
+.config-card {
+  padding: 4px 20px 20px;
+}
+
+.config-section {
+  padding: 18px 0;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.config-section h3 {
+  margin: 0 0 14px;
+  font-size: 16px;
+}
+
+.config-section h3::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 14px;
+  margin-right: 8px;
+  background: var(--primary);
+  border-radius: 2px;
+  vertical-align: -2px;
+}
+
+.config-field {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 480px);
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 14px;
+}
+
+.config-field label {
+  padding-top: 7px;
+  color: var(--text-secondary);
+  text-align: right;
+  font-size: 13px;
+}
+
+.config-field .semi-typography {
+  display: block;
+  margin-top: 4px;
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 28px;
+}
+
+.config-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 18px;
+}
