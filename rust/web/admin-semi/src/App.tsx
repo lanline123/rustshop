@@ -35,6 +35,7 @@ import StaffWalletLogs from './pages/StaffWalletLogs';
 import BuyerShow from './pages/BuyerShow';
 import IntegralLogs from './pages/IntegralLogs';
 import { RefundApplyList, WithdrawApplyList, RechargeOrderList, UserInvoiceList, OrderInvoiceList } from './pages/FinanceLists';
+import { DepositRules, DepositAccounts, DepositQuery, DepositAudit, DepositLogs, CategoryFeeRules, MerchantApplications, SubMerchants, ProfitSharing, StatementDownload } from './pages/FinanceMoreLists';
 import Placeholder from './pages/Placeholder';
 import { pageTitles } from './config/adminMenu';
 import { configSections } from './config/configSections';
@@ -203,7 +204,7 @@ Object.entries(configPages).forEach(([key, page]) => {
   page.fieldHelp = { ...configHelp[key], ...page.fieldHelp };
 });
 
-const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'productAttributesTplManage', 'friendLinksManage', 'regionManage', 'logisticsCompanyManage', 'appVersionManage', 'adminLogManage', 'adminUserManage', 'adminRoleManage', 'serviceAgreement', 'privacyAgreement', 'afterSaleService', 'accountManage', 'taxRateManage', 'shippingTypeManage', 'logisticsManage', 'logisticsCompanyConfigManage', 'payLogManage', 'refundLogManage', 'userBalanceLogManage', 'staffFundWalletLogManage', 'buyerShowManage', 'integralLogManage', 'refundApplyManage', 'userWithdrawApplyManage', 'userRechargeOrderManage', 'userInvoiceManage', 'orderInvoiceManage', 'baseBasicManage', 'baseProductManage', 'baseShoppingManage', 'baseOrderManage', 'kefuSetting', 'globalSetting', 'loginSetting', 'storeAmapSetting', 'personalizedManage', 'baseNoticeManage', 'orders', 'members', 'content']);
+const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'productAttributesTplManage', 'friendLinksManage', 'regionManage', 'logisticsCompanyManage', 'appVersionManage', 'adminLogManage', 'adminUserManage', 'adminRoleManage', 'serviceAgreement', 'privacyAgreement', 'afterSaleService', 'accountManage', 'taxRateManage', 'shippingTypeManage', 'logisticsManage', 'logisticsCompanyConfigManage', 'payLogManage', 'refundLogManage', 'userBalanceLogManage', 'staffFundWalletLogManage', 'buyerShowManage', 'integralLogManage', 'refundApplyManage', 'userWithdrawApplyManage', 'userRechargeOrderManage', 'userInvoiceManage', 'orderInvoiceManage', 'depositRuleManage', 'depositPayeeAccountManage', 'depositAccountManage', 'depositPaymentAuditManage', 'depositLogManage', 'categoryFeeRuleManage', 'merchantApplicationManage', 'subMerchantManage', 'profitSharingSettlementManage', 'statementDownload', 'baseBasicManage', 'baseProductManage', 'baseShoppingManage', 'baseOrderManage', 'kefuSetting', 'globalSetting', 'loginSetting', 'storeAmapSetting', 'personalizedManage', 'baseNoticeManage', 'orders', 'members', 'content']);
 
 if (new URLSearchParams(window.location.search).get('demo') === '1') {
   enterDemo();
@@ -300,6 +301,16 @@ export default function App() {
       {page === 'userRechargeOrderManage' && <RechargeOrderList />}
       {page === 'userInvoiceManage' && <UserInvoiceList />}
       {page === 'orderInvoiceManage' && <OrderInvoiceList />}
+      {page === 'depositRuleManage' && <DepositRules />}
+      {page === 'depositPayeeAccountManage' && <DepositAccounts />}
+      {page === 'depositAccountManage' && <DepositQuery />}
+      {page === 'depositPaymentAuditManage' && <DepositAudit />}
+      {page === 'depositLogManage' && <DepositLogs />}
+      {page === 'categoryFeeRuleManage' && <CategoryFeeRules />}
+      {page === 'merchantApplicationManage' && <MerchantApplications />}
+      {page === 'subMerchantManage' && <SubMerchants />}
+      {page === 'profitSharingSettlementManage' && <ProfitSharing />}
+      {page === 'statementDownload' && <StatementDownload />}
       {configPages[page] && (
         <AutoConfigPage
           {...configPages[page]}
