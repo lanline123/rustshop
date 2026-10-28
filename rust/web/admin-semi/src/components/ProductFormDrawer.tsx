@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Input, InputNumber, RadioGroup, Select, Toast } from '@douyinfe/semi-ui';
+import { Button, Checkbox, Input, InputNumber, RadioGroup, Select, Toast } from '@douyinfe/semi-ui';
 import { apiGet, apiPost, isDemo } from '../api';
 import FormDrawer from '../framework/FormDrawer';
 import ImageUploader from './ImageUploader';
@@ -159,6 +159,27 @@ function SkuEditor({ formApi, values }: { formApi: any; values: Record<string, a
   );
 }
 
+function RecommendField({ formApi, values }: { formApi: any; values: Record<string, any> }) {
+  const options = [
+    { field: 'isBest', label: '精品' },
+    { field: 'isNew', label: '新品' },
+    { field: 'isHot', label: '热销' },
+  ];
+  return (
+    <div className="product-recommend-field">
+      {options.map((item) => (
+        <Checkbox
+          key={item.field}
+          checked={Boolean(values[item.field])}
+          onChange={(event) => formApi?.setValue(item.field, event.target.checked)}
+        >
+          {item.label}
+        </Checkbox>
+      ))}
+    </div>
+  );
+}
+
 export default function ProductFormDrawer({
   visible,
   productId,
@@ -169,6 +190,7 @@ export default function ProductFormDrawer({
 }: ProductFormDrawerProps) {
   const [initialValues, setInitialValues] = useState<Record<string, any>>(emptyValues);
   const [shippingTpls, setShippingTpls] = useState<ShippingTpl[]>([]);
+  const [services, setServices] = useState<Array<{ productServiceId: number; productServiceName: string }>>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -230,6 +252,9 @@ export default function ProductFormDrawer({
             costPrice: Number(sku.costPrice || 0),
             skuStock: Number(sku.skuStock || 0),
           })),
+          productServiceIds: detail.productServiceIds || [],
+          productRelated: detail.productRelated || [],
+          productArticleList: detail.productArticleList || [],
         });
       })
       .catch((error) => Toast.error({ content: error.message }))
@@ -243,6 +268,17 @@ export default function ProductFormDrawer({
     if (!visible) return;
     apiGet<ShippingTpl[]>('/product/product/shippingTplList')
       .then((result) => setShippingTpls(result || []))
+      .catch(() => undefined);
+    apiGet<{ records?: Array<any> }>('/product/productServices/list', { page: 1, size: 100 })
+      .then((result) => {
+        const list = Array.isArray(result) ? result : result?.records || [];
+        setServices(
+          list.map((item: any) => ({
+            productServiceId: item.productServiceId,
+            productServiceName: item.productServiceName,
+          })),
+        );
+      })
       .catch(() => undefined);
   }, [visible]);
 
@@ -366,7 +402,6 @@ export default function ProductFormDrawer({
               { field: 'costPrice', label: '成本价', type: 'number' },
               { field: 'productStock', label: '库存', type: 'number' },
               { field: 'limitNumber', label: '限购数量', type: 'number' },
-              { field: 'virtualSales', label: '虚拟销量', type: 'number' },
               {
                 field: 'skuType',
                 label: '规格类型',
@@ -456,27 +491,49 @@ export default function ProductFormDrawer({
             fields: [
               {
                 field: 'isBest',
-                label: '精品',
-                type: 'switch',
-                checkedText: '是',
-                uncheckedText: '否',
+                label: '加入推荐',
+                type: 'custom',
+                render: ({ formApi, values }) => (
+                  <RecommendField formApi={formApi} values={values} />
+                ),
               },
               {
-                field: 'isNew',
-                label: '新品',
-                type: 'switch',
-                checkedText: '是',
-                uncheckedText: '否',
+                field: 'productServiceIds',
+                label: '服务说明',
+                type: 'checkbox',
+                options: services.map((item) => ({
+                  label: item.productServiceName,
+                  value: item.productServiceId,
+                })),
               },
               {
-                field: 'isHot',
-                label: '热销',
-                type: 'switch',
-                checkedText: '是',
-                uncheckedText: '否',
+                field: 'virtualSales',
+                label: '显示销量',
+                type: 'number',
+                extraText: '显示销量会随下单而增加，但不是真实销售数据',
               },
-              { field: 'seoIdentification', label: 'SEO标识' },
-              { field: 'remark', label: '备注', type: 'textarea' },
+              {
+                field: 'productRelated',
+                label: '相关商品',
+                type: 'select',
+                multiple: true,
+                optionsApi: '/product/product/list',
+                optionsParams: { page: 1, pageSize: 100 },
+                optionLabel: 'productName',
+                optionValue: 'productId',
+                placeholder: '最多添加 10 个商品',
+              },
+              {
+                field: 'productArticleList',
+                label: '关联文章',
+                type: 'select',
+                multiple: true,
+                optionsApi: '/content/article/list',
+                optionsParams: { page: 1, pageSize: 100 },
+                optionLabel: 'articleTitle',
+                optionValue: 'articleId',
+                placeholder: '最多添加 10 篇文章',
+              },
             ],
           },
         ],

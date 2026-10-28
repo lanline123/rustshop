@@ -1626,3 +1626,10 @@ body {
   color: var(--muted);
   font-size: 12px;
 }
+
+.product-recommend-field {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: 32px;
+}

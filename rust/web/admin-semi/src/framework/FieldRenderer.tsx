@@ -129,6 +129,14 @@ export default function FieldRenderer({
       return <Form.Select {...common} filter showClear optionList={config.options || []} />;
     case 'radio':
       return <Form.RadioGroup {...common} options={config.options || []} />;
+    case 'checkbox':
+      return (
+        <Form.CheckboxGroup
+          {...(common as any)}
+          direction="horizontal"
+          options={config.options || []}
+        />
+      );
     case 'switch':
       return <SwitchField config={config} formApi={formApi} values={values} />;
     case 'date':

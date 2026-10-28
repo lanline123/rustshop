@@ -11,6 +11,7 @@ export type FieldType =
   | 'number'
   | 'select'
   | 'radio'
+  | 'checkbox'
   | 'switch'
   | 'date'
   | 'custom';
