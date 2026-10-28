@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import {
-  Badge,
   Button,
   Image,
   Input,
@@ -243,9 +242,12 @@ export default function Brands() {
             { tab: '品牌管理', itemKey: 'manage' },
             {
               tab: (
-                <Badge count={auditCount} overflowCount={99}>
+                <span className="brand-audit-tab-label">
                   品牌审核
-                </Badge>
+                  <span className={`brand-audit-count ${auditCount > 0 ? 'is-active' : ''}`}>
+                    {auditCount > 99 ? '99+' : auditCount}
+                  </span>
+                </span>
               ),
               itemKey: 'audit',
             },
