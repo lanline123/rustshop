@@ -15,7 +15,7 @@ interface PosStats {
 export function PosWorkbench() {
   const [stats, setStats] = useState<PosStats>({});
 
-  const openPos = () => {
+  const openPos = async () => {
     const token = getToken();
     let payload: Record<string, unknown> = {};
     try {
@@ -35,10 +35,20 @@ export function PosWorkbench() {
     if (shopId !== null && shopId !== undefined) {
       localStorage.setItem('shopId', String(shopId));
     }
-    if (adminType !== 'admin' && !shopId) {
+    let resolvedShopId = shopId;
+    if (!resolvedShopId) {
+      try {
+        const shopResult = await apiGet<any>('/merchant/shop/myShop', { sortField: 'lastLoginTime' });
+        resolvedShopId = shopResult?.shop?.list?.[0]?.shopId || null;
+      } catch {
+        resolvedShopId = null;
+      }
+    }
+    if (adminType !== 'admin' && !resolvedShopId) {
       Toast.warning({ content: '请先选择门店后再进入收银台' });
       return;
     }
+    if (resolvedShopId) localStorage.setItem('shopId', String(resolvedShopId));
     window.open('/admin/pos/?fromMenu=1', '_blank', 'noopener');
   };
 
