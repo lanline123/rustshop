@@ -277,12 +277,9 @@ export default function AutoConfigPage({ title, getApi, saveApi, sections }: Aut
   return (
     <Card className="auto-config-card" shadows="hover">
       <div className="auto-config-head">
-        <div>
-          <h3>{title}</h3>
-          <Text type="tertiary" size="small">
-            共 {entries.length} 项配置
-          </Text>
-        </div>
+        <Text type="tertiary" size="small">
+          共 {entries.length} 项配置
+        </Text>
       </div>
       {grouped.map((group) => (
         <div className="auto-config-section" key={group.title || 'all'}>
