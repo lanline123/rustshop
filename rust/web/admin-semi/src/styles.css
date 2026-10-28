@@ -1471,11 +1471,14 @@ body {
 .framework-switch-field {
   display: flex;
   align-items: center;
+  min-height: 56px;
   margin-bottom: 14px;
 }
 
 .framework-switch-field .framework-custom-label {
   padding-top: 0;
+  font-weight: 600;
+  line-height: 32px;
 }
 
 .framework-switch-control {
