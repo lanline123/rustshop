@@ -11,10 +11,11 @@ import Brands from './pages/Brands';
 import ProductGroups from './pages/ProductGroups';
 import Categories from './pages/Categories';
 import ProductServices from './pages/ProductServices';
+import Comments from './pages/Comments';
 import Placeholder from './pages/Placeholder';
 import { pageTitles } from './config/adminMenu';
 
-const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'orders', 'members', 'content']);
+const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'orders', 'members', 'content']);
 
 if (new URLSearchParams(window.location.search).get('demo') === '1') {
   enterDemo();
@@ -55,6 +56,7 @@ export default function App() {
       {page === 'productGroupManage' && <ProductGroups />}
       {page === 'categoryManage' && <Categories />}
       {page === 'productServicesManage' && <ProductServices />}
+      {page === 'commentManage' && <Comments />}
       {page === 'orders' && <Orders />}
       {page === 'members' && <Members />}
       {page === 'content' && <Content />}
