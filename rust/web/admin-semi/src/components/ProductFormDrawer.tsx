@@ -161,20 +161,40 @@ function SkuEditor({ formApi, values }: { formApi: any; values: Record<string, a
 }
 
 function RecommendField({ formApi, values }: { formApi: any; values: Record<string, any> }) {
-  const options = [
-    { field: 'isBest', label: '精品' },
-    { field: 'isNew', label: '新品' },
-    { field: 'isHot', label: '热销' },
-  ];
+  const fields = ['isBest', 'isNew', 'isHot'];
+  const [checked, setChecked] = useState<Record<string, boolean>>(() => ({
+    isBest: Boolean(values.isBest),
+    isNew: Boolean(values.isNew),
+    isHot: Boolean(values.isHot),
+  }));
+
+  useEffect(() => {
+    setChecked({
+      isBest: Boolean(values.isBest),
+      isNew: Boolean(values.isNew),
+      isHot: Boolean(values.isHot),
+    });
+  }, [values.isBest, values.isNew, values.isHot]);
+
+  const labels: Record<string, string> = {
+    isBest: '精品',
+    isNew: '新品',
+    isHot: '热销',
+  };
+
   return (
     <div className="product-recommend-field">
-      {options.map((item) => (
+      {fields.map((field) => (
         <Checkbox
-          key={item.field}
-          checked={Boolean(values[item.field])}
-          onChange={(event) => formApi?.setValue(item.field, event.target.checked)}
+          key={field}
+          checked={checked[field]}
+          onChange={(event) => {
+            const next = Boolean(event.target.checked);
+            setChecked((current) => ({ ...current, [field]: next }));
+            formApi?.setValue(field, next);
+          }}
         >
-          {item.label}
+          {labels[field]}
         </Checkbox>
       ))}
     </div>

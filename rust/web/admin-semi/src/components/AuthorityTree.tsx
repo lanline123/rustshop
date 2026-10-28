@@ -39,6 +39,16 @@ function collectSns(node: AuthorityNode, out: string[] = []) {
 export default function AuthorityTree({ value = [], onChange }: AuthorityTreeProps) {
   const [tree, setTree] = useState<AuthorityNode[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState<string[]>(value);
+
+  useEffect(() => {
+    setSelected(value);
+  }, [JSON.stringify(value)]);
+
+  const apply = (next: string[]) => {
+    setSelected(next);
+    onChange(next);
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -49,20 +59,20 @@ export default function AuthorityTree({ value = [], onChange }: AuthorityTreePro
   }, []);
 
   const allSns = collectSns({ children: tree } as AuthorityNode);
-  const effective = value.includes('all') ? allSns : value;
+  const effective = selected.includes('all') ? allSns : selected;
 
   const toggleNode = (node: AuthorityNode, checked: boolean) => {
     const sns = collectSns(node);
     const next = new Set(effective);
     sns.forEach((sn) => (checked ? next.add(sn) : next.delete(sn)));
-    onChange(Array.from(next));
+    apply(Array.from(next));
   };
 
   const toggleSingle = (sn: string, checked: boolean) => {
     const next = new Set(effective);
     if (checked) next.add(sn);
     else next.delete(sn);
-    onChange(Array.from(next));
+    apply(Array.from(next));
   };
 
   const childrenOf = (node: AuthorityNode) => node.children || [];
@@ -130,8 +140,8 @@ export default function AuthorityTree({ value = [], onChange }: AuthorityTreePro
       <div className="authority-select">
         <div className="authority-select-head">
           <Checkbox
-            checked={value.includes('all')}
-            onChange={(event) => onChange(event.target.checked ? ['all'] : [])}
+            checked={selected.includes('all')}
+            onChange={(event) => apply(event.target.checked ? ['all'] : [])}
           >
             全选
           </Checkbox>
