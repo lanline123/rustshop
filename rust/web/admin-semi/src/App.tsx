@@ -15,10 +15,11 @@ import Comments from './pages/Comments';
 import AttributesTemplates from './pages/AttributesTemplates';
 import FriendLinks from './pages/FriendLinks';
 import Regions from './pages/Regions';
+import LogisticsCompanies from './pages/LogisticsCompanies';
 import Placeholder from './pages/Placeholder';
 import { pageTitles } from './config/adminMenu';
 
-const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'productAttributesTplManage', 'friendLinksManage', 'regionManage', 'orders', 'members', 'content']);
+const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'productAttributesTplManage', 'friendLinksManage', 'regionManage', 'logisticsCompanyManage', 'orders', 'members', 'content']);
 
 if (new URLSearchParams(window.location.search).get('demo') === '1') {
   enterDemo();
@@ -63,6 +64,7 @@ export default function App() {
       {page === 'productAttributesTplManage' && <AttributesTemplates />}
       {page === 'friendLinksManage' && <FriendLinks />}
       {page === 'regionManage' && <Regions />}
+      {page === 'logisticsCompanyManage' && <LogisticsCompanies />}
       {page === 'orders' && <Orders />}
       {page === 'members' && <Members />}
       {page === 'content' && <Content />}
