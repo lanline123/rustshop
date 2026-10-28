@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button, Modal, Space, Tag, Typography } from '@douyinfe/semi-ui';
 import ListPage from '../framework/ListPage';
 import type { ColumnConfig } from '../framework/types';
@@ -16,6 +16,14 @@ interface AdminLogRow {
 
 export default function AdminLogs() {
   const [detail, setDetail] = useState<AdminLogRow | null>(null);
+  const initialKeyword = useMemo(
+    () => new URLSearchParams(window.location.search).get('keyword') || '',
+    [],
+  );
+  const initialQuery = useMemo(
+    () => (initialKeyword ? { keyword: initialKeyword } : undefined),
+    [initialKeyword],
+  );
 
   const columns: ColumnConfig<AdminLogRow>[] = [
     { title: '编号', dataIndex: 'logId', width: 100 },
@@ -40,6 +48,7 @@ export default function AdminLogs() {
         rowKey="logId"
         pageSize={10}
         actionWidth={110}
+        query={initialQuery}
         filters={[
           {
             field: 'keyword',

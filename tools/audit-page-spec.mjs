@@ -56,6 +56,7 @@ const actionLabels = {
   edit: '编辑',
   delete: '删除',
   audit: '去处理',
+  logs: '日志',
 };
 for (const action of spec.actions || []) {
   if (action === 'edit') {

@@ -50,6 +50,8 @@ const ignored = new Set([
   '更多',
   '请选择...',
   '分类图标',
+  '管理员列表',
+  '店铺管理员列表',
 ]);
 
 const clean = (value) =>
