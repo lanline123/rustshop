@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Card, Input, InputNumber, Switch, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Card, ColorPicker, Input, InputNumber, Switch, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '../api';
 import { configLabels } from '../config/configLabels';
 import ImageUploader from '../components/ImageUploader';
 import RichTextEditor from '../components/RichTextEditor';
+import RegionSelect from '../components/RegionSelect';
 
 const { Text } = Typography;
 
@@ -191,6 +192,17 @@ export default function AutoConfigPage({ title, getApi, saveApi, sections }: Aut
       typeof value === 'string' &&
       /(logo|img|image|ico|icon|avatar|banner|photo|qrcode)/i.test(key) &&
       !/(defined|css|size|type|mode|name)/i.test(key);
+    const isImageList =
+      Array.isArray(value) &&
+      value.every((item) => typeof item === 'string') &&
+      /(gallery|images|photos|pics|banner)/i.test(key);
+    const isColor =
+      typeof value === 'string' &&
+      /(color|colour)/i.test(key) &&
+      /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(text);
+    const isRegion = /(^regionId$|provinceId$|cityId$|areaId$|^region$|^province$|^city$|^area$)/i.test(
+      key,
+    );
     const isRichText =
       typeof value === 'string' && /(content|notice|agreement|protocol)/i.test(key);
     const isBinaryFlag =
@@ -202,11 +214,16 @@ export default function AutoConfigPage({ title, getApi, saveApi, sections }: Aut
       !/(type|mode|provider|days|minute|limit|rate|size|count|sort|order|percent|number|price|id|amount)$/i.test(
         key,
       );
-    const wide = isObject || isRichText || isImage;
+    const wide = isObject || isRichText || isImage || isImageList;
     return (
       <div className={`auto-config-field ${wide ? 'is-wide' : ''}`} key={key}>
         <label>{formatLabel(key)}</label>
-        {isImage ? (
+        {isImageList ? (
+          <ImageUploader
+            value={(value as string[]) || []}
+            onChange={(next) => update(key, next)}
+          />
+        ) : isImage ? (
           <ImageUploader
             single
             value={text ? [text] : []}
@@ -214,6 +231,16 @@ export default function AutoConfigPage({ title, getApi, saveApi, sections }: Aut
           />
         ) : isRichText ? (
           <RichTextEditor value={text} onChange={(next) => update(key, next)} height={260} />
+        ) : isColor ? (
+          <ColorPicker
+            value={text as never}
+            alpha={false}
+            onChange={(color: any) =>
+              update(key, typeof color === 'string' ? color : color?.hex || '')
+            }
+          />
+        ) : isRegion ? (
+          <RegionSelect value={value as number | string} onChange={(next) => update(key, next)} />
         ) : isBinaryFlag ? (
           <Switch
             checked={String(value) === '1'}
