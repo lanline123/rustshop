@@ -12,10 +12,11 @@ import ProductGroups from './pages/ProductGroups';
 import Categories from './pages/Categories';
 import ProductServices from './pages/ProductServices';
 import Comments from './pages/Comments';
+import AttributesTemplates from './pages/AttributesTemplates';
 import Placeholder from './pages/Placeholder';
 import { pageTitles } from './config/adminMenu';
 
-const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'orders', 'members', 'content']);
+const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'productAttributesTplManage', 'orders', 'members', 'content']);
 
 if (new URLSearchParams(window.location.search).get('demo') === '1') {
   enterDemo();
@@ -57,6 +58,7 @@ export default function App() {
       {page === 'categoryManage' && <Categories />}
       {page === 'productServicesManage' && <ProductServices />}
       {page === 'commentManage' && <Comments />}
+      {page === 'productAttributesTplManage' && <AttributesTemplates />}
       {page === 'orders' && <Orders />}
       {page === 'members' && <Members />}
       {page === 'content' && <Content />}

@@ -1544,3 +1544,33 @@ body {
   background: #f04438;
   color: #fff;
 }
+
+.tpl-data-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.tpl-data-group {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.tpl-data-title {
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tpl-data-attr {
+  margin-bottom: 8px;
+}
+
+.tpl-data-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
