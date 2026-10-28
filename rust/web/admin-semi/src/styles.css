@@ -1467,3 +1467,29 @@ body {
   padding-left: 22px;
   font-size: 13px;
 }
+
+.framework-switch-field {
+  display: flex;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.framework-switch-field .framework-custom-label {
+  padding-top: 0;
+}
+
+.framework-switch-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.framework-switch-on {
+  color: var(--primary);
+  font-size: 13px;
+}
+
+.framework-switch-off {
+  color: var(--muted);
+  font-size: 13px;
+}

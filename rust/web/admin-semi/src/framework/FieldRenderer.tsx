@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Form } from '@douyinfe/semi-ui';
+import { Form, Switch } from '@douyinfe/semi-ui';
 import { apiGet } from '../api';
 import type { FieldConfig, OptionItem } from './types';
 
@@ -86,16 +86,27 @@ export default function FieldRenderer({
       return <Form.Select {...common} filter showClear optionList={config.options || []} />;
     case 'radio':
       return <Form.RadioGroup {...common} options={config.options || []} />;
-    case 'switch':
+    case 'switch': {
+      const current = values[config.field];
+      const checked = current === true || Number(current) === 1;
       return (
-        <Form.Switch
-          field={config.field}
-          label={config.label}
-          disabled={config.disabled}
-          checkedText={config.checkedText}
-          uncheckedText={config.uncheckedText}
-        />
+        <div className="framework-switch-field">
+          <label className="framework-custom-label">{config.label}</label>
+          <div className="framework-switch-control">
+            <Switch
+              checked={checked}
+              disabled={config.disabled}
+              onChange={(next) => formApi?.setValue(config.field, next ? 1 : 0)}
+            />
+            <span className={checked ? 'framework-switch-on' : 'framework-switch-off'}>
+              {checked
+                ? config.checkedText || '已开启'
+                : config.uncheckedText || '已关闭'}
+            </span>
+          </div>
+        </div>
       );
+    }
     case 'date':
       return <Form.DatePicker {...common} type="date" />;
     default:
