@@ -26,6 +26,7 @@ import TaxRates from './pages/TaxRates';
 import ShippingTypes from './pages/ShippingTypes';
 import ShippingSettingsPage from './pages/ShippingSettings';
 import AutoConfigPage from './pages/AutoConfigPage';
+import LogisticsSettings from './pages/LogisticsSettings';
 import Placeholder from './pages/Placeholder';
 import { pageTitles } from './config/adminMenu';
 import { configSections } from './config/configSections';
@@ -54,7 +55,7 @@ Object.entries(configPages).forEach(([key, page]) => {
   page.sections = configSections[key];
 });
 
-const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'productAttributesTplManage', 'friendLinksManage', 'regionManage', 'logisticsCompanyManage', 'appVersionManage', 'adminLogManage', 'adminUserManage', 'adminRoleManage', 'serviceAgreement', 'privacyAgreement', 'afterSaleService', 'accountManage', 'taxRateManage', 'shippingTypeManage', 'logisticsManage', 'baseBasicManage', 'baseProductManage', 'baseShoppingManage', 'baseOrderManage', 'kefuSetting', 'globalSetting', 'loginSetting', 'storeAmapSetting', 'personalizedManage', 'baseNoticeManage', 'orders', 'members', 'content']);
+const knownPages = new Set(['dashboard', 'products', 'brandManage', 'categoryManage', 'productGroupManage', 'productServicesManage', 'commentManage', 'productAttributesTplManage', 'friendLinksManage', 'regionManage', 'logisticsCompanyManage', 'appVersionManage', 'adminLogManage', 'adminUserManage', 'adminRoleManage', 'serviceAgreement', 'privacyAgreement', 'afterSaleService', 'accountManage', 'taxRateManage', 'shippingTypeManage', 'logisticsManage', 'logisticsCompanyConfigManage', 'baseBasicManage', 'baseProductManage', 'baseShoppingManage', 'baseOrderManage', 'kefuSetting', 'globalSetting', 'loginSetting', 'storeAmapSetting', 'personalizedManage', 'baseNoticeManage', 'orders', 'members', 'content']);
 
 if (new URLSearchParams(window.location.search).get('demo') === '1') {
   enterDemo();
@@ -114,6 +115,7 @@ export default function App() {
       {page === 'taxRateManage' && <TaxRates />}
       {page === 'shippingTypeManage' && <ShippingTypes />}
       {page === 'logisticsManage' && <ShippingSettingsPage />}
+      {page === 'logisticsCompanyConfigManage' && <LogisticsSettings />}
       {configPages[page] && <AutoConfigPage {...configPages[page]} />}
       {page === 'afterSaleService' && (
         <AgreementPage code="afterSalesService" title="售后服务" description="配置售后服务协议内容与启用状态。" />
