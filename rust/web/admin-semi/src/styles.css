@@ -2739,3 +2739,184 @@ body[theme-mode='dark'] .brand {
 body[theme-mode='dark'] .auto-config-subgroup-head {
   background: linear-gradient(135deg, #182434 0%, #161b22 72%);
 }
+
+/* ===== 混合菜单：顶部一级 + 左侧二级 ===== */
+.app-shell.layout-mix {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  grid-template-rows: 64px minmax(0, 1fr);
+  height: 100vh;
+}
+
+.layout-mix .sidebar,
+.layout-mix .sidebar-body {
+  display: contents;
+}
+
+.layout-mix .brand {
+  grid-column: 1;
+  grid-row: 1;
+  height: 64px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.layout-mix .rail {
+  grid-column: 2;
+  grid-row: 1;
+  width: auto;
+  height: 64px;
+  flex-direction: row;
+  align-items: center;
+  padding: 6px 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: #eef2ff;
+  border-bottom: 1px solid var(--border);
+}
+
+.layout-mix .rail-item {
+  width: auto;
+  height: 40px;
+  flex-direction: row;
+  gap: 6px;
+  padding: 0 12px;
+  flex-shrink: 0;
+}
+
+.layout-mix .rail-label {
+  display: inline;
+}
+
+.layout-mix .submenu {
+  grid-column: 1;
+  grid-row: 2;
+  width: 232px;
+  padding: 14px 10px;
+  overflow-y: auto;
+  background: var(--surface);
+  border-left: 0;
+  border-right: 1px solid var(--border);
+}
+
+.layout-mix .submenu-title {
+  display: block;
+}
+
+.layout-mix .side-footer {
+  display: none;
+}
+
+.layout-mix .main-shell {
+  grid-column: 2;
+  grid-row: 2;
+  width: auto;
+  min-height: 0;
+}
+
+/* ===== 顶部菜单：一级一行 + 二级单独一行 ===== */
+.app-shell.layout-top {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.layout-top .sidebar {
+  width: 100%;
+  height: auto;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: stretch;
+  background: var(--surface);
+  border-right: 0;
+  border-bottom: 1px solid var(--border);
+  overflow: visible;
+}
+
+.layout-top .brand {
+  height: 56px;
+  border-bottom: 0;
+  border-right: 1px solid var(--border);
+}
+
+.layout-top .sidebar-body {
+  flex: 1;
+  min-width: 0;
+  flex-direction: row;
+  flex-wrap: wrap;
+  min-height: 0;
+}
+
+.layout-top .rail {
+  flex: 1 1 100%;
+  width: 100%;
+  height: 56px;
+  flex-direction: row;
+  align-items: center;
+  padding: 6px 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: #eef2ff;
+  border-bottom: 1px solid var(--border);
+}
+
+.layout-top .rail-item {
+  width: auto;
+  height: 40px;
+  flex-direction: row;
+  gap: 6px;
+  padding: 0 12px;
+  flex-shrink: 0;
+}
+
+.layout-top .rail-label {
+  display: inline;
+}
+
+.layout-top .submenu {
+  flex: 1 1 100%;
+  width: 100%;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 4px 14px;
+  border-left: 0;
+  border-top: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--surface);
+}
+
+.layout-top .submenu-title,
+.layout-top .submenu-section-title,
+.layout-top .side-footer {
+  display: none;
+}
+
+.layout-top .submenu-list {
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+}
+
+.layout-top .submenu-section {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+}
+
+.layout-top .submenu-item {
+  width: auto;
+  height: 34px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.layout-top .main-shell {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
