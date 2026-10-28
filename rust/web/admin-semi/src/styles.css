@@ -1669,3 +1669,28 @@ body {
   white-space: pre-wrap;
   word-break: break-all;
 }
+
+.admin-log-page .semi-table-tbody .semi-table-row-cell {
+  padding-top: 15px;
+  padding-bottom: 15px;
+}
+
+.admin-log-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-log-info-link {
+  flex-shrink: 0;
+  padding-left: 0;
+  padding-right: 0;
+  color: var(--primary);
+}
+
+.admin-log-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
