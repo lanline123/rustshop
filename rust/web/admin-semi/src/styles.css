@@ -2493,3 +2493,25 @@ body {
   border-color: #fff;
   box-shadow: 0 0 0 2px var(--primary);
 }
+
+/* 按钮式单选垂直居中 */
+.auto-config-field .semi-radioGroup-buttonRadio {
+  min-height: 38px;
+  align-items: center;
+}
+
+.auto-config-field .semi-radio-buttonRadioGroup {
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.auto-config-field .semi-radio-buttonRadioGroup .semi-radio-content {
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.auto-config-field .semi-radio-addon-buttonRadio {
+  line-height: 1;
+}
