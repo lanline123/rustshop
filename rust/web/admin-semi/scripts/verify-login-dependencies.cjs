@@ -1,0 +1,50 @@
+const { chromium } = require('playwright-core');
+
+const BASE = 'http://127.0.0.1:3002';
+
+(async () => {
+  const browser = await chromium.launch({
+    executablePath: 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    headless: true,
+  });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1200 } });
+  const failures = [];
+
+  await page.goto(`${BASE}/?page=loginSetting`, { waitUntil: 'networkidle' });
+  await page.getByPlaceholder('请输入管理员账号').fill('admin');
+  await page.getByPlaceholder('请输入密码').fill('admin123');
+  await page.getByRole('button', { name: '登录' }).click();
+  await page.waitForTimeout(2400);
+
+  const oauth = page.locator('.auto-config-field').filter({ hasText: '开启公众号授权登录' }).first();
+  await oauth.getByText('是', { exact: true }).click();
+  await page.waitForTimeout(350);
+
+  const groups = page.locator('.auto-config-subgroup');
+  if ((await groups.count()) !== 1) failures.push('开启公众号授权登录为是时，公众号授权配置模块未显示');
+  const labels = await page.locator('.auto-config-subgroup .auto-config-field label').allInnerTexts();
+  for (const label of ['微信APPID', '微信AppSecret', '微信服务器Token', '微信服务器Secret']) {
+    if (!labels.includes(label)) failures.push(`公众号授权配置缺少字段: ${label}`);
+  }
+
+  await oauth.getByText('否', { exact: true }).click();
+  await page.waitForTimeout(350);
+  if ((await groups.count()) !== 0) failures.push('关闭公众号授权登录后，公众号授权配置模块仍然显示');
+
+  for (const label of ['PC微信扫码登录', '是否需要绑定手机号', '微信小程序快捷登录']) {
+    const field = page.locator('.auto-config-field').filter({ hasText: label }).first();
+    if ((await field.locator('.semi-radio-disabled').count()) < 1) {
+      failures.push(`${label} 未同步置灰`);
+    }
+  }
+
+  await page.screenshot({ path: 'preview-login-dependency-check.png' });
+  await browser.close();
+
+  if (failures.length) {
+    console.error('FAIL');
+    failures.forEach((item) => console.error(`  - ${item}`));
+    process.exit(1);
+  }
+  console.log('PASS: 微信登录模块显隐与联动禁用检查通过');
+})();

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Card, ColorPicker, Input, InputNumber, Switch, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Card, ColorPicker, Input, InputNumber, Radio, RadioGroup, Switch, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '../api';
 import { configLabels } from '../config/configLabels';
 import ImageUploader from '../components/ImageUploader';
@@ -9,11 +9,45 @@ import SecretInput from '../components/SecretInput';
 
 const { Text } = Typography;
 
+export interface ConfigWhen {
+  field?: string;
+  equals?: unknown;
+  notEquals?: unknown;
+  in?: unknown[];
+  any?: ConfigWhen[];
+  all?: ConfigWhen[];
+}
+
+export interface ConfigFieldRule {
+  visibleWhen?: ConfigWhen;
+  disabledWhen?: ConfigWhen;
+}
+
+export interface ConfigFieldGroup {
+  title: string;
+  fields: string[];
+  visibleWhen?: ConfigWhen;
+}
+
 interface AutoConfigPageProps {
   title: string;
   getApi: string;
   saveApi: string;
   sections?: Array<{ title: string; fields: string[] }>;
+  rules?: Record<string, ConfigFieldRule>;
+  fieldGroups?: ConfigFieldGroup[];
+  controls?: Record<string, 'radio' | 'switch'>;
+}
+
+function matchesCondition(condition: ConfigWhen | undefined, values: Record<string, unknown>): boolean {
+  if (!condition) return true;
+  if (condition.any) return condition.any.some((item) => matchesCondition(item, values));
+  if (condition.all) return condition.all.every((item) => matchesCondition(item, values));
+  const current = condition.field ? values[condition.field] : undefined;
+  if ('equals' in condition) return String(current) === String(condition.equals);
+  if ('notEquals' in condition) return String(current) !== String(condition.notEquals);
+  if (condition.in) return condition.in.some((item) => String(item) === String(current));
+  return true;
 }
 
 const labelMap: Record<string, string> = {
@@ -124,7 +158,15 @@ function formatLabel(key: string) {
     .trim();
 }
 
-export default function AutoConfigPage({ title, getApi, saveApi, sections }: AutoConfigPageProps) {
+export default function AutoConfigPage({
+  title,
+  getApi,
+  saveApi,
+  sections,
+  rules,
+  fieldGroups,
+  controls,
+}: AutoConfigPageProps) {
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [jsonDrafts, setJsonDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -178,7 +220,9 @@ export default function AutoConfigPage({ title, getApi, saveApi, sections }: Aut
     const result = sections
       .map((section) => ({
         title: section.title,
-        items: entries.filter(([key]) => section.fields.includes(key)),
+        items: section.fields
+          .map((key) => entries.find(([entryKey]) => entryKey === key))
+          .filter((item): item is [string, unknown] => Boolean(item)),
       }))
       .filter((section) => section.items.length > 0);
     const rest = entries.filter(([key]) => !known.has(key));
@@ -189,7 +233,13 @@ export default function AutoConfigPage({ title, getApi, saveApi, sections }: Aut
     return result;
   }, [entries, sections]);
 
-  const renderField = ([key, value]: [string, unknown]) => {
+  const isFieldVisible = (key: string) => matchesCondition(rules?.[key]?.visibleWhen, values);
+  const isFieldDisabled = (key: string) => {
+    const condition = rules?.[key]?.disabledWhen;
+    return condition ? matchesCondition(condition, values) : false;
+  };
+
+  const renderField = ([key, value]: [string, unknown], disabled = false) => {
     const isObject = value !== null && typeof value === 'object';
     const text = value === null || value === undefined ? '' : String(value);
     const isImage =
@@ -248,15 +298,29 @@ export default function AutoConfigPage({ title, getApi, saveApi, sections }: Aut
           <RegionSelect value={value as number | string} onChange={(next) => update(key, next)} />
         ) : isSecret ? (
           <SecretInput value={text} onChange={(next) => update(key, next)} />
+        ) : controls?.[key] === 'radio' ? (
+          <RadioGroup
+            value={String(value)}
+            disabled={disabled}
+            onChange={(event) => update(key, Number(event.target.value))}
+          >
+            <Radio value="1">是</Radio>
+            <Radio value="0">否</Radio>
+          </RadioGroup>
         ) : isBinaryFlag ? (
           <Switch
+            disabled={disabled}
             checked={String(value) === '1'}
             onChange={(next) => update(key, next ? 1 : 0)}
           />
         ) : typeof value === 'boolean' ? (
-          <Switch checked={value} onChange={(next) => update(key, next)} />
+          <Switch disabled={disabled} checked={value} onChange={(next) => update(key, next)} />
         ) : typeof value === 'number' ? (
-          <InputNumber value={value} onChange={(next) => update(key, Number(next || 0))} />
+          <InputNumber
+            disabled={disabled}
+            value={value}
+            onChange={(next) => update(key, Number(next || 0))}
+          />
         ) : isObject ? (
           <TextArea
             value={jsonDrafts[key] || ''}
@@ -265,6 +329,7 @@ export default function AutoConfigPage({ title, getApi, saveApi, sections }: Aut
           />
         ) : (
           <Input
+            disabled={disabled}
             value={String(value ?? '')}
             onChange={(next) => update(key, next)}
             mode={/secret|password|pass/i.test(key) ? 'password' : undefined}
@@ -281,12 +346,39 @@ export default function AutoConfigPage({ title, getApi, saveApi, sections }: Aut
           共 {entries.length} 项配置
         </Text>
       </div>
-      {grouped.map((group) => (
-        <div className="auto-config-section" key={group.title || 'all'}>
-          {group.title && <h4>{group.title}</h4>}
-          <div className="auto-config-grid">{group.items.map(renderField)}</div>
-        </div>
-      ))}
+      {grouped.map((group) => {
+        const renderedGroups = new Set<string>();
+        return (
+          <div className="auto-config-section" key={group.title || 'all'}>
+            {group.title && <h4>{group.title}</h4>}
+            <div className="auto-config-grid">
+              {group.items.map(([key, value]) => {
+                const fieldGroup = (fieldGroups || []).find((item) => item.fields.includes(key));
+                if (fieldGroup) {
+                  if (renderedGroups.has(fieldGroup.title)) return null;
+                  if (!matchesCondition(fieldGroup.visibleWhen, values)) return null;
+                  renderedGroups.add(fieldGroup.title);
+                  const items = fieldGroup.fields
+                    .map((itemKey) => group.items.find(([innerKey]) => innerKey === itemKey))
+                    .filter((item): item is [string, unknown] => Boolean(item))
+                    .filter(([itemKey]) => isFieldVisible(itemKey));
+                  if (!items.length) return null;
+                  return (
+                    <div className="auto-config-subgroup" key={fieldGroup.title}>
+                      <h5>{fieldGroup.title}</h5>
+                      <div className="auto-config-grid">
+                        {items.map((item) => renderField(item, isFieldDisabled(item[0])))}
+                      </div>
+                    </div>
+                  );
+                }
+                if (!isFieldVisible(key)) return null;
+                return renderField([key, value], isFieldDisabled(key));
+              })}
+            </div>
+          </div>
+        );
+      })}
       <div className="auto-config-actions">
         <Button theme="solid" type="primary" loading={saving || loading} onClick={save}>
           保存

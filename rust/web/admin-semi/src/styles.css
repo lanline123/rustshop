@@ -2183,3 +2183,22 @@ body {
 .auto-config-field.is-wide {
   grid-template-columns: 170px minmax(0, 760px);
 }
+
+.auto-config-subgroup {
+  padding: 12px 16px;
+  margin: 4px 0 12px;
+  border-left: 3px solid var(--primary);
+  border-radius: 6px;
+  background: #f7f9fc;
+}
+
+.auto-config-subgroup h5 {
+  margin: 0 0 10px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.auto-config-subgroup {
+  grid-column: 1 / -1;
+}

@@ -397,3 +397,49 @@ Agent F：财务/设置模块
 ```
 
 配合并行 Agent，整体速度可以提升 5-10 倍，重点是减少重复劳动，而不是让 AI 盲目翻译 1170 个文件。
+
+## 配置页依赖规则（AutoConfigPage）
+
+配置页不再允许在组件里硬编码显隐逻辑，统一使用声明式规则：
+
+```ts
+rules: {
+  openWechatPcLogin: {
+    disabledWhen: { field: 'openWechatOauth', equals: 0 },
+  },
+  wechatRegisterBindPhone: {
+    disabledWhen: {
+      any: [
+        { field: 'openWechatOauth', equals: 0 },
+        { field: 'openWechatPcLogin', equals: 0 },
+      ],
+    },
+  },
+},
+fieldGroups: [
+  {
+    title: '公众号授权配置',
+    fields: ['wechatAppId', 'wechatAppSecret', 'wechatServerToken', 'wechatServerSecret'],
+    visibleWhen: { field: 'openWechatOauth', equals: 1 },
+  },
+],
+controls: {
+  openWechatOauth: 'radio',
+}
+```
+
+规则：
+
+```text
+visibleWhen：条件不满足时整块隐藏
+disabledWhen：条件满足时控件置灰
+fieldGroups：多个字段作为一个模块整体显示/隐藏
+controls：按原版指定 radio / switch
+```
+
+联动页面必须提供 interactionChecks，例如登录设置：
+
+```text
+rust/web/admin-semi/scripts/verify-login-dependencies.cjs
+```
+

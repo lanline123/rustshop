@@ -25,7 +25,7 @@ import AccountManage from './pages/AccountManage';
 import TaxRates from './pages/TaxRates';
 import ShippingTypes from './pages/ShippingTypes';
 import ShippingSettingsPage from './pages/ShippingSettings';
-import AutoConfigPage from './pages/AutoConfigPage';
+import AutoConfigPage, { type ConfigFieldGroup, type ConfigFieldRule } from './pages/AutoConfigPage';
 import LogisticsSettings from './pages/LogisticsSettings';
 import PayLogs from './pages/PayLogs';
 import RefundLogs from './pages/RefundLogs';
@@ -42,6 +42,9 @@ type ConfigPageDef = {
   getApi: string;
   saveApi: string;
   sections?: Array<{ title: string; fields: string[] }>;
+  rules?: Record<string, ConfigFieldRule>;
+  fieldGroups?: ConfigFieldGroup[];
+  controls?: Record<string, 'radio' | 'switch'>;
 };
 
 const configPages: Record<string, ConfigPageDef> = {
@@ -51,7 +54,41 @@ const configPages: Record<string, ConfigPageDef> = {
   baseOrderManage: { title: '订单设置', getApi: '/setting/config/orderSettings', saveApi: '/setting/config/saveOrder' },
   kefuSetting: { title: '客服设置', getApi: '/setting/config/kefuSettings', saveApi: '/setting/config/saveKefu' },
   globalSetting: { title: '全局设置', getApi: '/setting/config/globalSettings', saveApi: '/setting/config/saveGlobal' },
-  loginSetting: { title: '登录设置', getApi: '/setting/config/loginSettings', saveApi: '/setting/config/saveLogin' },
+  loginSetting: {
+    title: '登录设置',
+    getApi: '/setting/config/loginSettings',
+    saveApi: '/setting/config/saveLogin',
+    controls: {
+      openWechatOauth: 'radio',
+      openWechatPcLogin: 'radio',
+      wechatRegisterBindPhone: 'radio',
+      openWechatRegister: 'radio',
+      wechatShareNeedLogin: 'radio',
+    },
+    rules: {
+      openWechatPcLogin: {
+        disabledWhen: { field: 'openWechatOauth', equals: 0 },
+      },
+      wechatRegisterBindPhone: {
+        disabledWhen: {
+          any: [
+            { field: 'openWechatOauth', equals: 0 },
+            { field: 'openWechatPcLogin', equals: 0 },
+          ],
+        },
+      },
+      openWechatRegister: {
+        disabledWhen: { field: 'openWechatOauth', equals: 0 },
+      },
+    },
+    fieldGroups: [
+      {
+        title: '公众号授权配置',
+        fields: ['wechatAppId', 'wechatAppSecret', 'wechatServerToken', 'wechatServerSecret'],
+        visibleWhen: { field: 'openWechatOauth', equals: 1 },
+      },
+    ],
+  },
   storeAmapSetting: { title: '地图设置', getApi: '/setting/config/mapSettings', saveApi: '/setting/config/saveMapSettings' },
   personalizedManage: { title: '个性化设置', getApi: '/setting/config/getPersonalizedSetting', saveApi: '/setting/config/savePersonalizedSetting' },
   baseNoticeManage: { title: '通知设置', getApi: '/setting/config/notifySettings', saveApi: '/setting/config/saveNotify' },

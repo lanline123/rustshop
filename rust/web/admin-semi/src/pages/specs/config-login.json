@@ -7,6 +7,7 @@
   "columns": [],
   "actions": [],
   "batch": [],
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-login-dependencies.cjs"],
   "notes": [
     "登录设置：通用配置页，字段按真实接口返回渲染。"
   ]
