@@ -1292,6 +1292,10 @@ export const navGroups: NavGroup[] = [
             "label": "物流公司"
           },
           {
+            "key": "shippingTypeManage",
+            "label": "配送类型"
+          },
+          {
             "key": "shippingTplManage",
             "label": "运费模板"
           },
@@ -1607,6 +1611,7 @@ export const pageTitles: Record<string, string> = {
   "storeAmapSetting": "地图设置",
   "homeServiceManage": "上门服务",
   "logisticsCompanyManage": "物流公司",
+  "shippingTypeManage": "配送类型",
   "shippingTplManage": "运费模板",
   "logisticsCompanyConfigManage": "物流设置",
   "globalSetting": "全局设置",
