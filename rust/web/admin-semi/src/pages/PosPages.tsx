@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Avatar, Button, Card, Pagination, Space, Switch, Table, Tag, Toast, Typography } from '@douyinfe/semi-ui';
-import { apiGet, apiPost } from '../api';
+import { apiGet, apiPost, getToken } from '../api';
 import ListPage from '../framework/ListPage';
 import type { ColumnConfig } from '../framework/types';
 
@@ -14,6 +14,33 @@ interface PosStats {
 
 export function PosWorkbench() {
   const [stats, setStats] = useState<PosStats>({});
+
+  const openPos = () => {
+    const token = getToken();
+    let payload: Record<string, unknown> = {};
+    try {
+      const raw = token.split('.')[1] || '';
+      payload = JSON.parse(atob(raw.replace(/-/g, '+').replace(/_/g, '/')));
+    } catch {
+      payload = {};
+    }
+    const adminType = String(payload.typ || 'admin');
+    const shopId = payload.shop_id ?? null;
+    if (!token) {
+      Toast.warning({ content: '请先登录后台' });
+      return;
+    }
+    localStorage.setItem('accessToken', token);
+    localStorage.setItem('adminType', adminType);
+    if (shopId !== null && shopId !== undefined) {
+      localStorage.setItem('shopId', String(shopId));
+    }
+    if (adminType !== 'admin' && !shopId) {
+      Toast.warning({ content: '请先选择门店后再进入收银台' });
+      return;
+    }
+    window.open('/admin/pos/?fromMenu=1', '_blank', 'noopener');
+  };
 
   useEffect(() => {
     apiGet<PosStats>('/pos/posSwitch/posStatistics')
@@ -29,7 +56,7 @@ export function PosWorkbench() {
           <h2>收银工作台</h2>
           <Text type="tertiary">进入 POS 完成开单、收款、挂单与交接班。</Text>
         </div>
-        <Button theme="solid" type="primary" size="large" onClick={() => window.open('/admin/pos/?fromMenu=1', '_blank', 'noopener')}>
+        <Button theme="solid" type="primary" size="large" onClick={openPos}>
           进入收银台
         </Button>
       </div>
