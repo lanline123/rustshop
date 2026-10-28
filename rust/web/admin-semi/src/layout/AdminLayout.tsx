@@ -208,8 +208,8 @@ export default function AdminLayout({ page, onPageChange, onLogout, children }: 
               <div className="side-help">
                 <IconHelpCircle />
                 <span>帮助与文档</span>
+                <span className="side-version">v0.1.0 · Semi UI</span>
               </div>
-              <div className="side-version">v0.1.0 · Semi UI</div>
             </>
           ) : (
             <Tooltip content="帮助与文档" position="right">
