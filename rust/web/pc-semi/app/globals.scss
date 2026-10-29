@@ -2625,3 +2625,21 @@ img {
   color: #98a2b3;
   font-size: 12px;
 }
+
+.member-address__form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.member-address__form label {
+  margin-top: 6px;
+  color: #475467;
+  font-size: 13px;
+}
+
+.member-address__region {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
