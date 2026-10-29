@@ -22,6 +22,7 @@ interface Coupon {
 export default function CouponClient() {
   const [rows, setRows] = useState<Coupon[]>([]);
   const [couponSn, setCouponSn] = useState('');
+  const [tab, setTab] = useState('all');
   const [loading, setLoading] = useState(true);
   const [needLogin, setNeedLogin] = useState(false);
 
@@ -55,6 +56,18 @@ export default function CouponClient() {
     }
   };
 
+  const couponState = (coupon: Coupon): string => {
+    const name = coupon.statusName || '';
+    if (name.includes('过期')) return 'expired';
+    if (name.includes('已使用') || name.includes('使用')) return 'used';
+    if (name.includes('未')) return 'unused';
+    if (coupon.status === 2) return 'used';
+    if (coupon.status === 3) return 'expired';
+    return 'unused';
+  };
+
+  const visibleRows = rows.filter((coupon) => tab === 'all' || couponState(coupon) === tab);
+
   const remove = async (id: number) => {
     try {
       await apiPost('user/coupon/del', { id });
@@ -86,11 +99,24 @@ export default function CouponClient() {
         <Link href="/coupon/list">领取更多优惠券 →</Link>
       </div>
 
+      <div className="member-coupon__tabs">
+        {[
+          { key: 'all', label: '全部' },
+          { key: 'unused', label: '未使用' },
+          { key: 'used', label: '已使用' },
+          { key: 'expired', label: '已过期' },
+        ].map((item) => (
+          <button key={item.key} type="button" className={tab === item.key ? 'is-active' : ''} onClick={() => setTab(item.key)}>
+            {item.label}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <Card className="member-card">优惠券加载中...</Card>
-      ) : rows.length ? (
+      ) : visibleRows.length ? (
         <div className="member-coupon__list">
-          {rows.map((coupon) => (
+          {visibleRows.map((coupon) => (
             <Card key={coupon.id} className={`member-coupon__card ${coupon.status === 3 ? 'is-invalid' : ''}`}>
               <div className="member-coupon__value">
                 {coupon.couponType === 2 ? (

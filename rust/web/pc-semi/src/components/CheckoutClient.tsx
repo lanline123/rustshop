@@ -110,10 +110,10 @@ export default function CheckoutClient({ cartIds }: { cartIds: number[] }) {
         invoiceData: {},
       });
       Toast.success({ content: '订单提交成功' });
-      if (result?.orderId) {
-        window.location.href = `/order/pay?id=${result.orderId}`;
+      if (result?.orderId && Number(result.returnType) !== 2) {
+        window.location.replace(`/order/pay?id=${result.orderId}`);
       } else {
-        window.location.href = '/member/order/list';
+        window.location.replace('/member/order/list');
       }
     } catch (error) {
       Toast.error({ content: error instanceof Error ? error.message : '订单提交失败' });

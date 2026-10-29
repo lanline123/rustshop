@@ -2711,3 +2711,24 @@ img {
   color: #d92d20;
   font-size: 12px;
 }
+
+.member-coupon__tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.member-coupon__tabs button {
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: #fff;
+  color: #667085;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.member-coupon__tabs button.is-active {
+  background: var(--pc-primary);
+  color: #fff;
+}

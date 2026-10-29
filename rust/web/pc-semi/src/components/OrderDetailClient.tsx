@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Button, Card, Toast } from '@douyinfe/semi-ui';
+import { Button, Card, Modal, Toast } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '@/lib/client-api';
 
 interface OrderDetail {
@@ -64,6 +64,22 @@ export default function OrderDetailClient({ orderId }: { orderId: number }) {
     }
   };
 
+  const cancel = () => {
+    Modal.confirm({
+      title: '取消订单',
+      content: '确认取消该订单？',
+      onOk: async () => {
+        try {
+          await apiPost('user/order/cancelOrder', { id: orderId, description: '用户主动取消' });
+          Toast.success({ content: '订单已取消' });
+          load();
+        } catch (error) {
+          Toast.error({ content: error instanceof Error ? error.message : '取消失败' });
+        }
+      },
+    });
+  };
+
   if (loading) return <Card className="cart-state">订单详情加载中...</Card>;
   if (needLogin) {
     return (
@@ -94,6 +110,9 @@ export default function OrderDetailClient({ orderId }: { orderId: number }) {
             ) : null}
             {detail.availableActions?.confirmReceipt ? (
               <Button onClick={() => void confirm()}>确认收货</Button>
+            ) : null}
+            {detail.availableActions?.cancelOrder ? (
+              <Button type="danger" onClick={cancel}>取消订单</Button>
             ) : null}
           </div>
         </div>

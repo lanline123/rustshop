@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Button, Card, Input, Toast } from '@douyinfe/semi-ui';
+import { Button, Card, Input, Modal, Toast } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '@/lib/client-api';
 
 interface OrderItem {
@@ -86,6 +86,24 @@ export default function MemberOrderList() {
     }
   };
 
+  const cancelOrder = (orderId: number) => {
+    Modal.confirm({
+      title: '取消订单',
+      content: '取消后订单将关闭，已支付金额按原路退回（如有）。',
+      okText: '确认取消',
+      cancelText: '再想想',
+      onOk: async () => {
+        try {
+          await apiPost('user/order/cancelOrder', { id: orderId, description: '用户主动取消' });
+          Toast.success({ content: '订单已取消' });
+          load();
+        } catch (error) {
+          Toast.error({ content: error instanceof Error ? error.message : '取消失败' });
+        }
+      },
+    });
+  };
+
   if (needLogin) {
     return (
       <Card className="cart-state">
@@ -158,6 +176,9 @@ export default function MemberOrderList() {
                   ) : null}
                   {order.availableActions?.confirmReceipt ? (
                     <Button size="small" onClick={() => void confirmReceipt(order.orderId)}>确认收货</Button>
+                  ) : null}
+                  {order.availableActions?.cancelOrder ? (
+                    <Button size="small" onClick={() => cancelOrder(order.orderId)}>取消订单</Button>
                   ) : null}
                   <Link href={`/member/order/detail?id=${order.orderId}`}>
                     <Button size="small" theme="borderless" type="primary">订单详情</Button>
