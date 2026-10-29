@@ -1,0 +1,120 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { Button, Card, Input, Toast } from '@douyinfe/semi-ui';
+import { apiGet, apiPost } from '@/lib/client-api';
+
+interface Coupon {
+  id: number;
+  couponName?: string;
+  couponMoney?: number | string;
+  couponDiscount?: number | string;
+  couponDesc?: string;
+  couponType?: number;
+  statusName?: string;
+  status?: number;
+  startDate?: string;
+  endDate?: string;
+  minOrderAmount?: number | string;
+}
+
+export default function CouponClient() {
+  const [rows, setRows] = useState<Coupon[]>([]);
+  const [couponSn, setCouponSn] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [needLogin, setNeedLogin] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    apiGet<{ records?: Coupon[] }>('user/coupon/list', { page: 1, size: 20 })
+      .then((result) => setRows(result.records || []))
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : '';
+        setNeedLogin(message.includes('登录') || message.includes('401'));
+      })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const claim = async () => {
+    if (!couponSn.trim()) {
+      Toast.warning({ content: '请输入优惠券码' });
+      return;
+    }
+    try {
+      await apiPost('user/coupon/claim', { couponSn: couponSn.trim() });
+      Toast.success({ content: '领取成功' });
+      setCouponSn('');
+      load();
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : '领取失败' });
+    }
+  };
+
+  const remove = async (id: number) => {
+    try {
+      await apiPost('user/coupon/del', { id });
+      Toast.success({ content: '删除成功' });
+      load();
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : '删除失败' });
+    }
+  };
+
+  if (needLogin) {
+    return (
+      <Card className="cart-state">
+        <h2>登录后查看优惠券</h2>
+        <Link href="/login?redirect=/member/coupon">
+          <Button theme="solid" type="primary" size="large">去登录</Button>
+        </Link>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="member-coupon">
+      <div className="member-coupon__toolbar">
+        <div className="member-coupon__claim">
+          <Input value={couponSn} onChange={setCouponSn} placeholder="输入优惠券码" />
+          <Button theme="solid" type="primary" onClick={claim}>兑换</Button>
+        </div>
+        <Link href="/coupon/list">领取更多优惠券 →</Link>
+      </div>
+
+      {loading ? (
+        <Card className="member-card">优惠券加载中...</Card>
+      ) : rows.length ? (
+        <div className="member-coupon__list">
+          {rows.map((coupon) => (
+            <Card key={coupon.id} className={`member-coupon__card ${coupon.status === 3 ? 'is-invalid' : ''}`}>
+              <div className="member-coupon__value">
+                {coupon.couponType === 2 ? (
+                  <b>{Number(coupon.couponDiscount || 0)}<small>折</small></b>
+                ) : (
+                  <b><small>¥</small>{Number(coupon.couponMoney || 0).toFixed(0)}</b>
+                )}
+                <span>满 {Number(coupon.minOrderAmount || 0).toFixed(0)} 可用</span>
+              </div>
+              <div className="member-coupon__info">
+                <b>{coupon.couponName || '优惠券'}</b>
+                <span>{coupon.couponDesc || '全场通用'}</span>
+                <span>{coupon.startDate} ~ {coupon.endDate}</span>
+              </div>
+              <div className="member-coupon__status">
+                <span>{coupon.statusName || '未使用'}</span>
+                <Button theme="borderless" type="danger" size="small" onClick={() => void remove(coupon.id)}>删除</Button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card className="member-card">您还没有优惠券</Card>
+      )}
+    </div>
+  );
+}

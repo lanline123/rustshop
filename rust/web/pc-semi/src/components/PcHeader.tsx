@@ -2,8 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Button, Input } from '@douyinfe/semi-ui';
-import { IconCart, IconSearch, IconUser } from '@douyinfe/semi-icons';
 import type { PcHeaderConfig } from '@/decorate/types';
 import { imageUrl } from '@/decorate/components/common';
 
@@ -54,26 +52,26 @@ export default function PcHeader({ config }: { config?: PcHeaderConfig | null })
         </Link>
 
         <div className="pc-header__search">
-          <Input
-            size="large"
+          <span className="pc-header__search-icon">⌕</span>
+          <input
+            className="pc-header__search-input"
             value={keyword}
-            onChange={setKeyword}
-            onEnterPress={goSearch}
+            onChange={(event) => setKeyword(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') goSearch();
+            }}
             placeholder="搜索商品 / 分类 / 品牌"
-            prefix={<IconSearch />}
           />
-          <Button theme="solid" type="primary" size="large" onClick={goSearch}>
+          <button type="button" className="pc-header__search-button" onClick={goSearch}>
             搜索
-          </Button>
+          </button>
         </div>
 
         <div className="pc-header__actions">
           <Link href="/member" className="pc-header__action">
-            <IconUser />
             <span>我的账户</span>
           </Link>
           <Link href="/cart" className="pc-header__action">
-            <IconCart />
             <span>购物车</span>
           </Link>
         </div>

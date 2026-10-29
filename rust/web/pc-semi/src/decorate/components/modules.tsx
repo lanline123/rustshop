@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Button, Card, Skeleton, Tag, Typography } from '@douyinfe/semi-ui';
 import type { DecorateModule, PageModule } from '../types';
 import { Frame, imageUrl, linkUrl, ModuleHeading, ModuleTitle, SafeImage } from './common';
 
@@ -97,9 +96,9 @@ function Notice({ module }: ModuleProps) {
   return (
     <Frame frame={module.frame}>
       <div className="dec-notice">
-        <Tag color="orange" size="large">
+        <span className="dec-notice__tag">
           {module.noticeTitle || '公告'}
-        </Tag>
+        </span>
         <div className="dec-notice__list">
           {notices.slice(0, 3).map((item: any, index: number) => (
             <a key={index} href={linkUrl(item.picLink || item.link)}>
@@ -161,7 +160,7 @@ function CategoryNav({ module }: ModuleProps) {
   const categories = module.categories || module.items || [];
   return (
     <Frame frame={module.frame}>
-      <Card className="dec-category-card" bodyStyle={{ padding: 0 }}>
+      <div className="dec-category-card">
         <div className="dec-category-nav">
           {(categories.length ? categories : Array.from({ length: 8 })).map((item: any, index: number) => (
             <a key={index} href={linkUrl(item?.picLink)} className="dec-category-nav__item">
@@ -170,7 +169,7 @@ function CategoryNav({ module }: ModuleProps) {
             </a>
           ))}
         </div>
-      </Card>
+      </div>
     </Frame>
   );
 }
@@ -277,7 +276,7 @@ function HomeHero({ module }: ModuleProps) {
               </div>
               <div className="dec-hero__user-text">
                 <div className="dec-hero__welcome">{right.user?.welcomeText || 'Hi，欢迎来到万物新生'}</div>
-                <Button theme="solid" type="primary" size="small">登录 / 注册</Button>
+                <button type="button" className="dec-hero__login">登录 / 注册</button>
               </div>
             </div>
             <div className="dec-hero__stats">
@@ -361,10 +360,10 @@ function Product({ module }: ModuleProps) {
       {loading ? (
         <div className="dec-product-grid" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
           {Array.from({ length: columns }).map((_, index) => (
-            <Card key={index} className="dec-product-card">
-              <Skeleton.Title />
-              <Skeleton.Paragraph rows={2} />
-            </Card>
+            <div key={index} className="dec-product-card">
+              <span className="dec-skeleton-line" />
+              <span className="dec-skeleton-line" />
+            </div>
           ))}
         </div>
       ) : (
@@ -398,13 +397,13 @@ function Coupon({ module }: ModuleProps) {
       <ModuleHeading title={module.title?.titleText || '领券中心'} />
       <div className="dec-generic-grid">
         {Array.from({ length: 4 }).map((_, index) => (
-          <Card key={index} className="dec-generic-card">
+          <div key={index} className="dec-generic-card">
             <b>¥ 10</b>
             <span>满 100 可用</span>
-            <Button size="small" theme="solid" type="primary">
+            <button type="button" className="dec-generic-button">
               立即领取
-            </Button>
-          </Card>
+            </button>
+          </div>
         ))}
       </div>
     </Frame>
@@ -417,10 +416,10 @@ function Seckill({ module }: ModuleProps) {
       <ModuleHeading title={module.title?.titleText || '限时秒杀'} subTitle="每日限时低价" />
       <div className="dec-generic-grid">
         {Array.from({ length: 5 }).map((_, index) => (
-          <Card key={index} className="dec-generic-card">
+          <div key={index} className="dec-generic-card">
             <div className="dec-generic-card__image" />
             <span>秒杀商品</span>
-          </Card>
+          </div>
         ))}
       </div>
     </Frame>
@@ -433,9 +432,9 @@ function Groupon({ module }: ModuleProps) {
       <ModuleHeading title={module.title?.titleText || '拼团活动'} />
       <div className="dec-generic-grid">
         {Array.from({ length: 4 }).map((_, index) => (
-          <Card key={index} className="dec-generic-card">
+          <div key={index} className="dec-generic-card">
             <span>拼团商品</span>
-          </Card>
+          </div>
         ))}
       </div>
     </Frame>
@@ -448,9 +447,9 @@ function ProductGroup({ module }: ModuleProps) {
       <ModuleHeading title={module.title?.titleText || '商品分组'} />
       <div className="dec-generic-grid">
         {Array.from({ length: 4 }).map((_, index) => (
-          <Card key={index} className="dec-generic-card">
+          <div key={index} className="dec-generic-card">
             <span>商品分组</span>
-          </Card>
+          </div>
         ))}
       </div>
     </Frame>
@@ -479,12 +478,12 @@ function GroupBanner({ module }: ModuleProps) {
 function Fallback({ module }: ModuleProps) {
   return (
     <Frame frame={module.frame}>
-      <Card className="dec-fallback">
-        <Typography.Text type="tertiary">{module.label || '装修模块'}</Typography.Text>
-        <Typography.Text type="tertiary" size="small">
+      <div className="dec-fallback">
+        <span>{module.label || '装修模块'}</span>
+        <span className="dec-fallback__hint">
           该模块已注册，React 版渲染待补齐
-        </Typography.Text>
-      </Card>
+        </span>
+      </div>
     </Frame>
   );
 }

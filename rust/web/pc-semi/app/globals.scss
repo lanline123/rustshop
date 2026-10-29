@@ -2380,3 +2380,248 @@ img {
     flex-direction: column;
   }
 }
+
+/* ---------------- Member address / coupon / profile ---------------- */
+
+.member-address__head,
+.member-coupon__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: #fff;
+  color: #98a2b3;
+  font-size: 13px;
+}
+
+.member-address__list,
+.member-coupon__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.member-address__card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-radius: 14px;
+}
+
+.member-address__info > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.member-address__info b {
+  color: #344054;
+  font-size: 15px;
+}
+
+.member-address__info span {
+  color: #667085;
+  font-size: 13px;
+}
+
+.member-address__info p {
+  margin: 6px 0 0;
+  color: #98a2b3;
+  font-size: 13px;
+}
+
+.member-address__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.member-coupon__claim {
+  display: flex;
+  gap: 8px;
+  width: 340px;
+}
+
+.member-coupon__toolbar > a {
+  color: var(--pc-primary);
+  font-size: 13px;
+}
+
+.member-coupon__card {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) 100px;
+  align-items: center;
+  gap: 20px;
+  border-radius: 14px;
+}
+
+.member-coupon__card.is-invalid {
+  opacity: 0.55;
+}
+
+.member-coupon__value {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-right: 20px;
+  border-right: 1px dashed #f2f4f7;
+  color: #e5484d;
+}
+
+.member-coupon__value b {
+  font-size: 34px;
+}
+
+.member-coupon__value small {
+  font-size: 15px;
+}
+
+.member-coupon__value span {
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.member-coupon__info {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.member-coupon__info b {
+  color: #344054;
+  font-size: 15px;
+}
+
+.member-coupon__info span {
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.member-coupon__status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  color: #667085;
+  font-size: 12px;
+}
+
+.member-profile {
+  max-width: 620px;
+}
+
+.member-profile__readonly {
+  display: flex;
+  gap: 24px;
+  margin: 8px 0 18px;
+  color: #98a2b3;
+  font-size: 13px;
+}
+
+/* Header native search controls (avoid Semi bundle on home) */
+.pc-header__search-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 40px;
+  border: 1px solid #e4e7ec;
+  border-right: 0;
+  border-radius: 8px 0 0 8px;
+  background: #fff;
+  color: #667085;
+  font-size: 20px;
+}
+
+.pc-header__search-input {
+  flex: 1;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid #e4e7ec;
+  outline: none;
+  font-size: 14px;
+}
+
+.pc-header__search-input:focus {
+  border-color: var(--pc-primary);
+}
+
+.pc-header__search-button {
+  height: 40px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 0 8px 8px 0;
+  background: var(--pc-primary);
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.dec-notice__tag {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #fff4e8;
+  color: #e1251b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dec-hero__login,
+.dec-generic-button {
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--pc-primary);
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.dec-category-card {
+  overflow: hidden;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.dec-product-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+  padding: 10px;
+  border: 1px solid rgba(50, 50, 51, 0.08);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.dec-skeleton-line {
+  display: block;
+  height: 12px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #f2f4f7, #f8fafc, #f2f4f7);
+}
+
+.dec-skeleton-line:first-child {
+  height: 120px;
+}
+
+.dec-fallback {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  border-radius: 8px;
+  background: #fafbfc;
+  color: #667085;
+  font-size: 13px;
+}
+
+.dec-fallback__hint {
+  color: #98a2b3;
+  font-size: 12px;
+}
