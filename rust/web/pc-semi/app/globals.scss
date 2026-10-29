@@ -3792,3 +3792,122 @@ img {
     display: none;
   }
 }
+
+/* 营销通栏右侧：登录态/资产/操作区/特色产品，对齐原版结构 */
+.dec-hero__user-card {
+  justify-content: flex-start;
+  gap: 8px;
+  height: 228px;
+  padding: 14px 12px;
+  background: linear-gradient(180deg, #ffede1, #fcf9f8);
+}
+
+.dec-hero__user-sub {
+  margin-top: 2px;
+  color: #98a2b3;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.dec-hero__user-login-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dec-hero__login {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 92px;
+  height: 28px;
+  padding: 0 14px;
+  border-radius: 4px;
+  background: var(--pc-primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dec-hero__register {
+  color: #667085;
+  font-size: 12px;
+}
+
+.dec-hero__user-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.dec-hero__user-actions a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  border-radius: 4px;
+  color: #667085;
+  font-size: 11px;
+}
+
+.dec-hero__user-actions a:hover {
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--pc-primary);
+}
+
+.dec-hero__shops {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.dec-hero__shops-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dec-hero__shops-title b {
+  color: #344054;
+  font-size: 13px;
+}
+
+.dec-hero__shops-badge {
+  padding: 1px 4px;
+  border-radius: 2px;
+  color: #fff;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.dec-hero__shops .dec-hero__shortcuts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  flex: 1;
+  min-height: 0;
+  padding: 0 8px 10px;
+  background: transparent;
+  border-radius: 0;
+}
+
+.dec-hero__shops .dec-hero__shortcut img {
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+}
+
+.dec-hero__shops .dec-hero__shortcut span {
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -276,8 +276,12 @@ function HomeHero({ module }: ModuleProps) {
               </div>
               <div className="dec-hero__user-text">
                 <div className="dec-hero__welcome">{right.user?.welcomeText || 'Hi，欢迎来到万物新生'}</div>
-                <button type="button" className="dec-hero__login">登录 / 注册</button>
+                <div className="dec-hero__user-sub">一键登录，福利好物全拥有</div>
               </div>
+            </div>
+            <div className="dec-hero__user-login-row">
+              <a href="/login" className="dec-hero__login">立即登录</a>
+              <a href="/register" className="dec-hero__register">注册</a>
             </div>
             <div className="dec-hero__stats">
               {(right.stats || []).slice(0, 3).map((stat: any, index: number) => (
@@ -287,23 +291,30 @@ function HomeHero({ module }: ModuleProps) {
                 </div>
               ))}
             </div>
-          </div>
-          <div className="dec-hero__shortcuts">
-            {(right.shortcuts || []).slice(0, 9).map((item: any, index: number) => (
-              <a key={index} href={linkUrl(item.picLink)} className="dec-hero__shortcut">
-                <SafeImage src={imageUrl(item)} alt="" />
-                <span>{item.picTitle}</span>
-              </a>
-            ))}
-          </div>
-          {right.shopsTitle ? (
-            <div className="dec-hero__panel dec-hero__shops">
-              <div className="dec-hero__shops-head">
-                <b>{right.shopsTitle}</b>
-                <a href={linkUrl(right.shopsMoreLink)}>{right.shopsMoreText || '查看更多'} ›</a>
-              </div>
+            <div className="dec-hero__user-actions">
+              <a href="/member/order/list">我的订单</a>
+              <a href="/member/favorite">心愿单</a>
+              <a href="/member/coupon">优惠券</a>
             </div>
-          ) : null}
+          </div>
+
+          <div className="dec-hero__panel dec-hero__shops">
+            <div className="dec-hero__shops-head">
+              <div className="dec-hero__shops-title">
+                <b>{right.shopsTitle || '特色产品'}</b>
+                {right.shopsSubTitle ? <span className="dec-hero__shops-badge" style={{ background: right.shopsSubTitleBg || '#ff4e4e' }}>{right.shopsSubTitle}</span> : null}
+              </div>
+              <a href={linkUrl(right.shopsMoreLink)}>{right.shopsMoreText || '查看更多'} ›</a>
+            </div>
+            <div className="dec-hero__shortcuts">
+              {(right.shortcuts || []).slice(0, 8).map((item: any, index: number) => (
+                <a key={index} href={linkUrl(item.picLink)} className="dec-hero__shortcut">
+                  <SafeImage src={imageUrl(item)} alt="" />
+                  <span>{item.picTitle}</span>
+                </a>
+              ))}
+            </div>
+          </div>
         </aside>
       </div>
     </Frame>
