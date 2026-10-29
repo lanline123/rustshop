@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Button, Card } from '@douyinfe/semi-ui';
-import { apiGet } from '@/lib/client-api';
+import { Button, Card, Modal, Toast } from '@douyinfe/semi-ui';
+import { apiGet, apiPost } from '@/lib/client-api';
 
 interface AfterSaleDetail {
   aftersaleId?: number;
@@ -38,6 +38,22 @@ export default function AfterSalesDetailClient({ id }: { id: number }) {
       .finally(() => setLoading(false));
   }, [id]);
 
+  const cancel = () => {
+    Modal.confirm({
+      title: '取消售后申请',
+      content: '确认取消该售后申请？',
+      onOk: async () => {
+        try {
+          await apiPost('user/aftersales/cancel', { aftersaleId: id });
+          Toast.success({ content: '售后申请已取消' });
+          window.location.reload();
+        } catch (error) {
+          Toast.error({ content: error instanceof Error ? error.message : '取消失败' });
+        }
+      },
+    });
+  };
+
   if (loading) return <Card className="cart-state">售后详情加载中...</Card>;
   if (needLogin) {
     return (
@@ -62,6 +78,11 @@ export default function AfterSalesDetailClient({ id }: { id: number }) {
           <span>退款金额：¥ {Number(detail.refundAmount || 0).toFixed(2)}</span>
         </div>
         {detail.statusDesc ? <p className="member-aftersales__desc">{detail.statusDesc}</p> : null}
+        {detail.canCancel ? (
+          <div className="member-aftersales__actions">
+            <Button type="danger" size="small" onClick={cancel}>取消售后</Button>
+          </div>
+        ) : null}
       </Card>
 
       <Card className="member-card" title="售后商品">
