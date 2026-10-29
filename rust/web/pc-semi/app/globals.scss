@@ -2732,3 +2732,37 @@ img {
   background: var(--pc-primary);
   color: #fff;
 }
+
+.dec-product-group__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.dec-product-group__tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #475467;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.dec-product-group__tabs button.is-active {
+  border-bottom-color: var(--pc-primary);
+  color: var(--pc-primary);
+  font-weight: 600;
+}
+
+.dec-product-group__tabs img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}

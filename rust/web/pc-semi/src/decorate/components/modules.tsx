@@ -442,16 +442,93 @@ function Groupon({ module }: ModuleProps) {
 }
 
 function ProductGroup({ module }: ModuleProps) {
+  const groups: Array<Record<string, any>> = Array.isArray(module.productGroups) ? module.productGroups : [];
+  const [active, setActive] = useState(0);
+  const [products, setProducts] = useState<ProductItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const group = groups[active];
+    if (!group) {
+      setProducts([]);
+      setLoading(false);
+      return;
+    }
+    const params = new URLSearchParams({ page: '1', size: '12' });
+    if (group.sourceType === 'productGroup' && group.productGroupId) {
+      params.set('productGroupId', String(group.productGroupId));
+    } else {
+      const ids = (Array.isArray(group.productList) ? group.productList : [])
+        .map((item: any) => item.productId || item.id)
+        .filter(Boolean);
+      if (!ids.length) {
+        setProducts([]);
+        setLoading(false);
+        return;
+      }
+      params.set('ids', ids.join(','));
+      params.set('size', String(ids.length));
+    }
+    setLoading(true);
+    fetch(`/api/product/product/list?${params.toString()}`)
+      .then((response) => response.json())
+      .then((json) => {
+        if (cancelled) return;
+        const records = json?.data?.records || json?.data || json?.records || [];
+        setProducts(Array.isArray(records) ? records : []);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [JSON.stringify(groups), active]);
+
+  if (!groups.length) return null;
+  const showTitle = Number(module.groupTitle?.showTitle ?? 1) !== 0;
+  const showName = Number(module.showProductName ?? 1) !== 0;
+  const showPrice = Number(module.showProductPrice ?? 1) !== 0;
+
   return (
     <Frame frame={module.frame}>
-      <ModuleHeading title={module.title?.titleText || '商品分组'} />
-      <div className="dec-generic-grid">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <div key={index} className="dec-generic-card">
-            <span>商品分组</span>
-          </div>
-        ))}
-      </div>
+      {showTitle ? (
+        <div className="dec-product-group__tabs">
+          {groups.map((group, index) => (
+            <button
+              key={index}
+              type="button"
+              className={index === active ? 'is-active' : ''}
+              onClick={() => setActive(index)}
+            >
+              {group.titlePic ? <SafeImage src={imageUrl(group.titlePic)} alt="" /> : null}
+              <span>{group.title || `分组 ${index + 1}`}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {loading ? (
+        <div className="dec-product-grid">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="dec-product-card"><span className="dec-skeleton-line" /></div>
+          ))}
+        </div>
+      ) : (
+        <div className="dec-product-grid">
+          {products.map((product) => (
+            <Link key={product.productSn || product.productId} href={`/product/${product.productId || ''}`} className="dec-product-card">
+              <div className="dec-product-card__image">
+                <SafeImage src={product.picThumb || product.picUrl || ''} alt={product.productName || ''} />
+              </div>
+              {showName ? <div className="dec-product-card__name">{product.productName || '商品'}</div> : null}
+              {showPrice ? <div className="dec-product-card__price"><b>¥</b> {Number(product.productPrice || 0).toFixed(2)}</div> : null}
+            </Link>
+          ))}
+          {!products.length ? <div className="dec-empty">该分组暂无商品</div> : null}
+        </div>
+      )}
     </Frame>
   );
 }
