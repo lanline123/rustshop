@@ -1974,3 +1974,75 @@ img {
     gap: 12px;
   }
 }
+
+/* ---------------- Pay ---------------- */
+
+.pc-pay-page {
+  padding: 16px 0 60px;
+}
+
+.pc-pay {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.pc-pay__card {
+  border-radius: 16px;
+  padding: 10px;
+}
+
+.pc-pay__success {
+  padding: 8px 0 20px;
+  color: #12b76a;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.pc-pay__amount {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px 0 20px;
+  color: #667085;
+  font-size: 13px;
+}
+
+.pc-pay__amount b {
+  color: #e5484d;
+  font-size: 34px;
+}
+
+.pc-pay__order {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-top: 1px dashed #f2f4f7;
+  color: #667085;
+  font-size: 13px;
+}
+
+.pc-pay__order b {
+  color: #344054;
+  font-weight: 500;
+}
+
+.pc-pay__methods {
+  padding: 16px 0;
+  border-top: 1px dashed #f2f4f7;
+}
+
+.pc-pay__label {
+  margin-bottom: 10px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pc-pay__actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px 0 8px;
+}
