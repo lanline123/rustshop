@@ -94,7 +94,7 @@ export default async function PcFooter({ showFriendly = false }: { showFriendly?
                 {address ? <span>联系地址：{address}</span> : null}
               </p>
             ) : null}
-            <p className="pc-footer__copyright">{companyTxt || '万物新生 · 退役动力电池循环利用产业服务平台'}</p>
+            {companyTxt ? null : <p className="pc-footer__copyright">万物新生 · 退役动力电池循环利用产业服务平台</p>}
           </div>
         </div>
       </div>
