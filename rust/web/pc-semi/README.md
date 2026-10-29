@@ -146,3 +146,7 @@ src/
     components/modules.tsx
   lib/api.ts
 ```
+
+## 部署
+
+线上已部署到 `https://battery.recy.cc/`，旧 PC 保留 `/pc/`。详见 [DEPLOY.md](./DEPLOY.md)。
