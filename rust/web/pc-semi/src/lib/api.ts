@@ -43,3 +43,78 @@ export async function getPcHeader(previewId?: number): Promise<Record<string, un
   const data = await readData<{ pcHeader?: Record<string, unknown> | null }>(response);
   return data?.pcHeader ?? null;
 }
+
+export interface ProductDetailResponse {
+  item: Record<string, any>;
+  skuList: Array<Record<string, any>>;
+  picList: Array<Record<string, any>>;
+  attrList?: {
+    normal?: Array<Record<string, any>>;
+    spe?: Array<Record<string, any>>;
+    extra?: Array<Record<string, any>>;
+  };
+  descArr?: Array<{ type?: string; pic?: string; html?: string }>;
+  serviceList?: Array<Record<string, any>>;
+  deliveryModeText?: string;
+  shopId?: number;
+}
+
+/** 商品详情：服务端 SSR 拉取，SEO 和首屏都走服务端。 */
+export async function getProductDetail(id: number): Promise<ProductDetailResponse> {
+  const response = await fetch(`${SERVER_API_BASE}/api/product/product/detail?id=${id}`, {
+    cache: 'no-store',
+  });
+  return readData<ProductDetailResponse>(response);
+}
+
+/** 加入购物车：客户端调用，依赖登录 cookie。 */
+export async function addToCart(payload: {
+  id: number;
+  number: number;
+  skuId?: number;
+  isQuick?: number;
+}): Promise<Record<string, unknown>> {
+  const response = await fetch('/api/cart/cart/addToCart', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return readData<Record<string, unknown>>(response);
+}
+
+export interface ProductListItem {
+  productId: number;
+  productName?: string;
+  productSn?: string;
+  productPrice?: number | string;
+  picThumb?: string;
+  picUrl?: string;
+  brief?: string;
+  productStock?: number;
+  sales?: number;
+}
+
+export interface ProductListResponse {
+  records: ProductListItem[];
+  total: number;
+}
+
+/** 商品列表：搜索页 / 分类页 SSR 共用。 */
+export async function getProducts(params: {
+  page?: number;
+  size?: number;
+  keyword?: string;
+  categoryId?: number | string;
+}): Promise<ProductListResponse> {
+  const query = new URLSearchParams();
+  query.set('page', String(params.page || 1));
+  query.set('size', String(params.size || 24));
+  if (params.keyword) query.set('keyword', params.keyword);
+  if (params.categoryId) query.set('categoryId', String(params.categoryId));
+  const response = await fetch(`${SERVER_API_BASE}/api/product/product/list?${query.toString()}`, {
+    cache: 'no-store',
+  });
+  const data = await readData<{ records?: ProductListItem[]; total?: number }>(response);
+  return { records: data.records || [], total: Number(data.total || 0) };
+}

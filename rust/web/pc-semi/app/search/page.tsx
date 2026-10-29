@@ -1,0 +1,74 @@
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import PcHeader from '@/components/PcHeader';
+import ProductGrid from '@/components/ProductGrid';
+import { getPcHeader, getProducts } from '@/lib/api';
+
+export const dynamic = 'force-dynamic';
+
+interface PageProps {
+  searchParams?: { [key: string]: string | string[] | undefined };
+}
+
+function readParam(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? value[0] || '' : value || '';
+}
+
+export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
+  const keyword = readParam(searchParams?.keyword);
+  return { title: keyword ? `${keyword} · 搜索 · 万物新生` : '搜索商品 · 万物新生' };
+}
+
+export default async function SearchPage({ searchParams }: PageProps) {
+  const keyword = readParam(searchParams?.keyword);
+  const categoryId = readParam(searchParams?.categoryId);
+  const page = Math.max(1, Number(readParam(searchParams?.page)) || 1);
+  const size = 24;
+  const [products, header] = await Promise.all([
+    getProducts({ page, size, keyword, categoryId }).catch(() => ({ records: [], total: 0 })),
+    getPcHeader().catch(() => null),
+  ]);
+  const pages = Math.ceil(products.total / size);
+
+  return (
+    <>
+      <PcHeader config={header as any} />
+      <main className="pc-list-page">
+        <div className="pc-container">
+          <nav className="pc-breadcrumb">
+            <Link href="/">首页</Link>
+            <span>/</span>
+            <span>{keyword ? `搜索：${keyword}` : categoryId ? '分类商品' : '全部商品'}</span>
+          </nav>
+          <div className="pc-list-head">
+            <h1>{keyword ? `“${keyword}”的搜索结果` : '全部商品'}</h1>
+            <span>共 {products.total} 件商品</span>
+          </div>
+          <ProductGrid products={products.records} />
+          {pages > 1 ? (
+            <nav className="pc-pagination">
+              {Array.from({ length: pages }).map((_, index) => {
+                const next = index + 1;
+                const query = new URLSearchParams();
+                if (keyword) query.set('keyword', keyword);
+                if (categoryId) query.set('categoryId', categoryId);
+                query.set('page', String(next));
+                return (
+                  <Link key={next} href={`/search?${query.toString()}`} className={next === page ? 'is-active' : ''}>
+                    {next}
+                  </Link>
+                );
+              })}
+            </nav>
+          ) : null}
+        </div>
+      </main>
+      <footer className="pc-footer">
+        <div className="pc-container pc-footer__inner">
+          <span>万物新生 · 退役动力电池循环利用产业服务平台</span>
+          <span>安全合规 · 高效协同 · 绿色循环 · 数据可追溯</span>
+        </div>
+      </footer>
+    </>
+  );
+}

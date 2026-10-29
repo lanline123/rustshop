@@ -339,7 +339,7 @@ function Product({ module }: ModuleProps) {
           {products.map((product) => (
             <Link
               key={product.productSn || product.productId}
-              href={`/product/${product.seoLink || product.productSn || product.productId || ''}`}
+              href={`/product/${product.productId || ''}`}
               className="dec-product-card"
             >
               <div className="dec-product-card__image">
