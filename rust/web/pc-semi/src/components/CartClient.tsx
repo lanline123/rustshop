@@ -38,9 +38,14 @@ interface CartResult {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : '';
   const response = await fetch(`/api/${path}`, {
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...(options?.headers || {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options?.headers || {}),
+    },
     ...options,
   });
   const text = await response.text();

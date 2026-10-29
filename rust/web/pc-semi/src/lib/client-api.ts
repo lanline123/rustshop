@@ -1,3 +1,9 @@
+function authHeaders(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  const token = localStorage.getItem('accessToken');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export interface ApiEnvelope<T> {
   code?: number;
   msg?: string;
@@ -19,7 +25,7 @@ export async function apiPost<T>(path: string, body?: unknown, headers: Record<s
   const response = await fetch(`/api/${path}`, {
     method: 'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...headers },
+    headers: { 'Content-Type': 'application/json', ...authHeaders(), ...headers },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   return read<T>(response);

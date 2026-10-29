@@ -131,7 +131,7 @@ export default function AddressClient() {
         regionIds,
         addressId: editingId || undefined,
       };
-      await apiPost(editingId ? 'user/address/update' : 'user/address/add', body);
+      await apiPost(editingId ? 'user/address/update' : 'user/address/create', body);
       Toast.success({ content: '保存成功' });
       setOpen(false);
       load();
