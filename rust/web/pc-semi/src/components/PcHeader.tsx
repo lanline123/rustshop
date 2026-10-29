@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { PcHeaderConfig } from '@/decorate/types';
 import { imageUrl } from '@/decorate/components/common';
@@ -15,8 +15,20 @@ const FALLBACK_NAV = [
 
 export default function PcHeader({ config }: { config?: PcHeaderConfig | null }) {
   const [keyword, setKeyword] = useState('');
+  const [siteLogo, setSiteLogo] = useState('');
   const header = config || {};
   const logo = imageUrl(header.logoPic);
+
+  useEffect(() => {
+    if (logo) return;
+    fetch('/api/common/config/base')
+      .then((response) => response.json())
+      .then((json) => {
+        const url = json?.data?.shopLogo;
+        if (typeof url === 'string' && url) setSiteLogo(url);
+      })
+      .catch(() => undefined);
+  }, [logo]);
   const showTopBar = Number(header.showTopMenuBar ?? 1) === 1;
   const showNav = Number(header.showMainNav ?? 1) === 1;
   const navItems: Array<{ title?: string; link?: string; name?: string; label?: string }> = Array.isArray(header.mainNav) && header.mainNav.length ? header.mainNav : FALLBACK_NAV;
@@ -48,7 +60,7 @@ export default function PcHeader({ config }: { config?: PcHeaderConfig | null })
 
       <div className="pc-container pc-header__main">
         <Link href="/" className="pc-header__brand">
-          {logo ? <img src={logo} alt="logo" style={{ width: header.logoWidth || 120 }} /> : <b>万物新生</b>}
+          {logo || siteLogo ? <img src={logo || siteLogo} alt="万物新生" style={{ width: Number(header.logoWidth) || 160, maxHeight: Number(header.logoHeight) || 49, objectFit: 'contain' }} /> : <b>万物新生</b>}
         </Link>
 
         <div className="pc-header__search">

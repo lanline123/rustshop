@@ -36,12 +36,32 @@ export async function getHomeDecorate(options: RequestOptions = {}): Promise<Hom
 /** PC 公共头部：通常已经包含在 pageModule.pcHeader 中，此接口用于独立刷新。 */
 export async function getPcHeader(previewId?: number): Promise<Record<string, unknown> | null> {
   const query = previewId ? `?previewId=${previewId}` : '';
-  const response = await fetch(`${SERVER_API_BASE}/api/home/home/pcHeader${query}`, {
-    cache: previewId ? 'no-store' : 'force-cache',
-    next: previewId ? undefined : { revalidate: 60 },
-  });
-  const data = await readData<{ pcHeader?: Record<string, unknown> | null }>(response);
-  return data?.pcHeader ?? null;
+  const [headerResponse, configResponse] = await Promise.all([
+    fetch(`${SERVER_API_BASE}/api/home/home/pcHeader${query}`, {
+      cache: previewId ? 'no-store' : 'force-cache',
+      next: previewId ? undefined : { revalidate: 60 },
+    }),
+    fetch(`${SERVER_API_BASE}/api/common/config/base`, {
+      cache: 'force-cache',
+      next: { revalidate: 300 },
+    }).catch(() => null),
+  ]);
+  const data = await readData<{ pcHeader?: Record<string, unknown> | null }>(headerResponse);
+  const header = data?.pcHeader ?? null;
+  if (!header) return null;
+
+  const logo = header.logoPic as { picUrl?: string; picThumb?: string } | undefined;
+  if (!logo?.picUrl && !logo?.picThumb && configResponse) {
+    try {
+      const config = await readData<{ shopLogo?: string }>(configResponse);
+      if (config?.shopLogo) header.logoPic = { picUrl: config.shopLogo };
+    } catch {
+      // 站点配置失败时保留原装修配置
+    }
+  }
+  if (!header.logoWidth) header.logoWidth = 160;
+  if (!header.logoHeight) header.logoHeight = 49;
+  return header;
 }
 
 export interface ProductDetailResponse {
