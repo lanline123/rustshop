@@ -1,0 +1,25 @@
+{
+  "page": "promotion/groupon/List.vue",
+  "info": "promotion/groupon/List.vue",
+  "component": "rust/web/admin-semi/src/pages/Groupons.tsx",
+  "drawer": null,
+  "filters": ["grouponName"],
+  "columns": ["活动名称", "活动时间", "拼团类型", "应收金额", "成团数", "支付单数", "活动状态"],
+  "actions": ["edit"],
+  "batch": [],
+  "widgets": {
+    "grouponForm": {
+      "type": "groupon-form-drawer",
+      "component": "rust/web/admin-semi/src/pages/Groupons.tsx",
+      "requires": ["groupon-form-extra", "promotion/groupon/create"],
+      "mcpChecks": ["FormDrawer", "RadioGroup", "InputNumber", "ImageUploader", "Table", "Modal"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "拼团活动：接口 /promotion/groupon/*（list/create/update/del/detail/finish）+ item/list、record/openJoinList。",
+    "表单：活动名称/活动时间/拼团类型(普通团/阶梯团)/成团有效时间(日时分,校验15分钟至30天)/PC与H5活动图片/专题页分享图(ImageUploader)/活动规则。",
+    "行操作：编辑活动、管理商品(弹窗列表)、参与记录(弹窗)、立即结束(status≠2)/删除(status=2)。",
+    "与旧版差异（记录为待办）：①投放/推广海报（Advertise 739行）未迁移；②管理商品弹窗为只读列表,拼团商品的添加/编辑（item/create、item/post、虚拟成团等）未迁移；③参与记录未含手动成团/批量成团操作；④阶梯团的阶梯价格配置（GroupPriceItem）未迁移,普通团价格由拼团商品承载；⑤SendUserSelector 参与人群未迁移（提交 memberRange=0 全部会员）；⑥BusinessData 多语言活动名未迁移。"
+  ]
+}

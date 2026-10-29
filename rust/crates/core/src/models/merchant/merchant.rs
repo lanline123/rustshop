@@ -100,6 +100,7 @@ pub struct MerchantCreateDTO {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct MerchantUpdateDTO {
+    #[serde(alias = "id")]
     pub merchant_id: Option<i32>,
     #[serde(rename = "type")]
     pub r#type: Option<i32>,

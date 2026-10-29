@@ -168,6 +168,20 @@ impl StatisticsRepository {
         Ok(row)
     }
 
+    /// 按日聚合指定区间内的 `statistics_base`，**不限店铺**。
+    /// 对齐 Java `StatisticsLogServiceImpl#getVisitList` 中
+    /// `shopId == 0` 时 `.eq(shopId > 0, "shop_id", ...)` 条件不生效的口径。
+    pub async fn fetch_daily_click_counts(&self, start: &str, end: &str) -> Result<Vec<DailyVisitRow>> {
+        sqlx::query_as::<_, DailyVisitRow>(
+            "SELECT DATE_FORMAT(`date`, '%Y-%m-%d') AS period,                     CAST(COALESCE(SUM(click_count), 0) AS SIGNED) AS click_count,                     CAST(COALESCE(SUM(visitor_count), 0) AS SIGNED) AS visitor_count              FROM statistics_base              WHERE `date` >= ? AND `date` <= ?              GROUP BY period ORDER BY period ASC",
+        )
+        .bind(start)
+        .bind(end)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
     // ————————————————— 新增会员（user） —————————————————
 
     /// 区间内新增会员的 `reg_time`（秒级时间戳）列表，按时间升序。

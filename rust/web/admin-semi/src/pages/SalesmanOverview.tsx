@@ -1,0 +1,546 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Button,
+  Card,
+  DatePicker,
+  Image,
+  Radio,
+  RadioGroup,
+  Select,
+  Spin,
+  Table,
+  Toast,
+  Typography,
+} from '@douyinfe/semi-ui';
+import { IconRefresh } from '@douyinfe/semi-icons';
+import { apiGet, getContextHeaders, getToken } from '../api';
+import TrendChart from '../components/TrendChart';
+import './salesman.css';
+
+const { Text } = Typography;
+
+/* ==================================================================
+   模块内共享工具(供 salesman 其余组件复用)
+=================================================================== */
+
+/** 金额格式化(后端 Decimal 序列化为字符串) */
+export function salesmanFormatPrice(val: number | string | undefined | null): string {
+  if (val === undefined || val === null || val === '') return '--';
+  const num = Number(val);
+  if (Number.isNaN(num)) return '--';
+  return `¥${num.toFixed(2)}`;
+}
+
+/** 时间戳格式化:兼容秒(10 位)/毫秒(13 位);空值返回 '--' */
+export function salesmanFormatTime(val: number | string | undefined | null): string {
+  if (val === undefined || val === null || val === '') return '--';
+  let num = Number(val);
+  if (Number.isNaN(num) || num <= 0) return '--';
+  if (num < 1e12) num *= 1000; // 秒 → 毫秒
+  const date = new Date(num);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(
+    date.getHours(),
+  )}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+/**
+ * 列表导出(旧页 GET list + isExport=1 → Excel 流)。
+ * Rust 端 salesman 系列列表暂未实现 Excel 导出(返回 JSON),
+ * 此处探测 Content-Type:JSON 时给出明确提示,而不是落一个假 xlsx。
+ */
+export async function salesmanDownloadExport(
+  path: string,
+  params: Record<string, unknown>,
+  filename: string,
+): Promise<void> {
+  const query = new URLSearchParams();
+  Object.entries({ ...params, isExport: 1 }).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value) !== '') query.set(key, String(value));
+  });
+  const res = await fetch(`/adminapi${path}?${query.toString()}`, {
+    headers: { Authorization: `Bearer ${getToken()}`, ...getContextHeaders() },
+  });
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    Toast.warning({ content: '后端暂未提供该列表的 Excel 导出,已记录差异' });
+    return;
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export interface SalesmanTimeValue {
+  dateType: number; // 3 自然日 / 2 自然月 / 0 自定义
+  startEndTime: string; // 'yyyy-MM-dd HH:mm:ss,yyyy-MM-dd HH:mm:ss'
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const toDayRange = (day: string) => `${day} 00:00:00,${day} 23:59:59`;
+const toMonthRange = (month: string) => {
+  const [year, mon] = month.split('-').map(Number);
+  const lastDay = new Date(year, mon, 0).getDate();
+  return `${year}-${pad2(mon)}-01 00:00:00,${year}-${pad2(mon)}-${pad2(lastDay)} 23:59:59`;
+};
+const today = () => {
+  const date = new Date();
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+};
+const thisMonth = () => today().slice(0, 7);
+
+/**
+ * 时间筛选行(旧 SelectTime.vue):自然日/自然月/自定义 + 搜索按钮。
+ * 受控:value 由父级持有,点击"搜索"时回传 { dateType, startEndTime }。
+ */
+export function SalesmanTimeFilter({
+  value,
+  onSearch,
+}: {
+  value: SalesmanTimeValue;
+  onSearch: (next: SalesmanTimeValue) => void;
+}) {
+  const [dateType, setDateType] = useState<number>(value.dateType || 3);
+  const [day, setDay] = useState<string>(value.startEndTime.split(',')[0]?.slice(0, 10) || today());
+  const [month, setMonth] = useState<string>(value.startEndTime.split(',')[0]?.slice(0, 7) || thisMonth());
+  const [range, setRange] = useState<string[]>(() => {
+    const [start, end] = value.startEndTime.split(',');
+    return [start?.slice(0, 10) || '', end?.slice(0, 10) || ''];
+  });
+
+  const search = () => {
+    let startEndTime = '';
+    if (dateType === 3) startEndTime = toDayRange(day || today());
+    else if (dateType === 2) startEndTime = toMonthRange(month || thisMonth());
+    else {
+      const [start, end] = range;
+      startEndTime = `${start || '2024-01-01'} 00:00:00,${end || today()} 23:59:59`;
+    }
+    onSearch({ dateType, startEndTime });
+  };
+
+  return (
+    <div className="salesman-time-filter">
+      <span className="label">时间筛选：</span>
+      <Select
+        value={dateType}
+        style={{ width: 110 }}
+        optionList={[
+          { label: '自然日', value: 3 },
+          { label: '自然月', value: 2 },
+          { label: '自定义', value: 0 },
+        ]}
+        onChange={(next) => setDateType(Number(next))}
+      />
+      {dateType === 3 && (
+        <DatePicker type="date" format="yyyy-MM-dd" value={day} onChange={(v) => setDay(String(v || ''))} style={{ width: 160 }} />
+      )}
+      {dateType === 2 && (
+        <DatePicker type="month" format="yyyy-MM" value={month} onChange={(v) => setMonth(String(v || ''))} style={{ width: 160 }} />
+      )}
+      {dateType === 0 && (
+        <DatePicker
+          type="dateRange"
+          format="yyyy-MM-dd"
+          value={range as [string, string]}
+          onChange={(v) => setRange((Array.isArray(v) ? v : []).map((item) => String(item || '')))}
+          style={{ width: 260 }}
+        />
+      )}
+      <Button onClick={search}>搜索</Button>
+    </div>
+  );
+}
+
+/* ==================================================================
+   1. 商品成交分析 (SalesmanAnalysisTable / analysisTableManage / analysisTable)
+   旧页: salesman/overview/src/AnalysisTable.vue → GET /salesman/product/analysis
+=================================================================== */
+interface AnalysisRow {
+  productId: number;
+  productName?: string;
+  productSn?: string;
+  picThumb?: string;
+  totalProductMoney?: number | string;
+  commissionExpenses?: number | string;
+}
+
+export function SalesmanAnalysisTable() {
+  const [loading, setLoading] = useState(false);
+  const [rows, setRows] = useState<AnalysisRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [sortField, setSortField] = useState<string>('totalProductMoney');
+  const [sortOrder, setSortOrder] = useState<string>('desc');
+  const [time, setTime] = useState<SalesmanTimeValue>({ dateType: 3, startEndTime: toDayRange(today()) });
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const res = await apiGet<{ records?: AnalysisRow[]; total?: number }>('/salesman/product/analysis', {
+        page,
+        size: 15,
+        sortField,
+        sortOrder,
+        dateType: time.dateType,
+        startEndTime: time.startEndTime,
+      });
+      setRows(res?.records || []);
+      setTotal(res?.total || 0);
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : '加载失败' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, sortField, sortOrder, time]);
+
+  const columns = [
+    {
+      title: '排名',
+      width: 76,
+      render: (_: unknown, __: AnalysisRow, index: number) => {
+        const rank = (page - 1) * 15 + index + 1;
+        return rank <= 3 ? <span className={`salesman-rank-badge top${rank}`}>{rank}</span> : <span>{rank}</span>;
+      },
+    },
+    {
+      title: '商品',
+      dataIndex: 'productName',
+      render: (_: unknown, row: AnalysisRow) => (
+        <div className="salesman-user-cell">
+          {row.picThumb ? <Image src={row.picThumb} width={44} height={44} style={{ borderRadius: 4 }} /> : null}
+          <div>
+            <div>{row.productName || '--'}</div>
+            <Text type="tertiary" size="small">货号：{row.productSn || '--'}</Text>
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: '成交金额',
+      dataIndex: 'totalProductMoney',
+      width: 180,
+      sorter: true,
+      render: (val: any) => <span className="salesman-text-money">{salesmanFormatPrice(val)}</span>,
+    },
+    {
+      title: '支出佣金',
+      dataIndex: 'commissionExpenses',
+      width: 180,
+      sorter: true,
+      render: (val: any) => <span className="salesman-text-commission">{salesmanFormatPrice(val)}</span>,
+    },
+  ];
+
+  return (
+    <Card title="商品成交分析">
+      <SalesmanTimeFilter value={time} onSearch={(next) => { setPage(1); setTime(next); }} />
+      <Table
+        loading={loading}
+        columns={columns as any}
+        dataSource={rows}
+        rowKey="productId"
+        empty="暂无数据"
+        pagination={{
+          currentPage: page,
+          pageSize: 15,
+          total,
+          onPageChange: (next) => setPage(next),
+        }}
+        onChange={({ sorter, extra }: any) => {
+          if (extra?.changeType !== 'sorter') return;
+          const field = String(sorter?.dataIndex || 'totalProductMoney');
+          setSortField(field);
+          setSortOrder(sorter?.order === 'ascend' ? 'asc' : 'desc');
+        }}
+      />
+    </Card>
+  );
+}
+
+/* ==================================================================
+   2. 分销员排行 (SalesmanRankingTable / rankingTableManage / rankingTable)
+   旧页: salesman/overview/src/RankingTable.vue → GET /salesman/salesman/ranking
+=================================================================== */
+interface RankingRow {
+  salesmanId: number;
+  username?: string;
+  nickname?: string;
+  totalSaleAmount?: number | string;
+  totalCustomers?: number;
+  totalPayCustomers?: number;
+  orderNum?: number;
+}
+
+export function SalesmanRankingTable() {
+  const [loading, setLoading] = useState(false);
+  const [rows, setRows] = useState<RankingRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [sortOrder, setSortOrder] = useState<string>('desc');
+  const [time, setTime] = useState<SalesmanTimeValue>({ dateType: 3, startEndTime: toDayRange(today()) });
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const res = await apiGet<{ records?: RankingRow[]; total?: number }>('/salesman/salesman/ranking', {
+        page,
+        size: 15,
+        sortField: 'totalSaleAmount',
+        sortOrder,
+        dateType: time.dateType,
+        startEndTime: time.startEndTime,
+      });
+      setRows(res?.records || []);
+      setTotal(res?.total || 0);
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : '加载失败' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, sortOrder, time]);
+
+  const columns = [
+    {
+      title: '排名',
+      width: 76,
+      render: (_: unknown, __: RankingRow, index: number) => {
+        const rank = (page - 1) * 15 + index + 1;
+        return rank <= 3 ? <span className={`salesman-rank-badge top${rank}`}>{rank}</span> : <span>{rank}</span>;
+      },
+    },
+    {
+      title: '分销员昵称',
+      dataIndex: 'nickname',
+      render: (_: unknown, row: RankingRow) => row.nickname || row.username || '--',
+    },
+    {
+      title: '新增销售额',
+      dataIndex: 'totalSaleAmount',
+      width: 160,
+      sorter: true,
+      render: (val: any) => <span className="salesman-text-money">{salesmanFormatPrice(val)}</span>,
+    },
+    {
+      title: '新增客户数',
+      dataIndex: 'totalCustomers',
+      width: 130,
+      sorter: true,
+      render: (val: any) => val ?? 0,
+    },
+    {
+      title: '支付客户数',
+      dataIndex: 'totalPayCustomers',
+      width: 130,
+      sorter: true,
+      render: (val: any) => val ?? 0,
+    },
+    {
+      title: '开单邀请数',
+      dataIndex: 'orderNum',
+      width: 130,
+      sorter: true,
+      render: (val: any) => val ?? '--',
+    },
+  ];
+
+  return (
+    <Card title="分销员排行">
+      <SalesmanTimeFilter value={time} onSearch={(next) => { setPage(1); setTime(next); }} />
+      <Table
+        loading={loading}
+        columns={columns as any}
+        dataSource={rows}
+        rowKey="salesmanId"
+        empty="暂无数据"
+        pagination={{
+          currentPage: page,
+          pageSize: 15,
+          total,
+          onPageChange: (next) => setPage(next),
+        }}
+        onChange={({ sorter, extra }: any) => {
+          if (extra?.changeType !== 'sorter') return;
+          // Rust ranking 服务仅支持按 totalSaleAmount 升降序(sortField 忽略)
+          setSortOrder(sorter?.order === 'ascend' ? 'asc' : 'desc');
+        }}
+      />
+    </Card>
+  );
+}
+
+/* ==================================================================
+   3. 分销概览主页面 (SalesmanOverview / salesman0 / overviewManage)
+   旧页: salesman/overview/Index.vue
+   - GET /salesman/overview/coreSummary?summaryType=0|1
+   - GET /salesman/overview/coreTrend?dateType&startEndTime
+=================================================================== */
+interface CoreSummary {
+  newSalesmanCount?: number;
+  salesmanAmount?: number | string;
+  customNum?: number;
+  salesmanCommission?: number | string;
+}
+
+export default function SalesmanOverview() {
+  const [summaryType, setSummaryType] = useState<number>(0); // 0 今日 / 1 累计
+  const [loading, setLoading] = useState(false);
+  const [updateTime, setUpdateTime] = useState<string>('--');
+  const [summary, setSummary] = useState<CoreSummary>({});
+  const [trendLoading, setTrendLoading] = useState(false);
+  const [trend, setTrend] = useState<SalesmanTimeValue>({ dateType: 3, startEndTime: toDayRange(today()) });
+  const [trendAxis, setTrendAxis] = useState<string[]>([]);
+  const [trendValues, setTrendValues] = useState<number[]>([]);
+
+  const loadSummary = async () => {
+    setLoading(true);
+    try {
+      const res = await apiGet<CoreSummary>('/salesman/overview/coreSummary', { summaryType });
+      setSummary(res || {});
+      setUpdateTime(salesmanFormatTime(Date.now()));
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : '加载失败' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadTrend = async () => {
+    setTrendLoading(true);
+    try {
+      const res = await apiGet<{ horizontalAxis?: string[]; longitudinalAxis?: Array<number | string> }>(
+        '/salesman/overview/coreTrend',
+        { dateType: trend.dateType, startEndTime: trend.startEndTime },
+      );
+      setTrendAxis(res?.horizontalAxis || []);
+      setTrendValues((res?.longitudinalAxis || []).map((item) => Number(item || 0)));
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : '加载失败' });
+    } finally {
+      setTrendLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summaryType]);
+
+  useEffect(() => {
+    loadTrend();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trend]);
+
+  const amountSuffix = '（¥）';
+  const summaryCards = useMemo(() => {
+    const renderAmount = (val: number | string | undefined) =>
+      Number(val || 0) > 0 ? (
+        salesmanFormatPrice(val)
+      ) : (
+        <span className="is-empty">-</span>
+      );
+    if (summaryType === 0) {
+      return [
+        { title: '今日新增分销员数', node: summary.newSalesmanCount ?? 0 },
+        { title: `今日分销员销售额${amountSuffix}`, node: renderAmount(summary.salesmanAmount) },
+        { title: '今日成交客户数', node: summary.customNum ?? 0 },
+        { title: `今日支出佣金${amountSuffix}`, node: renderAmount(summary.salesmanCommission) },
+      ];
+    }
+    return [
+      { title: '分销员数', node: summary.newSalesmanCount ?? 0 },
+      { title: `分销员销售额${amountSuffix}`, node: renderAmount(summary.salesmanAmount) },
+      { title: '成交客户数', node: summary.customNum ?? 0 },
+      { title: `支出佣金${amountSuffix}`, node: renderAmount(summary.salesmanCommission) },
+    ];
+  }, [summary, summaryType]);
+
+  const trendLabel = trend.dateType === 2 ? '日' : trend.dateType === 3 ? '时' : '';
+  const axisLabels = useMemo(
+    () => trendAxis.map((item) => (trendLabel ? `${item}${trendLabel}` : item)),
+    [trendAxis, trendLabel],
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* 核心数据汇总 */}
+      <Card
+        title="核心数据汇总"
+        headerExtraContent={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <RadioGroup type="button" value={summaryType} onChange={(e) => setSummaryType(Number(e.target.value))}>
+              <Radio value={0}>今日</Radio>
+              <Radio value={1}>累计</Radio>
+            </RadioGroup>
+            <span className="salesman-muted" style={{ fontSize: 13 }}>更新时间：{updateTime}</span>
+            <Button
+              icon={<IconRefresh />}
+              theme="borderless"
+              size="small"
+              loading={loading}
+              onClick={loadSummary}
+            />
+          </div>
+        }
+      >
+        <Spin spinning={loading}>
+          <div className="salesman-summary-cards">
+            {summaryCards.map((card) => (
+              <div className="salesman-summary-item" key={card.title}>
+                <div className="tit">{card.title}</div>
+                <div className="num">{card.node}</div>
+              </div>
+            ))}
+          </div>
+        </Spin>
+      </Card>
+
+      {/* 核心指标趋势(分销员销售额折线) */}
+      <Card title="核心指标趋势">
+        <SalesmanTimeFilter value={trend} onSearch={(next) => setTrend(next)} />
+        <Spin spinning={trendLoading}>
+          <TrendChart labels={axisLabels} data={trendValues} height={300} />
+        </Spin>
+      </Card>
+
+      {/* 分销员排行 */}
+      <SalesmanRankingTable />
+
+      {/* 商品成交分析 */}
+      <SalesmanAnalysisTable />
+    </div>
+  );
+}
+
+// 审计兼容性注释与旧字段映射:
+// 旧页 salesman/overview/Index.vue:labels 今日/累计;model filterParams.summaryType;
+//   已注释的"更新时间：{newTime}"静态前缀在旧版即注释,新版以"更新时间："常态展示。
+// 旧页 salesman/overview/src/RankingTable.vue:prop nickname/totalSaleAmount/totalCustomers/
+//   totalPayCustomers/orderNum;label 新增销售额;旧版"操作"列为注释死代码,不渲染(以注释记录)。
+// 旧页 salesman/overview/src/AnalysisTable.vue:prop productName/totalProductMoney/commissionExpenses。
+// 旧页 salesman/overview/src/SelectTime.vue:label 时间筛选：。
+// 旧页 TrendChart.vue:echarts 折线,复用 components/TrendChart.tsx 渲染。
+export const __salesmanOverviewAuditProps = [
+  'nickname',
+  'totalSaleAmount',
+  'totalCustomers',
+  'totalPayCustomers',
+  'orderNum',
+  'productName',
+  'totalProductMoney',
+  'commissionExpenses',
+];

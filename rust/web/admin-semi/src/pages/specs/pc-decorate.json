@@ -1,0 +1,16 @@
+{
+  "page": "decorate/pcDecorate/List.vue",
+  "component": "rust/web/admin-semi/src/pages/DecoratePcPages.tsx",
+  "filters": [],
+  "columns": [],
+  "actions": [
+    "打开PC首页画布编辑器"
+  ],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true
+  },
+  "notes": [
+    "PC端首页装修"
+  ]
+}

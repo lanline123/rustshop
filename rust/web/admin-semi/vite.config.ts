@@ -90,6 +90,18 @@ function posPreviewPlugin(): Plugin {
 
 export default defineConfig({
   plugins: [react(), posPreviewPlugin()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-semi': ['@douyinfe/semi-ui', '@douyinfe/semi-icons', '@douyinfe/semi-foundation'],
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-editor': ['@wangeditor/editor', '@wangeditor/editor-for-react'],
+          'vendor-charts': ['echarts'],
+        },
+      },
+    },
+  },
   resolve: {
     alias: {
       '@semi-css': path.resolve(__dirname, 'node_modules/@douyinfe/semi-ui/dist/css/semi.min.css'),

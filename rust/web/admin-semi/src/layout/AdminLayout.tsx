@@ -185,7 +185,17 @@ export default function AdminLayout({ page, layout = 'default', logo, onPageChan
                 {activeGroup.items.map((item) =>
                   item.children?.length ? (
                     <div className="submenu-section" key={item.key}>
-                      <div className="submenu-section-title">{item.label}</div>
+                      <div
+                        className="submenu-section-title is-clickable"
+                        title={`点击进入 ${item.label}`}
+                        onClick={() => {
+                          const target = item.children?.[0]?.key || item.key;
+                          onPageChange(target);
+                        }}
+                      >
+                        <span>{item.label}</span>
+                        <span className="submenu-section-arrow">›</span>
+                      </div>
                       {item.children.map((child) => (
                         <button
                           type="button"
@@ -246,13 +256,39 @@ export default function AdminLayout({ page, layout = 'default', logo, onPageChan
               onClick={() => setCollapsed((value) => !value)}
             />
             <div className="breadcrumb">
-              <span className="breadcrumb-muted">首页</span>
+              <button
+                type="button"
+                className="breadcrumb-link"
+                onClick={() => onPageChange('dashboard')}
+              >
+                首页
+              </button>
               <span className="breadcrumb-sep">/</span>
-              <span className="breadcrumb-muted">{activeGroup.label}</span>
-              {hasThirdLevel && (
+              <button
+                type="button"
+                className={`breadcrumb-link ${!hasThirdLevel && !activeParent ? 'breadcrumb-current' : ''}`}
+                onClick={() => {
+                  const firstLeaf = activeGroup.items.find((item) => !item.children?.length) || activeGroup.items[0];
+                  if (firstLeaf) {
+                    onPageChange((firstLeaf.children?.[0]?.key || firstLeaf.key) as PageKey);
+                  }
+                }}
+              >
+                {activeGroup.label}
+              </button>
+              {hasThirdLevel && activeParent && (
                 <>
                   <span className="breadcrumb-sep">/</span>
-                  <span className="breadcrumb-muted">{activeParent?.label}</span>
+                  <button
+                    type="button"
+                    className="breadcrumb-link"
+                    onClick={() => {
+                      const target = activeParent.children?.[0]?.key || activeParent.key;
+                      onPageChange(target as PageKey);
+                    }}
+                  >
+                    {activeParent.label}
+                  </button>
                 </>
               )}
               <span className="breadcrumb-sep">/</span>

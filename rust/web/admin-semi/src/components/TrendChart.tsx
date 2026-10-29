@@ -10,12 +10,16 @@ interface TrendChartProps {
   data?: number[];
   labels?: string[];
   height?: number;
+  name?: string;
+  yAxisPrefix?: string;
 }
 
 export default function TrendChart({
   data = [18.2, 22.6, 20.4, 28.8, 25.2, 34.6, 31.8],
   labels = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
   height = 268,
+  name = '成交额',
+  yAxisPrefix = '¥',
 }: TrendChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -31,7 +35,7 @@ export default function TrendChart({
         textStyle: { color: '#fff', fontSize: 12 },
         formatter: (params: any) => {
           const item = Array.isArray(params) ? params[0] : params;
-          return `${item.axisValue}<br/>成交额：¥ ${item.value} 万`;
+          return `${item.axisValue}<br/>${name}：${yAxisPrefix === '¥' ? '¥ ' + item.value + ' 万' : item.value}`;
         },
       },
       xAxis: {
@@ -45,11 +49,11 @@ export default function TrendChart({
       yAxis: {
         type: 'value',
         splitLine: { lineStyle: { color: '#eef1f6', type: 'dashed' } },
-        axisLabel: { color: '#8a94a6', fontSize: 12, formatter: '¥{value}万' },
+        axisLabel: { color: '#8a94a6', fontSize: 12, formatter: yAxisPrefix === '¥' ? '¥{value}万' : '{value}' },
       },
       series: [
         {
-          name: '成交额',
+          name,
           type: 'line',
           smooth: true,
           symbol: 'circle',

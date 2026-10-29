@@ -80,7 +80,9 @@ export function enterDemo() {
 }
 
 export async function apiGet<T>(path: string, params?: Record<string, unknown>): Promise<T> {
-  const query = new URLSearchParams();
+  // 如果 path 已含 ?xxx=yyy,先拆出已有的查询参数并与 params 合并
+  const [basePath, existingQs] = path.split('?');
+  const query = new URLSearchParams(existingQs || '');
   Object.entries(params || {}).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
       if (Array.isArray(value)) {
@@ -93,7 +95,7 @@ export async function apiGet<T>(path: string, params?: Record<string, unknown>):
     }
   });
   const suffix = query.toString() ? `?${query.toString()}` : '';
-  const res = await fetch(`${API_BASE}${path}${suffix}`, {
+  const res = await fetch(`${API_BASE}${basePath}${suffix}`, {
     headers: {
       Authorization: `Bearer ${getToken()}`,
       ...getContextHeaders(),
