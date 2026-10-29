@@ -2766,3 +2766,215 @@ img {
   height: 22px;
   object-fit: contain;
 }
+
+/* Coupon / seckill / groupon decoration modules */
+.dec-coupon-head,
+.dec-promo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.dec-coupon-head b,
+.dec-promo-head b {
+  color: #2a3145;
+  font-size: 18px;
+}
+
+.dec-coupon-head span,
+.dec-promo-head span {
+  margin-left: 6px;
+  color: #8c8c8c;
+  font-size: 12px;
+}
+
+.dec-coupon-head a,
+.dec-promo-head a {
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.dec-coupon-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dec-coupon-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid #ffe2d8;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #fff7f2, #ffffff);
+}
+
+.dec-coupon-card__value {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: #e1251b;
+}
+
+.dec-coupon-card__value b {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.dec-coupon-card__value small {
+  font-size: 13px;
+}
+
+.dec-coupon-card__value span {
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.dec-coupon-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 40px;
+}
+
+.dec-coupon-card__info b {
+  overflow: hidden;
+  color: #344054;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dec-coupon-card__info span {
+  color: #98a2b3;
+  font-size: 11px;
+}
+
+.dec-coupon-card button {
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: #e1251b;
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.dec-promo-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.dec-promo-card {
+  overflow: hidden;
+  padding: 8px;
+  border: 1px solid rgba(50, 50, 51, 0.08);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.dec-promo-card__image {
+  height: 120px;
+}
+
+.dec-promo-card__image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.dec-promo-card__name {
+  overflow: hidden;
+  margin-top: 6px;
+  color: #344054;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dec-promo-card__price {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.dec-promo-card__price b {
+  color: #e1251b;
+  font-size: 16px;
+}
+
+.dec-promo-card__price s {
+  color: #98a2b3;
+  font-size: 11px;
+}
+
+.dec-promo-card__meta {
+  margin-top: 4px;
+  color: #98a2b3;
+  font-size: 11px;
+}
+
+@media (max-width: 900px) {
+  .dec-coupon-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dec-promo-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.coupon-center__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.coupon-center__card {
+  border-radius: 12px;
+}
+
+.coupon-center__value {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: #e1251b;
+}
+
+.coupon-center__value b {
+  font-size: 30px;
+}
+
+.coupon-center__value small {
+  font-size: 14px;
+}
+
+.coupon-center__value span {
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.coupon-center__card > b {
+  display: block;
+  margin-top: 8px;
+  color: #344054;
+  font-size: 14px;
+}
+
+.coupon-center__card > span {
+  display: block;
+  margin: 4px 0 12px;
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .coupon-center__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

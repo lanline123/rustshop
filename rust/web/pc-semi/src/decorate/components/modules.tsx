@@ -392,16 +392,62 @@ function Product({ module }: ModuleProps) {
 }
 
 function Coupon({ module }: ModuleProps) {
+  const [coupons, setCoupons] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = () => {
+    fetch('/api/home/home/getCoupon')
+      .then((response) => response.json())
+      .then((json) => {
+        const list = json?.data || json?.records || [];
+        setCoupons(Array.isArray(list) ? list.slice(0, 4) : []);
+      })
+      .catch(() => undefined)
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const claim = async (coupon: any) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await fetch('/api/user/coupon/claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ couponId: coupon.couponId }),
+      });
+      const json = await response.json();
+      if (!response.ok || (json.code !== undefined && json.code !== 0)) throw new Error(json.msg || '领取失败');
+      load();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '领取失败');
+    }
+  };
+
+  if (loading || !coupons.length) return null;
+
   return (
     <Frame frame={module.frame}>
-      <ModuleHeading title={module.title?.titleText || '领券中心'} />
-      <div className="dec-generic-grid">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <div key={index} className="dec-generic-card">
-            <b>¥ 10</b>
-            <span>满 100 可用</span>
-            <button type="button" className="dec-generic-button">
-              立即领取
+      <div className="dec-coupon-head">
+        <b>{module.title || '领券中心'}</b>
+        {module.desc ? <span>{module.desc}</span> : null}
+        <Link href="/coupon/list">查看更多 &gt;</Link>
+      </div>
+      <div className="dec-coupon-grid">
+        {coupons.map((coupon) => (
+          <div key={coupon.couponId} className="dec-coupon-card">
+            <div className="dec-coupon-card__value">
+              {coupon.couponType === 2 ? <b>{coupon.couponDiscount}<small>折</small></b> : <b><small>¥</small>{Number(coupon.couponMoney || 0).toFixed(0)}</b>}
+              <span>满 {Number(coupon.minOrderAmount || 0).toFixed(0)} 可用</span>
+            </div>
+            <div className="dec-coupon-card__info">
+              <b>{coupon.couponName || '优惠券'}</b>
+              <span>{coupon.couponDesc || '全场通用'}</span>
+            </div>
+            <button type="button" onClick={() => void claim(coupon)}>
+              {coupon.isReceive ? '已领取' : '立即领取'}
             </button>
           </div>
         ))}
@@ -411,15 +457,42 @@ function Coupon({ module }: ModuleProps) {
 }
 
 function Seckill({ module }: ModuleProps) {
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/home/home/getSeckill?page=1&size=6')
+      .then((response) => response.json())
+      .then((json) => {
+        const list = json?.data?.records || json?.records || [];
+        setProducts(Array.isArray(list) ? list : []);
+      })
+      .catch(() => undefined)
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading || !products.length) return null;
+
   return (
     <Frame frame={module.frame}>
-      <ModuleHeading title={module.title?.titleText || '限时秒杀'} subTitle="每日限时低价" />
-      <div className="dec-generic-grid">
-        {Array.from({ length: 5 }).map((_, index) => (
-          <div key={index} className="dec-generic-card">
-            <div className="dec-generic-card__image" />
-            <span>秒杀商品</span>
-          </div>
+      <div className="dec-promo-head">
+        <div>
+          <b>{module.title?.titleText || '限时秒杀'}</b>
+          <span>{module.title?.descText || '每日限时低价'}</span>
+        </div>
+        <Link href="/search?tag=seckill">更多秒杀 &gt;</Link>
+      </div>
+      <div className="dec-promo-grid">
+        {products.map((product) => (
+          <Link key={product.productId} href={`/product/${product.productId}`} className="dec-promo-card">
+            <div className="dec-promo-card__image"><SafeImage src={product.picThumb || product.picUrl || ''} alt={product.productName || ''} /></div>
+            <div className="dec-promo-card__name">{product.productName}</div>
+            <div className="dec-promo-card__price">
+              <b>¥ {Number(product.seckillPrice || product.productPrice || 0).toFixed(2)}</b>
+              <s>¥ {Number(product.productPrice || 0).toFixed(2)}</s>
+            </div>
+            <div className="dec-promo-card__meta">已抢 {product.seckillSales || 0} 件</div>
+          </Link>
         ))}
       </div>
     </Frame>
@@ -427,14 +500,42 @@ function Seckill({ module }: ModuleProps) {
 }
 
 function Groupon({ module }: ModuleProps) {
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/promotion/groupon/itemList?page=1&size=6')
+      .then((response) => response.json())
+      .then((json) => {
+        const list = json?.data?.records || json?.records || [];
+        setProducts(Array.isArray(list) ? list : []);
+      })
+      .catch(() => undefined)
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading || !products.length) return null;
+
   return (
     <Frame frame={module.frame}>
-      <ModuleHeading title={module.title?.titleText || '拼团活动'} />
-      <div className="dec-generic-grid">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <div key={index} className="dec-generic-card">
-            <span>拼团商品</span>
-          </div>
+      <div className="dec-promo-head">
+        <div>
+          <b>{module.title?.titleText || '拼团活动'}</b>
+          <span>{module.title?.descText || '邀请好友一起拼'}</span>
+        </div>
+        <Link href="/search?tag=groupon">更多拼团 &gt;</Link>
+      </div>
+      <div className="dec-promo-grid">
+        {products.map((product) => (
+          <Link key={product.productId || product.id} href={`/product/${product.productId || product.id}`} className="dec-promo-card">
+            <div className="dec-promo-card__image"><SafeImage src={product.picThumb || product.picUrl || ''} alt={product.productName || ''} /></div>
+            <div className="dec-promo-card__name">{product.productName}</div>
+            <div className="dec-promo-card__price">
+              <b>¥ {Number(product.grouponPrice || product.productPrice || 0).toFixed(2)}</b>
+              <s>¥ {Number(product.productPrice || 0).toFixed(2)}</s>
+            </div>
+            <div className="dec-promo-card__meta">{product.grouponNum || 2} 人成团</div>
+          </Link>
         ))}
       </div>
     </Frame>
