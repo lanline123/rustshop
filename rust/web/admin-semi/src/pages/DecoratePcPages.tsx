@@ -23,6 +23,9 @@ import {
   Popconfirm,
   Badge,
   InputNumber,
+  Tooltip,
+  Popover,
+  Dropdown,
 } from '@douyinfe/semi-ui';
 import {
   IconArrowLeft,
@@ -37,8 +40,9 @@ import {
   IconSave,
   IconSearch,
   IconRefresh,
+  IconMore,
 } from '@douyinfe/semi-icons';
-import { apiGet, apiPost } from '../api';
+import { apiGet, apiPost, isDemo } from '../api';
 import ListPage from '../framework/ListPage';
 import type { ColumnConfig } from '../framework/types';
 import './decorate-editor.css';
@@ -450,139 +454,357 @@ function PcVisualStudio({
   );
 }
 
+interface DecorateRow {
+  decorateId: number;
+  decorateTitle?: string;
+  decorateType?: number;
+  pageType?: number;
+  isHome?: number;
+  status?: number;
+  /** 毫秒时间戳 */
+  updateTime?: number;
+  homeStyleVersion?: string;
+  sortOrder?: number;
+}
+
 export function PcDecorateHome() {
-  const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [activeEditingTitle, setActiveEditingTitle] = useState('PC官方商城默认首页');
+  // 列表状态（接口 /decorate/decorate/list，decorateType=2 对齐原版 pcDecorate/List.vue）
+  const [rows, setRows] = useState<DecorateRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [size, setSize] = useState(10);
   const [keyword, setKeyword] = useState('');
-  const [addDrawerVisible, setAddDrawerVisible] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
+  const [appliedKeyword, setAppliedKeyword] = useState('');
+  const [loading, setLoading] = useState(!isDemo());
+  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const [sortField, setSortField] = useState('');
+  const [sortOrder, setSortOrder] = useState('');
 
-  // 页面列表状态
-  const [pageList, setPageList] = useState([
-    {
-      decorateId: 1,
-      decorateTitle: 'PC官方商城默认首页',
-      isHome: 1,
-      status: 1,
-      updateTime: '2026-10-29 18:30:00',
-    },
-    {
-      decorateId: 2,
-      decorateTitle: '电脑数码秋季特惠狂欢专区',
-      isHome: 0,
-      status: 1,
-      updateTime: '2026-10-28 14:15:20',
-    },
-    {
-      decorateId: 3,
-      decorateTitle: '周年庆典PC品牌分会场',
-      isHome: 0,
-      status: 0,
-      updateTime: '2026-10-27 10:05:12',
-    },
-  ]);
+  // 添加页面抽屉（原版 DialogForm：页面名称必填 + 排序）
+  const [addVisible, setAddVisible] = useState(false);
+  const [addTitle, setAddTitle] = useState('');
+  const [addSort, setAddSort] = useState<number | string>(0);
+  const [addSaving, setAddSaving] = useState(false);
 
-  const filteredPages = pageList.filter(
-    (p) => !keyword || p.decorateTitle.toLowerCase().includes(keyword.toLowerCase()),
-  );
+  // 更换首页弹窗（原版 SwitchDefaultPage）
+  const [switchTarget, setSwitchTarget] = useState<DecorateRow | null>(null);
+  const [switchCandidates, setSwitchCandidates] = useState<DecorateRow[]>([]);
+  const [switchChoice, setSwitchChoice] = useState<number | null>(null);
+  const [switchLoading, setSwitchLoading] = useState(false);
 
-  const openStudio = (title: string) => {
-    setActiveEditingTitle(title);
-    setIsEditorOpen(true);
+  // 导入装修模板弹窗
+  const [importVisible, setImportVisible] = useState(false);
+  const [importLink, setImportLink] = useState('');
+  const [importSaving, setImportSaving] = useState(false);
+
+  // 推广弹窗
+  const [promoteRow, setPromoteRow] = useState<DecorateRow | null>(null);
+
+  // 编辑器
+  const [editing, setEditing] = useState<{ id: number; title: string } | null>(null);
+
+  const loadList = async () => {
+    if (isDemo()) return;
+    setLoading(true);
+    try {
+      const res = await apiGet<{ records?: DecorateRow[]; list?: DecorateRow[]; total?: number }>(
+        '/decorate/decorate/list',
+        {
+          decorateType: 2,
+          keyword: appliedKeyword || undefined,
+          page,
+          size,
+          sortField: sortField || undefined,
+          sortOrder: sortOrder || undefined,
+        },
+      );
+      setRows(res.records || res.list || []);
+      setTotal(res.total ?? 0);
+    } catch (e: any) {
+      Toast.error(e?.message || '加载装修页面列表失败');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleAddPage = () => {
-    if (!newTitle.trim()) {
-      Toast.warning('请输入页面名称');
+  useEffect(() => {
+    loadList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, size, appliedKeyword, sortField, sortOrder]);
+
+  const formatTime = (ms?: number) => {
+    if (!ms) return '-';
+    const d = new Date(ms);
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  };
+
+  const copyText = async (text: string, tip: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      Toast.success(tip);
+    } catch {
+      Toast.warning('复制失败，请手动复制');
+    }
+  };
+
+  // —— 操作 ——
+  const handleAdd = async () => {
+    if (!addTitle.trim()) {
+      Toast.warning('页面名称不能为空');
       return;
     }
-    const newPage = {
-      decorateId: Date.now(),
-      decorateTitle: newTitle.trim(),
-      isHome: 0,
-      status: 0,
-      updateTime: new Date().toISOString().replace('T', ' ').substring(0, 19),
-    };
-    setPageList([newPage, ...pageList]);
-    setNewTitle('');
-    setAddDrawerVisible(false);
-    Toast.success('新建PC微页面成功');
+    setAddSaving(true);
+    try {
+      await apiPost('/decorate/decorate/create', {
+        decorateTitle: addTitle.trim(),
+        sortOrder: Number(addSort) || 0,
+        decorateType: 2,
+      });
+      Toast.success('添加成功');
+      setAddVisible(false);
+      setAddTitle('');
+      setAddSort(0);
+      setPage(1);
+      loadList();
+    } catch (e: any) {
+      Toast.error(e?.message || '添加失败');
+    } finally {
+      setAddSaving(false);
+    }
   };
 
-  const setAsHome = (id: number) => {
-    setPageList((prev) =>
-      prev.map((item) => ({
-        ...item,
-        isHome: item.decorateId === id ? 1 : 0,
-      })),
-    );
-    Toast.success('已设为PC端商城首页');
+  const handleRename = async (id: number, val: string) => {
+    try {
+      await apiPost('/decorate/decorate/updateField', { id, field: 'decorateTitle', val });
+      Toast.success('修改成功');
+      loadList();
+    } catch (e: any) {
+      Toast.error(e?.message || '修改失败');
+    }
   };
 
-  const deletePage = (id: number) => {
-    setPageList((prev) => prev.filter((item) => item.decorateId !== id));
-    Toast.info('已删除页面');
+  const handleCopy = async (row: DecorateRow) => {
+    try {
+      await apiPost('/decorate/decorate/copy', { id: row.decorateId });
+      Toast.success('操作成功');
+      loadList();
+    } catch (e: any) {
+      Toast.error(e?.message || '复制失败');
+    }
   };
 
-  // 如果处于可视化装修编辑器模式，渲染全屏工作台
-  if (isEditorOpen) {
-    return (
-      <PcVisualStudio
-        pageTitle={activeEditingTitle}
-        onBack={() => setIsEditorOpen(false)}
-      />
-    );
+  const handleDelete = async (row: DecorateRow) => {
+    try {
+      await apiPost('/decorate/decorate/del', { id: row.decorateId });
+      Toast.success('操作成功');
+      loadList();
+    } catch (e: any) {
+      Toast.error(e?.message || '删除失败');
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    try {
+      await apiPost('/decorate/decorate/batch', { ids: selectedKeys.map(Number), type: 'del' });
+      Toast.success('操作成功');
+      setSelectedKeys([]);
+      loadList();
+    } catch (e: any) {
+      Toast.error(e?.message || '批量删除失败');
+    }
+  };
+
+  const openSwitch = async (row: DecorateRow) => {
+    setSwitchTarget(row);
+    setSwitchChoice(null);
+    setSwitchLoading(true);
+    try {
+      const res = await apiGet<{ records?: DecorateRow[]; list?: DecorateRow[] }>('/decorate/decorate/list', {
+        decorateType: 2,
+        pageType: row.pageType ?? 1,
+        size: 100,
+      });
+      setSwitchCandidates((res.records || res.list || []).filter((r) => r.decorateId !== row.decorateId));
+    } catch (e: any) {
+      Toast.error(e?.message || '加载候选页面失败');
+      setSwitchCandidates([]);
+    } finally {
+      setSwitchLoading(false);
+    }
+  };
+
+  const handleSwitchHome = async () => {
+    if (!switchChoice) {
+      Toast.warning('请选择要设为首页的页面');
+      return;
+    }
+    try {
+      await apiPost('/decorate/decorate/setHome', { id: switchChoice, pageType: switchTarget?.pageType ?? 1 });
+      Toast.success('更换成功');
+      setSwitchTarget(null);
+      loadList();
+    } catch (e: any) {
+      Toast.error(e?.message || '更换失败');
+    }
+  };
+
+  const handleShare = async (row: DecorateRow) => {
+    try {
+      const res = await apiGet<{ apiUrl?: string }>('/decorate/decorateShare/share', { decorateId: row.decorateId });
+      if (res?.apiUrl) {
+        const link = `${window.location.protocol}//${window.location.host.split(':')[0]}${res.apiUrl}`;
+        copyText(link, '分享链接已经复制到剪贴板, 导入时可直接粘贴使用');
+      } else {
+        Toast.warning('未获取到分享链接');
+      }
+    } catch (e: any) {
+      Toast.error(e?.message || '分享失败');
+    }
+  };
+
+  const handleExport = async (row: DecorateRow) => {
+    try {
+      const res = await apiGet<unknown>('/decorate/decorate/detail', { id: row.decorateId, decorateType: 2 });
+      copyText(JSON.stringify(res, null, 2), '模板详情JSON已复制到剪贴板');
+    } catch (e: any) {
+      Toast.error(e?.message || '导出失败');
+    }
+  };
+
+  const handleImport = async () => {
+    if (!importLink.trim()) {
+      Toast.warning('请粘贴分享链接');
+      return;
+    }
+    setImportSaving(true);
+    try {
+      await apiGet('/decorate/decorateShare/import', { url: importLink.trim() });
+      Toast.success('操作成功');
+      setImportVisible(false);
+      setImportLink('');
+      loadList();
+    } catch (e: any) {
+      Toast.error(e?.message || '导入失败');
+    } finally {
+      setImportSaving(false);
+    }
+  };
+
+  // 编辑器模式（原版为新窗口 /decorate/pc?id=，此处内嵌工作台）
+  if (editing) {
+    return <PcVisualStudio pageTitle={editing.title} onBack={() => setEditing(null)} />;
   }
 
-  // 否则渲染 PC微页面管理列表
-  const columns: ColumnConfig<any>[] = [
-    { title: 'ID', dataIndex: 'decorateId', width: 90 },
+  const canPromote = (row: DecorateRow) =>
+    Number(row.status) === 1 && [1, 3].includes(row.pageType ?? 1);
+
+  const columns: (ColumnConfig<DecorateRow> & { sorter?: boolean; sortOrder?: 'ascend' | 'descend' })[] = [
     {
       title: '页面名称',
       dataIndex: 'decorateTitle',
-      width: 260,
-      render: (text: string, row: any) => (
+      width: 320,
+      render: (_: unknown, row: DecorateRow) => (
         <Space>
-          <span style={{ fontWeight: 500 }}>{text}</span>
-          {row.isHome === 1 && <Tag color="green" shape="circle">首页</Tag>}
+          {row.isHome === 1 && (
+            <Tooltip content="首页" position="top">
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 20,
+                  height: 20,
+                  borderRadius: 4,
+                  background: 'var(--semi-color-primary-light-default)',
+                  color: 'var(--semi-color-primary)',
+                  fontSize: 12,
+                }}
+              >
+                首
+              </span>
+            </Tooltip>
+          )}
+          <EditableTitle
+            value={row.decorateTitle || ''}
+            onConfirm={(val) => handleRename(row.decorateId, val)}
+          />
+          {row.decorateType === 2 && row.pageType === 1 && row.homeStyleVersion === 'old' && (
+            <Tag size="small" color="grey">
+              旧版
+            </Tag>
+          )}
         </Space>
       ),
     },
     {
       title: '发布状态',
       dataIndex: 'status',
-      width: 120,
+      width: 140,
+      sorter: true,
+      sortOrder: sortField === 'status' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : undefined,
       render: (status: number) => (
-        <Tag color={status === 1 ? 'green' : 'grey'}>
-          {status === 1 ? '已发布' : '草稿'}
-        </Tag>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: status === 1 ? '#52c41a' : '#929292',
+              display: 'inline-block',
+            }}
+          />
+          {status === 1 ? '已发布' : '未发布'}
+        </span>
       ),
     },
-    { title: '更新时间', dataIndex: 'updateTime', width: 180 },
+    {
+      title: '更新时间',
+      dataIndex: 'updateTime',
+      width: 190,
+      sorter: true,
+      sortOrder: sortField === 'updateTime' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : undefined,
+      render: (v: number) => <span>{formatTime(v)}</span>,
+    },
     {
       title: '操作',
       dataIndex: 'actions',
-      width: 240,
-      render: (_: any, row: any) => (
-        <Space spacing={6}>
+      width: 230,
+      render: (_: unknown, row: DecorateRow) => (
+        <Space spacing={2}>
           <Button
-            theme="solid"
-            type="primary"
+            theme="borderless"
             size="small"
-            onClick={() => openStudio(row.decorateTitle)}
+            onClick={() => setEditing({ id: row.decorateId, title: row.decorateTitle || '' })}
           >
-            打开PC首页画布编辑器
+            编辑
           </Button>
-          {row.isHome !== 1 && (
-            <Button theme="light" size="small" onClick={() => setAsHome(row.decorateId)}>
-              设为首页
+          {row.isHome === 1 && (row.pageType ?? 1) !== 3 && (
+            <Button theme="borderless" size="small" onClick={() => openSwitch(row)}>
+              更换
             </Button>
           )}
-          <Popconfirm title="确定删除该页面？" onConfirm={() => deletePage(row.decorateId)}>
-            <Button theme="borderless" type="danger" size="small">
-              删除
-            </Button>
-          </Popconfirm>
+          <Dropdown
+            trigger="click"
+            position="bottomRight"
+            render={
+              <Dropdown.Menu>
+                <Dropdown.Item onClick={() => handleCopy(row)}>复制</Dropdown.Item>
+                {row.isHome === 0 && (
+                  <Popconfirm title="确定删除该页面？" onConfirm={() => handleDelete(row)}>
+                    <Dropdown.Item>删除</Dropdown.Item>
+                  </Popconfirm>
+                )}
+                <Dropdown.Item onClick={() => handleShare(row)}>分享</Dropdown.Item>
+                <Dropdown.Item onClick={() => handleExport(row)}>导出</Dropdown.Item>
+                {canPromote(row) && (
+                  <Dropdown.Item onClick={() => setPromoteRow(row)}>推广</Dropdown.Item>
+                )}
+              </Dropdown.Menu>
+            }
+          >
+            <Button theme="borderless" size="small" icon={<IconMore />} aria-label="更多操作" />
+          </Dropdown>
         </Space>
       ),
     },
@@ -590,97 +812,248 @@ export function PcDecorateHome() {
 
   return (
     <div style={{ padding: 20 }}>
-      {/* 顶部介绍与快速进入卡片 */}
-      <Card
-        style={{
-          marginBottom: 16,
-          background: 'linear-gradient(135deg, #f0f5ff 0%, #ffffff 100%)',
-          borderColor: '#adc6ff',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 'bold', color: '#1d2129', marginBottom: 6 }}>
-              🖥️ PC商城可视化装修与微页面管理
-            </div>
-            <Text type="secondary">
-              自由配置电脑端商城首页的顶部轮播大图、通栏广告、商品楼层与活动专题区域，支持实时可视化拖拽与发布。
-            </Text>
-          </div>
-
-          <Space spacing={12}>
-            <Button
-              theme="solid"
-              type="primary"
-              size="large"
-              icon={<IconDesktop />}
-              onClick={() => openStudio('PC官方商城默认首页')}
-            >
-              打开PC首页画布编辑器
-            </Button>
-            <Button theme="light" size="large" onClick={() => setAddDrawerVisible(true)}>
-              添加页面
-            </Button>
-            <Button
-              theme="light"
-              size="large"
-              onClick={() => Toast.success('已从模板库导入标准电脑端商城首页模板')}
-            >
-              导入装修模板
-            </Button>
-          </Space>
-        </div>
-      </Card>
-
-      {/* 列表搜索工具栏 */}
       <Card className="table-card" shadows="hover">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
           <Space>
             <Input
-              prefix={<IconSearch />}
               placeholder="输入页面名称"
               value={keyword}
               onChange={(v) => setKeyword(v)}
+              onEnterPress={() => {
+                setPage(1);
+                setAppliedKeyword(keyword);
+              }}
+              showClear
+              onClear={() => {
+                setKeyword('');
+                setPage(1);
+                setAppliedKeyword('');
+              }}
               style={{ width: 220 }}
             />
             <Button
-              theme="solid"
-              type="primary"
-              onClick={() => Toast.info(`正在筛选: ${keyword || '全部'}`)}
+              onClick={() => {
+                setPage(1);
+                setAppliedKeyword(keyword);
+              }}
             >
               搜索
             </Button>
-            <Button onClick={() => setKeyword('')}>重置</Button>
+          </Space>
+          <Space>
+            <Button theme="solid" type="primary" onClick={() => setAddVisible(true)}>
+              添加页面
+            </Button>
+            <Button onClick={() => setImportVisible(true)}>导入装修模板</Button>
+            <Popconfirm title="您确认要批量删除所选数据吗？" onConfirm={handleBatchDelete}>
+              <Button disabled={selectedKeys.length === 0}>批量删除</Button>
+            </Popconfirm>
+            {selectedKeys.length > 0 && (
+              <Text type="tertiary" size="small">
+                已选择：<b>{selectedKeys.length}</b> 项
+              </Text>
+            )}
           </Space>
         </div>
 
         <Table
           columns={columns as any}
-          dataSource={filteredPages}
-          pagination={{ pageSize: 10, total: filteredPages.length }}
+          dataSource={rows}
           rowKey="decorateId"
+          loading={loading}
+          rowSelection={{
+            selectedRowKeys: selectedKeys,
+            onChange: (keys) => setSelectedKeys((keys || []).map(String)),
+            width: 32,
+            fixed: true,
+          }}
+          onChange={({ sorter }: any) => {
+            if (sorter && sorter.key && sorter.order) {
+              setSortField(String(sorter.key));
+              setSortOrder(sorter.order === 'ascend' ? 'asc' : 'desc');
+            } else {
+              setSortField('');
+              setSortOrder('');
+            }
+            setPage(1);
+          }}
+          pagination={{
+            currentPage: page,
+            pageSize: size,
+            total,
+            onPageChange: (p: number) => setPage(p),
+            onPageSizeChange: (s: number) => {
+              setSize(s);
+              setPage(1);
+            },
+            showSizeChanger: true,
+            pageSizeOpts: [10, 20, 50],
+          }}
         />
       </Card>
 
-      {/* 添加新页面 Modal */}
+      {/* 添加页面抽屉（原版 DialogForm isDrawer 600px：页面名称 + 排序） */}
+      <SideSheet
+        title="添加页面"
+        visible={addVisible}
+        width={600}
+        onCancel={() => setAddVisible(false)}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button onClick={() => setAddVisible(false)}>取消</Button>
+            <Button theme="solid" type="primary" loading={addSaving} onClick={handleAdd}>
+              确定
+            </Button>
+          </div>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '8px 4px' }}>
+          <div>
+            <Text strong style={{ display: 'block', marginBottom: 6 }}>
+              <span style={{ color: 'var(--semi-color-danger)' }}>* </span>页面名称
+            </Text>
+            <Input
+              placeholder="请输入页面名称"
+              value={addTitle}
+              onChange={(v) => setAddTitle(v)}
+              maxLength={50}
+            />
+          </div>
+          <div>
+            <Text strong style={{ display: 'block', marginBottom: 6 }}>
+              排序
+            </Text>
+            <InputNumber value={addSort as number} onChange={(v) => setAddSort(v ?? 0)} style={{ width: 200 }} />
+          </div>
+        </div>
+      </SideSheet>
+
+      {/* 更换首页弹窗（原版 SwitchDefaultPage 800px） */}
       <Modal
-        title="添加 PC 微页面"
-        visible={addDrawerVisible}
-        onOk={handleAddPage}
-        onCancel={() => setAddDrawerVisible(false)}
-        okText="确定创建"
+        title="更换首页"
+        visible={!!switchTarget}
+        width={620}
+        onOk={handleSwitchHome}
+        onCancel={() => setSwitchTarget(null)}
+        okText="确定"
         cancelText="取消"
       >
-        <div style={{ padding: '12px 0' }}>
-          <Text strong style={{ display: 'block', marginBottom: 8 }}>页面名称：</Text>
-          <Input
-            placeholder="例如: 2026年数码开学季专题会场"
-            value={newTitle}
-            onChange={(v) => setNewTitle(v)}
-          />
-        </div>
+        {switchLoading ? (
+          <div style={{ padding: 32, textAlign: 'center' }}>
+            <Spin />
+          </div>
+        ) : switchCandidates.length === 0 ? (
+          <Text type="tertiary">暂无其他可更换的同类型页面</Text>
+        ) : (
+          <RadioGroup
+            value={switchChoice ?? undefined}
+            onChange={(e: any) => setSwitchChoice(Number(e.target.value))}
+            style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 0' }}
+          >
+            {switchCandidates.map((c) => (
+              <Radio key={c.decorateId} value={c.decorateId}>
+                {c.decorateTitle}
+                {Number(c.status) === 1 ? '（已发布）' : '（未发布）'}
+              </Radio>
+            ))}
+          </RadioGroup>
+        )}
+      </Modal>
+
+      {/* 导入装修模板弹窗（原版 ElMessageBox.prompt，接口 /decorate/decorateShare/import） */}
+      <Modal
+        title="导入装修链接"
+        visible={importVisible}
+        onOk={handleImport}
+        onCancel={() => setImportVisible(false)}
+        okText="确定"
+        cancelText="取消"
+        okButtonProps={{ loading: importSaving }}
+      >
+        <Input
+          placeholder="请把分享链接粘贴在此处"
+          value={importLink}
+          onChange={(v) => setImportLink(v)}
+        />
+      </Modal>
+
+      {/* 推广弹窗（原版 Advertise 900px，展示 C 端路径） */}
+      <Modal
+        title="推广"
+        visible={!!promoteRow}
+        width={520}
+        footer={null}
+        onCancel={() => setPromoteRow(null)}
+      >
+        {promoteRow && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '8px 0' }}>
+            <Text strong>{promoteRow.decorateTitle}</Text>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Input
+                value={promoteRow.pageType === 3 ? '/activity' : '/'}
+                readOnly
+                style={{ flex: 1 }}
+              />
+              <Button
+                onClick={() =>
+                  copyText(promoteRow.pageType === 3 ? '/activity' : '/', '链接已复制到剪贴板')
+                }
+              >
+                复制路径
+              </Button>
+            </div>
+            <Text type="tertiary" size="small">
+              页面路径为商城 PC 端（decorateType=2）对应页面类型的访问地址。
+            </Text>
+          </div>
+        )}
       </Modal>
     </div>
+  );
+}
+
+/** 页面名称行内编辑（对应原版 PopForm，回车或确定提交 updateField） */
+function EditableTitle({ value, onConfirm }: { value: string; onConfirm: (val: string) => void }) {
+  const [visible, setVisible] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  useEffect(() => {
+    if (visible) setDraft(value);
+  }, [visible, value]);
+
+  const submit = () => {
+    const val = draft.trim();
+    setVisible(false);
+    if (val && val !== value) onConfirm(val);
+  };
+
+  return (
+    <Popover
+      visible={visible}
+      onClickOutSide={() => setVisible(false)}
+      trigger="custom"
+      showArrow
+      position="bottom"
+      content={
+        <div style={{ display: 'flex', gap: 6, padding: 6 }}>
+          <Input value={draft} onChange={(v) => setDraft(v)} onEnterPress={submit} maxLength={50} style={{ width: 200 }} />
+          <Button size="small" theme="solid" type="primary" onClick={submit}>
+            确定
+          </Button>
+        </div>
+      }
+    >
+      <span
+        style={{ cursor: 'pointer', borderBottom: '1px dashed var(--semi-color-border)' }}
+        onClick={(e) => {
+          e.stopPropagation();
+          setVisible(true);
+        }}
+        title="点击修改名称"
+      >
+        {value || '-'}
+      </span>
+    </Popover>
   );
 }
 
