@@ -183,77 +183,111 @@ function HomeHero({ module }: ModuleProps) {
   const banners = center.banners || [];
   const categories = left.categories || [];
   const cards = center.modules || [];
+
+  const formatHeroPrice = (value: any) => {
+    if (value === undefined || value === null || value === '') return '-';
+    const text = String(value);
+    if (text.includes('¥')) return text;
+    const amount = Number(value);
+    return Number.isFinite(amount) ? `¥ ${amount.toLocaleString('zh-CN')}` : text;
+  };
+
+  const renderMiniProducts = (card: any) => (
+    <div className="dec-hero__card-products">
+      {(card.products || []).slice(0, 2).map((product: any, index: number) => (
+        <div key={index} className="dec-hero__card-product">
+          <div className="dec-hero__card-img-box">
+            <SafeImage src={imageUrl(product.pic)} alt={product.productName || ''} />
+            {product.label ? <span className="dec-hero__card-label">{product.label}</span> : null}
+          </div>
+          {card.showPrice !== 0 ? (
+            <div className="dec-hero__card-price">{formatHeroPrice(product.price)}</div>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <Frame frame={module.frame} className="dec-hero-frame">
       <div
         className="dec-hero"
         style={{
-          gap: `${style.gap ?? 16}px`,
-          minHeight: `${style.height ?? 460}px`,
-          ['--dec-hero-left' as string]: `${style.leftWidth ?? 220}px`,
-          ['--dec-hero-right' as string]: `${style.rightWidth ?? 280}px`,
+          ['--dec-hero-height' as string]: `${style.height ?? 336}px`,
+          ['--dec-hero-gap' as string]: `${style.gap ?? 16}px`,
+          ['--dec-hero-left' as string]: `${style.leftWidth ?? 252}px`,
+          ['--dec-hero-right' as string]: `${style.rightWidth ?? 252}px`,
           ['--dec-hero-panel' as string]: style.panelBackgroundColor || '#ffffff',
-          ['--dec-hero-title' as string]: style.titleColor || '#101828',
-          ['--dec-hero-muted' as string]: style.mutedColor || '#98a2b3',
+          ['--dec-hero-radius' as string]: `${style.panelRadius ?? 8}px`,
         }}
       >
-        <aside className="dec-hero__left">
-          <div className="dec-hero__left-title" style={{ color: left.textColor }}>
-            {left.title || '全部分类'}
-          </div>
-          {categories.slice(0, left.showCount || 12).map((item: any, index: number) => (
-            <a key={index} href={linkUrl(item.picLink)} className="dec-hero__category">
-              <span>{item.picTitle || item.picName}</span>
-              <span className="dec-arrow">›</span>
-            </a>
-          ))}
-        </aside>
-
-        <main className="dec-hero__center">
-          <div className="dec-hero__banners">
-            {banners.length ? (
-              banners.slice(0, 1).map((banner: any, index: number) => (
-                <a key={index} href={linkUrl(banner.picLink)} className="dec-hero__banner">
-                  <SafeImage src={imageUrl(banner)} alt={banner.picTitle || ''} />
-                  {banner.picTitle ? <span className="dec-hero__banner-title">{banner.picTitle}</span> : null}
-                </a>
-              ))
-            ) : (
-              <div className="dec-hero__banner dec-hero__banner--empty" />
-            )}
-          </div>
-          <div className="dec-hero__cards">
-            {cards.slice(0, 5).map((card: any, index: number) => (
-              <a key={index} href={linkUrl(card.link)} className="dec-hero__card">
-                <SafeImage src={imageUrl(card.pic)} alt={card.moduleTitle || card.title || ''} />
-                <div className="dec-hero__card-body">
-                  <span className="dec-hero__card-title">{card.moduleTitle || card.title}</span>
-                  <span className="dec-hero__card-desc">{card.moduleSubTitle || card.badgeText}</span>
-                </div>
+        <aside className="dec-hero__left dec-hero__panel">
+          <div className="dec-hero__cate-list" style={{ background: left.backgroundColor, color: left.textColor }}>
+            {left.title ? <div className="dec-hero__cate-title-head">{left.title}</div> : null}
+            {categories.slice(0, left.showCount || 12).map((item: any, index: number) => (
+              <a key={index} href={linkUrl(item.picLink)} className="dec-hero__cate-item">
+                <span>{item.picTitle || item.picName}</span>
+                <span className="dec-arrow">›</span>
               </a>
             ))}
           </div>
-        </main>
+        </aside>
 
-        <aside className="dec-hero__right">
-          <div className="dec-hero__user">
-            <div className="dec-hero__avatar">
-              <SafeImage src={imageUrl(right.user?.avatar)} alt="" />
+        <section className="dec-hero__center">
+          <div className="dec-hero__center-top">
+            <div className="dec-hero__banner">
+              {banners.length ? (
+                <a href={linkUrl(banners[0].picLink)} className="dec-hero__banner-link">
+                  <SafeImage src={imageUrl(banners[0])} alt={banners[0].picTitle || ''} />
+                </a>
+              ) : <div className="dec-hero__banner-empty" />}
             </div>
-            <div>
-              <div className="dec-hero__welcome">{right.user?.welcomeText || 'Hi，欢迎来到万物新生'}</div>
-              <Button theme="solid" type="primary" size="small">
-                登录 / 注册
-              </Button>
+            <div className="dec-hero__promo-group">
+              {cards.slice(0, 2).map((card: any, index: number) => (
+                <a key={index} href={linkUrl(card.link)} className="dec-hero__panel dec-hero__promo-card">
+                  <div className="dec-hero__card-header">
+                    <span className="dec-hero__card-title">{card.moduleTitle || card.title || '促销'}</span>
+                    {card.moduleSubTitle ? <span className="dec-hero__card-badge" style={card.moduleSubTitleBgColorA ? { background: `linear-gradient(90deg, ${card.moduleSubTitleBgColorA}, ${card.moduleSubTitleBgColorB || card.moduleSubTitleBgColorA})` } : undefined}>{card.moduleSubTitle}</span> : null}
+                  </div>
+                  {renderMiniProducts(card)}
+                </a>
+              ))}
             </div>
           </div>
-          <div className="dec-hero__stats">
-            {(right.stats || []).slice(0, 3).map((stat: any, index: number) => (
-              <div key={index} className="dec-hero__stat">
-                <b>{stat.value || '-'}</b>
-                <span>{stat.label || ''}</span>
+          <div className="dec-hero__center-bottom">
+            <div className="dec-hero__product-grid">
+              {cards.slice(2, 6).map((card: any, index: number) => (
+                <a key={index} href={linkUrl(card.link)} className="dec-hero__channel-card">
+                  <div className="dec-hero__card-header">
+                    <span className="dec-hero__card-title">{card.moduleTitle || card.title || '推荐'}</span>
+                    {card.moduleSubTitle ? <span className="dec-hero__card-badge" style={card.moduleSubTitleBgColorA ? { background: `linear-gradient(90deg, ${card.moduleSubTitleBgColorA}, ${card.moduleSubTitleBgColorB || card.moduleSubTitleBgColorA})` } : undefined}>{card.moduleSubTitle}</span> : null}
+                  </div>
+                  {renderMiniProducts(card)}
+                </a>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <aside className="dec-hero__right">
+          <div className="dec-hero__panel dec-hero__user-card">
+            <div className="dec-hero__user-top">
+              <div className="dec-hero__avatar">
+                <SafeImage src={imageUrl(right.user?.avatar)} alt="" />
               </div>
-            ))}
+              <div className="dec-hero__user-text">
+                <div className="dec-hero__welcome">{right.user?.welcomeText || 'Hi，欢迎来到万物新生'}</div>
+                <Button theme="solid" type="primary" size="small">登录 / 注册</Button>
+              </div>
+            </div>
+            <div className="dec-hero__stats">
+              {(right.stats || []).slice(0, 3).map((stat: any, index: number) => (
+                <div key={index} className="dec-hero__stat">
+                  <b>{stat.value || '-'}</b>
+                  <span>{stat.label || ''}</span>
+                </div>
+              ))}
+            </div>
           </div>
           <div className="dec-hero__shortcuts">
             {(right.shortcuts || []).slice(0, 9).map((item: any, index: number) => (
@@ -264,7 +298,7 @@ function HomeHero({ module }: ModuleProps) {
             ))}
           </div>
           {right.shopsTitle ? (
-            <div className="dec-hero__shops">
+            <div className="dec-hero__panel dec-hero__shops">
               <div className="dec-hero__shops-head">
                 <b>{right.shopsTitle}</b>
                 <a href={linkUrl(right.shopsMoreLink)}>{right.shopsMoreText || '查看更多'} ›</a>
@@ -276,7 +310,6 @@ function HomeHero({ module }: ModuleProps) {
     </Frame>
   );
 }
-
 interface ProductItem {
   productId?: number;
   productSn?: string;
