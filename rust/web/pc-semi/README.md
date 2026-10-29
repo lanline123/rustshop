@@ -40,35 +40,34 @@ PC_API_BASE=https://battery.recy.cc npm run dev
 
 ## 当前范围
 
+线上：
+
+```text
+https://battery.recy.cc/      新版 PC
+https://battery.recy.cc/pc/   旧版 PC（保留回滚）
+```
+
 已完成：
 
 ```text
-Next.js App Router 骨架
-SSR 首页 /api/home/home/pcIndex
-装修 JSON 类型契约
-新版模块注册表
-PC 公共头部
-图片广告 / 图文导航 / 图片魔方 / 热区 / 公告 / 标题 / 分割线 / 空白
-快捷导航 / 分类导航 / 营销通栏 / 商品 / 推荐商品 / 商品分组
-优惠券 / 秒杀 / 拼团 / 分组 Banner（基础版）
-商品模块接 /api/product/product/list
+Next.js App Router + SSR
+18 个 pcHome 装修模块注册与渲染
+首页 / 商品详情 / 搜索 + 排序 + 价格筛选
+购物车 / 结算 / 支付页
+订单列表 / 订单详情 / 订单取消
+会员中心 / 地址 / 优惠券 / 收藏 / 积分 / 余额 / 售后
+登录 / 领券中心 / 帮助 / 注册入口
+移动端基础适配
 ```
 
 待补齐：
 
 ```text
-商品详情 / SKU
-分类 / 搜索
-购物车
-结算 / 支付
-订单 / 售后
-会员中心
-活动完整交互
-IM
-OAuth 回调
-多语言
-SEO 细节 / sitemap
-装修模块完整样式 parity
+支付渠道 SDK（后端支付创建未迁移）
+文章内容页
+短信注册完整流程
+IM / OAuth / 多语言 / sitemap
+装修模块极细节样式 parity
 ```
 
 ## 装修契约
