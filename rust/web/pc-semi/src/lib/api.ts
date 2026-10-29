@@ -108,6 +108,8 @@ export async function getProducts(params: {
   categoryId?: number | string;
   sortField?: string;
   sortOrder?: 'asc' | 'desc';
+  priceMin?: string | number;
+  priceMax?: string | number;
 }): Promise<ProductListResponse> {
   const query = new URLSearchParams();
   query.set('page', String(params.page || 1));
@@ -116,6 +118,8 @@ export async function getProducts(params: {
   if (params.categoryId) query.set('categoryId', String(params.categoryId));
   if (params.sortField) query.set('sortField', params.sortField);
   if (params.sortOrder) query.set('sortOrder', params.sortOrder);
+  if (params.priceMin !== undefined && params.priceMin !== '') query.set('priceMin', String(params.priceMin));
+  if (params.priceMax !== undefined && params.priceMax !== '') query.set('priceMax', String(params.priceMax));
   const response = await fetch(`${SERVER_API_BASE}/api/product/product/list?${query.toString()}`, {
     cache: 'no-store',
   });
