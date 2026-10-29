@@ -3224,3 +3224,103 @@ img {
   color: var(--pc-primary);
   font-size: 13px;
 }
+
+/* Favorites / points */
+.member-favorite__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.member-favorite__card {
+  border-radius: 12px;
+}
+
+.member-favorite__card img {
+  width: 100%;
+  height: 170px;
+  border-radius: 8px;
+  background: #f7f8fa;
+  object-fit: contain;
+}
+
+.member-favorite__name {
+  overflow: hidden;
+  margin-top: 8px;
+  color: #344054;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.member-favorite__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.member-favorite__foot b {
+  color: #e5484d;
+  font-size: 16px;
+}
+
+.member-points__summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #1456f0, #39a8ff);
+  color: #fff;
+}
+
+.member-points__summary span {
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.member-points__summary b {
+  font-size: 38px;
+}
+
+.member-points__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.member-points__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px dashed #f2f4f7;
+}
+
+.member-points__row > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.member-points__row > div b {
+  color: #344054;
+  font-size: 13px;
+}
+
+.member-points__row > div span {
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.member-points__row > b {
+  font-size: 18px;
+}
+
+.member-points__row > b.is-plus {
+  color: #12b76a;
+}
+
+.member-points__row > b.is-minus {
+  color: #e5484d;
+}

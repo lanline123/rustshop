@@ -6,6 +6,7 @@ import { Button, Card, InputNumber, Tag, Toast } from '@douyinfe/semi-ui';
 import { IconCart, IconCreditCard } from '@douyinfe/semi-icons';
 import type { ProductDetailResponse } from '@/lib/api';
 import { addToCart } from '@/lib/api';
+import { apiPost } from '@/lib/client-api';
 
 function yuan(value: unknown): string {
   const amount = Number(value || 0);
@@ -41,6 +42,15 @@ export default function ProductDetailClient({ detail }: { detail: ProductDetailR
       }
     } finally {
       setAdding(false);
+    }
+  };
+
+  const collect = async () => {
+    try {
+      await apiPost('user/collectProduct/save', { productId: Number(item.productId) });
+      Toast.success({ content: '已收藏商品' });
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : '收藏失败' });
     }
   };
 
@@ -127,6 +137,7 @@ export default function ProductDetailClient({ detail }: { detail: ProductDetailR
             <Button size="large" theme="light" type="primary" icon={<IconCreditCard />} onClick={add}>
               立即购买
             </Button>
+            <Button size="large" onClick={collect}>收藏</Button>
           </div>
 
           <div className="pc-product-detail__services">
