@@ -17,7 +17,7 @@ export async function apiGet<T>(path: string, params?: Record<string, unknown>):
     if (value !== undefined && value !== null && value !== '') query.set(key, String(value));
   });
   const suffix = query.toString() ? `?${query.toString()}` : '';
-  const response = await fetch(`/api/${path}${suffix}`, { credentials: 'include' });
+  const response = await fetch(`/api/${path}${suffix}`, { credentials: 'include', headers: authHeaders() });
   return read<T>(response);
 }
 

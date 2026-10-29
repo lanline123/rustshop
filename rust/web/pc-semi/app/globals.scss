@@ -3340,3 +3340,29 @@ img {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
+
+@media (max-width: 900px) {
+  .dec-hero__promo-group {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .dec-hero__promo-card {
+    width: 100%;
+    min-height: 150px;
+  }
+
+  .dec-hero__card-price {
+    font-size: 12px;
+    white-space: normal;
+    word-break: break-all;
+  }
+
+  .dec-hero__card-header {
+    gap: 6px;
+  }
+
+  .dec-hero__card-title {
+    font-size: 13px;
+  }
+}
