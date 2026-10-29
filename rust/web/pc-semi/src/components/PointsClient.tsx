@@ -21,10 +21,13 @@ export default function PointsClient() {
   const [needLogin, setNeedLogin] = useState(false);
 
   useEffect(() => {
-    apiGet<{ records?: PointLog[]; userPoints?: number }>('user/pointsLog/list', { page: 1, size: 30 })
-      .then((result) => {
+    Promise.all([
+      apiGet<{ records?: PointLog[]; userPoints?: number }>('user/pointsLog/list', { page: 1, size: 30 }),
+      apiGet<{ points?: number }>('user/user/detail').catch(() => ({ points: 0 } as { points?: number })),
+    ])
+      .then(([result, profile]) => {
         setRows(result.records || []);
-        setTotalPoints(Number(result.userPoints || 0));
+        setTotalPoints(Number(result.userPoints ?? profile.points ?? 0));
       })
       .catch((error) => {
         const message = error instanceof Error ? error.message : '';

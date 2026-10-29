@@ -36,7 +36,7 @@ export default function FavoriteClient() {
 
   const remove = async (productId: number) => {
     try {
-      await apiPost('user/collectProduct/cancel', { id: productId });
+      await apiPost('user/collectProduct/cancel', { productId });
       Toast.success({ content: '已取消收藏' });
       load();
     } catch (error) {

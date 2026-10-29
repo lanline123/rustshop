@@ -40,6 +40,7 @@ const MEMBER_NAV = [
   { label: '收货地址', href: '/member/address', icon: <IconUser /> },
   { label: '我的收藏', href: '/member/favorite', icon: <IconUser /> },
   { label: '我的积分', href: '/member/points', icon: <IconUser /> },
+  { label: '账户余额', href: '/member/balance', icon: <IconUser /> },
   { label: '我的优惠券', href: '/member/coupon', icon: <IconUser /> },
   { label: '售后服务', href: '/member/aftersales', icon: <IconUser /> },
   { label: '账户资料', href: '/member/profile', icon: <IconUser /> },
