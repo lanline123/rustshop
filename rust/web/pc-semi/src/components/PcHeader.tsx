@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import PcHeaderTopBar from '@/components/PcHeaderTopBar';
 import type { PcHeaderConfig } from '@/decorate/types';
 import { imageUrl } from '@/decorate/components/common';
 
@@ -29,7 +30,6 @@ export default function PcHeader({ config }: { config?: PcHeaderConfig | null })
       })
       .catch(() => undefined);
   }, [logo]);
-  const showTopBar = Number(header.showTopMenuBar ?? 1) === 1;
   const showNav = Number(header.showMainNav ?? 1) === 1;
   const navItems: Array<{ title?: string; link?: string; name?: string; label?: string }> = Array.isArray(header.mainNav) && header.mainNav.length ? header.mainNav : FALLBACK_NAV;
 
@@ -39,24 +39,7 @@ export default function PcHeader({ config }: { config?: PcHeaderConfig | null })
 
   return (
     <header className={`pc-header ${header.isWhite === 0 ? 'pc-header--dark' : ''}`}>
-      {showTopBar ? (
-        <div className="pc-header__top">
-          <div className="pc-container pc-header__top-inner">
-            <div>
-              <span>{String(header.topRegionText || '中国江西')}</span>
-              <span className="pc-header__top-sep">|</span>
-              <span>欢迎来到万物新生</span>
-            </div>
-            <div className="pc-header__top-links">
-              <Link href="/login">登录</Link>
-              <Link href="/register">注册</Link>
-              <Link href="/member">我的账户</Link>
-              <Link href="/member/order/list">我的订单</Link>
-              <Link href="/help">帮助中心</Link>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <PcHeaderTopBar config={header as Record<string, any>} />
 
       <div className="pc-container pc-header__main">
         <Link href="/" className="pc-header__brand">
