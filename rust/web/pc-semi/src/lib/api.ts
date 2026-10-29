@@ -146,3 +146,52 @@ export async function getProducts(params: {
   const data = await readData<{ records?: ProductListItem[]; total?: number }>(response);
   return { records: data.records || [], total: Number(data.total || 0) };
 }
+
+export interface FooterData {
+  config: Record<string, any> | null;
+  bottomNav: Array<Record<string, any>>;
+  friendLinks: Array<Record<string, any>>;
+  helpCategories: Array<Record<string, any>>;
+}
+
+async function fetchJson<T>(path: string): Promise<T | null> {
+  const response = await fetch(`${SERVER_API_BASE}/api/${path}`, {
+    cache: 'force-cache',
+    next: { revalidate: 300 },
+  }).catch(() => null);
+  if (!response) return null;
+  try {
+    return await readData<T>(response);
+  } catch {
+    return null;
+  }
+}
+
+/** PC 脚注：站点信息 / 底部导航 / 友情链接 / 帮助分类。 */
+export async function getFooterData(): Promise<FooterData> {
+  const [config, nav, friendLinks, helpCategories] = await Promise.all([
+    fetchJson<Record<string, any>>('common/config/base'),
+    fetchJson<Record<string, any>>('common/pc/getNav'),
+    fetchJson<Array<Record<string, any>>>('home/home/friendLinks'),
+    fetchJson<Array<Record<string, any>>>('article/category/indexBzzxList?categorySize=5&articleSize=4'),
+  ]);
+  return {
+    config,
+    bottomNav: Array.isArray(nav?.bottomNav) ? nav.bottomNav : [],
+    friendLinks: Array.isArray(friendLinks) ? friendLinks : [],
+    helpCategories: Array.isArray(helpCategories) ? helpCategories : [],
+  };
+}
+
+export async function getArticleIssueInfo(articleId: number): Promise<Record<string, any> | null> {
+  const response = await fetch(`${SERVER_API_BASE}/api/article/article/issueInfo?id=${articleId}`, {
+    cache: 'force-cache',
+    next: { revalidate: 300 },
+  }).catch(() => null);
+  if (!response) return null;
+  try {
+    return await readData<Record<string, any>>(response);
+  } catch {
+    return null;
+  }
+}

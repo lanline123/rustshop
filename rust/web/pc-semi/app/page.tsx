@@ -2,6 +2,7 @@ import { getHomeDecorate } from '@/lib/api';
 import PcHeader from '@/components/PcHeader';
 import { DecorateRenderer } from '@/decorate/components/modules';
 import type { HomeDecorateResponse } from '@/decorate/types';
+import PcFooter from '@/components/PcFooter';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,12 +57,7 @@ export default async function HomePage({
           )}
         </div>
       </main>
-      <footer className="pc-footer">
-        <div className="pc-container pc-footer__inner">
-          <span>万物新生 · 退役动力电池循环利用产业服务平台</span>
-          <span>安全合规 · 高效协同 · 绿色循环 · 数据可追溯</span>
-        </div>
-      </footer>
+      <PcFooter showFriendly />
     </>
   );
 }
