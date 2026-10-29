@@ -12,6 +12,17 @@ export default async function PcFooter({ showFriendly = false }: { showFriendly?
   const phone = config?.kefuPhone as string | undefined;
   const serviceTime = config?.kefuTime as string | undefined;
   const address = (config?.companyAddress || config?.kefuAddress) as string | undefined;
+  const companyTxt = config?.shopCompanyTxt as string | undefined;
+  const businessLicense = config?.businessLicense as string | undefined;
+  const businessLicenseEnabled = Number(config?.businessLicenseEnabled ?? 1) === 1;
+  const businessLicenseType = Array.isArray(config?.businessLicenseType) ? (config.businessLicenseType as string[]) : [];
+  const licenseLabel = businessLicenseType.includes('icp') && businessLicenseType.includes('edi')
+    ? '增值电信业务经营许可证(ICP+EDI)：'
+    : businessLicenseType.includes('edi')
+      ? '增值电信业务经营许可证(EDI)：'
+      : '增值电信业务经营许可证(ICP)：';
+  const policeNo = config?.shop110No as string | undefined;
+  const policeLink = (config?.shop110Link as string | undefined) || 'https://beian.mps.gov.cn/#/query/webSearch';
 
   return (
     <footer className="pc-footer">
@@ -62,12 +73,19 @@ export default async function PcFooter({ showFriendly = false }: { showFriendly?
 
           <div className="pc-footer__copy">
             <p>
+              {companyTxt ? <span>{companyTxt}｜</span> : null}
+              {businessLicenseEnabled && businessLicense ? <span>{licenseLabel}{businessLicense}｜</span> : null}
               {icp ? (
                 <a href={icpUrl} target="_blank" rel="nofollow noreferrer">
                   {icp}
                 </a>
               ) : null}
-              {config?.shop110No ? <span> {config.shop110No}</span> : null}
+              {policeNo ? (
+                <>
+                  <span>｜</span>
+                  <a href={policeLink} target="_blank" rel="nofollow noreferrer">{policeNo}</a>
+                </>
+              ) : null}
             </p>
             {phone || serviceTime || address ? (
               <p>
@@ -76,7 +94,7 @@ export default async function PcFooter({ showFriendly = false }: { showFriendly?
                 {address ? <span>联系地址：{address}</span> : null}
               </p>
             ) : null}
-            <p className="pc-footer__copyright">万物新生 · 退役动力电池循环利用产业服务平台</p>
+            <p className="pc-footer__copyright">{companyTxt || '万物新生 · 退役动力电池循环利用产业服务平台'}</p>
           </div>
         </div>
       </div>

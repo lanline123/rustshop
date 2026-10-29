@@ -170,7 +170,7 @@ async function fetchJson<T>(path: string): Promise<T | null> {
 /** PC 脚注：站点信息 / 底部导航 / 友情链接 / 帮助分类。 */
 export async function getFooterData(): Promise<FooterData> {
   const [config, nav, friendLinks, helpCategories] = await Promise.all([
-    fetchJson<Record<string, any>>('common/config/base'),
+    fetchJson<Record<string, any>>('common/config/initConfigSettings'),
     fetchJson<Record<string, any>>('common/pc/getNav'),
     fetchJson<Array<Record<string, any>>>('home/home/friendLinks'),
     fetchJson<Array<Record<string, any>>>('article/category/indexBzzxList?categorySize=5&articleSize=4'),
