@@ -114,6 +114,9 @@ export default function OrderDetailClient({ orderId }: { orderId: number }) {
             {detail.availableActions?.cancelOrder ? (
               <Button type="danger" onClick={cancel}>取消订单</Button>
             ) : null}
+            {detail.availableActions?.toAftersales || detail.availableActions?.toAfterSales ? (
+              <Link href="/member/aftersales"><Button>申请售后</Button></Link>
+            ) : null}
           </div>
         </div>
       </Card>
