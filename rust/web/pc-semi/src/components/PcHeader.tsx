@@ -7,9 +7,9 @@ import { imageUrl } from '@/decorate/components/common';
 
 const FALLBACK_NAV = [
   { title: '首页', link: '/' },
-  { title: '全部商品', link: '/category' },
-  { title: '回收业务', link: '/list' },
-  { title: '工程服务', link: '/list' },
+  { title: '全部商品', link: '/search' },
+  { title: '回收业务', link: '/search?keyword=回收' },
+  { title: '工程服务', link: '/search?keyword=工程' },
   { title: '资讯中心', link: '/article' },
 ];
 

@@ -2978,3 +2978,91 @@ img {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+.pc-list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.pc-list-sorts {
+  display: flex;
+  gap: 8px;
+}
+
+.pc-list-sorts a {
+  padding: 6px 12px;
+  border-radius: 6px;
+  color: #667085;
+  font-size: 13px;
+}
+
+.pc-list-sorts a.is-active {
+  background: #eef4ff;
+  color: var(--pc-primary);
+  font-weight: 600;
+}
+
+.pc-list-filter-tip {
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.pc-static-page {
+  min-height: 60vh;
+  padding: 16px 0 60px;
+}
+
+.pc-faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 900px;
+}
+
+.pc-faq-item {
+  padding: 18px 20px;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.pc-faq-item b {
+  color: #344054;
+  font-size: 15px;
+}
+
+.pc-faq-item p {
+  margin: 8px 0 0;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.pc-static-card {
+  max-width: 680px;
+  padding: 28px;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.pc-static-card b {
+  color: #344054;
+  font-size: 18px;
+}
+
+.pc-static-card p {
+  margin: 10px 0;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.pc-static-card a {
+  color: var(--pc-primary);
+  font-size: 13px;
+}

@@ -106,12 +106,16 @@ export async function getProducts(params: {
   size?: number;
   keyword?: string;
   categoryId?: number | string;
+  sortField?: string;
+  sortOrder?: 'asc' | 'desc';
 }): Promise<ProductListResponse> {
   const query = new URLSearchParams();
   query.set('page', String(params.page || 1));
   query.set('size', String(params.size || 24));
   if (params.keyword) query.set('keyword', params.keyword);
   if (params.categoryId) query.set('categoryId', String(params.categoryId));
+  if (params.sortField) query.set('sortField', params.sortField);
+  if (params.sortOrder) query.set('sortOrder', params.sortOrder);
   const response = await fetch(`${SERVER_API_BASE}/api/product/product/list?${query.toString()}`, {
     cache: 'no-store',
   });

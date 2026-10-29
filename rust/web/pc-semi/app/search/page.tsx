@@ -19,16 +19,40 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
   return { title: keyword ? `${keyword} · 搜索 · 万物新生` : '搜索商品 · 万物新生' };
 }
 
+const SORTS = [
+  { key: 'default', label: '综合' },
+  { key: 'price-asc', label: '价格升序' },
+  { key: 'price-desc', label: '价格降序' },
+  { key: 'new', label: '最新' },
+];
+
 export default async function SearchPage({ searchParams }: PageProps) {
   const keyword = readParam(searchParams?.keyword);
   const categoryId = readParam(searchParams?.categoryId);
+  const sort = readParam(searchParams?.sort) || 'default';
   const page = Math.max(1, Number(readParam(searchParams?.page)) || 1);
   const size = 24;
+
+  const sortMap: Record<string, { sortField?: string; sortOrder?: 'asc' | 'desc' }> = {
+    'price-asc': { sortField: 'productPrice', sortOrder: 'asc' },
+    'price-desc': { sortField: 'productPrice', sortOrder: 'desc' },
+    new: { sortField: 'add_time', sortOrder: 'desc' },
+  };
+
   const [products, header] = await Promise.all([
-    getProducts({ page, size, keyword, categoryId }).catch(() => ({ records: [], total: 0 })),
+    getProducts({ page, size, keyword, categoryId, ...(sortMap[sort] || {}) }).catch(() => ({ records: [], total: 0 })),
     getPcHeader().catch(() => null),
   ]);
   const pages = Math.ceil(products.total / size);
+
+  const queryFor = (nextSort: string, nextPage = 1) => {
+    const query = new URLSearchParams();
+    if (keyword) query.set('keyword', keyword);
+    if (categoryId) query.set('categoryId', categoryId);
+    if (nextSort !== 'default') query.set('sort', nextSort);
+    if (nextPage > 1) query.set('page', String(nextPage));
+    return query.toString();
+  };
 
   return (
     <>
@@ -44,17 +68,26 @@ export default async function SearchPage({ searchParams }: PageProps) {
             <h1>{keyword ? `“${keyword}”的搜索结果` : '全部商品'}</h1>
             <span>共 {products.total} 件商品</span>
           </div>
+
+          <div className="pc-list-toolbar">
+            <div className="pc-list-sorts">
+              {SORTS.map((item) => (
+                <Link key={item.key} href={`/search?${queryFor(item.key)}`} className={sort === item.key ? 'is-active' : ''}>
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+            {categoryId ? <span className="pc-list-filter-tip">分类 ID：{categoryId}</span> : null}
+          </div>
+
           <ProductGrid products={products.records} />
+
           {pages > 1 ? (
             <nav className="pc-pagination">
               {Array.from({ length: pages }).map((_, index) => {
                 const next = index + 1;
-                const query = new URLSearchParams();
-                if (keyword) query.set('keyword', keyword);
-                if (categoryId) query.set('categoryId', categoryId);
-                query.set('page', String(next));
                 return (
-                  <Link key={next} href={`/search?${query.toString()}`} className={next === page ? 'is-active' : ''}>
+                  <Link key={next} href={`/search?${queryFor(sort, next)}`} className={next === page ? 'is-active' : ''}>
                     {next}
                   </Link>
                 );
