@@ -3324,3 +3324,19 @@ img {
 .member-points__row > b.is-minus {
   color: #e5484d;
 }
+
+.dec-promo-head__right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dec-promo-countdown {
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: #fff1f0;
+  color: #e1251b;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}

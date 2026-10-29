@@ -17,16 +17,19 @@ interface PointLog {
 export default function PointsClient() {
   const [rows, setRows] = useState<PointLog[]>([]);
   const [totalPoints, setTotalPoints] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [needLogin, setNeedLogin] = useState(false);
 
   useEffect(() => {
     Promise.all([
-      apiGet<{ records?: PointLog[]; userPoints?: number }>('user/pointsLog/list', { page: 1, size: 30 }),
+      apiGet<{ records?: PointLog[]; userPoints?: number; total?: number }>('user/pointsLog/list', { page, size: 30 }),
       apiGet<{ points?: number }>('user/user/detail').catch(() => ({ points: 0 } as { points?: number })),
     ])
       .then(([result, profile]) => {
         setRows(result.records || []);
+        setTotal(Number(result.total || 0));
         setTotalPoints(Number(result.userPoints ?? profile.points ?? 0));
       })
       .catch((error) => {
@@ -34,7 +37,7 @@ export default function PointsClient() {
         setNeedLogin(message.includes('登录') || message.includes('401'));
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [page]);
 
   if (needLogin) {
     return <Card className="cart-state"><h2>登录后查看积分</h2><Link href="/login?redirect=/member/points"><Button theme="solid" type="primary" size="large">去登录</Button></Link></Card>;
@@ -67,6 +70,15 @@ export default function PointsClient() {
           <p>暂无积分记录</p>
         )}
       </Card>
+      {total > 30 ? (
+        <div className="pc-pagination">
+          {Array.from({ length: Math.ceil(total / 30) }).map((_, index) => (
+            <button key={index} type="button" className={index + 1 === page ? 'is-active' : ''} onClick={() => setPage(index + 1)}>
+              {index + 1}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

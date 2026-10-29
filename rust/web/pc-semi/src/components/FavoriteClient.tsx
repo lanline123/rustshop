@@ -17,12 +17,17 @@ interface Favorite {
 
 export default function FavoriteClient() {
   const [rows, setRows] = useState<Favorite[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [needLogin, setNeedLogin] = useState(false);
 
-  const load = () => {
-    apiGet<{ records?: Favorite[] }>('user/collectProduct/list', { page: 1, size: 20 })
-      .then((result) => setRows(result.records || []))
+  const load = (nextPage = page) => {
+    apiGet<{ records?: Favorite[]; total?: number }>('user/collectProduct/list', { page: nextPage, size: 20 })
+      .then((result) => {
+        setRows(result.records || []);
+        setTotal(Number(result.total || 0));
+      })
       .catch((error) => {
         const message = error instanceof Error ? error.message : '';
         setNeedLogin(message.includes('登录') || message.includes('401'));
@@ -31,8 +36,8 @@ export default function FavoriteClient() {
   };
 
   useEffect(() => {
-    load();
-  }, []);
+    load(page);
+  }, [page]);
 
   const remove = async (productId: number) => {
     try {
@@ -70,6 +75,15 @@ export default function FavoriteClient() {
       ) : (
         <Card className="member-card">暂无收藏商品</Card>
       )}
+      {total > 20 ? (
+        <div className="pc-pagination">
+          {Array.from({ length: Math.ceil(total / 20) }).map((_, index) => (
+            <button key={index} type="button" className={index + 1 === page ? 'is-active' : ''} onClick={() => setPage(index + 1)}>
+              {index + 1}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

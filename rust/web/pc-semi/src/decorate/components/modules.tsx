@@ -459,6 +459,7 @@ function Coupon({ module }: ModuleProps) {
 function Seckill({ module }: ModuleProps) {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [now, setNow] = useState(0);
 
   useEffect(() => {
     fetch('/api/home/home/getSeckill?page=1&size=6')
@@ -471,7 +472,26 @@ function Seckill({ module }: ModuleProps) {
       .finally(() => setLoading(false));
   }, []);
 
+  const endTime = (() => {
+    const first = products[0];
+    const raw = first?.seckkillData?.seckillEndTime || first?.seckillEndTime;
+    const time = raw ? new Date(raw).getTime() : 0;
+    return Number.isFinite(time) ? time : 0;
+  })();
+
+  useEffect(() => {
+    if (!endTime) return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [endTime]);
+
   if (loading || !products.length) return null;
+
+  const remaining = endTime && now ? Math.max(0, endTime - now) : 0;
+  const countdown = now && remaining > 0
+    ? `${String(Math.floor(remaining / 3600000)).padStart(2, '0')}:${String(Math.floor((remaining % 3600000) / 60000)).padStart(2, '0')}:${String(Math.floor((remaining % 60000) / 1000)).padStart(2, '0')}`
+    : '';
 
   return (
     <Frame frame={module.frame}>
@@ -480,7 +500,10 @@ function Seckill({ module }: ModuleProps) {
           <b>{module.title?.titleText || '限时秒杀'}</b>
           <span>{module.title?.descText || '每日限时低价'}</span>
         </div>
-        <Link href="/search?tag=seckill">更多秒杀 &gt;</Link>
+        <div className="dec-promo-head__right">
+          {countdown ? <span className="dec-promo-countdown">距结束 {countdown}</span> : null}
+          <Link href="/search?tag=seckill">更多秒杀 &gt;</Link>
+        </div>
       </div>
       <div className="dec-promo-grid">
         {products.map((product) => (
