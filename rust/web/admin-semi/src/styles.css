@@ -4018,3 +4018,15 @@ body[theme-mode='dark'] .order-detail-summary {
   color: var(--semi-color-primary);
   text-decoration: underline;
 }
+
+/* 订单统计页指标卡（对齐原版 main-panel-item：灰底圆角卡片 + 环比） */
+.stat-order-card {
+  padding: 16px;
+  border-radius: 10px;
+  background-color: var(--semi-color-fill-0);
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+.stat-order-card:hover {
+  box-shadow: var(--semi-color-shadow-elevated);
+  transform: translateY(-1px);
+}

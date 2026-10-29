@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
 import * as echarts from 'echarts/core';
 import { LineChart } from 'echarts/charts';
-import { GridComponent, TooltipComponent } from 'echarts/components';
+import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 
-echarts.use([LineChart, GridComponent, TooltipComponent, CanvasRenderer]);
+echarts.use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer]);
 
 interface TrendChartProps {
   data?: number[];
@@ -12,6 +12,12 @@ interface TrendChartProps {
   height?: number;
   name?: string;
   yAxisPrefix?: string;
+  /** 线条/面积主色（默认主题蓝 #165dff） */
+  color?: string;
+  /** 数值单位：追加在 tooltip 数值与 y 轴标签之后（如 '万'、'件'）。缺省时 ¥ 前缀按旧行为追加 '万'，显式传 '' 可关闭 */
+  unit?: string;
+  /** 是否显示底部图例 */
+  legend?: boolean;
 }
 
 export default function TrendChart({
@@ -20,14 +26,18 @@ export default function TrendChart({
   height = 268,
   name = '成交额',
   yAxisPrefix = '¥',
+  color = '#165dff',
+  unit,
+  legend = false,
 }: TrendChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
+    const resolvedUnit = unit !== undefined ? unit : yAxisPrefix === '¥' ? '万' : '';
     const chart = echarts.init(containerRef.current);
     chart.setOption({
-      grid: { left: 8, right: 16, top: 24, bottom: 8, containLabel: true },
+      grid: { left: 8, right: 16, top: 24, bottom: legend ? 30 : 8, containLabel: true },
       tooltip: {
         trigger: 'axis',
         backgroundColor: '#1c1f23',
@@ -35,9 +45,13 @@ export default function TrendChart({
         textStyle: { color: '#fff', fontSize: 12 },
         formatter: (params: any) => {
           const item = Array.isArray(params) ? params[0] : params;
-          return `${item.axisValue}<br/>${name}：${yAxisPrefix === '¥' ? '¥ ' + item.value + ' 万' : item.value}`;
+          const valueText = `${yAxisPrefix === '¥' ? '¥ ' : ''}${item.value}${resolvedUnit ? ' ' + resolvedUnit : ''}`;
+          return `${item.axisValue}<br/>${name}：${valueText}`;
         },
       },
+      legend: legend
+        ? { data: [name], left: 'center', bottom: 0, icon: 'circle', itemWidth: 8, itemHeight: 8, textStyle: { color: '#8a94a6' } }
+        : undefined,
       xAxis: {
         type: 'category',
         boundaryGap: false,
@@ -49,7 +63,11 @@ export default function TrendChart({
       yAxis: {
         type: 'value',
         splitLine: { lineStyle: { color: '#eef1f6', type: 'dashed' } },
-        axisLabel: { color: '#8a94a6', fontSize: 12, formatter: yAxisPrefix === '¥' ? '¥{value}万' : '{value}' },
+        axisLabel: {
+          color: '#8a94a6',
+          fontSize: 12,
+          formatter: unit !== undefined ? `${yAxisPrefix}{value}${unit}` : yAxisPrefix === '¥' ? '¥{value}万' : '{value}',
+        },
       },
       series: [
         {
@@ -60,12 +78,12 @@ export default function TrendChart({
           symbolSize: 7,
           showSymbol: false,
           data,
-          lineStyle: { width: 3, color: '#165dff' },
-          itemStyle: { color: '#165dff', borderColor: '#fff', borderWidth: 2 },
+          lineStyle: { width: 3, color },
+          itemStyle: { color, borderColor: '#fff', borderWidth: 2 },
           areaStyle: {
             color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: 'rgba(22, 93, 255, 0.28)' },
-              { offset: 1, color: 'rgba(22, 93, 255, 0.02)' },
+              { offset: 0, color: `${color}47` },
+              { offset: 1, color: `${color}05` },
             ]),
           },
         },
@@ -78,7 +96,7 @@ export default function TrendChart({
       observer.disconnect();
       chart.dispose();
     };
-  }, [data, labels]);
+  }, [data, labels, name, yAxisPrefix, color, unit, legend]);
 
   return <div ref={containerRef} style={{ width: '100%', height }} />;
 }

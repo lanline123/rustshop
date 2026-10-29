@@ -13,9 +13,11 @@ import {
   Tabs,
   Tag,
   Toast,
+  Tooltip,
   Typography,
 } from '@douyinfe/semi-ui';
-import { apiGet } from '../api';
+import { IconArrowDown, IconArrowUp, IconHelpCircle } from '@douyinfe/semi-icons';
+import { apiGet, isDemo } from '../api';
 import TrendChart from '../components/TrendChart';
 import ListPage from '../framework/ListPage';
 import type { ColumnConfig } from '../framework/types';
@@ -182,92 +184,265 @@ export function StatisticsAccess() {
 
 /* =========================================================
    3. 订单统计 statisticsOrder
+   对齐原版 views/panel/statisticsOrder/List.vue：
+   金额/数量两个 Tab + 按年/按月筛选 + 指标卡(含口径说明/环比) + 趋势折线图
 ========================================================= */
-interface SalesDataOverview {
+interface SalesDataVO {
   productPayment?: number | string;
   productPaymentGrowthRate?: number | string;
   productRefund?: number | string;
   productRefundGrowthRate?: number | string;
-  orderNum?: number | string;
-  orderNumGrowthRate?: number | string;
+  turnover?: number | string;
+  turnoverGrowthRate?: number | string;
+  rechargeAmount?: number | string;
+  rechargeAmountGrowthRate?: number | string;
+  balancePayment?: number | string;
+  balancePaymentGrowthRate?: number | string;
+  productPaymentNum?: number | string;
+  productPaymentNumGrowthRate?: number | string;
+  productRefundNum?: number | string;
+  productRefundNumGrowthRate?: number | string;
+  rechargeNum?: number | string;
+  rechargeNumGrowthRate?: number | string;
+  balancePaymentNum?: number | string;
+  balancePaymentNumGrowthRate?: number | string;
+}
+
+interface StatCardDef {
+  label: string;
+  field: keyof SalesDataVO;
+  rateField: keyof SalesDataVO;
+  tip?: string;
+  adminOnly?: boolean;
+}
+
+const AMOUNT_CARDS: StatCardDef[] = [
+  {
+    label: '商品支付金额',
+    field: 'productPayment',
+    rateField: 'productPaymentGrowthRate',
+    tip: '根据筛选时间，订单合计金额减免掉优惠券、满减/满折、会员折扣后成功支付的金额，再扣除掉积分余额，后实际支付的金额（自提以支付成功后计入统计；不含充值订单）',
+  },
+  {
+    label: '商品退款金额',
+    field: 'productRefund',
+    rateField: 'productRefundGrowthRate',
+    tip: '根据筛选时间，平台/店铺售后金额（不含充值订单）',
+  },
+  {
+    label: '营业额',
+    field: 'turnover',
+    rateField: 'turnoverGrowthRate',
+    tip: '根据筛选时间，平台/店铺销售的营业额，等于实收金额减去售后金额（不含充值订单）',
+  },
+  {
+    label: '充值金额',
+    field: 'rechargeAmount',
+    rateField: 'rechargeAmountGrowthRate',
+    tip: '根据筛选时间，平台/店铺充值订单的金额',
+    adminOnly: true,
+  },
+  {
+    label: '余额支付金额',
+    field: 'balancePayment',
+    rateField: 'balancePaymentGrowthRate',
+    tip: '根据筛选时间，平台/店铺使用余额支付的金额（不含充值订单）',
+    adminOnly: true,
+  },
+];
+
+const COUNT_CARDS: StatCardDef[] = [
+  { label: '支付订单数', field: 'productPaymentNum', rateField: 'productPaymentNumGrowthRate' },
+  { label: '退款订单数量', field: 'productRefundNum', rateField: 'productRefundNumGrowthRate' },
+  { label: '充值订单数', field: 'rechargeNum', rateField: 'rechargeNumGrowthRate' },
+  { label: '余额支付订单数', field: 'balancePaymentNum', rateField: 'balancePaymentNumGrowthRate' },
+];
+
+/** 环比展示：上涨红色上箭头，否则绿色下箭头（与原版一致） */
+function GrowthLine({ value }: { value?: number | string }) {
+  const raw = value === undefined || value === null || value === '' ? '--' : String(value);
+  const num = Number(raw);
+  const valid = raw !== '--' && !Number.isNaN(num);
+  const up = valid && num > 0;
+  return (
+    <span style={{ fontSize: 13, color: 'var(--semi-color-text-2)', display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+      环比：<span>{raw}%</span>
+      {valid &&
+        (up ? (
+          <IconArrowUp size="small" style={{ color: 'var(--semi-color-danger)' }} />
+        ) : (
+          <IconArrowDown size="small" style={{ color: 'var(--semi-color-success)' }} />
+        ))}
+    </span>
+  );
 }
 
 export function StatisticsOrder() {
   const [statisticType, setStatisticType] = useState<'1' | '0'>('1'); // 1: 订单金额统计, 0: 订单数统计
-  const [loading, setLoading] = useState(false);
-  const [salesData, setSalesData] = useState<SalesDataOverview>({
+  const [dateType, setDateType] = useState<'1' | '2'>('1'); // 1: 按年, 2: 按月
+  const [selectDate, setSelectDate] = useState<{ '1': string; '2': string }>(() => {
+    const now = new Date();
+    const y = String(now.getFullYear());
+    return { '1': y, '2': `${y}-${String(now.getMonth() + 1).padStart(2, '0')}` };
+  });
+  const [searchTick, setSearchTick] = useState(0);
+  const [loading, setLoading] = useState(!isDemo());
+  const [exportLoading, setExportLoading] = useState(false);
+  const [salesData, setSalesData] = useState<SalesDataVO>({
     productPayment: '128500.00',
     productPaymentGrowthRate: '12.5',
     productRefund: '3200.00',
     productRefundGrowthRate: '-2.1',
-    orderNum: 860,
-    orderNumGrowthRate: '8.4',
+    turnover: '125300.00',
+    turnoverGrowthRate: '10.2',
   });
   const [axisData, setAxisData] = useState<AxisVO>({
-    horizontalAxis: ['01-01', '01-02', '01-03', '01-04', '01-05', '01-06', '01-07'],
-    longitudinalAxis: [12000, 18500, 14200, 26000, 22100, 31000, 29000],
+    horizontalAxis: ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'],
+    longitudinalAxis: [12000, 18500, 14200, 26000, 22100, 31000, 29000, 24000, 27500, 33000, 29800, 36200],
   });
 
-  const loadData = async () => {
+  const adminType = localStorage.getItem('adminType') || 'admin';
+  const isAdmin = adminType === 'admin';
+
+  useEffect(() => {
+    if (isDemo()) return;
+    let alive = true;
     setLoading(true);
+    apiGet<{
+      salesData: SalesDataVO;
+      salesStatisticsData: { horizontalAxis: string[]; longitudinalAxis: (number | string)[] };
+    }>('/panel/salesStatistics/list', {
+      statisticType,
+      dateType,
+      startEndTime: selectDate[dateType],
+    })
+      .then((res) => {
+        if (!alive) return;
+        if (res?.salesData) setSalesData(res.salesData);
+        if (res?.salesStatisticsData?.horizontalAxis) {
+          setAxisData({
+            horizontalAxis: res.salesStatisticsData.horizontalAxis,
+            longitudinalAxis: res.salesStatisticsData.longitudinalAxis || [],
+          });
+        }
+      })
+      .catch(() => {
+        /* 保留当前数据 */
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [statisticType, dateType, searchTick]);
+
+  const labels = (axisData.horizontalAxis || []).map((l) => `${l}${dateType === '1' ? '月' : '日'}`);
+  const numData = (axisData.longitudinalAxis || []).map((v) => Number(v) || 0);
+
+  const cards = (statisticType === '1' ? AMOUNT_CARDS : COUNT_CARDS).filter((c) => isAdmin || !c.adminOnly);
+
+  const handleExport = () => {
+    setExportLoading(true);
     try {
-      const res = await apiGet<any>('/panel/salesStatistics/list', { statisticType });
-      if (res) {
-        if (res.salesData) setSalesData(res.salesData);
-        if (res.axisData) setAxisData(res.axisData);
-      }
-    } catch {
-      // ignore
+      const header = ['日期', statisticType === '1' ? '订单金额' : '订单数'];
+      const rows = labels.map((l, i) => [l, numData[i] ?? 0]);
+      const csv = `\uFEFF${[header, ...rows].map((r) => r.join(',')).join('\n')}`;
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `销售统计导出_${selectDate[dateType]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
     } finally {
-      setLoading(false);
+      setExportLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadData();
-  }, [statisticType]);
-
-  const numData = (axisData.longitudinalAxis || []).map((v) => Number(v) || 0);
-  const labels = axisData.horizontalAxis || [];
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <Tabs activeKey={statisticType} onChange={(k) => setStatisticType(k as any)}>
-        <Tabs.TabPane tab="订单金额统计" itemKey="1" />
-        <Tabs.TabPane tab="订单数统计" itemKey="0" />
-      </Tabs>
+      <Card>
+        <Tabs activeKey={statisticType} onChange={(k) => setStatisticType(k as '1' | '0')}>
+          <Tabs.TabPane tab="订单金额统计" itemKey="1" />
+          <Tabs.TabPane tab="订单数统计" itemKey="0" />
+        </Tabs>
+        <Space wrap spacing={12} style={{ marginTop: 4 }}>
+          <Select
+            value={dateType}
+            style={{ width: 110 }}
+            onChange={(v) => setDateType(v as '1' | '2')}
+            showClear={false}
+          >
+            <Select.Option value="1">按年筛选</Select.Option>
+            <Select.Option value="2">按月筛选</Select.Option>
+          </Select>
+          {dateType === '1' ? (
+            <Select
+              value={selectDate['1']}
+              style={{ width: 200 }}
+              onChange={(v) => setSelectDate((s) => ({ ...s, '1': v as string }))}
+              showClear={false}
+            >
+              {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+                <Select.Option key={y} value={String(y)}>
+                  {y}年
+                </Select.Option>
+              ))}
+            </Select>
+          ) : (
+            <DatePicker
+              type="month"
+              format="yyyy-MM"
+              value={selectDate['2'] || undefined}
+              onChange={(v) => setSelectDate((s) => ({ ...s, '2': (v as string) || '' }))}
+              style={{ width: 200 }}
+            />
+          )}
+          <Button onClick={() => setSearchTick((t) => t + 1)}>搜索</Button>
+          <Button loading={exportLoading} onClick={handleExport}>
+            导出EXCEL
+          </Button>
+        </Space>
+      </Card>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-        <Card shadows="hover" bodyStyle={{ padding: 20 }}>
-          <Text type="tertiary">商品支付金额</Text>
-          <div style={{ fontSize: 24, fontWeight: 'bold', margin: '8px 0', color: 'var(--semi-color-danger)' }}>
-            ¥{Number(salesData.productPayment || 0).toFixed(2)}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+        {cards.map((card) => (
+          <div key={card.label} className="stat-order-card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--semi-color-text-2)', fontSize: 14 }}>
+              <span>{card.label}</span>
+              {card.tip && (
+                <Tooltip content={<div style={{ width: 280, lineHeight: '22px' }}>{card.tip}</div>} position="top">
+                  <IconHelpCircle size="small" style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+                </Tooltip>
+              )}
+            </div>
+            <div style={{ fontSize: 24, fontWeight: 'bold', padding: '10px 0', color: 'var(--semi-color-text-0)' }}>
+              {String(salesData[card.field] ?? 0)}
+            </div>
+            <GrowthLine value={salesData[card.rateField]} />
           </div>
-          <Text type="tertiary" size="small">环比：{salesData.productPaymentGrowthRate ?? '--'}%</Text>
-        </Card>
-        <Card shadows="hover" bodyStyle={{ padding: 20 }}>
-          <Text type="tertiary">商品退款金额</Text>
-          <div style={{ fontSize: 24, fontWeight: 'bold', margin: '8px 0', color: 'var(--semi-color-warning)' }}>
-            ¥{Number(salesData.productRefund || 0).toFixed(2)}
-          </div>
-          <Text type="tertiary" size="small">环比：{salesData.productRefundGrowthRate ?? '--'}%</Text>
-        </Card>
-        <Card shadows="hover" bodyStyle={{ padding: 20 }}>
-          <Text type="tertiary">订单总数</Text>
-          <div style={{ fontSize: 24, fontWeight: 'bold', margin: '8px 0', color: 'var(--semi-color-primary)' }}>
-            {salesData.orderNum ?? 0}
-          </div>
-          <Text type="tertiary" size="small">环比：{salesData.orderNumGrowthRate ?? '--'}%</Text>
-        </Card>
+        ))}
       </div>
 
-      <Card title={statisticType === '1' ? '订单金额趋势' : '订单数量趋势'}>
+      <Card title={statisticType === '1' ? '订单金额统计' : '订单数统计'}>
         {loading ? (
           <div style={{ padding: 40, textAlign: 'center' }}>
             <Spin size="large" />
           </div>
         ) : (
-          <TrendChart data={numData} labels={labels} height={320} />
+          <TrendChart
+            data={numData}
+            labels={labels}
+            height={400}
+            legend
+            name={statisticType === '1' ? '订单金额' : '订单数'}
+            yAxisPrefix={statisticType === '1' ? '¥' : ''}
+            unit={statisticType === '1' ? '' : '件'}
+            color={statisticType === '1' ? '#1456f0' : '#fac858'}
+          />
         )}
       </Card>
     </div>
