@@ -44,8 +44,8 @@ const MODULES: DecorateModule[] = [
     module: {
       groupTitle: { showTitle: 1 },
       productGroups: [
-        { title: '破碎分选', sourceType: 'products', productList: [{ productId: 1528 }] },
-        { title: '湿法冶金', sourceType: 'products', productList: [{ productId: 1528 }] },
+        { title: '破碎分选', sourceType: 'productGroup', productGroupId: 23 },
+        { title: '湿法冶金', sourceType: 'productGroup', productGroupId: 25 },
       ],
     },
   },

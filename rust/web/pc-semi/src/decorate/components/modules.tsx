@@ -634,13 +634,13 @@ function ProductGroup({ module }: ModuleProps) {
         </div>
       ) : null}
       {loading ? (
-        <div className="dec-product-grid">
+        <div className="dec-product-grid" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
           {Array.from({ length: 4 }).map((_, index) => (
             <div key={index} className="dec-product-card"><span className="dec-skeleton-line" /></div>
           ))}
         </div>
       ) : (
-        <div className="dec-product-grid">
+        <div className="dec-product-grid" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
           {products.map((product) => (
             <Link key={product.productSn || product.productId} href={`/product/${product.productId || ''}`} className="dec-product-card">
               <div className="dec-product-card__image">
