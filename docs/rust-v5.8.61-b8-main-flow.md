@@ -105,3 +105,38 @@ AI 翻译与去水印/修复服务
 订单支付通知方法对齐
 完整二进制 build / 部署
 ```
+
+## 2026-10-31 补充：商品原图 ZIP
+
+已实现：
+
+```text
+GET /api/product/product/downloadRawImages?id=
+```
+
+流程：
+
+```text
+登录校验（未登录 401）
+读取商品主图/原图/大图/缩略图
+读取 product_gallery
+相对 URL 按请求 Host 补全
+逐张下载（单张≤20MB，最多120张）
+写入内存 ZIP
+返回 application/zip + Content-Disposition
+```
+
+依赖：
+
+```text
+zip 2.5
+reqwest 已有
+```
+
+验证：
+
+```text
+cargo check -p tigshop-api
+cargo test -p tigshop-api --lib
+131 passed
+```
