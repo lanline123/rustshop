@@ -367,11 +367,137 @@ async fn order_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> Api
     ok(list_table(&state, "purchase_order", &q, false).await?)
 }
 async fn order_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
-    ok(detail_table(&state, "purchase_order", q.id.unwrap_or(0)).await?)
+    let id = q.id.unwrap_or(0);
+    let mut order = detail_table(&state, "purchase_order", id).await?;
+    let rows = sqlx::query("SELECT * FROM purchase_order_item WHERE order_id=? AND is_del=0 ORDER BY id")
+        .bind(id)
+        .fetch_all(&state.repos.pool)
+        .await
+        .map_err(db)?;
+    let items: Vec<Value> = rows.iter().map(row_to_json).collect();
+    if let Some(obj) = order.as_object_mut() {
+        obj.insert("items".into(), Value::Array(items));
+    }
+    ok(order)
 }
-async fn order_create(State(_): State<AdminState>, Json(_): Json<Value>) -> ApiResult<i64> { Err(AppError(Error::biz(400, "采购单创建未迁移"))) }
-async fn order_update(State(_): State<AdminState>, Json(_): Json<Value>) -> ApiResult<()> { Err(AppError(Error::biz(400, "采购单修改未迁移"))) }
-async fn order_finish(State(_): State<AdminState>, Json(_): Json<Value>) -> ApiResult<()> { Err(AppError(Error::biz(400, "采购单完成未迁移"))) }
+async fn order_create(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<i64> {
+    use std::str::FromStr;
+    let vendor_id = body.get("vendorId").and_then(Value::as_i64).unwrap_or(0) as i32;
+    if vendor_id <= 0 {
+        return Err(AppError(Error::biz(400, "请选择供应商")));
+    }
+    let vendor = sqlx::query("SELECT vendor_name, vendor_code, contact_mobile, shop_id FROM vendor WHERE vendor_id=? AND source_type=2 LIMIT 1")
+        .bind(vendor_id)
+        .fetch_optional(&state.repos.pool).await.map_err(db)?
+        .ok_or_else(|| AppError(Error::biz(400, "供应商不存在")))?;
+    let vendor_name: String = vendor.try_get("vendor_name").unwrap_or_default();
+    let vendor_code: String = vendor.try_get("vendor_code").unwrap_or_default();
+    let vendor_contact: String = vendor.try_get("contact_mobile").unwrap_or_default();
+    let shop_id: i32 = vendor.try_get("shop_id").unwrap_or(0);
+    let items = body.get("items").and_then(Value::as_array).cloned().unwrap_or_default();
+    if items.is_empty() {
+        return Err(AppError(Error::biz(400, "请选择采购商品")));
+    }
+    let now = tigshop_common::utils::now_seconds() as i64;
+    let order_sn = format!("PO{}{:04}", now, rand_suffix());
+    let mut tx = state.repos.pool.begin().await.map_err(db)?;
+    let order_id = sqlx::query(
+        "INSERT INTO purchase_order(order_sn,type,shop_id,vendor_id,vendor_name,vendor_code,vendor_contact,status,expected_delivery_date,shipping_method,logistics_id,logistics_name,tracking_no,remark,product_amount,ordered_quantity,received_quantity,version,create_time,update_time) VALUES(?,1,?,?,?,?,?,?,?,?,?,?,?,?,0,0,0,0,?,?)",
+    )
+    .bind(&order_sn)
+    .bind(shop_id)
+    .bind(vendor_id)
+    .bind(&vendor_name)
+    .bind(&vendor_code)
+    .bind(&vendor_contact)
+    .bind(1)
+    .bind(body.get("expectedDeliveryDate").and_then(Value::as_i64).unwrap_or(0))
+    .bind(body.get("shippingMethod").and_then(Value::as_i64).unwrap_or(1) as i32)
+    .bind(body.get("logisticsId").and_then(Value::as_i64).unwrap_or(0) as i32)
+    .bind(body.get("logisticsName").and_then(Value::as_str).unwrap_or(""))
+    .bind(body.get("trackingNo").and_then(Value::as_str).unwrap_or(""))
+    .bind(body.get("remark").and_then(Value::as_str).unwrap_or(""))
+    .bind(now).bind(now)
+    .execute(&mut *tx).await.map_err(db)?.last_insert_id() as i64;
+
+    let mut total_amount = rust_decimal::Decimal::ZERO;
+    let mut total_qty = 0i64;
+    for item in items {
+        let sku_id = item.get("vendorProductSkuId").and_then(Value::as_i64).unwrap_or(0);
+        let qty = item.get("quantity").and_then(Value::as_i64).unwrap_or(0);
+        let price = rust_decimal::Decimal::from_str(
+            &item.get("purchasePrice").and_then(Value::as_str).unwrap_or("0"),
+        ).unwrap_or(rust_decimal::Decimal::ZERO);
+        if sku_id <= 0 || qty <= 0 {
+            return Err(AppError(Error::biz(400, "采购商品或数量不合法")));
+        }
+        let row = sqlx::query(
+            "SELECT s.id AS sku_id, s.vendor_product_id, s.source_sku_id, p.product_id, p.product_name, p.product_sn, p.pic_thumb, p.product_unit, s.sku_attr_val, s.sku_sn FROM vendor_product_sku s JOIN vendor_product vp ON vp.id=s.vendor_product_id JOIN product p ON p.product_id=vp.source_product_id WHERE s.id=? AND s.is_del=0 LIMIT 1",
+        )
+        .bind(sku_id)
+        .fetch_optional(&mut *tx).await.map_err(db)?
+        .ok_or_else(|| AppError(Error::biz(400, "供应商商品规格不存在")))?;
+        let product_id: i32 = row.try_get("product_id").unwrap_or(0);
+        let source_sku_id: Option<i32> = row.try_get("source_sku_id").ok().flatten();
+        let amount = price * rust_decimal::Decimal::from(qty);
+        sqlx::query(
+            "INSERT INTO purchase_order_item(order_id,vendor_product_id,vendor_product_sku_id,product_id,sku_id,product_name,sku_name,product_sn,sku_sn,pic_thumb,product_unit,quantity,received_quantity,purchase_price,amount,create_time,update_time) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?)",
+        )
+        .bind(order_id)
+        .bind(row.try_get::<i64, _>("vendor_product_id").unwrap_or(0))
+        .bind(sku_id)
+        .bind(product_id)
+        .bind(source_sku_id.unwrap_or(0))
+        .bind(row.try_get::<String, _>("product_name").unwrap_or_default())
+        .bind(row.try_get::<String, _>("sku_attr_val").unwrap_or_default())
+        .bind(row.try_get::<String, _>("product_sn").unwrap_or_default())
+        .bind(row.try_get::<String, _>("sku_sn").unwrap_or_default())
+        .bind(row.try_get::<String, _>("pic_thumb").unwrap_or_default())
+        .bind(row.try_get::<String, _>("product_unit").unwrap_or_default())
+        .bind(qty)
+        .bind(price)
+        .bind(amount)
+        .bind(now).bind(now)
+        .execute(&mut *tx).await.map_err(db)?;
+        total_amount += amount;
+        total_qty += qty;
+    }
+    sqlx::query("UPDATE purchase_order SET product_amount=?, ordered_quantity=? WHERE id=?")
+        .bind(total_amount).bind(total_qty).bind(order_id)
+        .execute(&mut *tx).await.map_err(db)?;
+    tx.commit().await.map_err(db)?;
+    ok(order_id)
+}
+async fn order_update(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    let now = tigshop_common::utils::now_seconds() as i64;
+    sqlx::query(
+        "UPDATE purchase_order SET expected_delivery_date=COALESCE(?,expected_delivery_date), shipping_method=COALESCE(?,shipping_method), logistics_id=?, logistics_name=?, tracking_no=?, remark=?, update_time=? WHERE id=? AND status NOT IN (3,4)",
+    )
+    .bind(body.get("expectedDeliveryDate").and_then(Value::as_i64))
+    .bind(body.get("shippingMethod").and_then(Value::as_i64).map(|v| v as i32))
+    .bind(body.get("logisticsId").and_then(Value::as_i64).unwrap_or(0) as i32)
+    .bind(body.get("logisticsName").and_then(Value::as_str).unwrap_or(""))
+    .bind(body.get("trackingNo").and_then(Value::as_str).unwrap_or(""))
+    .bind(body.get("remark").and_then(Value::as_str).unwrap_or(""))
+    .bind(now).bind(id)
+    .execute(&state.repos.pool).await.map_err(db)?;
+    ok(())
+}
+async fn order_finish(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    let now = tigshop_common::utils::now_seconds() as i64;
+    sqlx::query("UPDATE purchase_order SET status=3, finish_reason=?, finish_time=?, update_time=? WHERE id=? AND status IN (1,2)")
+        .bind(body.get("remark").and_then(Value::as_str).unwrap_or(""))
+        .bind(now).bind(now).bind(id)
+        .execute(&state.repos.pool).await.map_err(db)?;
+    ok(())
+}
+
+fn rand_suffix() -> u32 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    (SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.subsec_nanos()).unwrap_or(0)) % 10000
+}
 
 // ————————————————— receipt / reconciliation / return —————————————————
 async fn receipt_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> { ok(list_table(&state, "purchase_receipt", &q, false).await?) }

@@ -88,3 +88,47 @@ f21ca508 feat(supplychain): add supplier and purchase chain route baseline
 对账单创建/审批/驳回/作废
 供应商商品绑定
 ```
+
+## 2026-10-31 补充：采购单主链路
+
+已把采购单从“未迁移”改为可用：
+
+```text
+POST /supplyChain/purchaseOrder/create
+POST /supplyChain/purchaseOrder/update
+POST /supplyChain/purchaseOrder/finish
+```
+
+create：
+
+```text
+校验供应商
+生成 PO 单号
+写 purchase_order
+按 vendor_product_sku 写 purchase_order_item
+汇总金额/数量
+状态=1 待入库
+```
+
+update：
+
+```text
+仅未完成/未关闭状态可改
+更新预计到货、配送方式、物流、运单、备注
+```
+
+finish：
+
+```text
+状态 1/2 → 3 已完成
+写 finish_time / finish_reason
+```
+
+detail 现在返回 `items` 明细。
+
+验证：
+
+```text
+cargo check -p tigshop-admin-api
+Finished
+```
