@@ -73,6 +73,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/lang/localesRelation/list", get(list))
         .route("/lang/localesRelation/detail", get(detail))
         .route("/lang/localesRelation/create", post(create))
+        .route("/lang/localesRelation/update", post(update_field))
         .route("/lang/localesRelation/updateField", post(update_field))
         .route("/lang/localesRelation/del", post(del))
         .route("/lang/localesRelation/batch", post(batch))

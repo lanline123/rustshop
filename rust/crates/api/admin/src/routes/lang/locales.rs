@@ -49,6 +49,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/lang/locales/list", get(list))
         .route("/lang/locales/detail", get(detail))
         .route("/lang/locales/create", post(create))
+        .route("/lang/locales/update", post(update))
         .route("/lang/locales/updateField", post(update_field))
         .route("/lang/locales/del", post(del))
         .route("/lang/locales/batch", post(batch))
@@ -93,6 +94,10 @@ async fn create(State(state): State<AdminState>, Json(dto): Json<LocalesDTO>) ->
 }
 
 /// `POST /adminapi/lang/locales/updateField`：修改字段（`isDefault` 联动）。
+async fn update(State(state): State<AdminState>, Json(dto): Json<LocalesDTO>) -> ApiResult<bool> {
+    ok(state.lang.locales().update(&dto).await?)
+}
+
 async fn update_field(
     State(state): State<AdminState>,
     Json(dto): Json<UpdateFieldDTO>,

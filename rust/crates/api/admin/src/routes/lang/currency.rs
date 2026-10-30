@@ -35,7 +35,9 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/lang/currency/list", get(list))
         .route("/lang/currency/detail", get(detail))
         .route("/lang/currency/create", post(create))
+        .route("/lang/currency/update", post(update))
         .route("/lang/currency/updateField", post(update_field))
+        .route("/lang/currency/dictionary", get(dictionary))
         .route("/lang/currency/del", post(del))
         .route("/lang/currency/batch", post(batch))
         .route("/lang/currency/config", get(config))
@@ -125,6 +127,23 @@ async fn create(State(state): State<AdminState>, Json(dto): Json<CurrencyDTO>) -
 }
 
 /// `POST /adminapi/lang/currency/updateField`：修改字段（`isDefault` 联动）。
+async fn update(State(state): State<AdminState>, Json(dto): Json<CurrencyDTO>) -> ApiResult<bool> {
+    ok(state.lang.currency().update(&dto).await?)
+}
+
+/// `GET /adminapi/lang/currency/dictionary`：币种代码字典。
+async fn dictionary(State(state): State<AdminState>) -> ApiResult<serde_json::Value> {
+    let rows: Vec<(i32, String, String, String)> = sqlx::query_as(
+        "SELECT id, name, code, numeric_code FROM currency_dictionary ORDER BY code",
+    )
+    .fetch_all(&state.repos.pool)
+    .await
+    .map_err(|e| tigshop_security::web::AppError(tigshop_core::Error::Database(e.to_string())))?;
+    ok(serde_json::json!(rows.into_iter().map(|(id,name,code,numeric_code)| serde_json::json!({
+        "id": id, "name": name, "code": code, "numericCode": numeric_code
+    })).collect::<Vec<_>>()))
+}
+
 async fn update_field(
     State(state): State<AdminState>,
     Json(dto): Json<UpdateFieldDTO>,

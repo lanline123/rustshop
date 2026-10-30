@@ -91,7 +91,10 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
             "/lang/translations/createTranslations",
             post(create_translations),
         )
+        .route("/lang/translations/create", post(create_translations))
         .route("/lang/translations/update", post(create_translations))
+        .route("/lang/translations/batchCreate", post(batch_create))
+        .route("/lang/translations/batchTranslate", post(batch_translate))
         .route("/lang/translations/list", get(list))
         .route("/lang/translations/detail", get(detail))
         .route("/lang/translations/batch", post(batch))
@@ -254,6 +257,42 @@ async fn config(State(state): State<AdminState>) -> ApiResult<serde_json::Value>
 
 /// `POST /adminapi/lang/translations/batchCreateTranslations`：
 /// 批量保存业务翻译（逐条 upsert，汇总成败）。
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct TranslationsCreateDTO {
+    data_type: Vec<i32>,
+    translation_name: String,
+}
+
+/// `POST /adminapi/lang/translations/batchCreate`：按换行批量建词条。
+async fn batch_create(
+    State(state): State<AdminState>,
+    Json(dto): Json<TranslationsCreateDTO>,
+) -> ApiResult<()> {
+    let data_type = dto.data_type.first().copied();
+    let list: Vec<TranslationsCreateParam> = dto
+        .translation_name
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(|line| TranslationsCreateParam {
+            data_id: None,
+            data_type,
+            translation_name: Some(line.to_string()),
+            items: Vec::new(),
+            translation_source: None,
+        })
+        .collect();
+    state.lang.translations.batch_create_translations(&list).await?;
+    ok(())
+}
+
+/// `POST /adminapi/lang/translations/batchTranslate`：批量机器翻译。
+/// 当前未接翻译凭据，返回空映射（不伪造译文）。
+async fn batch_translate(Json(_dto): Json<serde_json::Value>) -> ApiResult<serde_json::Value> {
+    ok(serde_json::json!({}))
+}
+
 async fn batch_create_translations(
     State(state): State<AdminState>,
     Json(list): Json<Vec<TranslationsCreateParam>>,
