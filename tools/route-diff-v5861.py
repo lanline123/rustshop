@@ -78,6 +78,8 @@ def scan_rust():
         r"route\(\s*\"([^\"]+)\"\s*,\s*(get|post|put|delete|patch)\("
     )
     tuple_route = re.compile(r"\(\s*\"(GET|POST|PUT|DELETE|PATCH)\"\s*,\s*\"([^\"]+)\"\s*,")
+    chained_get_post = re.compile(r"route\(\s*\"([^\"]+)\"\s*,\s*get\([^)]*\)\.post\(")
+    chained_post_get = re.compile(r"route\(\s*\"([^\"]+)\"\s*,\s*post\([^)]*\)\.get\(")
     for module in ("api/public/src", "api/admin/src"):
         root = os.path.join(RUST, *module.split("/"))
         if not os.path.isdir(root):
@@ -91,6 +93,12 @@ def scan_rust():
                     found.add((m.group(2).upper(), normalize(m.group(1))))
                 for m in tuple_route.finditer(text):
                     found.add((m.group(1).upper(), normalize(m.group(2))))
+                for m in chained_get_post.finditer(text):
+                    found.add(("GET", normalize(m.group(1))))
+                    found.add(("POST", normalize(m.group(1))))
+                for m in chained_post_get.finditer(text):
+                    found.add(("POST", normalize(m.group(1))))
+                    found.add(("GET", normalize(m.group(1))))
     return found
 
 

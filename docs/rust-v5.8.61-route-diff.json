@@ -1,22 +1,9 @@
 {
   "java_count": 1743,
-  "rust_count": 2104,
-  "missing_count": 3,
-  "missing": [
-    {
-      "method": "GET",
-      "path": "/order/pay/notify/stripe"
-    },
-    {
-      "method": "POST",
-      "path": "/vendor/product/platform/saleStatus"
-    },
-    {
-      "method": "POST",
-      "path": "/vendor/stock/getImportErrorData"
-    }
-  ],
-  "extra_count": 369,
+  "rust_count": 2118,
+  "missing_count": 0,
+  "missing": [],
+  "extra_count": 380,
   "extra_sample": [
     {
       "method": "GET",
@@ -129,6 +116,10 @@
     {
       "method": "GET",
       "path": "/lang/translations/config"
+    },
+    {
+      "method": "GET",
+      "path": "/lang/translations/getTranslations"
     },
     {
       "method": "GET",
@@ -413,10 +404,6 @@
     {
       "method": "GET",
       "path": "/pos/table/operate/check/index"
-    },
-    {
-      "method": "GET",
-      "path": "/pos/table/receiptList"
     }
   ]
 }
