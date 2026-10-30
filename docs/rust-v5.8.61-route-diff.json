@@ -1,7 +1,7 @@
 {
   "java_count": 1743,
-  "rust_count": 2013,
-  "missing_count": 98,
+  "rust_count": 2058,
+  "missing_count": 53,
   "missing": [
     {
       "method": "GET",
@@ -94,78 +94,6 @@
     {
       "method": "GET",
       "path": "/shop/tip/tipConfig"
-    },
-    {
-      "method": "GET",
-      "path": "/supplyChain/purchaseOrder/detail"
-    },
-    {
-      "method": "GET",
-      "path": "/supplyChain/purchaseOrder/list"
-    },
-    {
-      "method": "GET",
-      "path": "/supplyChain/purchaseReceipt/detail"
-    },
-    {
-      "method": "GET",
-      "path": "/supplyChain/purchaseReceipt/list"
-    },
-    {
-      "method": "GET",
-      "path": "/supplyChain/purchaseReconciliation/candidates"
-    },
-    {
-      "method": "GET",
-      "path": "/supplyChain/purchaseReconciliation/detail"
-    },
-    {
-      "method": "GET",
-      "path": "/supplyChain/purchaseReconciliation/export"
-    },
-    {
-      "method": "GET",
-      "path": "/supplyChain/purchaseReconciliation/list"
-    },
-    {
-      "method": "GET",
-      "path": "/supplyChain/purchaseReturn/detail"
-    },
-    {
-      "method": "GET",
-      "path": "/supplyChain/purchaseReturn/list"
-    },
-    {
-      "method": "GET",
-      "path": "/supplyChain/purchaseSetting/detail"
-    },
-    {
-      "method": "GET",
-      "path": "/supplyChain/supplier/detail"
-    },
-    {
-      "method": "GET",
-      "path": "/supplyChain/supplier/list"
-    },
-    {
-      "method": "GET",
-      "path": "/supplyChain/supplierCategory/list"
-    },
-    {
-      "method": "GET",
-      "path": "/supplyChain/supplierProduct/detail"
-    },
-    {
-      "method": "GET",
-      "path": "/supplyChain/supplierProduct/list"
-    },
-    {
-      "method": "GET",
-      "path": "/supplyChain/supplierProduct/selection"
-    },
-    {
-      "method": "GET",
-      "path": "/supplyChain/supplierProduct/summary"
     },
     {
       "method": "GET",
@@ -270,114 +198,6 @@
     {
       "method": "POST",
       "path": "/shop/tip/updateField"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/purchaseOrder/create"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/purchaseOrder/finish"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/purchaseOrder/update"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/purchaseReceipt/save"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/purchaseReconciliation/approve"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/purchaseReconciliation/create"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/purchaseReconciliation/reject"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/purchaseReconciliation/resubmit"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/purchaseReconciliation/update"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/purchaseReconciliation/void"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/purchaseReturn/confirm"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/purchaseReturn/delete"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/purchaseReturn/save"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/purchaseSetting/save"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/supplier/create"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/supplier/delete"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/supplier/qualification/upload"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/supplier/status"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/supplier/update"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/supplierCategory/delete"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/supplierCategory/save"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/supplierCategory/status"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/supplierProduct/batchDelete"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/supplierProduct/batchSave"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/supplierProduct/delete"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/supplierProduct/save"
-    },
-    {
-      "method": "POST",
-      "path": "/supplyChain/supplierProduct/status"
     },
     {
       "method": "POST",
