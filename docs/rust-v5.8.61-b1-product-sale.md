@@ -94,3 +94,25 @@ Finished
 ## 说明
 
 `cargo check` 已验证类型和路由编译；完整 `cargo build -p tigshop-server` 被中止，等 B1 部署前再执行。
+
+## 补充：管理端列表 saleStatus
+
+已完成：
+
+```text
+ProductListItemVO 新增字段：
+saleStatus
+manualSaleStatus
+saleBanTime
+saleRecoverTime
+saleReason
+```
+
+`admin_list` 按商品逐条读取禁售状态并回填。当前为简化实现（每页 N 次查询），后续可改为批量查询。
+
+编译验证：
+
+```text
+cargo check -p tigshop-services -p tigshop-admin-api -p tigshop-api
+Finished
+```

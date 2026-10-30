@@ -50,6 +50,7 @@ use tigshop_core::models::catalog::product_manage::{
     ProductGalleryVO, ProductListItemVO, ProductSaveDTO, ProductSkuSaveDTO, ProductSkuVO,
     ProductVideoVO, ServicesVO,
 };
+use tigshop_core::models::catalog::product_sale::ProductSaleState;
 use tigshop_core::types::{PageQuery, PageResult};
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::catalog::product_manage::ProductListFilter;
@@ -134,11 +135,23 @@ impl ProductManageService {
             sku_map.entry(s.product_id).or_default().push(s);
         }
 
+        // v5.8.61 列表返回最终可售状态与手动设置，后台据此展示禁售标签。
+        let mut sale_map: HashMap<i32, ProductSaleState> = HashMap::new();
+        for p in &rows {
+            let state = self
+                .repos
+                .catalog
+                .product_sale
+                .setting(p.product_id, None)
+                .await?;
+            sale_map.insert(p.product_id, state);
+        }
+
         let list = rows
             .iter()
             .map(|p| {
                 let skus = sku_map.get(&p.product_id).cloned().unwrap_or_default();
-                to_list_item(p, &skus)
+                to_list_item(p, &skus, sale_map.get(&p.product_id))
             })
             .collect();
         Ok(PageResult::new(total, list, &page))
@@ -2005,7 +2018,11 @@ fn parse_datetime_seconds(raw: &str) -> Option<i32> {
 // ————————————————————— 实体 → VO —————————————————————
 
 /// 商品实体 + 规格 → 列表项（对应 Java `ProductListResDTO`）。
-fn to_list_item(p: &Product, skus: &[ProductSku]) -> ProductListItemVO {
+fn to_list_item(
+    p: &Product,
+    skus: &[ProductSku],
+    sale: Option<&ProductSaleState>,
+) -> ProductListItemVO {
     let sku_vo: Vec<ProductSkuVO> = skus.iter().map(to_sku_vo).collect();
     ProductListItemVO {
         category_id: p.category_id,
@@ -2031,6 +2048,11 @@ fn to_list_item(p: &Product, skus: &[ProductSku]) -> ProductListItemVO {
         product_sn: p.product_sn.clone(),
         product_price: p.product_price,
         product_status: p.product_status,
+        sale_status: sale.map_or(1, |s| s.sale_status),
+        manual_sale_status: sale.map_or(1, |s| s.manual_sale_status),
+        sale_ban_time: sale.map_or(0, |s| s.sale_ban_time),
+        sale_recover_time: sale.map_or(0, |s| s.sale_recover_time),
+        sale_reason: sale.and_then(|s| s.sale_reason.clone()),
         is_best: p.is_best,
         is_new: p.is_new,
         is_hot: p.is_hot,

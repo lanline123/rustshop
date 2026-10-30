@@ -463,6 +463,16 @@ pub struct ProductListItemVO {
     pub product_sn: String,
     pub product_price: Decimal,
     pub product_status: i32,
+    /// v5.8.61 最终可售状态：1 可售，0 禁售。
+    pub sale_status: i32,
+    /// 当前作用域手动设置：1 可售，0 禁售。
+    pub manual_sale_status: i32,
+    /// 定时禁售 Unix 秒，0 未启用。
+    pub sale_ban_time: i64,
+    /// 定时恢复 Unix 秒，0 未启用。
+    pub sale_recover_time: i64,
+    /// 禁售原因。
+    pub sale_reason: Option<String>,
     pub is_best: i32,
     pub is_new: i32,
     pub is_hot: i32,
