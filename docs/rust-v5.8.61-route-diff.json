@@ -1,39 +1,11 @@
 {
   "java_count": 1743,
-  "rust_count": 2097,
-  "missing_count": 10,
+  "rust_count": 2104,
+  "missing_count": 3,
   "missing": [
     {
       "method": "GET",
       "path": "/order/pay/notify/stripe"
-    },
-    {
-      "method": "GET",
-      "path": "/product/product/downloadRawImages"
-    },
-    {
-      "method": "GET",
-      "path": "/setting/config/antomSettings"
-    },
-    {
-      "method": "GET",
-      "path": "/setting/config/stripeSettings"
-    },
-    {
-      "method": "GET",
-      "path": "/setting/config/xenditSettings"
-    },
-    {
-      "method": "POST",
-      "path": "/setting/config/saveAntom"
-    },
-    {
-      "method": "POST",
-      "path": "/setting/config/saveStripe"
-    },
-    {
-      "method": "POST",
-      "path": "/setting/config/saveXendit"
     },
     {
       "method": "POST",

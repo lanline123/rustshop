@@ -595,7 +595,7 @@ mod tests {
     fn endpoint_kinds_partition_all_102_paths() {
         use tigshop_core::models::system::config_basic::endpoints;
         let all = endpoints();
-        assert_eq!(all.len(), 102);
+        assert_eq!(all.len(), 108);
         let with_body = all
             .iter()
             .filter(|ep| ep.verb == tigshop_core::models::system::config_basic::Verb::Post
@@ -610,7 +610,7 @@ mod tests {
             .iter()
             .filter(|ep| ep.verb == tigshop_core::models::system::config_basic::Verb::Get)
             .count();
-        assert_eq!(gets + with_body + without_body, 102);
+        assert_eq!(gets + with_body + without_body, 108);
         assert_eq!(without_body, 5, "证书/上传/测试邮件 + 2 条 workbuddy POST 无请求体");
     }
 }
