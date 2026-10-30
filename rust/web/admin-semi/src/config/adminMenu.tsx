@@ -187,8 +187,16 @@ export const navGroups: NavGroup[] = [
             "label": "店铺列表"
           },
           {
+            "key": "shopGroupManage",
+            "label": "店铺分组"
+          },
+          {
             "key": "shopSettingsManage",
             "label": "店铺设置"
+          },
+          {
+            "key": "shopTipManage",
+            "label": "标签管理"
           }
         ]
       },
@@ -924,8 +932,12 @@ export const navGroups: NavGroup[] = [
         "label": "供应商资金管理",
         "children": [
           {
-            "key": "vendorWithdrawApplySummary",
-            "label": "提现汇总"
+            "key": "vendorAccountManage",
+            "label": "资金概览"
+          },
+          {
+            "key": "vendorFundsManage",
+            "label": "供应商资金"
           },
           {
             "key": "vendorStatementDownload",
@@ -938,6 +950,24 @@ export const navGroups: NavGroup[] = [
           {
             "key": "vendorWithdrawApplyManage",
             "label": "提现管理"
+          },
+          {
+            "key": "vendorWithdrawApplySummary",
+            "label": "提现汇总"
+          },
+          {
+            "key": "vendorFinancialLogManage",
+            "label": "资金日志"
+          }
+        ]
+      },
+      {
+        "key": "financeOrderAudit",
+        "label": "订单审核",
+        "children": [
+          {
+            "key": "offlinePaymentClaimManage",
+            "label": "线下收款审核"
           }
         ]
       },
@@ -1250,6 +1280,10 @@ export const navGroups: NavGroup[] = [
             "label": "税率管理"
           },
           {
+            "key": "imageSearchManage",
+            "label": "图像搜索"
+          },
+          {
             "key": "wechatLiveMiniAppSetting",
             "label": "小程序设置"
           },
@@ -1428,6 +1462,13 @@ export const pageTitles: Record<string, string> = {
   "consumerRanking": "消费排行",
   "newMembers": "新增会员",
   "shopManage": "店铺列表",
+  "shopGroupManage": "店铺分组",
+  "shopTipManage": "标签管理",
+  "offlinePaymentClaimManage": "线下收款审核",
+  "imageSearchManage": "图像搜索",
+  "vendorAccountManage": "资金概览",
+  "vendorFundsManage": "供应商资金",
+  "vendorFinancialLogManage": "资金日志",
   "shopSettingsManage": "店铺设置",
   "vendorProductManage": "供应商商品",
   "vendorOrderManage": "供应商订单",
