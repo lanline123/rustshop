@@ -8,6 +8,7 @@ pub mod config_basic;
 pub mod config_extra;
 pub mod csrf;
 pub mod example;
+pub mod image_search;
 pub mod licensed;
 pub mod lowfreq_extra;
 pub mod mail_templates;
@@ -32,6 +33,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(config_basic::routes(state))
         .merge(config_extra::routes(state))
         .merge(example::routes(state))
+        .merge(image_search::routes(state))
         .merge(licensed::routes(state))
         .merge(lowfreq_extra::routes(state))
         .merge(mail_templates::routes(state))
@@ -62,6 +64,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(config_extra::implemented_routes());
     out.extend(csrf::implemented_routes());
     out.extend(example::implemented_routes());
+    out.extend(image_search::implemented_routes());
     out.extend(licensed::implemented_routes());
     out.extend(mail_templates::implemented_routes());
     out.extend(message_type::implemented_routes());
