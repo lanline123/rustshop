@@ -270,3 +270,187 @@ Rust 不需要“重写”，但需要“持续跟进”。
 线下支付认款
 订单已知修复
 ```
+
+## 路由契约差异（2026-10-31 基线）
+
+脚本：
+
+```text
+tools/route-diff-v5861.py
+```
+
+输出：
+
+```text
+docs/rust-v5.8.61-route-diff.json
+```
+
+统计：
+
+```text
+Java 解析路由：1743
+Rust 路由字面量：1986
+缺少：125
+```
+
+注意：
+
+```text
+这是静态扫描结果，不是完整运行时契约。
+- Java 路径常量、数组形式映射可能漏解析
+- Rust 动态路由 {param} 已按模式匹配
+- 个别缺失可能是方法不一致，而不是路径不存在
+```
+
+## 缺失接口分布
+
+```text
+supplyChain/purchase*    约 20
+vendor/*                 约 6
+lang/translations/*      约 6
+setting/config 新支付配置 约 8
+imageSearch / aiImage    约 12
+offlinePaymentClaim      约 5
+merchant/shopGroup       约 7
+shop/tip                 约 5
+merchantApplication      约 8
+product saleStatus       约 2
+product downloadRawImages 约 1
+search/image             约 5
+order/pay 新通知          约 5
+```
+
+完整 method+path 清单在 `docs/rust-v5.8.61-route-diff.json`。
+
+## 完整对齐批次
+
+### B1：数据库兼容 + 商品禁售
+
+```text
+数据库：5.8.57-5.8.58 到 5.8.60-5.8.61
+新增 product_sale_control / vendor_product_sale_control
+Rust：商品列表/详情/搜索/购物车/下单统一过滤禁售
+接口：
+  GET  /adminapi/product/product/saleStatus
+  POST /adminapi/product/product/saleStatus
+  GET  /adminapi/vendor/product/platform/saleStatus
+  POST /adminapi/vendor/product/platform/saleStatus
+```
+
+验收：
+
+```text
+禁售商品不出现在 PC 列表/搜索/详情
+已加购商品结算时被拦截
+定时恢复可售生效
+```
+
+### B2：体积/重量运费
+
+```text
+product.product_volume
+product_sku.sku_weight / sku_volume
+shipping_tpl / shipping_tpl_info 体积计费字段
+Rust 订单运费试算、订单快照、后台运费模板
+```
+
+### B3：线下支付认款
+
+```text
+offline_payment_claim
+公开端 submit/detail/history
+后台 list/detail/audit
+认款阶段：全款 / 定金 / 尾款
+审核通过异步入账
+```
+
+### B4：图片搜索 + AI 图片
+
+```text
+search/image/capabilities|search|results
+admin setting/imageSearch/*
+image_search_sync_job / image_search_image
+AI 图片翻译/修复接口
+```
+
+### B5：多语言补充
+
+```text
+lang/currency/dictionary
+lang/translations/batchCreate|batchTranslate|create
+lang/locales/update
+lang/localesRelation/update
+```
+
+### B6：供应商 / 采购链
+
+```text
+supplyChain/purchaseOrder
+supplyChain/purchaseReceipt
+supplyChain/purchaseReconciliation
+supplyChain/purchaseReturn
+supplyChain/purchaseSetting
+supplyChain/supplier
+supplyChain/supplierCategory
+supplyChain/supplierProduct
+vendor/* 缺失
+```
+
+### B7：店铺分组 / 标签
+
+```text
+merchant/shopGroup/*
+shop/tip/*
+shop/shop/groupDetail
+```
+
+### B8：主流程修复
+
+```text
+order/pay 新通知
+merchantApplication 放弃/重提/重试/删除
+giftCards create/update 补缺
+product/downloadRawImages
+```
+
+### B9：POS / 多门店
+
+```text
+标签打印
+桌台/开台/转台
+门店保证金
+门店设备码
+```
+
+### B10：前端同步
+
+```text
+PC 新版页面按 v5.8.61 补新功能
+Admin 新页面补齐
+```
+
+## 当前状态
+
+```text
+[x] 源码接收
+[x] 差异评估
+[x] 路由契约基线
+[ ] B1 数据库兼容 + 商品禁售
+[ ] B2 体积运费
+[ ] B3 线下认款
+[ ] B4 图片搜索
+[ ] ...
+```
+
+## 下一步
+
+建议第一轮实现 **B1：数据库兼容 + 商品禁售**。
+
+原因：
+
+```text
+直接影响 PC 商品可见性
+表结构相对独立
+能验证数据库迁移兼容性
+后续订单/购物车拦截可复用
+```

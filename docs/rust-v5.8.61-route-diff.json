@@ -1,0 +1,910 @@
+{
+  "java_count": 1743,
+  "rust_count": 1986,
+  "missing_count": 125,
+  "missing": [
+    {
+      "method": "GET",
+      "path": "/file/aiImage/getTranslateConfig"
+    },
+    {
+      "method": "GET",
+      "path": "/finance/merchantApplication/localMedia"
+    },
+    {
+      "method": "GET",
+      "path": "/finance/merchantApplication/wechatBankBranches"
+    },
+    {
+      "method": "GET",
+      "path": "/finance/merchantApplication/wechatBankCities"
+    },
+    {
+      "method": "GET",
+      "path": "/finance/merchantApplication/wechatBankNames"
+    },
+    {
+      "method": "GET",
+      "path": "/finance/merchantApplication/wechatBankProvinces"
+    },
+    {
+      "method": "GET",
+      "path": "/finance/merchantApplication/wechatBanks"
+    },
+    {
+      "method": "GET",
+      "path": "/lang/currency/dictionary"
+    },
+    {
+      "method": "GET",
+      "path": "/merchant/shopGroup/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/merchant/shopGroup/list"
+    },
+    {
+      "method": "GET",
+      "path": "/merchant/shopGroup/selectList"
+    },
+    {
+      "method": "GET",
+      "path": "/merchant/shopGroup/shopList"
+    },
+    {
+      "method": "GET",
+      "path": "/order/offlinePaymentClaim/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/order/offlinePaymentClaim/list"
+    },
+    {
+      "method": "GET",
+      "path": "/order/pay/notify/stripe"
+    },
+    {
+      "method": "GET",
+      "path": "/product/product/downloadRawImages"
+    },
+    {
+      "method": "GET",
+      "path": "/product/product/saleStatus"
+    },
+    {
+      "method": "GET",
+      "path": "/search/image/capabilities"
+    },
+    {
+      "method": "GET",
+      "path": "/setting/config/aiImageSettings"
+    },
+    {
+      "method": "GET",
+      "path": "/setting/config/amapSettings"
+    },
+    {
+      "method": "GET",
+      "path": "/setting/config/antomSettings"
+    },
+    {
+      "method": "GET",
+      "path": "/setting/config/stripeSettings"
+    },
+    {
+      "method": "GET",
+      "path": "/setting/config/xenditSettings"
+    },
+    {
+      "method": "GET",
+      "path": "/setting/imageSearch/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/setting/imageSearch/regions"
+    },
+    {
+      "method": "GET",
+      "path": "/setting/imageSearch/task"
+    },
+    {
+      "method": "GET",
+      "path": "/shop/shop/groupDetail"
+    },
+    {
+      "method": "GET",
+      "path": "/shop/tip/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/shop/tip/list"
+    },
+    {
+      "method": "GET",
+      "path": "/shop/tip/selectAllTip"
+    },
+    {
+      "method": "GET",
+      "path": "/shop/tip/tipConfig"
+    },
+    {
+      "method": "GET",
+      "path": "/supplyChain/purchaseOrder/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/supplyChain/purchaseOrder/list"
+    },
+    {
+      "method": "GET",
+      "path": "/supplyChain/purchaseReceipt/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/supplyChain/purchaseReceipt/list"
+    },
+    {
+      "method": "GET",
+      "path": "/supplyChain/purchaseReconciliation/candidates"
+    },
+    {
+      "method": "GET",
+      "path": "/supplyChain/purchaseReconciliation/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/supplyChain/purchaseReconciliation/export"
+    },
+    {
+      "method": "GET",
+      "path": "/supplyChain/purchaseReconciliation/list"
+    },
+    {
+      "method": "GET",
+      "path": "/supplyChain/purchaseReturn/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/supplyChain/purchaseReturn/list"
+    },
+    {
+      "method": "GET",
+      "path": "/supplyChain/purchaseSetting/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/supplyChain/supplier/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/supplyChain/supplier/list"
+    },
+    {
+      "method": "GET",
+      "path": "/supplyChain/supplierCategory/list"
+    },
+    {
+      "method": "GET",
+      "path": "/supplyChain/supplierProduct/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/supplyChain/supplierProduct/list"
+    },
+    {
+      "method": "GET",
+      "path": "/supplyChain/supplierProduct/selection"
+    },
+    {
+      "method": "GET",
+      "path": "/supplyChain/supplierProduct/summary"
+    },
+    {
+      "method": "GET",
+      "path": "/user/order/offlinePaymentClaim/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/user/order/offlinePaymentClaim/history"
+    },
+    {
+      "method": "GET",
+      "path": "/vendor/adminVendorUser/list"
+    },
+    {
+      "method": "GET",
+      "path": "/vendor/product/platform/pageList"
+    },
+    {
+      "method": "GET",
+      "path": "/vendor/product/platform/saleStatus"
+    },
+    {
+      "method": "GET",
+      "path": "/vendor/vendorShopBind/list"
+    },
+    {
+      "method": "GET",
+      "path": "/vendor/vendorWithdraw/list"
+    },
+    {
+      "method": "POST",
+      "path": "/file/aiImage/inpaint"
+    },
+    {
+      "method": "POST",
+      "path": "/file/aiImage/localesList"
+    },
+    {
+      "method": "POST",
+      "path": "/file/aiImage/translate"
+    },
+    {
+      "method": "POST",
+      "path": "/finance/merchantApplication/abandon"
+    },
+    {
+      "method": "POST",
+      "path": "/finance/merchantApplication/delete"
+    },
+    {
+      "method": "POST",
+      "path": "/finance/merchantApplication/reapply"
+    },
+    {
+      "method": "POST",
+      "path": "/finance/merchantApplication/retry"
+    },
+    {
+      "method": "POST",
+      "path": "/lang/currency/update"
+    },
+    {
+      "method": "POST",
+      "path": "/lang/locales/update"
+    },
+    {
+      "method": "POST",
+      "path": "/lang/localesRelation/update"
+    },
+    {
+      "method": "POST",
+      "path": "/lang/translations/batchCreate"
+    },
+    {
+      "method": "POST",
+      "path": "/lang/translations/batchTranslate"
+    },
+    {
+      "method": "POST",
+      "path": "/lang/translations/create"
+    },
+    {
+      "method": "POST",
+      "path": "/merchant/shopGroup/create"
+    },
+    {
+      "method": "POST",
+      "path": "/merchant/shopGroup/del"
+    },
+    {
+      "method": "POST",
+      "path": "/merchant/shopGroup/update"
+    },
+    {
+      "method": "POST",
+      "path": "/order/offlinePaymentClaim/audit"
+    },
+    {
+      "method": "POST",
+      "path": "/product/product/saleStatus"
+    },
+    {
+      "method": "POST",
+      "path": "/promotion/giftCards/create"
+    },
+    {
+      "method": "POST",
+      "path": "/promotion/giftCards/update"
+    },
+    {
+      "method": "POST",
+      "path": "/search/image/results"
+    },
+    {
+      "method": "POST",
+      "path": "/search/image/search"
+    },
+    {
+      "method": "POST",
+      "path": "/setting/config/saveAiImage"
+    },
+    {
+      "method": "POST",
+      "path": "/setting/config/saveAmapSettings"
+    },
+    {
+      "method": "POST",
+      "path": "/setting/config/saveAntom"
+    },
+    {
+      "method": "POST",
+      "path": "/setting/config/saveStripe"
+    },
+    {
+      "method": "POST",
+      "path": "/setting/config/saveXendit"
+    },
+    {
+      "method": "POST",
+      "path": "/setting/imageSearch/build"
+    },
+    {
+      "method": "POST",
+      "path": "/setting/imageSearch/check"
+    },
+    {
+      "method": "POST",
+      "path": "/setting/imageSearch/retry"
+    },
+    {
+      "method": "POST",
+      "path": "/setting/imageSearch/save"
+    },
+    {
+      "method": "POST",
+      "path": "/setting/imageSearch/syncProduct"
+    },
+    {
+      "method": "POST",
+      "path": "/shop/tip/batch"
+    },
+    {
+      "method": "POST",
+      "path": "/shop/tip/create"
+    },
+    {
+      "method": "POST",
+      "path": "/shop/tip/del"
+    },
+    {
+      "method": "POST",
+      "path": "/shop/tip/update"
+    },
+    {
+      "method": "POST",
+      "path": "/shop/tip/updateField"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/purchaseOrder/create"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/purchaseOrder/finish"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/purchaseOrder/update"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/purchaseReceipt/save"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/purchaseReconciliation/approve"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/purchaseReconciliation/create"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/purchaseReconciliation/reject"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/purchaseReconciliation/resubmit"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/purchaseReconciliation/update"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/purchaseReconciliation/void"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/purchaseReturn/confirm"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/purchaseReturn/delete"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/purchaseReturn/save"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/purchaseSetting/save"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/supplier/create"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/supplier/delete"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/supplier/qualification/upload"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/supplier/status"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/supplier/update"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/supplierCategory/delete"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/supplierCategory/save"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/supplierCategory/status"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/supplierProduct/batchDelete"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/supplierProduct/batchSave"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/supplierProduct/delete"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/supplierProduct/save"
+    },
+    {
+      "method": "POST",
+      "path": "/supplyChain/supplierProduct/status"
+    },
+    {
+      "method": "POST",
+      "path": "/user/order/offlinePaymentClaim/submit"
+    },
+    {
+      "method": "POST",
+      "path": "/vendor/product/platform/saleStatus"
+    },
+    {
+      "method": "POST",
+      "path": "/vendor/product/update"
+    },
+    {
+      "method": "POST",
+      "path": "/vendor/stock/getImportErrorData"
+    },
+    {
+      "method": "POST",
+      "path": "/vendor/vendor/update"
+    }
+  ],
+  "extra_count": 373,
+  "extra_sample": [
+    {
+      "method": "GET",
+      "path": "/adminUser/checkCode"
+    },
+    {
+      "method": "GET",
+      "path": "/balance/pay/info"
+    },
+    {
+      "method": "GET",
+      "path": "/common/verification/captcha"
+    },
+    {
+      "method": "GET",
+      "path": "/common/verification/get"
+    },
+    {
+      "method": "GET",
+      "path": "/cycleCard/checkAftersales/{orderId}"
+    },
+    {
+      "method": "GET",
+      "path": "/cycleCard/checkUsable/{cardId}"
+    },
+    {
+      "method": "GET",
+      "path": "/cycleCard/detail/{cardId}"
+    },
+    {
+      "method": "GET",
+      "path": "/cycleCard/list"
+    },
+    {
+      "method": "GET",
+      "path": "/cycleCard/refundInfo/{cardId}"
+    },
+    {
+      "method": "GET",
+      "path": "/decorate/themeStyle/list"
+    },
+    {
+      "method": "GET",
+      "path": "/finance/deliveryFundManagement/settings/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/finance/deliveryStaffWithdraw/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/finance/deliveryStaffWithdraw/list"
+    },
+    {
+      "method": "GET",
+      "path": "/finance/serverFundManagement/settings/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/finance/serverStaffWithdraw/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/finance/serverStaffWithdraw/list"
+    },
+    {
+      "method": "GET",
+      "path": "/finance/staffFundWallet/incomeTrend"
+    },
+    {
+      "method": "GET",
+      "path": "/finance/staffFundWallet/overview"
+    },
+    {
+      "method": "GET",
+      "path": "/finance/staffFundWallet/ranking"
+    },
+    {
+      "method": "GET",
+      "path": "/finance/staffFundWallet/staffList"
+    },
+    {
+      "method": "GET",
+      "path": "/finance/staffFundWalletLog/list"
+    },
+    {
+      "method": "GET",
+      "path": "/finance/staffFundWalletLog/walletDetail"
+    },
+    {
+      "method": "GET",
+      "path": "/finance/staffFundWithdraw/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/finance/staffFundWithdraw/list"
+    },
+    {
+      "method": "GET",
+      "path": "/health"
+    },
+    {
+      "method": "GET",
+      "path": "/home/home/mobileCatNav"
+    },
+    {
+      "method": "GET",
+      "path": "/lang/currency/config"
+    },
+    {
+      "method": "GET",
+      "path": "/lang/translations/config"
+    },
+    {
+      "method": "GET",
+      "path": "/merchant/merchant/userCount"
+    },
+    {
+      "method": "GET",
+      "path": "/merchant/shop/isPlatformAllocation"
+    },
+    {
+      "method": "GET",
+      "path": "/metrics"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/OrderReservation/getStockCalendar"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/areaStoreManager/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/config/homeServiceConfig"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/config/localDeliveryConfig"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/decorate/decorate/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/deliveryOrder/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/deliveryOrder/grabList"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/deliveryOrder/list"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/deliveryOrder/myList"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/deliveryOrder/myListTabCounts"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/deliveryOrder/myListTotalCount"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/deliveryOrder/statistics"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/dispatch/availableStaff"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/homeService/getConfig"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/intraCityDelivery/platformConfig/getConfig"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/localDelivery/getConfig"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/orderPickup/getDeliveryOptions"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/orderPickup/getOrderPickupShipment"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/orderPickup/getShopPickupTpl"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/productOrg/info/{productId}"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/reservationTpl/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/reservationTpl/list"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/reservationTpl/pageList"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/serviceStaff/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/serviceStaff/list"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/serviceStaff/myInfo"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/serviceStaff/showMobile"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/serviceStaffWallet/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/serviceStaffWallet/logList"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/shopPickupConfig/getShopPickupTpl"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/staffAccount/list"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/staffWallet/myLogs"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/staffWallet/myWallet"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/staffWallet/myWithdrawDetail"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/staffWallet/myWithdrawList"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/staffWallet/withdrawConfig"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/stockCalendar/getDailyStock"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/stockCalendar/getProductTimeList"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/stockCalendar/pageList"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/storeSearch/getStoreProduct"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/tip/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/tip/selectAllTip"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/tip/tipConfig"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/userPickup/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/o2o/userPickup/getUserPickups"
+    },
+    {
+      "method": "GET",
+      "path": "/order/dispatch/availableStaff"
+    },
+    {
+      "method": "GET",
+      "path": "/pay/refunds"
+    },
+    {
+      "method": "GET",
+      "path": "/pos/adminUserPos/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/pos/adminUserPos/info"
+    },
+    {
+      "method": "GET",
+      "path": "/pos/cart/getCount"
+    },
+    {
+      "method": "GET",
+      "path": "/pos/cart/pendingOrderList"
+    },
+    {
+      "method": "GET",
+      "path": "/pos/device/all"
+    },
+    {
+      "method": "GET",
+      "path": "/pos/device/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/pos/device/list"
+    },
+    {
+      "method": "GET",
+      "path": "/pos/order/OrderReservation/getStockCalendar"
+    },
+    {
+      "method": "GET",
+      "path": "/pos/order/OrderReservation/list"
+    },
+    {
+      "method": "GET",
+      "path": "/pos/order/check/getOrderRemark"
+    },
+    {
+      "method": "GET",
+      "path": "/pos/posSwitch/posStatistics"
+    },
+    {
+      "method": "GET",
+      "path": "/pos/product/getCategoryInfo"
+    },
+    {
+      "method": "GET",
+      "path": "/pos/product/getProduct"
+    },
+    {
+      "method": "GET",
+      "path": "/pos/product/getProductAvailability"
+    },
+    {
+      "method": "GET",
+      "path": "/pos/product/index"
+    },
+    {
+      "method": "GET",
+      "path": "/pos/product/productDetail"
+    },
+    {
+      "method": "GET",
+      "path": "/pos/table/area/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/pos/table/detail"
+    },
+    {
+      "method": "GET",
+      "path": "/pos/table/list"
+    },
+    {
+      "method": "GET",
+      "path": "/pos/table/operate/board"
+    },
+    {
+      "method": "GET",
+      "path": "/pos/table/operate/check/index"
+    },
+    {
+      "method": "GET",
+      "path": "/pos/table/receiptList"
+    }
+  ]
+}
