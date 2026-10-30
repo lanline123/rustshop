@@ -60,6 +60,8 @@ impl ProductRepository {
             None => String::new(),
         };
 
+        let sale_clause = super::product_sale::ProductSaleRepository::sale_condition();
+
         // 分类筛选：服务层展开后的 category_ids 优先（包含子分类）；
         // 没有展开时保持原来的精确 category_id 语义。
         let category_ids: Vec<i32> = if q.category_ids.is_empty() {
@@ -82,7 +84,7 @@ impl ProductRepository {
                AND (? IS NULL OR shop_id = ?)
                AND (? IS NULL OR product_status = ?)
                AND (? IS NULL OR product_price >= ?)
-               AND (? IS NULL OR product_price <= ?){id_clause}"
+               AND (? IS NULL OR product_price <= ?){sale_clause}{id_clause}"
         );
         let mut total_q = sqlx::query_as::<_, (i64,)>(&total_sql)
             .bind(&keyword).bind(&keyword).bind(&keyword);
@@ -138,7 +140,7 @@ impl ProductRepository {
                AND (? IS NULL OR shop_id = ?)
                AND (? IS NULL OR product_status = ?)
                AND (? IS NULL OR product_price >= ?)
-               AND (? IS NULL OR product_price <= ?){id_clause}
+               AND (? IS NULL OR product_price <= ?){sale_clause}{id_clause}
              ORDER BY {order_by} {dir}, product_id DESC
              LIMIT ? OFFSET ?"
         );

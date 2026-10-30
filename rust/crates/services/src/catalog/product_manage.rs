@@ -975,6 +975,16 @@ impl ProductManageService {
         }
 
         let product_id = product.product_id;
+        // v5.8.61 商品禁售：搜索/列表/详情使用同一套读时判定。
+        let sale_state = self
+            .repos
+            .catalog
+            .product_sale
+            .setting(product_id, shop_id)
+            .await?;
+        if sale_state.sale_status == 0 {
+            return Err(Error::biz(400, ERR_NOT_EXIST));
+        }
         let mut product = product;
         let mut skus = self.repos.catalog.product_manage.find_skus(product_id, false).await?;
 

@@ -101,6 +101,16 @@ impl ProductService {
         if quantity <= 0 {
             return Err(Error::Validation("购买数量必须大于0".into()));
         }
+        // v5.8.61 商品禁售：加入购物车/结算/下单共用同一校验。
+        let sale_state = self
+            .repos
+            .catalog
+            .product_sale
+            .setting(product_id, None)
+            .await?;
+        if sale_state.sale_status == 0 {
+            return Err(Error::biz(400, "商品已下架".to_string()));
+        }
         if !self
             .repos.catalog.product
             .check_purchasable(product_id, sku_id, quantity)

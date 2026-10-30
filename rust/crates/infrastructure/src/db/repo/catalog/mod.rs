@@ -15,6 +15,7 @@ pub mod product_group;
 pub mod product_inventory_log;
 pub mod product_manage;
 pub mod product_manage_client;
+pub mod product_sale;
 pub mod product_search;
 pub mod product_stock;
 pub mod search_admin;
@@ -47,6 +48,7 @@ pub struct Repositories {
     pub short_url: short_url::ShortUrlRepository,
     pub stock_warning: stock_warning::StockWarningRepository,
     pub product_manage_client: product_manage_client::ProductManageClientRepository,
+    pub product_sale: product_sale::ProductSaleRepository,
 }
 
 impl Repositories {
@@ -74,6 +76,7 @@ impl Repositories {
             short_url: short_url::ShortUrlRepository::new(pool.clone()),
             stock_warning: stock_warning::StockWarningRepository::new(pool.clone()),
             product_manage_client: product_manage_client::ProductManageClientRepository::new(pool.clone()),
+            product_sale: product_sale::ProductSaleRepository::new(pool.clone()),
         }
     }
 }

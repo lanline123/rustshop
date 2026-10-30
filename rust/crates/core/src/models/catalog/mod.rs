@@ -16,6 +16,7 @@ pub mod product_inventory_log;
 pub mod product_manage;
 pub mod product_manage_client;
 pub mod product_manage_extra;
+pub mod product_sale;
 pub mod product_search;
 pub mod product_stock;
 pub mod search_admin;
