@@ -1,7 +1,7 @@
 {
   "java_count": 1743,
-  "rust_count": 1986,
-  "missing_count": 125,
+  "rust_count": 2013,
+  "missing_count": 98,
   "missing": [
     {
       "method": "GET",
@@ -33,10 +33,6 @@
     },
     {
       "method": "GET",
-      "path": "/lang/currency/dictionary"
-    },
-    {
-      "method": "GET",
       "path": "/merchant/shopGroup/detail"
     },
     {
@@ -53,27 +49,11 @@
     },
     {
       "method": "GET",
-      "path": "/order/offlinePaymentClaim/detail"
-    },
-    {
-      "method": "GET",
-      "path": "/order/offlinePaymentClaim/list"
-    },
-    {
-      "method": "GET",
       "path": "/order/pay/notify/stripe"
     },
     {
       "method": "GET",
       "path": "/product/product/downloadRawImages"
-    },
-    {
-      "method": "GET",
-      "path": "/product/product/saleStatus"
-    },
-    {
-      "method": "GET",
-      "path": "/search/image/capabilities"
     },
     {
       "method": "GET",
@@ -94,18 +74,6 @@
     {
       "method": "GET",
       "path": "/setting/config/xenditSettings"
-    },
-    {
-      "method": "GET",
-      "path": "/setting/imageSearch/detail"
-    },
-    {
-      "method": "GET",
-      "path": "/setting/imageSearch/regions"
-    },
-    {
-      "method": "GET",
-      "path": "/setting/imageSearch/task"
     },
     {
       "method": "GET",
@@ -201,23 +169,11 @@
     },
     {
       "method": "GET",
-      "path": "/user/order/offlinePaymentClaim/detail"
-    },
-    {
-      "method": "GET",
-      "path": "/user/order/offlinePaymentClaim/history"
-    },
-    {
-      "method": "GET",
       "path": "/vendor/adminVendorUser/list"
     },
     {
       "method": "GET",
       "path": "/vendor/product/platform/pageList"
-    },
-    {
-      "method": "GET",
-      "path": "/vendor/product/platform/saleStatus"
     },
     {
       "method": "GET",
@@ -257,30 +213,6 @@
     },
     {
       "method": "POST",
-      "path": "/lang/currency/update"
-    },
-    {
-      "method": "POST",
-      "path": "/lang/locales/update"
-    },
-    {
-      "method": "POST",
-      "path": "/lang/localesRelation/update"
-    },
-    {
-      "method": "POST",
-      "path": "/lang/translations/batchCreate"
-    },
-    {
-      "method": "POST",
-      "path": "/lang/translations/batchTranslate"
-    },
-    {
-      "method": "POST",
-      "path": "/lang/translations/create"
-    },
-    {
-      "method": "POST",
       "path": "/merchant/shopGroup/create"
     },
     {
@@ -293,27 +225,11 @@
     },
     {
       "method": "POST",
-      "path": "/order/offlinePaymentClaim/audit"
-    },
-    {
-      "method": "POST",
-      "path": "/product/product/saleStatus"
-    },
-    {
-      "method": "POST",
       "path": "/promotion/giftCards/create"
     },
     {
       "method": "POST",
       "path": "/promotion/giftCards/update"
-    },
-    {
-      "method": "POST",
-      "path": "/search/image/results"
-    },
-    {
-      "method": "POST",
-      "path": "/search/image/search"
     },
     {
       "method": "POST",
@@ -334,26 +250,6 @@
     {
       "method": "POST",
       "path": "/setting/config/saveXendit"
-    },
-    {
-      "method": "POST",
-      "path": "/setting/imageSearch/build"
-    },
-    {
-      "method": "POST",
-      "path": "/setting/imageSearch/check"
-    },
-    {
-      "method": "POST",
-      "path": "/setting/imageSearch/retry"
-    },
-    {
-      "method": "POST",
-      "path": "/setting/imageSearch/save"
-    },
-    {
-      "method": "POST",
-      "path": "/setting/imageSearch/syncProduct"
     },
     {
       "method": "POST",
@@ -482,10 +378,6 @@
     {
       "method": "POST",
       "path": "/supplyChain/supplierProduct/status"
-    },
-    {
-      "method": "POST",
-      "path": "/user/order/offlinePaymentClaim/submit"
     },
     {
       "method": "POST",
