@@ -291,6 +291,10 @@ pub struct ProductSkuVO {
     pub sku_sn: Option<String>,
     pub sku_stock: i32,
     pub sku_tsn: Option<String>,
+    /// 单件规格重量 kg（v5.8.61）
+    pub sku_weight: Option<Decimal>,
+    /// 单件规格体积 m³（v5.8.61）
+    pub sku_volume: Option<Decimal>,
     /// 货品价格（Java DTO 为 String，这里按十进制下发避免精度丢失）
     pub sku_price: Option<Decimal>,
     /// 是否启用：0 禁用 1 启用
@@ -569,6 +573,8 @@ pub struct AdminProductDetailVO {
     pub check_reason: String,
     pub click_count: i32,
     pub product_weight: Decimal,
+    /// 单件商品体积 m³（v5.8.61）
+    pub product_volume: Option<Decimal>,
     pub is_promote: i32,
     pub is_promote_activity: i32,
     pub promote_price: Decimal,
@@ -969,6 +975,8 @@ pub struct ClientProductInfoVO {
     pub virtual_sales: i32,
     pub limit_number: i32,
     pub product_weight: Decimal,
+    /// 单件商品体积 m³（v5.8.61）
+    pub product_volume: Option<Decimal>,
     pub product_unit: Option<String>,
     pub product_care: Option<String>,
     pub product_service_ids: Vec<i32>,
