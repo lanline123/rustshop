@@ -7,6 +7,7 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::Value;
+use tigshop_core::models::catalog::product_sale::ProductSaleState;
 use tigshop_core::Error;
 use tigshop_security::web::{ok, ApiResult};
 
@@ -305,6 +306,51 @@ async fn h_37(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult
     ok(serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "total": total, "page": p, "size": s}))
 }
 
+// get /vendor/product/platform/saleStatus
+async fn h_vendor_sale_status(
+    State(state): State<AdminState>,
+    Query(q): Query<Pg>,
+) -> ApiResult<ProductSaleState> {
+    let vendor_product_id = q
+        .id
+        .or(q.product_id)
+        .ok_or_else(|| Error::biz(400, "供应商商品不存在".to_string()))? as i32;
+    ok(state
+        .repos
+        .catalog
+        .product_sale
+        .vendor_setting(vendor_product_id)
+        .await?)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct VendorSaleParam {
+    vendor_product_id: i32,
+    sale_status: i32,
+    sale_ban_time: Option<i64>,
+    sale_recover_time: Option<i64>,
+}
+
+// post /vendor/product/platform/saleStatus
+async fn h_vendor_sale_save(
+    State(state): State<AdminState>,
+    Json(q): Json<VendorSaleParam>,
+) -> ApiResult<()> {
+    state
+        .repos
+        .catalog
+        .product_sale
+        .save_vendor(
+            q.vendor_product_id,
+            q.sale_status,
+            q.sale_ban_time,
+            q.sale_recover_time,
+        )
+        .await?;
+    ok(())
+}
+
 // post /vendor/product/recycle
 async fn h_38(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<()> {
     sqlx::query("UPDATE vendor_product SET is_recycle = 1 WHERE id = ?").bind(q.id.unwrap_or(0)).execute(&pool(&state)).await.map_err(db)?;
@@ -529,6 +575,10 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/vendor/product/platform/audit", post(h_35))
         .route("/vendor/product/platform/getWaitingCheckedVendorCount", get(h_36))
         .route("/vendor/product/platform/pageList", post(h_37))
+        .route(
+            "/vendor/product/platform/saleStatus",
+            get(h_vendor_sale_status).post(h_vendor_sale_save),
+        )
         .route("/vendor/product/recycle", post(h_38))
         .route("/vendor/product/shippingTplList", get(h_39))
         .route("/vendor/product/updateField", post(h_40))

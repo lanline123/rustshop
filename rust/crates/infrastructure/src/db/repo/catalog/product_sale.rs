@@ -233,6 +233,74 @@ impl ProductSaleRepository {
         Ok(())
     }
 
+    /// 供应商商品自身的禁售状态（作用于导入它的所有店铺/自营）。
+    pub async fn vendor_setting(&self, vendor_product_id: i32) -> Result<ProductSaleState> {
+        let (exists,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM vendor_product WHERE id = ? AND is_del = 0")
+                .bind(vendor_product_id)
+                .fetch_one(&self.pool)
+                .await
+                .map_err(map_err)?;
+        if exists == 0 {
+            return Err(Error::biz(400, "供应商商品不存在".to_string()));
+        }
+        let now = Self::now();
+        let (mut manual, mut ban_at, mut recover_at) =
+            self.vendor_row(vendor_product_id).await?.unwrap_or((1, 0, 0));
+        (manual, ban_at, recover_at) = Self::settle(manual, ban_at, recover_at, now);
+        let banned = Self::banned(manual, ban_at, recover_at, now);
+        Ok(ProductSaleState {
+            sale_status: if banned { 0 } else { 1 },
+            manual_sale_status: manual,
+            sale_ban_time: ban_at,
+            sale_recover_time: recover_at,
+            sale_reason: banned.then(|| "vendor_product_banned".to_string()),
+        })
+    }
+
+    /// 保存供应商商品禁售设置。
+    pub async fn save_vendor(
+        &self,
+        vendor_product_id: i32,
+        sale_status: i32,
+        ban_time: Option<i64>,
+        recover_time: Option<i64>,
+    ) -> Result<()> {
+        if sale_status != 0 && sale_status != 1 {
+            return Err(Error::biz(400, "商品可售状态或定时禁售时间无效".to_string()));
+        }
+        if ban_time.unwrap_or(0) < 0 || recover_time.unwrap_or(0) < 0 {
+            return Err(Error::biz(400, "商品可售状态或定时禁售时间无效".to_string()));
+        }
+        let (exists,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM vendor_product WHERE id = ? AND is_del = 0")
+                .bind(vendor_product_id)
+                .fetch_one(&self.pool)
+                .await
+                .map_err(map_err)?;
+        if exists == 0 {
+            return Err(Error::biz(400, "供应商商品不存在".to_string()));
+        }
+        let now = Self::now();
+        let (sale_status, ban_at, recover_at) =
+            Self::settle(sale_status, ban_time.unwrap_or(0), recover_time.unwrap_or(0), now);
+        sqlx::query(
+            "INSERT INTO vendor_product_sale_control(vendor_product_id, sale_status, ban_at, recover_at, updated_at) \
+             VALUES (?, ?, ?, ?, ?) \
+             ON DUPLICATE KEY UPDATE sale_status=VALUES(sale_status), ban_at=VALUES(ban_at), \
+             recover_at=VALUES(recover_at), updated_at=VALUES(updated_at)",
+        )
+        .bind(vendor_product_id)
+        .bind(sale_status)
+        .bind(ban_at)
+        .bind(recover_at)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
     /// 前台列表/搜索统一使用的禁售过滤 SQL。
     ///
     /// 定时条件在分页前生效；门店商品按 `product.shop_id` 读取本店设置，

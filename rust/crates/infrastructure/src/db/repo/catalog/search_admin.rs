@@ -231,6 +231,7 @@ impl SearchAdminRepository {
 /// 追加公共 WHERE（顺序与 Java `buildProductListDTO` / 属性建议查询一致）。
 fn push_filters(qb: &mut QueryBuilder<'_, MySql>, f: &ProductSearchFilter) {
     qb.push(" WHERE is_delete = 0");
+    qb.push(super::product_sale::ProductSaleRepository::sale_condition());
     if let Some(status) = f.product_status {
         qb.push(" AND product_status = ").push_bind(status);
     }
