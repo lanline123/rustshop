@@ -96,3 +96,49 @@ B. 单独 sidecar 服务承接云图库，Rust 只做配置/台账/转发
 ```
 
 建议选 B，避免把云厂商 SDK 和签名逻辑耦合进主 API。
+
+## 2026-10-31 补充：阿里云图库检索
+
+已接入：
+
+```text
+POST /api/search/image/search
+```
+
+流程：
+
+```text
+读取 imageSearch* 配置
+校验启用、provider=aliyun、凭证/index/region
+解析 multipart file
+base64 PicContent
+阿里云 ImageSearch RPC SearchImageByPic
+按 Auctions ProductId 查商品
+过滤上架/未删除/禁售
+返回商品记录
+```
+
+签名：
+
+```text
+RPC HMAC-SHA1
+Version 2019-03-25
+POST&%2F&canonical
+```
+
+`results` 当前无跨请求会话，返回空会话；后续可加 Redis 会话。
+
+验证：
+
+```text
+cargo test -p tigshop-api image_search
+2 passed
+cargo test --workspace --lib
+全部通过
+```
+
+SQL 冒烟：
+
+```text
+本地 product_id=621 返回 JSON 商品记录
+```
