@@ -5,7 +5,11 @@ use std::sync::Arc;
 
 use rust_decimal::Decimal;
 use tigshop_common::utils;
-use tigshop_core::entities::{Order, OrderItem};
+use tigshop_core::entities::{OfflinePaymentClaim, Order, OrderItem};
+use tigshop_core::models::trade::offline_claim::{
+    status_name, stage_name, OfflinePaymentClaimAuditDTO, OfflinePaymentClaimSubmitDTO,
+    OfflinePaymentClaimVO,
+};
 use tigshop_core::models::{OrderCreateDTO, OrderCreateVO, OrderVO};
 use tigshop_core::types::{PageQuery, PageResult};
 use tigshop_core::{Error, Result};
@@ -1300,6 +1304,325 @@ impl OrderService {
         }
         tracing::info!("订单已发货: {order_id}, 运单号: {tracking_no}");
         Ok(())
+    }
+
+    // ————————————————————— 线下支付认款（v5.8.61） —————————————————————
+
+    /// 提交线下认款申请。
+    pub async fn offline_claim_submit(
+        &self,
+        user_id: i32,
+        dto: OfflinePaymentClaimSubmitDTO,
+    ) -> Result<i32> {
+        let order_id = dto.order_id.ok_or_else(|| Error::biz(400, "认款参数不完整"))?;
+        let order = self
+            .repos
+            .trade
+            .order
+            .find_by_id(order_id)
+            .await?
+            .ok_or_else(|| Error::biz(400, "订单不存在"))?;
+        if order.user_id != user_id {
+            return Err(Error::biz(400, "订单不存在"));
+        }
+        if order.pay_type_id != tigshop_core::models::trade::order_admin::pay_type::OFFLINE
+            || order.pay_status != 0
+            || order.order_status != status::UNPAID
+        {
+            return Err(Error::biz(400, "当前订单不可提交线下认款"));
+        }
+        if let Some(latest) = self
+            .repos
+            .trade
+            .offline_payment_claim
+            .latest_for_order(order_id)
+            .await?
+        {
+            if latest.status == OfflinePaymentClaim::STATUS_PENDING
+                || (latest.status == OfflinePaymentClaim::STATUS_APPROVED && latest.paid_time == 0)
+            {
+                return Err(Error::biz(400, "该订单已有认款申请，请等待财务审核"));
+            }
+        }
+        let vouchers: Vec<String> = dto
+            .voucher_urls
+            .clone()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty())
+            .collect();
+        if vouchers.is_empty() {
+            return Err(Error::biz(400, "请上传付款凭证"));
+        }
+        let (stage, due) = self.offline_claim_stage(&order).await?;
+        let now = utils::now_seconds() as i64;
+        let claim = OfflinePaymentClaim {
+            order_id,
+            order_sn: order.order_sn.clone(),
+            user_id,
+            shop_id: order.shop_id,
+            claimed_amount: due,
+            pay_stage: stage,
+            transfer_time: dto.transfer_time.unwrap_or(0),
+            payer_name: dto.payer_name.unwrap_or_default().trim().to_string(),
+            payer_account: dto.payer_account.unwrap_or_default().trim().to_string(),
+            bank_serial_no: dto.bank_serial_no.unwrap_or_default().trim().to_string(),
+            voucher_urls: Some(serde_json::to_string(&vouchers).unwrap_or_else(|_| "[]".to_string())),
+            remark: dto.remark.unwrap_or_default().trim().to_string(),
+            status: OfflinePaymentClaim::STATUS_PENDING,
+            review_admin_id: 0,
+            review_time: 0,
+            paid_time: 0,
+            audit_remark: String::new(),
+            reject_reason: String::new(),
+            add_time: now,
+            update_time: now,
+            claim_id: 0,
+        };
+        let claim_id = self
+            .repos
+            .trade
+            .offline_payment_claim
+            .insert(&claim)
+            .await?;
+        let _ = self
+            .repos
+            .trade
+            .user_order
+            .insert_order_log(
+                order_id,
+                &order.order_sn,
+                user_id,
+                order.shop_id,
+                "用户提交线下付款凭证，等待财务审核",
+                now as i32,
+            )
+            .await;
+        Ok(claim_id)
+    }
+
+    pub async fn offline_claim_latest(
+        &self,
+        order_id: i32,
+        user_id: i32,
+    ) -> Result<Option<OfflinePaymentClaimVO>> {
+        let claim = self
+            .repos
+            .trade
+            .offline_payment_claim
+            .latest_for_order(order_id)
+            .await?;
+        Ok(claim
+            .filter(|c| c.user_id == user_id)
+            .map(|c| to_offline_claim_vo(&c)))
+    }
+
+    pub async fn offline_claim_history(
+        &self,
+        order_id: i32,
+        user_id: i32,
+    ) -> Result<Vec<OfflinePaymentClaimVO>> {
+        let claims = self
+            .repos
+            .trade
+            .offline_payment_claim
+            .history_for_order(order_id, Some(user_id))
+            .await?;
+        Ok(claims.iter().map(to_offline_claim_vo).collect())
+    }
+
+    pub async fn offline_claim_admin_detail(&self, claim_id: i32) -> Result<OfflinePaymentClaimVO> {
+        let claim = self
+            .repos
+            .trade
+            .offline_payment_claim
+            .find_by_id(claim_id)
+            .await?
+            .ok_or_else(|| Error::biz(400, "认款单不存在"))?;
+        Ok(to_offline_claim_vo(&claim))
+    }
+
+    /// 审核线下认款：通过后同步完成订单入账。
+    pub async fn offline_claim_audit(
+        &self,
+        admin_id: i32,
+        dto: OfflinePaymentClaimAuditDTO,
+    ) -> Result<()> {
+        let claim_id = dto.claim_id.ok_or_else(|| Error::biz(400, "审核参数不完整"))?;
+        let pass = dto.pass.ok_or_else(|| Error::biz(400, "审核参数不完整"))?;
+        let claim = self
+            .repos
+            .trade
+            .offline_payment_claim
+            .find_by_id(claim_id)
+            .await?
+            .ok_or_else(|| Error::biz(400, "认款单不存在"))?;
+        if claim.status != OfflinePaymentClaim::STATUS_PENDING {
+            return Err(Error::biz(400, "该认款单已审核，请勿重复操作"));
+        }
+        let order = self
+            .repos
+            .trade
+            .order
+            .find_by_id(claim.order_id)
+            .await?
+            .ok_or_else(|| Error::biz(400, "订单当前不可审核认款"))?;
+        if order.pay_status != 0 || order.order_status != status::UNPAID {
+            return Err(Error::biz(400, "订单当前不可审核认款"));
+        }
+        let audit_remark = dto.audit_remark.unwrap_or_default().trim().to_string();
+        let now = utils::now_seconds() as i64;
+        if pass {
+            let (stage, due) = self.offline_claim_stage(&order).await?;
+            if claim.pay_stage != stage || claim.claimed_amount != due {
+                return Err(Error::biz(400, "订单应付金额已变更，请驳回后让用户重新提交"));
+            }
+            let updated = self
+                .repos
+                .trade
+                .offline_payment_claim
+                .audit(claim_id, true, admin_id, &audit_remark, "", now)
+                .await?;
+            if !updated {
+                return Err(Error::biz(400, "认款单已被其他管理员处理"));
+            }
+            // 入账口径与余额/在线支付一致：定金推进预售状态，全款/尾款触发支付成功。
+            if claim.pay_stage == OfflinePaymentClaim::STAGE_DEPOSIT {
+                if let Some(ps) = self
+                    .repos
+                    .payment
+                    .pay
+                    .find_presale_by_order_id(order.order_id)
+                    .await?
+                {
+                    self.repos
+                        .payment
+                        .pay
+                        .settle_presale_deposit(order.order_id, ps.deposit_amount)
+                        .await?;
+                    self.repos
+                        .payment
+                        .pay
+                        .update_presale_deposit_paid(order.order_id, now as i32, Some(now as i32))
+                        .await?;
+                }
+            } else {
+                self.on_payment_success(order.order_id, order.total_amount, None)
+                    .await?;
+                if claim.pay_stage == OfflinePaymentClaim::STAGE_FINAL {
+                    self.repos
+                        .payment
+                        .pay
+                        .update_presale_final_paid(order.order_id, now as i32)
+                        .await?;
+                }
+            }
+            self.repos
+                .trade
+                .offline_payment_claim
+                .mark_paid(claim_id, now)
+                .await?;
+            let _ = self
+                .repos
+                .trade
+                .user_order
+                .insert_order_log(
+                    order.order_id,
+                    &order.order_sn,
+                    order.user_id,
+                    order.shop_id,
+                    &format!("线下认款审核通过，认款单号：{claim_id}，已入账"),
+                    now as i32,
+                )
+                .await;
+            Ok(())
+        } else {
+            let reason = dto.reject_reason.unwrap_or_default().trim().to_string();
+            if reason.is_empty() {
+                return Err(Error::biz(400, "请填写驳回原因"));
+            }
+            let updated = self
+                .repos
+                .trade
+                .offline_payment_claim
+                .audit(claim_id, false, admin_id, &audit_remark, &reason, now)
+                .await?;
+            if !updated {
+                return Err(Error::biz(400, "认款单已被其他管理员处理"));
+            }
+            let _ = self
+                .repos
+                .trade
+                .user_order
+                .insert_order_log(
+                    order.order_id,
+                    &order.order_sn,
+                    order.user_id,
+                    order.shop_id,
+                    &format!("线下认款审核驳回，原因：{reason}"),
+                    now as i32,
+                )
+                .await;
+            Ok(())
+        }
+    }
+
+    async fn offline_claim_stage(&self, order: &Order) -> Result<(i32, Decimal)> {
+        if order.presale_type != Some(2) {
+            return Ok((OfflinePaymentClaim::STAGE_FULL, order.unpaid_amount));
+        }
+        let ps = self
+            .repos
+            .payment
+            .pay
+            .find_presale_by_order_id(order.order_id)
+            .await?
+            .ok_or_else(|| Error::biz(400, "当前订单不可提交线下认款"))?;
+        match ps.presale_status {
+            0 => {
+                let due = ps.deposit_amount - order.balance;
+                if due <= Decimal::ZERO {
+                    return Err(Error::biz(400, "当前订单不可提交线下认款"));
+                }
+                Ok((OfflinePaymentClaim::STAGE_DEPOSIT, due))
+            }
+            1 => Ok((OfflinePaymentClaim::STAGE_FINAL, order.unpaid_amount)),
+            _ => Err(Error::biz(400, "当前订单不可提交线下认款")),
+        }
+    }
+}
+
+/// 线下认款实体 → VO。
+fn to_offline_claim_vo(c: &OfflinePaymentClaim) -> OfflinePaymentClaimVO {
+    OfflinePaymentClaimVO {
+        claim_id: c.claim_id,
+        order_id: c.order_id,
+        order_sn: c.order_sn.clone(),
+        user_id: c.user_id,
+        shop_id: c.shop_id,
+        claimed_amount: c.claimed_amount,
+        pay_stage: c.pay_stage,
+        pay_stage_name: stage_name(c.pay_stage),
+        transfer_time: c.transfer_time,
+        payer_name: c.payer_name.clone(),
+        payer_account: c.payer_account.clone(),
+        bank_serial_no: c.bank_serial_no.clone(),
+        voucher_urls: c
+            .voucher_urls
+            .as_deref()
+            .and_then(|raw| serde_json::from_str(raw).ok())
+            .unwrap_or_default(),
+        remark: c.remark.clone(),
+        status: c.status,
+        status_name: status_name(c.status),
+        review_admin_id: c.review_admin_id,
+        review_time: c.review_time,
+        paid_time: c.paid_time,
+        audit_remark: c.audit_remark.clone(),
+        reject_reason: c.reject_reason.clone(),
+        add_time: c.add_time,
+        update_time: c.update_time,
     }
 }
 

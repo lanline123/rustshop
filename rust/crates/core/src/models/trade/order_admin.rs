@@ -620,6 +620,8 @@ pub struct OrderListQuery {
     pub vendor_id: Option<i32>,
     /// 支付方式（`balance` 表示余额支付；其余按支付日志筛选）
     pub pay_code: Option<String>,
+    /// 支付类型（`order.pay_type_id`，v5.8.61 线下认款列表使用）
+    pub pay_type_id: Option<i32>,
     /// 订单来源，逗号分隔
     pub order_source: Option<String>,
     /// 渠道子来源（微信直播归因）

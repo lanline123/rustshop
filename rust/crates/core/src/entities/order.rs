@@ -741,6 +741,43 @@ impl OrderLog {
 }
 
 
+/// 线下支付认款单（v5.8.61）
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct OfflinePaymentClaim {
+    pub claim_id: i32,
+    pub order_id: i32,
+    pub order_sn: String,
+    pub user_id: i32,
+    pub shop_id: i32,
+    pub claimed_amount: Decimal,
+    pub pay_stage: i32,
+    pub transfer_time: i64,
+    pub payer_name: String,
+    pub payer_account: String,
+    pub bank_serial_no: String,
+    pub voucher_urls: Option<String>,
+    pub remark: String,
+    pub status: i32,
+    pub review_admin_id: i32,
+    pub review_time: i64,
+    pub paid_time: i64,
+    pub audit_remark: String,
+    pub reject_reason: String,
+    pub add_time: i64,
+    pub update_time: i64,
+}
+
+impl OfflinePaymentClaim {
+    pub const TABLE: &'static str = "offline_payment_claim";
+    pub const STATUS_PENDING: i32 = 0;
+    pub const STATUS_APPROVED: i32 = 1;
+    pub const STATUS_REJECTED: i32 = 2;
+    pub const STAGE_FULL: i32 = 0;
+    pub const STAGE_DEPOSIT: i32 = 1;
+    pub const STAGE_FINAL: i32 = 2;
+}
+
 /// 订单预售信息表
 #[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
 #[sqlx(rename_all = "snake_case")]
