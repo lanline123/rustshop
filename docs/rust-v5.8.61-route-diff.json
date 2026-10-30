@@ -1,7 +1,7 @@
 {
   "java_count": 1743,
-  "rust_count": 2058,
-  "missing_count": 53,
+  "rust_count": 2075,
+  "missing_count": 36,
   "missing": [
     {
       "method": "GET",
@@ -33,22 +33,6 @@
     },
     {
       "method": "GET",
-      "path": "/merchant/shopGroup/detail"
-    },
-    {
-      "method": "GET",
-      "path": "/merchant/shopGroup/list"
-    },
-    {
-      "method": "GET",
-      "path": "/merchant/shopGroup/selectList"
-    },
-    {
-      "method": "GET",
-      "path": "/merchant/shopGroup/shopList"
-    },
-    {
-      "method": "GET",
       "path": "/order/pay/notify/stripe"
     },
     {
@@ -74,26 +58,6 @@
     {
       "method": "GET",
       "path": "/setting/config/xenditSettings"
-    },
-    {
-      "method": "GET",
-      "path": "/shop/shop/groupDetail"
-    },
-    {
-      "method": "GET",
-      "path": "/shop/tip/detail"
-    },
-    {
-      "method": "GET",
-      "path": "/shop/tip/list"
-    },
-    {
-      "method": "GET",
-      "path": "/shop/tip/selectAllTip"
-    },
-    {
-      "method": "GET",
-      "path": "/shop/tip/tipConfig"
     },
     {
       "method": "GET",
@@ -141,18 +105,6 @@
     },
     {
       "method": "POST",
-      "path": "/merchant/shopGroup/create"
-    },
-    {
-      "method": "POST",
-      "path": "/merchant/shopGroup/del"
-    },
-    {
-      "method": "POST",
-      "path": "/merchant/shopGroup/update"
-    },
-    {
-      "method": "POST",
       "path": "/promotion/giftCards/create"
     },
     {
@@ -178,26 +130,6 @@
     {
       "method": "POST",
       "path": "/setting/config/saveXendit"
-    },
-    {
-      "method": "POST",
-      "path": "/shop/tip/batch"
-    },
-    {
-      "method": "POST",
-      "path": "/shop/tip/create"
-    },
-    {
-      "method": "POST",
-      "path": "/shop/tip/del"
-    },
-    {
-      "method": "POST",
-      "path": "/shop/tip/update"
-    },
-    {
-      "method": "POST",
-      "path": "/shop/tip/updateField"
     },
     {
       "method": "POST",

@@ -223,7 +223,7 @@ fn db(e: sqlx::Error) -> AppError {
     AppError(Error::Database(e.to_string()))
 }
 
-fn row_to_json(row: &MySqlRow) -> Value {
+pub(crate) fn row_to_json(row: &MySqlRow) -> Value {
     let mut map = Map::new();
     for (idx, col) in row.columns().iter().enumerate() {
         let name = col.name();

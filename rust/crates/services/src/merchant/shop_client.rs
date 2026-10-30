@@ -306,6 +306,35 @@ impl ShopClientService {
     /// 对应 Java `DecorateDiscreteServiceImpl#getShopHead`：
     /// 取 `decorate_discrete` 中 `shop_id = ? AND decorate_sn = 'shopHead'`，
     /// 命中则回吐原样 JSON，未命中返回空 VO（而不是 404）。
+    /// `GET /api/shop/shop/groupDetail`：装修选择分组详情（公开字段）。
+    pub async fn group_detail(&self, group_id: i32, shop_type: i32) -> Result<serde_json::Value> {
+        use sqlx::Row;
+        let group = sqlx::query(
+            "SELECT group_id, group_name, shop_type FROM shop_group WHERE group_id=? AND shop_type=? LIMIT 1",
+        )
+        .bind(group_id)
+        .bind(shop_type)
+        .fetch_optional(&self.repos.pool)
+        .await
+        .map_err(|e| Error::Database(e.to_string()))?;
+        let Some(group) = group else {
+            return Ok(serde_json::Value::Null);
+        };
+        let ids: Vec<(i32,)> = sqlx::query_as(
+            "SELECT shop_id FROM shop_group_relation WHERE group_id=? ORDER BY shop_id",
+        )
+        .bind(group_id)
+        .fetch_all(&self.repos.pool)
+        .await
+        .map_err(|e| Error::Database(e.to_string()))?;
+        Ok(serde_json::json!({
+            "groupId": group.try_get::<i32, _>("group_id").unwrap_or(group_id),
+            "groupName": group.try_get::<String, _>("group_name").unwrap_or_default(),
+            "shopType": group.try_get::<i32, _>("shop_type").unwrap_or(shop_type),
+            "shopIds": ids.into_iter().map(|(id,)| id).collect::<Vec<_>>()
+        }))
+    }
+
     pub async fn shop_head(&self, q: &ShopIdQuery) -> Result<DecorateDiscreteVO> {
         Ok(
             match self
