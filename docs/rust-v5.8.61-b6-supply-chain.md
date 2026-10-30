@@ -269,3 +269,11 @@ supplierProduct/list 能查到新绑定
 ```
 
 验证后测试数据已清理。
+
+## 2026-10-31 补充 6：详情与导出
+
+```text
+purchaseReceipt/detail   返回 items 明细
+purchaseReconciliation/detail 返回 sources + items + 来源确认时间
+purchaseReconciliation/export 返回对账单记录（最多 5000）
+```

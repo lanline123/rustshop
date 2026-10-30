@@ -603,7 +603,19 @@ fn rand_suffix() -> u32 {
 
 // ————————————————— receipt / reconciliation / return —————————————————
 async fn receipt_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> { ok(list_table(&state, "purchase_receipt", &q, false).await?) }
-async fn receipt_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> { ok(detail_table(&state, "purchase_receipt", q.id.unwrap_or(0)).await?) }
+async fn receipt_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let id = q.id.unwrap_or(0);
+    let mut receipt = detail_table(&state, "purchase_receipt", id).await?;
+    let rows = sqlx::query("SELECT * FROM purchase_receipt_item WHERE receipt_id=? AND is_del=0 ORDER BY id")
+        .bind(id)
+        .fetch_all(&state.repos.pool)
+        .await
+        .map_err(db)?;
+    if let Some(obj) = receipt.as_object_mut() {
+        obj.insert("items".into(), Value::Array(rows.iter().map(row_to_json).collect()));
+    }
+    ok(receipt)
+}
 async fn receipt_save(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<i64> {
     use std::str::FromStr;
     let mut order_id = body.get("orderId").and_then(Value::as_i64).unwrap_or(0);
@@ -727,9 +739,37 @@ async fn receipt_save(State(state): State<AdminState>, Json(body): Json<Value>) 
 }
 
 async fn reconciliation_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> { ok(list_table(&state, "purchase_reconciliation", &q, false).await?) }
-async fn reconciliation_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> { ok(detail_table(&state, "purchase_reconciliation", q.id.unwrap_or(0)).await?) }
+async fn reconciliation_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let id = q.id.unwrap_or(0);
+    let mut rec = detail_table(&state, "purchase_reconciliation", id).await?;
+    let sources = sqlx::query(
+        "SELECT s.*, CASE WHEN s.source_type=1 THEN (SELECT r.confirm_time FROM purchase_receipt r WHERE r.id=s.source_id LIMIT 1) ELSE (SELECT pr.confirm_time FROM purchase_return pr WHERE pr.id=s.source_id LIMIT 1) END AS confirm_time FROM purchase_reconciliation_source s WHERE s.reconciliation_id=? AND s.is_del=0 ORDER BY s.id",
+    )
+    .bind(id)
+    .fetch_all(&state.repos.pool).await.map_err(db)?;
+    let items = sqlx::query("SELECT * FROM purchase_reconciliation_item WHERE reconciliation_id=? AND is_del=0 ORDER BY id")
+        .bind(id)
+        .fetch_all(&state.repos.pool).await.map_err(db)?;
+    if let Some(obj) = rec.as_object_mut() {
+        obj.insert("sources".into(), Value::Array(sources.iter().map(row_to_json).collect()));
+        obj.insert("items".into(), Value::Array(items.iter().map(row_to_json).collect()));
+    }
+    ok(rec)
+}
 async fn reconciliation_candidates(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> { ok(list_table(&state, "purchase_receipt", &q, false).await?) }
-async fn reconciliation_export() -> ApiResult<Value> { ok(json!([])) }
+async fn reconciliation_export(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let mut qb: QueryBuilder<'_, MySql> =
+        QueryBuilder::new("SELECT * FROM purchase_reconciliation WHERE is_del=0");
+    if let Some(shop_id) = q.shop_id {
+        qb.push(" AND shop_id=").push_bind(shop_id);
+    }
+    if let Some(status) = q.status {
+        qb.push(" AND status=").push_bind(status);
+    }
+    qb.push(" ORDER BY id DESC LIMIT 5000");
+    let rows = qb.build().fetch_all(&state.repos.pool).await.map_err(db)?;
+    ok(json!(rows.iter().map(row_to_json).collect::<Vec<_>>()))
+}
 async fn reconciliation_create(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<i64> {
     save_reconciliation(&state, body, false).await
 }
