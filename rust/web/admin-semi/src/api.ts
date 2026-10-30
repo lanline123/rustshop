@@ -80,7 +80,9 @@ export function enterDemo() {
 }
 
 export async function apiGet<T>(path: string, params?: Record<string, unknown>): Promise<T> {
-  const query = new URLSearchParams();
+  // 如果 path 已含 ?xxx=yyy,先拆出已有的查询参数并与 params 合并
+  const [basePath, existingQs] = path.split('?');
+  const query = new URLSearchParams(existingQs || '');
   Object.entries(params || {}).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
       if (Array.isArray(value)) {
@@ -93,7 +95,7 @@ export async function apiGet<T>(path: string, params?: Record<string, unknown>):
     }
   });
   const suffix = query.toString() ? `?${query.toString()}` : '';
-  const res = await fetch(`${API_BASE}${path}${suffix}`, {
+  const res = await fetch(`${API_BASE}${basePath}${suffix}`, {
     headers: {
       Authorization: `Bearer ${getToken()}`,
       ...getContextHeaders(),
@@ -131,6 +133,45 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
     throw new Error(json.msg || '请求失败');
   }
   return json.data as T;
+}
+
+/** GET 下载（导出 Excel 等 arraybuffer 接口），filename 不含扩展名时后端 Content-Type 决定。 */
+export async function apiDownload(path: string, params?: Record<string, unknown>, filename?: string) {
+  const [basePath, existingQs] = path.split('?');
+  const query = new URLSearchParams(existingQs || '');
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') query.set(key, String(value));
+  });
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  const res = await fetch(`${API_BASE}${basePath}${suffix}`, {
+    headers: {
+      Authorization: `Bearer ${getToken()}`,
+      ...getContextHeaders(),
+    },
+  });
+  if (res.status === 401) {
+    clearToken();
+    window.location.reload();
+    throw new Error('登录已过期，请重新登录');
+  }
+  if (!res.ok) throw new Error('导出失败');
+  const disposition = res.headers.get('Content-Disposition') || '';
+  const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/);
+  const plainMatch = disposition.match(/filename="?([^";]+)"?/);
+  const serverName = utf8Match
+    ? decodeURIComponent(utf8Match[1])
+    : plainMatch
+      ? plainMatch[1]
+      : '';
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename || serverName || '导出文件';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 export async function apiUpload<T>(

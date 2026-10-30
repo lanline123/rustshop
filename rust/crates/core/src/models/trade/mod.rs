@@ -7,6 +7,7 @@ pub mod check;
 pub mod order;
 pub mod order_admin;
 pub mod order_invoice_client;
+pub mod offline_claim;
 pub mod order_log;
 pub mod proxy_shopping_cart;
 pub mod proxy_shopping_delivery;

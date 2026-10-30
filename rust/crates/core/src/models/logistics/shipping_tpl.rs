@@ -966,8 +966,66 @@ pub fn validate_save(dto: &ShippingTplSaveDTO) -> Result<ValidatedSave, String> 
     let pricing_type = dto
         .pricing_type
         .ok_or_else(|| MSG_PRICING_TYPE_NOT_NULL.to_string())?;
+    if !(1..=3).contains(&pricing_type) {
+        return Err("计价方式只能为按件数、按重量或按体积".to_string());
+    }
+    // v5.8.61 体积计费：首/续体积、首/续费、满免金额的精度与范围。
+    if pricing_type == 3 && is_free != 1 {
+        let types = dto.shipping_tpl_info.as_deref().unwrap_or_default();
+        if types.is_empty() {
+            return Err(MSG_SHIPPING_TYPE_NOT_NULL.to_string());
+        }
+        for item in types.iter().filter(|t| t.is_checked_yes()) {
+            let default_rule = item
+                .default_tpl_info
+                .as_ref()
+                .ok_or_else(|| "请填写体积运费规则".to_string())?;
+            validate_volume_rule(default_rule)?;
+            for area in item.area_tpl_info.as_deref().unwrap_or_default() {
+                validate_volume_rule(area)?;
+            }
+        }
+    }
 
     Ok(ValidatedSave { name, shipping_time, is_default, is_free, pricing_type })
+}
+
+/// v5.8.61 体积计费规则校验（对齐 Java `validateVolumeRule`）。
+fn validate_volume_rule(rule: &ShippingTplInfoParam) -> Result<(), String> {
+    validate_volume_value(rule.start_number, true, 5, 7, "首体积")?;
+    validate_volume_value(rule.add_number, true, 5, 7, "续体积")?;
+    validate_volume_value(rule.start_price, false, 2, 8, "首费")?;
+    validate_volume_value(rule.add_price, false, 2, 8, "续费")?;
+    validate_volume_value(rule.free_price, false, 2, 6, "满免金额")?;
+    Ok(())
+}
+
+fn validate_volume_value(
+    value: Option<Decimal>,
+    must_be_positive: bool,
+    scale: u32,
+    integer_digits: u32,
+    label: &str,
+) -> Result<(), String> {
+    let Some(value) = value else {
+        return Err(format!(
+            "{label}须为{}，最多{integer_digits}位整数、{scale}位小数",
+            if must_be_positive { "正数" } else { "非负数" }
+        ));
+    };
+    let lower_ok = if must_be_positive {
+        value > Decimal::ZERO
+    } else {
+        value >= Decimal::ZERO
+    };
+    let upper = Decimal::from(10_i64.pow(integer_digits));
+    if !lower_ok || value.normalize().scale() > scale || value >= upper {
+        return Err(format!(
+            "{label}须为{}，最多{integer_digits}位整数、{scale}位小数",
+            if must_be_positive { "正数" } else { "非负数" }
+        ));
+    }
+    Ok(())
 }
 
 /// [`validate_save`] 的产物（已 trim / 已确认非空）。

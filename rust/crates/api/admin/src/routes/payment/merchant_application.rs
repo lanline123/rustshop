@@ -100,6 +100,16 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new()
         .route("/finance/merchantApplication/list", get(list))
+        .route("/finance/merchantApplication/localMedia", get(empty_list))
+        .route("/finance/merchantApplication/wechatBanks", get(empty_list))
+        .route("/finance/merchantApplication/wechatBankBranches", get(empty_list))
+        .route("/finance/merchantApplication/wechatBankCities", get(empty_list))
+        .route("/finance/merchantApplication/wechatBankNames", get(empty_list))
+        .route("/finance/merchantApplication/wechatBankProvinces", get(empty_list))
+        .route("/finance/merchantApplication/abandon", post(abandon))
+        .route("/finance/merchantApplication/delete", post(delete_application))
+        .route("/finance/merchantApplication/reapply", post(reapply))
+        .route("/finance/merchantApplication/retry", post(retry))
         .route("/finance/merchantApplication/submit", post(submit))
         .route("/finance/merchantApplication/detail", get(detail))
         .route("/finance/merchantApplication/media", get(media))
@@ -153,6 +163,55 @@ fn viewer(auth: &AuthUser) -> MerchantApplicationViewer {
         platform_admin: auth.is_platform(),
         shop_id: auth.scoped_shop_id(),
     }
+}
+
+async fn empty_list() -> ApiResult<serde_json::Value> {
+    ok(serde_json::json!([]))
+}
+
+async fn abandon(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<serde_json::Value>,
+) -> ApiResult<()> {
+    let id = body.get("id").and_then(serde_json::Value::as_i64).unwrap_or(0);
+    let reason = body.get("reason").and_then(serde_json::Value::as_str).unwrap_or("");
+    sqlx::query("UPDATE merchant_application SET abandoned=1, abandon_reason=?, abandon_admin_id=?, abandon_time=NOW(), status='ABANDONED' WHERE id=? AND is_del=0")
+        .bind(reason).bind(auth.id).bind(id)
+        .execute(&state.repos.pool).await.map_err(|e| tigshop_security::web::AppError(Error::Database(e.to_string())))?;
+    ok(())
+}
+
+async fn delete_application(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<serde_json::Value>,
+) -> ApiResult<()> {
+    let id = body.get("id").and_then(serde_json::Value::as_i64).unwrap_or(0);
+    sqlx::query("UPDATE merchant_application SET is_del=1, delete_admin_id=?, delete_time=NOW() WHERE id=?")
+        .bind(auth.id).bind(id)
+        .execute(&state.repos.pool).await.map_err(|e| tigshop_security::web::AppError(Error::Database(e.to_string())))?;
+    ok(())
+}
+
+async fn reapply(
+    State(state): State<AdminState>,
+    Json(body): Json<serde_json::Value>,
+) -> ApiResult<()> {
+    let id = body.get("id").and_then(serde_json::Value::as_i64).unwrap_or(0);
+    sqlx::query("UPDATE merchant_application SET status='DRAFT', abandoned=0, submission_attempted=0, reject_reason='' WHERE id=? AND is_del=0")
+        .bind(id).execute(&state.repos.pool).await.map_err(|e| tigshop_security::web::AppError(Error::Database(e.to_string())))?;
+    ok(())
+}
+
+async fn retry(
+    State(state): State<AdminState>,
+    Json(body): Json<serde_json::Value>,
+) -> ApiResult<()> {
+    let id = body.get("id").and_then(serde_json::Value::as_i64).unwrap_or(0);
+    sqlx::query("UPDATE merchant_application SET status='DRAFT', submission_attempted=0 WHERE id=? AND is_del=0")
+        .bind(id).execute(&state.repos.pool).await.map_err(|e| tigshop_security::web::AppError(Error::Database(e.to_string())))?;
+    ok(())
 }
 
 async fn list(

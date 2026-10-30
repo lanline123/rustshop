@@ -45,6 +45,11 @@ function money(value: number) {
 export default function Dashboard({ onNavigate }: { onNavigate: (page: PageKey) => void }) {
   const [data, setData] = useState<DashboardData | null>(isDemo() ? mockDashboard : null);
   const [orders, setOrders] = useState<OrderRow[]>(isDemo() ? mockOrders : []);
+  const [trendData, setTrendData] = useState<{ labels: string[]; orderAmount: number[]; orderNum: number[]; access: number[] } | null>(null);
+  const [accessDays, setAccessDays] = useState(7);
+  const [trendDays, setTrendDays] = useState(7);
+  const [salesTrend, setSalesTrend] = useState<{ labels: string[]; orderAmount: number[] } | null>(null);
+  const [accessTrend, setAccessTrend] = useState<{ labels: string[]; access: number[] } | null>(null);
   const [loading, setLoading] = useState(!isDemo());
 
   useEffect(() => {
@@ -70,6 +75,48 @@ export default function Dashboard({ onNavigate }: { onNavigate: (page: PageKey) 
       alive = false;
     };
   }, []);
+
+  // 成交趋势(独立按天数加载)
+  useEffect(() => {
+    if (isDemo()) return;
+    let alive = true;
+    apiGet<{
+      horizontalAxis: string[];
+      longitudinalAxisOrderAmount: number[];
+    }>('/panel/panel/statisticalData', { days: trendDays })
+      .then((result) => {
+        if (!alive) return;
+        if (result?.horizontalAxis?.length) {
+          setSalesTrend({
+            labels: result.horizontalAxis,
+            orderAmount: result.longitudinalAxisOrderAmount,
+          });
+        }
+      })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, [trendDays]);
+
+  // 访问趋势(独立按天数加载)
+  useEffect(() => {
+    if (isDemo()) return;
+    let alive = true;
+    apiGet<{
+      horizontalAxis: string[];
+      longitudinalAxisAccess: number[];
+    }>('/panel/panel/statisticalData', { days: accessDays })
+      .then((result) => {
+        if (!alive) return;
+        if (result?.horizontalAxis?.length) {
+          setAccessTrend({
+            labels: result.horizontalAxis,
+            access: result.longitudinalAxisAccess,
+          });
+        }
+      })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, [accessDays]);
 
   const stats = [
     {
@@ -139,11 +186,25 @@ export default function Dashboard({ onNavigate }: { onNavigate: (page: PageKey) 
           <Col span={16}>
             <Card
               title="成交趋势"
-              headerExtraContent={<Text type="tertiary" size="small">近 7 日 · 示意数据</Text>}
+              headerExtraContent={
+                <Space>
+                  {[7, 15, 30].map((d) => (
+                    <Button
+                      key={d}
+                      size="small"
+                      theme={trendDays === d ? 'solid' : 'borderless'}
+                      type={trendDays === d ? 'primary' : 'tertiary'}
+                      onClick={() => setTrendDays(d)}
+                    >
+                      {d}天
+                    </Button>
+                  ))}
+                </Space>
+              }
               shadows="hover"
               className="chart-card"
             >
-              <TrendChart height={276} />
+              <TrendChart height={276} labels={salesTrend?.labels || []} data={salesTrend?.orderAmount || []} />
             </Card>
           </Col>
 
@@ -177,6 +238,40 @@ export default function Dashboard({ onNavigate }: { onNavigate: (page: PageKey) 
                   <Tag color={(item.value > 0 ? 'orange' : 'grey') as any}>{item.value}</Tag>
                 </button>
               ))}
+            </Card>
+          </Col>
+        </Row>
+
+        {/* 访问趋势 */}
+        <Row gutter={16} style={{ width: '100%' }}>
+          <Col span={24}>
+            <Card
+              title="访问趋势"
+              headerExtraContent={
+                <Space>
+                  {[7, 15, 30].map((d) => (
+                    <Button
+                      key={d}
+                      size="small"
+                      theme={accessDays === d ? 'solid' : 'borderless'}
+                      type={accessDays === d ? 'primary' : 'tertiary'}
+                      onClick={() => setAccessDays(d)}
+                    >
+                      {d}天
+                    </Button>
+                  ))}
+                </Space>
+              }
+              shadows="hover"
+              className="chart-card"
+            >
+              <TrendChart
+                height={260}
+                labels={accessTrend?.labels || []}
+                data={accessTrend?.access || []}
+                name="访问量"
+                yAxisPrefix=""
+              />
             </Card>
           </Col>
         </Row>

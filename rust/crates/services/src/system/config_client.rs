@@ -539,6 +539,17 @@ pub fn assemble_init_config_settings(configs: &ConfigIndex) -> InitConfigSetting
     // 本片只填入**已确证**的部分（其余留空并在 uncertain_points 说明）。
     vo.shop_icp_no = get_str(configs, BIZ_SHOP_ICP_NO);
     vo.company_address = get_str(configs, "companyAddress");
+    // 版权/备案/经营许可证：后台「基础设置」可配置，原 Java VO 直接反射装配。
+    vo.shop_company = get_int(configs, "shopCompany");
+    vo.shop_company_txt = get_str(configs, "shopCompanyTxt");
+    vo.shop110_no = get_str(configs, "shop110No");
+    vo.shop110_link = get_str(configs, "shop110Link");
+    vo.business_license_enabled = get_int(configs, "businessLicenseEnabled");
+    vo.business_license = get_str(configs, "businessLicense");
+    vo.edi_license = get_str(configs, "ediLicense");
+    vo.business_license_type = get_str(configs, "businessLicenseType")
+        .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok());
+    vo.kefu_address = get_str(configs, "kefuAddress");
     vo.default_shop_name = get_str(configs, "defaultShopName");
     vo.kefu_phone = get_str(configs, "kefuPhone");
     vo.kefu_time = get_str(configs, "kefuTime");

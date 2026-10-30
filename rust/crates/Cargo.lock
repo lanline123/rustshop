@@ -4100,10 +4100,16 @@ dependencies = [
  "anyhow",
  "axum",
  "axum-extra",
+ "base64 0.22.1",
+ "chrono",
+ "hmac",
+ "reqwest",
  "rust_decimal",
  "serde",
  "serde_json",
  "serde_urlencoded",
+ "sha1",
+ "sqlx",
  "tigshop-common",
  "tigshop-core",
  "tigshop-infrastructure",
@@ -4114,6 +4120,8 @@ dependencies = [
  "tower",
  "tower-http",
  "tracing",
+ "uuid",
+ "zip",
 ]
 
 [[package]]

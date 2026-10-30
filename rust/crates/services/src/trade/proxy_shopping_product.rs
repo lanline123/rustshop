@@ -643,6 +643,8 @@ fn to_availability_sku_vo(s: &tigshop_core::entities::ProductSku) -> ProductSkuV
         sku_sn: s.sku_sn.clone(),
         sku_stock: s.sku_stock.unwrap_or(0),
         sku_tsn: s.sku_tsn.clone(),
+        sku_weight: s.sku_weight,
+        sku_volume: s.sku_volume,
         sku_price: s.sku_price,
         is_enabled: s.is_enabled,
         market_price: s.market_price,

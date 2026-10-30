@@ -7,6 +7,7 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::Value;
+use tigshop_core::models::catalog::product_sale::ProductSaleState;
 use tigshop_core::Error;
 use tigshop_security::web::{ok, ApiResult};
 
@@ -305,6 +306,51 @@ async fn h_37(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult
     ok(serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "total": total, "page": p, "size": s}))
 }
 
+// get /vendor/product/platform/saleStatus
+async fn h_vendor_sale_status(
+    State(state): State<AdminState>,
+    Query(q): Query<Pg>,
+) -> ApiResult<ProductSaleState> {
+    let vendor_product_id = q
+        .id
+        .or(q.product_id)
+        .ok_or_else(|| Error::biz(400, "供应商商品不存在".to_string()))? as i32;
+    ok(state
+        .repos
+        .catalog
+        .product_sale
+        .vendor_setting(vendor_product_id)
+        .await?)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct VendorSaleParam {
+    vendor_product_id: i32,
+    sale_status: i32,
+    sale_ban_time: Option<i64>,
+    sale_recover_time: Option<i64>,
+}
+
+// post /vendor/product/platform/saleStatus
+async fn h_vendor_sale_save(
+    State(state): State<AdminState>,
+    Json(q): Json<VendorSaleParam>,
+) -> ApiResult<()> {
+    state
+        .repos
+        .catalog
+        .product_sale
+        .save_vendor(
+            q.vendor_product_id,
+            q.sale_status,
+            q.sale_ban_time,
+            q.sale_recover_time,
+        )
+        .await?;
+    ok(())
+}
+
 // post /vendor/product/recycle
 async fn h_38(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<()> {
     sqlx::query("UPDATE vendor_product SET is_recycle = 1 WHERE id = ?").bind(q.id.unwrap_or(0)).execute(&pool(&state)).await.map_err(db)?;
@@ -476,23 +522,43 @@ async fn h_vendor_product_detail(State(state): State<AdminState>, Query(q): Quer
     ok(row.map(|(v,)| v).unwrap_or(Value::Null))
 }
 
+async fn h_vendor_update(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let id = body.get("vendorId").or_else(|| body.get("id")).and_then(Value::as_i64).unwrap_or(0);
+    sqlx::query("UPDATE vendor SET vendor_name=COALESCE(NULLIF(?,''),vendor_name), contact_mobile=COALESCE(NULLIF(?,''),contact_mobile), status=COALESCE(?,status) WHERE vendor_id=?")
+        .bind(body.get("vendorName").and_then(Value::as_str).unwrap_or(""))
+        .bind(body.get("contactMobile").and_then(Value::as_str).unwrap_or(""))
+        .bind(body.get("status").and_then(Value::as_i64).map(|v| v as i32))
+        .bind(id).execute(&pool(&state)).await.map_err(db)?;
+    ok(())
+}
+
+async fn h_vendor_product_update(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    sqlx::query("UPDATE vendor_product SET product_name=COALESCE(NULLIF(?,''),product_name), product_state=COALESCE(?,product_state), product_brief=COALESCE(NULLIF(?,''),product_brief) WHERE id=?")
+        .bind(body.get("productName").and_then(Value::as_str).unwrap_or(""))
+        .bind(body.get("productState").and_then(Value::as_i64).map(|v| v as i32))
+        .bind(body.get("productBrief").and_then(Value::as_str).unwrap_or(""))
+        .bind(id).execute(&pool(&state)).await.map_err(db)?;
+    ok(())
+}
+
 /// 域路由（挂载于 /adminapi 下）。
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new()
-        .route("/vendor/vendorWithdraw/list", post(h_0))
+        .route("/vendor/vendorWithdraw/list", get(h_0).post(h_0))
         .route("/vendor/vendorWithdraw/detail", get(h_1))
         .route("/vendor/vendorWithdraw/create", post(h_2))
         .route("/vendor/vendorWithdraw/audit", post(h_3))
         .route("/vendor/vendorWithdraw/config", get(h_4))
         .route("/vendor/vendorWithdraw/summaryList", get(h_5))
         .route("/vendor/vendorWithdraw/uploadPayVoucher", post(h_6))
-        .route("/vendor/vendorShopBind/list", post(h_7))
+        .route("/vendor/vendorShopBind/list", get(h_7).post(h_7))
         .route("/vendor/vendorShopBind/merchantList", get(h_8))
         .route("/vendor/vendorShopBind/orderList", get(h_9))
         .route("/vendor/vendorShopBind/productList", get(h_10))
         .route("/vendor/vendorShopBind/shopList", get(h_11))
-        .route("/vendor/adminVendorUser/list", post(h_12))
+        .route("/vendor/adminVendorUser/list", get(h_12).post(h_12))
         .route("/vendor/adminVendorUser/create", post(h_vendor_user_create))
         .route("/vendor/adminVendorUser/update", post(h_vendor_user_update))
         .route("/vendor/adminVendorUser/modifyUser", post(h_vendor_user_update))
@@ -519,6 +585,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/vendor/vendor/staffShow", get(h_25))
         .route("/vendor/vendor/updateField", post(h_26))
         .route("/vendor/vendor/updateInfo", post(h_27))
+        .route("/vendor/vendor/update", post(h_vendor_update))
         .route("/vendor/product/auditAgain", post(h_28))
         .route("/vendor/product/batch", post(h_29))
         .route("/vendor/product/changeState", post(h_30))
@@ -528,10 +595,15 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/vendor/product/getParticiple", get(h_34))
         .route("/vendor/product/platform/audit", post(h_35))
         .route("/vendor/product/platform/getWaitingCheckedVendorCount", get(h_36))
-        .route("/vendor/product/platform/pageList", post(h_37))
+        .route("/vendor/product/platform/pageList", get(h_37).post(h_37))
+        .route(
+            "/vendor/product/platform/saleStatus",
+            get(h_vendor_sale_status).post(h_vendor_sale_save),
+        )
         .route("/vendor/product/recycle", post(h_38))
         .route("/vendor/product/shippingTplList", get(h_39))
         .route("/vendor/product/updateField", post(h_40))
+        .route("/vendor/product/update", post(h_vendor_product_update))
         .route("/vendor/productInventoryLog/list", get(h_41))
         .route("/vendor/stock/adjustDetail", get(h_42))
         .route("/vendor/stock/getRecordDetail", get(h_43))
@@ -540,7 +612,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/vendor/stock/stockDetail", get(h_46))
         .route("/vendor/stock/getAddByList", get(h_47))
         .route("/vendor/stock/downloadTemplate", get(h_48))
-        .route("/vendor/stock/getImportErrorData", get(h_49))
+        .route("/vendor/stock/getImportErrorData", get(h_49).post(h_49))
         .route("/vendor/stock/batchImport", post(h_50))
         .route("/vendor/stock/stockIn", post(h_51))
         .route("/vendor/stock/stockOut", post(h_52))

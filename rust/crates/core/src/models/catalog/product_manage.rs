@@ -291,6 +291,10 @@ pub struct ProductSkuVO {
     pub sku_sn: Option<String>,
     pub sku_stock: i32,
     pub sku_tsn: Option<String>,
+    /// 单件规格重量 kg（v5.8.61）
+    pub sku_weight: Option<Decimal>,
+    /// 单件规格体积 m³（v5.8.61）
+    pub sku_volume: Option<Decimal>,
     /// 货品价格（Java DTO 为 String，这里按十进制下发避免精度丢失）
     pub sku_price: Option<Decimal>,
     /// 是否启用：0 禁用 1 启用
@@ -320,6 +324,10 @@ pub struct ProductSkuSaveDTO {
     pub sku_sn: Option<String>,
     pub sku_stock: Option<i32>,
     pub sku_tsn: Option<String>,
+    /// 单件规格重量，单位 kg；NULL 沿用商品重量（v5.8.61）
+    pub sku_weight: Option<Decimal>,
+    /// 单件规格体积，单位 m³；NULL 沿用商品体积（v5.8.61）
+    pub sku_volume: Option<Decimal>,
     /// Java 侧为 String，前端可能传 `"12.00"`
     pub sku_price: Option<Decimal>,
     pub is_enabled: Option<i32>,
@@ -463,6 +471,16 @@ pub struct ProductListItemVO {
     pub product_sn: String,
     pub product_price: Decimal,
     pub product_status: i32,
+    /// v5.8.61 最终可售状态：1 可售，0 禁售。
+    pub sale_status: i32,
+    /// 当前作用域手动设置：1 可售，0 禁售。
+    pub manual_sale_status: i32,
+    /// 定时禁售 Unix 秒，0 未启用。
+    pub sale_ban_time: i64,
+    /// 定时恢复 Unix 秒，0 未启用。
+    pub sale_recover_time: i64,
+    /// 禁售原因。
+    pub sale_reason: Option<String>,
     pub is_best: i32,
     pub is_new: i32,
     pub is_hot: i32,
@@ -555,6 +573,8 @@ pub struct AdminProductDetailVO {
     pub check_reason: String,
     pub click_count: i32,
     pub product_weight: Decimal,
+    /// 单件商品体积 m³（v5.8.61）
+    pub product_volume: Option<Decimal>,
     pub is_promote: i32,
     pub is_promote_activity: i32,
     pub promote_price: Decimal,
@@ -685,6 +705,8 @@ pub struct ProductSaveDTO {
     pub rank_integral: Option<i32>,
     pub integral: Option<i32>,
     pub product_weight: Option<Decimal>,
+    /// 单件商品体积，单位 m³（v5.8.61）
+    pub product_volume: Option<Decimal>,
     /// 商品描述片段（Java `productDescArr`，服务端拼成 `product_desc` HTML）
     pub product_desc_arr: Option<Vec<ProductDescVO>>,
     pub product_related: Option<Vec<i32>>,
@@ -953,6 +975,8 @@ pub struct ClientProductInfoVO {
     pub virtual_sales: i32,
     pub limit_number: i32,
     pub product_weight: Decimal,
+    /// 单件商品体积 m³（v5.8.61）
+    pub product_volume: Option<Decimal>,
     pub product_unit: Option<String>,
     pub product_care: Option<String>,
     pub product_service_ids: Vec<i32>,

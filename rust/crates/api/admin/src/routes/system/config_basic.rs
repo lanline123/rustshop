@@ -51,7 +51,7 @@ use crate::support::tenant::{platform_only};
 use crate::AdminState;
 
 /// 全部 102 条契约路由（挂载路径 + 原 Java 方法名，顺序 = Java 方法声明顺序）。
-const ROUTE_TABLE: [(&str, &str, &str); 102] = [
+const ROUTE_TABLE: [(&str, &str, &str); 108] = [
     ("GET", "/setting/config/basicSettings", "ConfigController.getBasicSettings"),
     ("POST", "/setting/config/saveBasic", "ConfigController.saveBasic"),
     ("GET", "/setting/config/productSettings", "ConfigController.getProductSettings"),
@@ -154,6 +154,12 @@ const ROUTE_TABLE: [(&str, &str, &str); 102] = [
     ("GET", "/setting/config/getWXWorkConfig", "ConfigController.getWXWorkConfig"),
     ("GET", "/setting/config/getCashierOrderSettings", "ConfigController.getCashierOrderSettings"),
     ("POST", "/setting/config/saveCashierOrderSettings", "ConfigController.saveCashierOrderSettings"),
+    ("GET", "/setting/config/stripeSettings", "ConfigController.getStripeSettings"),
+    ("POST", "/setting/config/saveStripe", "ConfigController.saveStripeSettings"),
+    ("GET", "/setting/config/xenditSettings", "ConfigController.getXenditSettings"),
+    ("POST", "/setting/config/saveXendit", "ConfigController.saveXenditSettings"),
+    ("GET", "/setting/config/antomSettings", "ConfigController.getAntomSettings"),
+    ("POST", "/setting/config/saveAntom", "ConfigController.saveAntomSettings"),
 ];
 
 /// 查询参数（`getBase?code=` / `getLoginProtocolContent?code=` / `sendTestEmail?testMailAddress=`）。
@@ -375,7 +381,7 @@ mod tests {
     /// 契约逐条守卫：路径/方法/Java 方法名必须与 `rust/docs/_config_basic-specs.json` 完全一致。
     #[test]
     fn implemented_routes_match_all_102_java_paths() {
-        let expected: [(&str, &str); 102] = [
+        let expected: [(&str, &str); 108] = [
             ("GET", "/adminapi/setting/config/basicSettings"),
             ("POST", "/adminapi/setting/config/saveBasic"),
             ("GET", "/adminapi/setting/config/productSettings"),
@@ -478,9 +484,15 @@ mod tests {
             ("GET", "/adminapi/setting/config/getWXWorkConfig"),
             ("GET", "/adminapi/setting/config/getCashierOrderSettings"),
             ("POST", "/adminapi/setting/config/saveCashierOrderSettings"),
+            ("GET", "/adminapi/setting/config/stripeSettings"),
+            ("POST", "/adminapi/setting/config/saveStripe"),
+            ("GET", "/adminapi/setting/config/xenditSettings"),
+            ("POST", "/adminapi/setting/config/saveXendit"),
+            ("GET", "/adminapi/setting/config/antomSettings"),
+            ("POST", "/adminapi/setting/config/saveAntom"),
         ];
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 102, "契约共 102 条");
+        assert_eq!(docs.len(), 108, "契约共 108 条");
         for (doc, (method, path)) in docs.iter().zip(expected.iter()) {
             assert_eq!(doc.method, *method, "方法不匹配: {path}");
             assert_eq!(doc.path, *path, "路径不匹配");
@@ -489,7 +501,7 @@ mod tests {
         let mut keys: Vec<String> = docs.iter().map(|d| d.key()).collect();
         keys.sort();
         keys.dedup();
-        assert_eq!(keys.len(), 102);
+        assert_eq!(keys.len(), 108);
         // 规格表与路由表一一对应
         assert_eq!(endpoints().len(), ROUTE_TABLE.len());
         for (ep, (method, path, java_ref)) in endpoints().iter().zip(ROUTE_TABLE.iter()) {

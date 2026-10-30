@@ -2,6 +2,7 @@ packages:
   - "admin"
   - "pc"
   - "shared"
+  - "pc-semi"
 
 # 说明：本文件是 rust/web 的前端 pnpm workspace 根。
 # - 与 rust/crates（Rust cargo workspace）完全独立，互不影响。
@@ -12,5 +13,6 @@ packages:
 # - esbuild：Vite 的底层打包器，必须编译原生二进制
 # - vue-demi：Vue 2/3 兼容层，postinstall 生成适配文件
 allowBuilds:
+  '@parcel/watcher': true
   esbuild: true
   vue-demi: true

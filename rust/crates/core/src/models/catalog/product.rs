@@ -35,6 +35,8 @@ pub struct ProductListQuery {
     /// Rust 早期实现缺这个字段，serde 直接丢弃 → 查询退化成「全表按时间倒序」，
     /// 于是所有楼层显示同一批商品（2026-10-21 首页楼层商品不符的根因）。
     pub ids: Option<String>,
+    /// 商品分组 ID（装修 pc-product-group 的 productGroup 数据源）。
+    pub product_group_id: Option<i32>,
 }
 
 /// 商品列表 VO（含原 Java `@TableField(exist = false)` 的门店扩展字段）。
@@ -84,5 +86,13 @@ mod tests {
         // 未传 ids 时保持 None（不改变默认语义）
         let q2: ProductListQuery = serde_json::from_str(r#"{"page":1}"#).unwrap();
         assert!(q2.ids.is_none());
+    }
+
+    #[test]
+    fn product_list_query_accepts_product_group_id() {
+        let q: ProductListQuery = serde_json::from_str(r#"{"productGroupId":25}"#).unwrap();
+        assert_eq!(q.product_group_id, Some(25));
+        let q2: ProductListQuery = serde_json::from_str(r#"{"page":1}"#).unwrap();
+        assert!(q2.product_group_id.is_none());
     }
 }

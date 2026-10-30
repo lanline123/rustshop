@@ -470,8 +470,8 @@ impl PosCashierRepository {
 
     pub async fn areas(&self, shop_id: i32) -> Result<Vec<PosTableArea>> {
         sqlx::query_as::<_, PosTableArea>(
-            "SELECT area_id, shop_id, area_name, sort, add_time FROM pos_table_area \
-             WHERE shop_id = ? ORDER BY sort, area_id",
+            "SELECT * FROM pos_table_area \
+             WHERE shop_id = ? AND is_delete = 0 ORDER BY sort_order, area_id",
         )
         .bind(shop_id)
         .fetch_all(&self.pool)
@@ -481,7 +481,7 @@ impl PosCashierRepository {
 
     pub async fn area_find(&self, id: i32) -> Result<Option<PosTableArea>> {
         sqlx::query_as::<_, PosTableArea>(
-            "SELECT area_id, shop_id, area_name, sort, add_time FROM pos_table_area WHERE area_id = ?",
+            "SELECT * FROM pos_table_area WHERE area_id = ?",
         )
         .bind(id)
         .fetch_optional(&self.pool)
@@ -491,11 +491,12 @@ impl PosCashierRepository {
 
     pub async fn area_insert(&self, shop_id: i32, name: &str, sort: i32) -> Result<i32> {
         let r = sqlx::query(
-            "INSERT INTO pos_table_area (shop_id, area_name, sort, add_time) VALUES (?, ?, ?, ?)",
+            "INSERT INTO pos_table_area (shop_id, area_name, sort_order, status, add_time, update_time) VALUES (?, ?, ?, 1, ?, ?)",
         )
         .bind(shop_id)
         .bind(name)
         .bind(sort)
+        .bind(now())
         .bind(now())
         .execute(&self.pool)
         .await
@@ -504,9 +505,11 @@ impl PosCashierRepository {
     }
 
     pub async fn area_update(&self, id: i32, name: &str, sort: i32) -> Result<()> {
-        sqlx::query("UPDATE pos_table_area SET area_name = ?, sort = ? WHERE area_id = ?")
+        sqlx::query("UPDATE pos_table_area SET area_name = ?, sort_order = ?, update_time = ? WHERE area_id = ?")
             .bind(name)
             .bind(sort)
+            .bind(sort)
+            .bind(now())
             .bind(id)
             .execute(&self.pool)
             .await
@@ -515,7 +518,8 @@ impl PosCashierRepository {
     }
 
     pub async fn area_delete(&self, id: i32) -> Result<()> {
-        sqlx::query("DELETE FROM pos_table_area WHERE area_id = ?")
+        sqlx::query("UPDATE pos_table_area SET is_delete = 1, update_time = ? WHERE area_id = ?")
+            .bind(now())
             .bind(id)
             .execute(&self.pool)
             .await
@@ -530,10 +534,9 @@ impl PosCashierRepository {
         status: Option<i32>,
     ) -> Result<Vec<PosTable>> {
         sqlx::query_as::<_, PosTable>(
-            "SELECT table_id, shop_id, area_id, table_name, capacity, status, order_id, user_id, \
-             remark, add_time, update_time FROM pos_table \
-             WHERE shop_id = ? AND (? IS NULL OR area_id = ?) AND (? IS NULL OR status = ?) \
-             ORDER BY table_id DESC",
+            "SELECT CAST(table_id AS SIGNED) AS table_id, CAST(shop_id AS SIGNED) AS shop_id, CAST(area_id AS SIGNED) AS area_id, table_no, CAST(seat_count AS SIGNED) AS seat_count, CAST(sort_order AS SIGNED) AS sort_order, CAST(status AS SIGNED) AS status, CAST(table_status AS SIGNED) AS table_status, CAST(dining_count AS SIGNED) AS dining_count, CAST(user_id AS SIGNED) AS user_id, CAST(open_admin_id AS SIGNED) AS open_admin_id, CAST(open_time AS SIGNED) AS open_time, session_sn, CAST(last_order_id AS SIGNED) AS last_order_id, transfer_from_table_no, CAST(is_delete AS SIGNED) AS is_delete, CAST(add_time AS SIGNED) AS add_time, CAST(update_time AS SIGNED) AS update_time FROM pos_table \
+             WHERE shop_id = ? AND is_delete = 0 AND (? IS NULL OR area_id = ?) AND (? IS NULL OR table_status = ?) \
+             ORDER BY sort_order, table_id DESC",
         )
         .bind(shop_id)
         .bind(area_id)
@@ -547,8 +550,7 @@ impl PosCashierRepository {
 
     pub async fn table_find(&self, id: i32) -> Result<Option<PosTable>> {
         sqlx::query_as::<_, PosTable>(
-            "SELECT table_id, shop_id, area_id, table_name, capacity, status, order_id, user_id, \
-             remark, add_time, update_time FROM pos_table WHERE table_id = ?",
+            "SELECT CAST(table_id AS SIGNED) AS table_id, CAST(shop_id AS SIGNED) AS shop_id, CAST(area_id AS SIGNED) AS area_id, table_no, CAST(seat_count AS SIGNED) AS seat_count, CAST(sort_order AS SIGNED) AS sort_order, CAST(status AS SIGNED) AS status, CAST(table_status AS SIGNED) AS table_status, CAST(dining_count AS SIGNED) AS dining_count, CAST(user_id AS SIGNED) AS user_id, CAST(open_admin_id AS SIGNED) AS open_admin_id, CAST(open_time AS SIGNED) AS open_time, session_sn, CAST(last_order_id AS SIGNED) AS last_order_id, transfer_from_table_no, CAST(is_delete AS SIGNED) AS is_delete, CAST(add_time AS SIGNED) AS add_time, CAST(update_time AS SIGNED) AS update_time FROM pos_table WHERE table_id = ?",
         )
         .bind(id)
         .fetch_optional(&self.pool)
@@ -563,15 +565,17 @@ impl PosCashierRepository {
         area_id: i32,
         name: &str,
         capacity: i32,
+        sort_order: i32,
     ) -> Result<i32> {
         let r = sqlx::query(
-            "INSERT INTO pos_table (shop_id, area_id, table_name, capacity, status, add_time) \
-             VALUES (?, ?, ?, ?, 0, ?)",
+            "INSERT INTO pos_table (shop_id, area_id, table_no, seat_count, sort_order, status, table_status, dining_count, open_admin_id, open_time, session_sn, last_order_id, transfer_from_table_no, is_delete, add_time) \
+             VALUES (?, ?, ?, ?, ?, 0, 0, 0, 0, 0, '', 0, '', 0, ?)",
         )
         .bind(shop_id)
         .bind(area_id)
         .bind(name)
         .bind(capacity)
+        .bind(sort_order)
         .bind(now())
         .execute(&self.pool)
         .await
@@ -585,14 +589,16 @@ impl PosCashierRepository {
         name: &str,
         area_id: i32,
         capacity: i32,
+        sort_order: i32,
     ) -> Result<()> {
         sqlx::query(
-            "UPDATE pos_table SET table_name = ?, area_id = ?, capacity = ?, update_time = ? \
+            "UPDATE pos_table SET table_no = ?, area_id = ?, seat_count = ?, sort_order = ?, update_time = ? \
              WHERE table_id = ?",
         )
         .bind(name)
         .bind(area_id)
         .bind(capacity)
+        .bind(sort_order)
         .bind(now())
         .bind(id)
         .execute(&self.pool)
@@ -602,12 +608,13 @@ impl PosCashierRepository {
     }
 
     pub async fn table_update_field(&self, id: i32, column: &str, val: &str) -> Result<()> {
-        let allowed = ["table_name", "capacity", "status", "remark"];
+        let allowed = ["table_no", "seat_count", "sort_order", "table_status", "dining_count", "transfer_from_table_no"];
         if !allowed.contains(&column) {
             return Err(Error::Validation("非法字段".into()));
         }
-        sqlx::query(&format!("UPDATE pos_table SET {column} = ? WHERE table_id = ?"))
+        sqlx::query(&format!("UPDATE pos_table SET {column} = ?, update_time = ? WHERE table_id = ?"))
             .bind(val)
+            .bind(now())
             .bind(id)
             .execute(&self.pool)
             .await
@@ -616,7 +623,8 @@ impl PosCashierRepository {
     }
 
     pub async fn table_delete(&self, id: i32) -> Result<()> {
-        sqlx::query("DELETE FROM pos_table WHERE table_id = ?")
+        sqlx::query("UPDATE pos_table SET is_delete = 1, update_time = ? WHERE table_id = ?")
+            .bind(now())
             .bind(id)
             .execute(&self.pool)
             .await
@@ -631,14 +639,23 @@ impl PosCashierRepository {
         user_id: i32,
         order_id: i32,
     ) -> Result<()> {
+        let ts = now();
+        let session = if occupied {
+            format!("T{ts}{id}")
+        } else {
+            String::new()
+        };
         sqlx::query(
-            "UPDATE pos_table SET status = ?, user_id = ?, order_id = ?, update_time = ? \
-             WHERE table_id = ?",
+            "UPDATE pos_table SET status = ?, table_status = ?, user_id = ?, last_order_id = ?, \
+             open_time = ?, session_sn = ?, update_time = ? WHERE table_id = ?",
         )
         .bind(i32::from(occupied))
+        .bind(if occupied { 1 } else { 0 })
         .bind(user_id)
         .bind(order_id)
-        .bind(now())
+        .bind(if occupied { ts } else { 0 })
+        .bind(&session)
+        .bind(ts)
         .bind(id)
         .execute(&self.pool)
         .await
@@ -652,22 +669,31 @@ impl PosCashierRepository {
         let (Some(src), Some(_)) = (src, dst) else {
             return Err(Error::NotFound("桌台不存在".into()));
         };
+        let ts = now();
+        let session = if src.session_sn.is_empty() {
+            format!("T{ts}{to}")
+        } else {
+            src.session_sn.clone()
+        };
         sqlx::query(
-            "UPDATE pos_table SET status = 0, user_id = 0, order_id = 0, update_time = ? \
-             WHERE table_id = ?",
+            "UPDATE pos_table SET status = 0, table_status = 0, user_id = 0, last_order_id = 0, \
+             session_sn = '', update_time = ? WHERE table_id = ?",
         )
-        .bind(now())
+        .bind(ts)
         .bind(from)
         .execute(&self.pool)
         .await
         .map_err(map_err)?;
         sqlx::query(
-            "UPDATE pos_table SET status = 1, user_id = ?, order_id = ?, update_time = ? \
-             WHERE table_id = ?",
+            "UPDATE pos_table SET status = 1, table_status = 1, user_id = ?, last_order_id = ?, \
+             open_time = ?, session_sn = ?, transfer_from_table_no = ?, update_time = ? WHERE table_id = ?",
         )
         .bind(src.user_id)
-        .bind(src.order_id)
-        .bind(now())
+        .bind(src.last_order_id)
+        .bind(ts)
+        .bind(&session)
+        .bind(&src.table_no)
+        .bind(ts)
         .bind(to)
         .execute(&self.pool)
         .await

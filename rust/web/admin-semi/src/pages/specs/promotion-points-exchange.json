@@ -1,0 +1,23 @@
+{
+  "page": "promotion/pointsExchange/List.vue",
+  "info": "promotion/pointsExchange/List.vue",
+  "component": "rust/web/admin-semi/src/pages/PointsExchanges.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": ["积分商品名称", "使用积分值", "减免金额", "是否可兑换", "是否热销"],
+  "actions": ["edit"],
+  "batch": ["delete"],
+  "widgets": {
+    "productSelect": {
+      "type": "single-product-picker",
+      "component": "rust/web/admin-semi/src/pages/PointsExchanges.tsx",
+      "requires": ["ProductPicker"],
+      "mcpChecks": ["Select", "InputNumber"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "积分商品：接口 /promotion/pointsExchange/*（list/create/update/del/batch/updateField/detail）。",
+    "选择商品用 ProductPicker（单选）；旧版为 SKU 级选择（SelectProduct isSku，含 skuId），新版暂为商品级，skuId 字段保留透传，SKU 级选择待办。"
+  ]
+}

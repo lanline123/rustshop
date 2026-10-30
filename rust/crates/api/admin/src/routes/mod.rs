@@ -18,6 +18,8 @@ pub mod lang;
 pub mod vendor;
 pub mod pos;
 pub mod o2o;
+pub mod supply_chain;
+pub mod shop_group;
 
 use axum::Router;
 
@@ -45,6 +47,8 @@ pub fn merge_all(state: &AdminState) -> Router<AdminState> {
         .merge(vendor::routes(state))
         .merge(pos::routes(state))
         .merge(o2o::routes(state))
+        .merge(supply_chain::routes(state))
+        .merge(shop_group::routes(state))
 }
 
 /// 汇总所有免登录路由（`router()` 单独 nest 到 `/adminapi`）。
@@ -89,5 +93,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(vendor::implemented_routes());
     out.extend(pos::implemented_routes());
     out.extend(o2o::implemented_routes());
+    out.extend(supply_chain::implemented_routes());
+    out.extend(shop_group::implemented_routes());
     out
 }

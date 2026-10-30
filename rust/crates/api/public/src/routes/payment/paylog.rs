@@ -45,7 +45,7 @@ pub fn authorized_routes() -> Router<PublicState> {
 pub fn public_routes() -> Router<PublicState> {
     Router::new()
         // 海外渠道回调路径更具体，需先于 `{payType}` 注册
-        .route("/order/pay/notify/stripe", post(stripe_notify))
+        .route("/order/pay/notify/stripe", get(stripe_notify).post(stripe_notify))
         .route("/order/pay/notify/xendit", post(xendit_notify))
         .route("/order/pay/notify/antom", post(antom_notify))
         .route("/order/pay/notify/lakala", post(notify))

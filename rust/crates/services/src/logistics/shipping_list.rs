@@ -1,4 +1,4 @@
-﻿//! 物流服务：运费模板/配送方式/物流公司。
+//! 物流服务：运费模板/配送方式/物流公司。
 //! 对应原 Java `ShippingTplServiceImpl` / `LogisticsCompanyServiceImpl` 等。
 //!
 //! TODO(域实现者)：对照 Java 源补全运费计算（按重量/件数、区域首续费用）。
@@ -91,6 +91,7 @@ impl LogisticsService {
         shop_amount: Decimal,
         quantity: Decimal,
         weight: Decimal,
+        volume: Decimal,
         region_ids: &[i32],
     ) -> Result<Decimal> {
         let Some(tpl) = self.repos.logistics.shipping_tpl.find_tpl_by_id(tpl_id).await? else {
@@ -134,6 +135,7 @@ impl LogisticsService {
             shop_amount,
             quantity,
             weight,
+            volume,
         ))
     }
 }

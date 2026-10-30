@@ -50,6 +50,7 @@ use tigshop_core::models::catalog::product_manage::{
     ProductGalleryVO, ProductListItemVO, ProductSaveDTO, ProductSkuSaveDTO, ProductSkuVO,
     ProductVideoVO, ServicesVO,
 };
+use tigshop_core::models::catalog::product_sale::ProductSaleState;
 use tigshop_core::types::{PageQuery, PageResult};
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::catalog::product_manage::ProductListFilter;
@@ -134,11 +135,23 @@ impl ProductManageService {
             sku_map.entry(s.product_id).or_default().push(s);
         }
 
+        // v5.8.61 列表返回最终可售状态与手动设置，后台据此展示禁售标签。
+        let mut sale_map: HashMap<i32, ProductSaleState> = HashMap::new();
+        for p in &rows {
+            let state = self
+                .repos
+                .catalog
+                .product_sale
+                .setting(p.product_id, None)
+                .await?;
+            sale_map.insert(p.product_id, state);
+        }
+
         let list = rows
             .iter()
             .map(|p| {
                 let skus = sku_map.get(&p.product_id).cloned().unwrap_or_default();
-                to_list_item(p, &skus)
+                to_list_item(p, &skus, sale_map.get(&p.product_id))
             })
             .collect();
         Ok(PageResult::new(total, list, &page))
@@ -975,6 +988,16 @@ impl ProductManageService {
         }
 
         let product_id = product.product_id;
+        // v5.8.61 商品禁售：搜索/列表/详情使用同一套读时判定。
+        let sale_state = self
+            .repos
+            .catalog
+            .product_sale
+            .setting(product_id, shop_id)
+            .await?;
+        if sale_state.sale_status == 0 {
+            return Err(Error::biz(400, ERR_NOT_EXIST));
+        }
         let mut product = product;
         let mut skus = self.repos.catalog.product_manage.find_skus(product_id, false).await?;
 
@@ -1759,6 +1782,7 @@ fn apply_dto_to_product(product: &mut Product, dto: ProductSaveDTO, is_create: b
     set_opt!(rank_integral, dto.rank_integral);
     set_opt!(integral, dto.integral);
     set_opt!(product_weight, dto.product_weight);
+    set_some!(product_volume, dto.product_volume);
     set_some!(seo_identification, dto.seo_identification);
     set_opt!(product_sn, dto.product_sn);
     set_some!(product_tsn, dto.product_tsn);
@@ -1995,7 +2019,11 @@ fn parse_datetime_seconds(raw: &str) -> Option<i32> {
 // ————————————————————— 实体 → VO —————————————————————
 
 /// 商品实体 + 规格 → 列表项（对应 Java `ProductListResDTO`）。
-fn to_list_item(p: &Product, skus: &[ProductSku]) -> ProductListItemVO {
+fn to_list_item(
+    p: &Product,
+    skus: &[ProductSku],
+    sale: Option<&ProductSaleState>,
+) -> ProductListItemVO {
     let sku_vo: Vec<ProductSkuVO> = skus.iter().map(to_sku_vo).collect();
     ProductListItemVO {
         category_id: p.category_id,
@@ -2021,6 +2049,11 @@ fn to_list_item(p: &Product, skus: &[ProductSku]) -> ProductListItemVO {
         product_sn: p.product_sn.clone(),
         product_price: p.product_price,
         product_status: p.product_status,
+        sale_status: sale.map_or(1, |s| s.sale_status),
+        manual_sale_status: sale.map_or(1, |s| s.manual_sale_status),
+        sale_ban_time: sale.map_or(0, |s| s.sale_ban_time),
+        sale_recover_time: sale.map_or(0, |s| s.sale_recover_time),
+        sale_reason: sale.and_then(|s| s.sale_reason.clone()),
         is_best: p.is_best,
         is_new: p.is_new,
         is_hot: p.is_hot,
@@ -2098,6 +2131,7 @@ fn to_admin_detail(
         // Java 在返回前已把 clickCount +1
         click_count: p.click_count + 1,
         product_weight: p.product_weight,
+        product_volume: p.product_volume,
         is_promote: p.is_promote,
         is_promote_activity: p.is_promote_activity,
         promote_price: p.promote_price,
@@ -2200,6 +2234,8 @@ fn to_sku_vo(s: &ProductSku) -> ProductSkuVO {
         sku_sn: s.sku_sn.clone(),
         sku_stock: s.sku_stock.unwrap_or(0),
         sku_tsn: s.sku_tsn.clone(),
+        sku_weight: s.sku_weight,
+        sku_volume: s.sku_volume,
         sku_price: s.sku_price,
         is_enabled: s.is_enabled,
         market_price: s.market_price,
@@ -2235,6 +2271,8 @@ fn build_sku_from_dto(
         sku_stock: item.sku_stock.or(base.sku_stock),
         sku_tsn: item.sku_tsn.clone().or_else(|| base.sku_tsn.clone()),
         sku_price: item.sku_price.or(base.sku_price),
+        sku_weight: item.sku_weight.or(base.sku_weight),
+        sku_volume: item.sku_volume.or(base.sku_volume),
         is_enabled: normalize_sku_enabled(item.is_enabled)?,
         market_price: item.market_price.or(base.market_price),
         cost_price: item.cost_price.or(base.cost_price),
@@ -2360,6 +2398,7 @@ fn to_client_info(p: &Product) -> ClientProductInfoVO {
         virtual_sales: p.virtual_sales,
         limit_number: p.limit_number,
         product_weight: p.product_weight,
+        product_volume: p.product_volume,
         product_unit: p.product_unit.clone(),
         product_care: p.product_care.clone(),
         product_service_ids: parse_id_json_lossy(p.product_service_ids.as_deref().unwrap_or("")),

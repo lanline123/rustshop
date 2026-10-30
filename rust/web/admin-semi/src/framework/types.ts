@@ -88,7 +88,8 @@ export interface ColumnConfig<T = any> {
 
 export interface ListPageProps<T = any> {
   api: string;
-  rowKey: string;
+  /** 行唯一键：字段名，或 (row) => string（表格内部会生成 __frameworkKey）。 */
+  rowKey: string | ((row: T) => string);
   columns: ColumnConfig<T>[];
   filters?: FilterConfig[];
   query?: Record<string, unknown>;

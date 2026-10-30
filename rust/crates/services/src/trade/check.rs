@@ -1467,8 +1467,9 @@ pub(crate) async fn calculate_shipping(
             .iter()
             .map(|c| product_price(products, c) * Decimal::from(c.quantity.max(1)))
             .sum();
-        // tpl_id -> (件数, 重量)
-        let mut groups: BTreeMap<i32, (Decimal, Decimal)> = BTreeMap::new();
+        // tpl_id -> (件数, 重量, 体积)
+        let mut groups: BTreeMap<i32, (Decimal, Decimal, Decimal)> = BTreeMap::new();
+        let mut missing_volume: BTreeMap<i32, String> = BTreeMap::new();
         for cart in &lines {
             let product = products.get(&cart.product_id);
             let free_shipping = product.map(|p| p.free_shipping == 1).unwrap_or(false);
@@ -1487,17 +1488,39 @@ pub(crate) async fn calculate_shipping(
             if tpl_id <= 0 {
                 continue;
             }
-            let qty = Decimal::from(cart.quantity.max(1));
-            let weight = product
-                .map(|p| p.product_weight * qty)
+            let sku = match cart.sku_id {
+                Some(sku_id) => repos.catalog.product_manage.find_sku(sku_id).await?,
+                None => None,
+            };
+            let unit_weight = sku
+                .as_ref()
+                .and_then(|s| s.sku_weight)
+                .or_else(|| product.map(|p| p.product_weight))
                 .unwrap_or(Decimal::ZERO);
-            let entry = groups.entry(tpl_id).or_insert((Decimal::ZERO, Decimal::ZERO));
+            let unit_volume = sku
+                .as_ref()
+                .and_then(|s| s.sku_volume)
+                .or_else(|| product.and_then(|p| p.product_volume));
+            let qty = Decimal::from(cart.quantity.max(1));
+            let weight = unit_weight * qty;
+            let volume = unit_volume
+                .filter(|v| *v > Decimal::ZERO)
+                .unwrap_or(Decimal::ZERO);
+            if unit_volume.unwrap_or(Decimal::ZERO) <= Decimal::ZERO {
+                if let Some(name) = product.map(|p| p.product_name.clone()) {
+                    missing_volume.entry(tpl_id).or_insert(name);
+                }
+            }
+            let entry = groups
+                .entry(tpl_id)
+                .or_insert((Decimal::ZERO, Decimal::ZERO, Decimal::ZERO));
             entry.0 += qty;
             entry.1 += weight;
+            entry.2 += volume * qty;
         }
 
         let mut store_fee = Decimal::ZERO;
-        for (tpl_id, (quantity, weight)) in groups {
+        for (tpl_id, (quantity, weight, volume)) in groups {
             let Some(tpl) = repos.logistics.shipping_tpl.find_tpl_by_id(tpl_id).await? else {
                 continue;
             };
@@ -1512,6 +1535,17 @@ pub(crate) async fn calculate_shipping(
             let Some(info) = select_shipping_info(&infos, region_ids) else {
                 continue;
             };
+            if tpl.pricing_type == 3 {
+                if let Some(name) = missing_volume.get(&tpl_id) {
+                    return Err(Error::biz(
+                        400,
+                        format!("商品【{name}】未配置有效体积，暂无法计算运费，请联系商家"),
+                    ));
+                }
+                if info.start_number <= Decimal::ZERO || info.add_number <= Decimal::ZERO {
+                    return Err(Error::biz(400, "体积运费模板的首体积和续体积必须大于0"));
+                }
+            }
             let rule = ShippingRule {
                 pricing_type: tpl.pricing_type,
                 is_free: info.is_free == 1 || tpl.is_free == 1,
@@ -1521,7 +1555,7 @@ pub(crate) async fn calculate_shipping(
                 add_price: info.add_price,
                 free_price: info.free_price,
             };
-            store_fee += calc_shipping_fee(&rule, shop_amount, quantity, weight);
+            store_fee += calc_shipping_fee(&rule, shop_amount, quantity, weight, volume);
         }
         per_store.insert(shop_id, store_fee);
         total += store_fee;
@@ -1717,7 +1751,7 @@ mod tests {
     fn zero_shipping_for_pickup() {
         // 纯函数覆盖：自提场景在 calculate_shipping 中直接返回 0
         let rule = ShippingRule::default();
-        assert_eq!(calc_shipping_fee(&rule, Decimal::ZERO, Decimal::ZERO, Decimal::ZERO), Decimal::ZERO);
+        assert_eq!(calc_shipping_fee(&rule, Decimal::ZERO, Decimal::ZERO, Decimal::ZERO, Decimal::ZERO), Decimal::ZERO);
     }
 
     fn _unused_product_type_anchor(_: Product, _: ShippingTpl) {}

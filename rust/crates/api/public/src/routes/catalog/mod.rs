@@ -4,6 +4,7 @@ pub mod category;
 pub mod category_all;
 pub mod comment;
 pub mod exchange;
+pub mod image_search;
 pub mod product_manage;
 pub mod product_manage_client;
 pub mod product_search;
@@ -20,6 +21,7 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .merge(category::routes(state))
         .merge(comment::routes(state))
         .merge(exchange::routes(state))
+        .merge(image_search::routes(state))
         .merge(product_manage::routes(state))
         .merge(product_manage_client::routes(state))
         .merge(product_search::routes(state))
@@ -52,6 +54,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     out.extend(category_all::implemented_routes());
     out.extend(comment::implemented_routes());
     out.extend(exchange::implemented_routes());
+    out.extend(image_search::implemented_routes());
     out.extend(product_manage::implemented_routes());
     out.extend(product_manage_client::implemented_routes());
     out.extend(product_search::implemented_routes());

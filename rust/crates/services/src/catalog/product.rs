@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use tigshop_core::entities::Product;
+use tigshop_core::models::catalog::product_group::parse_product_ids;
 use tigshop_core::models::{ProductListQuery, ProductVO};
 use tigshop_core::types::{PageQuery, PageResult};
 use tigshop_core::{Error, Result};
@@ -43,6 +44,26 @@ impl ProductService {
                     crate::catalog::product_manage::descendant_category_ids(&pairs, root);
             }
         }
+        // 装修 `pc-product-group` 的 productGroup 数据源：分组商品存于
+        // `product_group.product_ids`（JSON），先展开成分组内商品 ID。
+        if let Some(group_id) = expanded.product_group_id {
+            let group = self
+                .repos
+                .catalog
+                .product_group
+                .find_by_id(group_id)
+                .await?;
+            let ids = group
+                .as_ref()
+                .map(|item| parse_product_ids(item.product_ids.as_deref()))
+                .unwrap_or_default();
+            if ids.is_empty() {
+                return Ok(PageResult::new(0, Vec::new(), &page));
+            }
+            if expanded.ids.is_none() {
+                expanded.ids = Some(ids.iter().map(i32::to_string).collect::<Vec<_>>().join(","));
+            }
+        }
         let (total, products) = self.repos.catalog.product.paginate(&expanded).await?;
         let list = products.into_iter().map(to_vo).collect();
         Ok(PageResult::new(total, list, &page))
@@ -79,6 +100,16 @@ impl ProductService {
     ) -> Result<()> {
         if quantity <= 0 {
             return Err(Error::Validation("购买数量必须大于0".into()));
+        }
+        // v5.8.61 商品禁售：加入购物车/结算/下单共用同一校验。
+        let sale_state = self
+            .repos
+            .catalog
+            .product_sale
+            .setting(product_id, None)
+            .await?;
+        if sale_state.sale_status == 0 {
+            return Err(Error::biz(400, "商品已下架".to_string()));
         }
         if !self
             .repos.catalog.product

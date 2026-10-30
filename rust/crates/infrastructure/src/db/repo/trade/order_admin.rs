@@ -1390,6 +1390,11 @@ fn build_filter(q: &OrderListQuery, platform_view: bool) -> Result<(String, Vec<
         binds.push(Bind::I32(mark));
     }
 
+    if let Some(pay_type_id) = q.pay_type_id {
+        conds.push("pay_type_id = ?".into());
+        binds.push(Bind::I32(pay_type_id));
+    }
+
     if let Some(pay_code) = non_empty(&q.pay_code) {
         if pay_code == "balance" {
             conds.push("`balance` > 0".into());

@@ -210,6 +210,7 @@ impl From<&Shop> for ShopVO {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ShopUpdateDTO {
+    #[serde(alias = "id")]
     pub shop_id: i32,
     pub shop_title: Option<String>,
     pub shop_logo: Option<String>,

@@ -102,6 +102,8 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         )
         .route("/promotion/giftCards/updateCardStatus", post(update_card_status))
         .route("/promotion/giftCards/createBatch", post(create_batch))
+        .route("/promotion/giftCards/create", post(create))
+        .route("/promotion/giftCards/update", post(update))
         .route("/promotion/giftCards/showCardPassword", get(show_card_password))
 }
 
@@ -230,6 +232,27 @@ async fn update_card_status(
 #[serde(rename_all = "camelCase")]
 struct CardIdQuery {
     card_id: Option<i32>,
+}
+
+/// `POST /adminapi/promotion/giftCards/create`：生成礼品卡。
+async fn create(State(state): State<AdminState>, Json(body): Json<serde_json::Value>) -> ApiResult<()> {
+    let card_groups_id = body
+        .get("cardGroupsId")
+        .and_then(serde_json::Value::as_i64)
+        .unwrap_or(0) as i32;
+    let count = body.get("count").and_then(serde_json::Value::as_i64).unwrap_or(1) as i32;
+    state.marketing.gift_card.create_batch(card_groups_id, count).await?;
+    ok(())
+}
+
+/// `POST /adminapi/promotion/giftCards/update`：更新礼品卡可用状态。
+async fn update(State(state): State<AdminState>, Json(body): Json<serde_json::Value>) -> ApiResult<()> {
+    let dto = GiftCardUpdateStatusDTO {
+        gift_cards_id: body.get("giftCardsId").and_then(serde_json::Value::as_i64).map(|v| v as i32),
+        is_available: body.get("isAvailable").and_then(serde_json::Value::as_i64).map(|v| v as i32),
+    };
+    state.marketing.gift_card.update_card_status(&dto).await?;
+    ok(())
 }
 
 /// `POST /adminapi/promotion/giftCards/createBatch`：批量生成礼品卡。

@@ -44,6 +44,7 @@
 //! > `collect` 对游客返回业务码 401「请先登录」
 //! > （Java 会用 `userId = 0` 落一条脏收藏记录，本实现不复刻该行为）。
 
+use serde::Deserialize;
 use axum::{
     extract::{Query, Request, State},
     http::header,
@@ -70,6 +71,7 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/shop/shop/list", get(client_list))
         .route("/shop/shop/collect", post(shop_collect))
         .route("/shop/shop/head", get(shop_head))
+        .route("/shop/shop/groupDetail", get(shop_group_detail))
         .route("/shop/shop/detail", get(shop_detail))
         .route("/shop/shop/decorate", get(shop_decorate))
         .route("/shop/shop/pickupList", get(pickup_list))
@@ -94,6 +96,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
             "ShopClientController.collect",
         ),
         ("GET", "/api/shop/shop/head", "ShopClientController.shopHead"),
+        ("GET", "/api/shop/shop/groupDetail", "ShopClientController.groupDetail"),
         (
             "GET",
             "/api/shop/shop/detail",
@@ -203,6 +206,25 @@ async fn shop_collect(
 ///
 /// 对应 Java `ShopClientController.shopHead` →
 /// `DecorateDiscreteServiceImpl#getShopHead`。
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct ShopGroupQuery {
+    group_id: Option<i32>,
+    shop_type: Option<i32>,
+}
+
+/// `GET /api/shop/shop/groupDetail`：装修选择分组详情。
+async fn shop_group_detail(
+    State(state): State<PublicState>,
+    Query(q): Query<ShopGroupQuery>,
+) -> ApiResult<serde_json::Value> {
+    ok(state
+        .merchant
+        .shop_client
+        .group_detail(q.group_id.unwrap_or(0), q.shop_type.unwrap_or(1))
+        .await?)
+}
+
 async fn shop_head(
     State(state): State<PublicState>,
     Query(q): Query<ShopIdQuery>,

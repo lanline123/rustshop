@@ -111,6 +111,7 @@ async fn shop_list(
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ShopIdQuery {
+    #[serde(alias = "id")]
     shop_id: i32,
 }
 

@@ -150,6 +150,7 @@ pub use o2o::StoreProductSku;
 pub use o2o::StoreTip;
 pub use o2o::Tip;
 pub use o2o::UserPickupInfo;
+pub use order::OfflinePaymentClaim;
 pub use order::Aftersales;
 pub use order::AftersalesItem;
 pub use order::AftersalesLog;

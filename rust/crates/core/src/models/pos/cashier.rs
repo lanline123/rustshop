@@ -228,8 +228,13 @@ pub struct PosTableWriteDTO {
     pub area_id: Option<i32>,
     pub shop_id: Option<i32>,
     pub table_name: Option<String>,
+    pub table_no: Option<String>,
     pub capacity: Option<i32>,
+    pub seat_count: Option<i32>,
     pub sort: Option<i32>,
+    pub sort_order: Option<i32>,
+    pub table_status: Option<i32>,
+    pub dining_count: Option<i32>,
 }
 
 #[derive(Debug, Default, Deserialize)]

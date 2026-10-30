@@ -178,7 +178,23 @@ impl PanelService {
             order_num.push(n);
             order_amount.push(amt.parse::<f64>().unwrap_or(0.0));
         }
-        let access = vec![0i64; horizontal.len()];
+        let from_date = day_key(from);
+        let to_date = day_key(now);
+        let daily_visits = self
+            .repos
+            .analytics
+            .statistics
+            .fetch_daily_click_counts(&from_date, &to_date)
+            .await
+            .unwrap_or_default();
+        let mut visit_by_day = std::collections::HashMap::new();
+        for row in &daily_visits {
+            visit_by_day.insert(row.period.clone(), row.click_count);
+        }
+        let access: Vec<i64> = horizontal
+            .iter()
+            .map(|day| *visit_by_day.get(day.as_str()).unwrap_or(&0))
+            .collect();
         Ok(json!({
             "horizontalAxis": horizontal,
             "longitudinalAxisAccess": access,

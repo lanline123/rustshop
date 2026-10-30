@@ -847,14 +847,16 @@ pub struct ShippingRule {
 
 /// 计算一个店铺的运费（Java `ShippingTplInfoService#getShippingFee` 的口径）：
 /// - 包邮 / 满额包邮 → 0；
-/// - 首重/首件内 → `start_price`；
-/// - 超出部分按（`add_number` 重量/件数，`add_price` 价格）向上取整累加。
+/// - 按件 `pricing_type=1`、按重 `2`、按体积 `3`；
+/// - 首件/首重/首体积内 → `start_price`；
+/// - 超出部分按（`add_number`，`add_price`）向上取整累加。
 #[must_use]
 pub fn calc_shipping_fee(
     rule: &ShippingRule,
     shop_amount: Decimal,
     quantity: Decimal,
     weight: Decimal,
+    volume: Decimal,
 ) -> Decimal {
     if rule.is_free {
         return Decimal::ZERO;
@@ -862,16 +864,18 @@ pub fn calc_shipping_fee(
     if rule.free_price > Decimal::ZERO && shop_amount >= rule.free_price {
         return Decimal::ZERO;
     }
-    let base = if rule.pricing_type == 2 {
-        weight.max(Decimal::ZERO)
-    } else {
-        quantity.max(Decimal::ZERO)
+    let base = match rule.pricing_type {
+        2 => weight.max(Decimal::ZERO),
+        3 => volume.max(Decimal::ZERO),
+        _ => quantity.max(Decimal::ZERO),
     };
     if rule.start_number <= Decimal::ZERO || rule.add_number <= Decimal::ZERO {
         // 规则不完整：只收首价（不猜测续价）
         return rule.start_price.max(Decimal::ZERO);
     }
-    if base <= rule.start_number {
+    // 体积计费与原版一致：只有严格超过首体积才加收续费。
+    let over = base > rule.start_number;
+    if !over {
         return rule.start_price.max(Decimal::ZERO);
     }
     let extra = base - rule.start_number;
@@ -1023,14 +1027,32 @@ mod tests {
             free_price: Decimal::from(100),
         };
         // 1 件：首价 5
-        assert_eq!(calc_shipping_fee(&rule, Decimal::from(10), Decimal::from(1), Decimal::ZERO), Decimal::from(5));
+        assert_eq!(calc_shipping_fee(&rule, Decimal::from(10), Decimal::from(1), Decimal::ZERO, Decimal::ZERO), Decimal::from(5));
         // 4 件：5 + ceil((4-1)/2)*2 = 9
-        assert_eq!(calc_shipping_fee(&rule, Decimal::from(10), Decimal::from(4), Decimal::ZERO), Decimal::from(9));
+        assert_eq!(calc_shipping_fee(&rule, Decimal::from(10), Decimal::from(4), Decimal::ZERO, Decimal::ZERO), Decimal::from(9));
         // 满 100 包邮
-        assert_eq!(calc_shipping_fee(&rule, Decimal::from(100), Decimal::from(1), Decimal::ZERO), Decimal::ZERO);
+        assert_eq!(calc_shipping_fee(&rule, Decimal::from(100), Decimal::from(1), Decimal::ZERO, Decimal::ZERO), Decimal::ZERO);
         // 包邮模板
         let free = ShippingRule { is_free: true, ..rule };
-        assert_eq!(calc_shipping_fee(&free, Decimal::from(1), Decimal::from(1), Decimal::ZERO), Decimal::ZERO);
+        assert_eq!(calc_shipping_fee(&free, Decimal::from(1), Decimal::from(1), Decimal::ZERO, Decimal::ZERO), Decimal::ZERO);
+    }
+
+    #[test]
+    fn shipping_volume_pricing() {
+        let rule = ShippingRule {
+            pricing_type: 3,
+            is_free: false,
+            start_number: Decimal::new(1, 1), // 0.1m³
+            start_price: Decimal::from(6),
+            add_number: Decimal::new(5, 2), // 0.05m³
+            add_price: Decimal::from(3),
+            free_price: Decimal::ZERO,
+        };
+        // 0.25m³：6 + ceil((0.15)/0.05)*3 = 15
+        assert_eq!(
+            calc_shipping_fee(&rule, Decimal::from(10), Decimal::ZERO, Decimal::ZERO, Decimal::new(25, 2)),
+            Decimal::from(15)
+        );
     }
 
     #[test]
@@ -1046,7 +1068,7 @@ mod tests {
         };
         // 2.2kg：8 + ceil((1.2)/0.5)=3 → 14
         assert_eq!(
-            calc_shipping_fee(&rule, Decimal::from(10), Decimal::ZERO, Decimal::new(2200, 3)),
+            calc_shipping_fee(&rule, Decimal::from(10), Decimal::ZERO, Decimal::new(2200, 3), Decimal::ZERO),
             Decimal::from(14)
         );
     }

@@ -89,6 +89,8 @@ pub struct PublicState {
     pub upload_dir: String,
     /// 内部接口密钥（config.yaml `internal.api_key`，保护 `/api/socket/send`）。
     pub internal_api_key: String,
+    /// 仓储聚合直通（图搜等少量接口需要直接查表）。
+    pub repos: std::sync::Arc<tigshop_infrastructure::db::Repositories>,
 }
 
 /// 构建商城前台路由。

@@ -17,6 +17,8 @@
 //! | `POST /product/product/create` | `ProductController.create` | `productModifyManage` |
 //! | `POST /product/product/update` | `ProductController.update` | `productModifyManage` |
 //! | `POST /product/product/del` | `ProductController.del` | `productDeleteManage` |
+//! | `GET  /product/product/saleStatus` | `ProductController.saleStatus` | `productManage` |
+//! | `POST /product/product/saleStatus` | `ProductController.saleStatus` | `productModifyManage` |
 //!
 //! 注意路径中控制器前缀重复一次（`/product/product/...`、
 //! `/product/productBatch/...`），与原 Java `@RequestMapping` 组合结果逐字符一致。
@@ -53,6 +55,7 @@ use tigshop_core::models::catalog::product_manage::{
     AdminProductDetailVO, AdminProductListQuery, CatAndBrandVO, ProductBatchEditDTO,
     ProductBatchModifyVO, ProductDelDTO, ProductListItemVO, ProductSaveDTO,
 };
+use tigshop_core::models::catalog::product_sale::{ProductSaleParam, ProductSaleState};
 use tigshop_core::types::PageResult;
 use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 
@@ -82,6 +85,10 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/product/product/create", post(product_create))
         .route("/product/product/update", post(product_update))
         .route("/product/product/del", post(product_del))
+        .route(
+            "/product/product/saleStatus",
+            get(product_sale_status).post(product_sale_save),
+        )
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。
@@ -125,10 +132,55 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
             "ProductController.update",
         ),
         ("POST", "/adminapi/product/product/del", "ProductController.del"),
+        (
+            "GET",
+            "/adminapi/product/product/saleStatus",
+            "ProductController.saleStatus",
+        ),
+        (
+            "POST",
+            "/adminapi/product/product/saleStatus",
+            "ProductController.saleStatus",
+        ),
     ]
     .iter()
     .map(|(m, p, j)| tigshop_openapi::RouteDoc::new(m, p, j))
     .collect()
+}
+
+/// `GET /adminapi/product/product/saleStatus`：读取商品禁售状态。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProductSaleStatusQuery {
+    product_id: i32,
+    shop_id: Option<i32>,
+}
+
+async fn product_sale_status(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Query(q): Query<ProductSaleStatusQuery>,
+) -> ApiResult<ProductSaleState> {
+    let shop_id = auth.scoped_shop_id().or(q.shop_id);
+    ok(state
+        .repos
+        .catalog
+        .product_sale
+        .setting(q.product_id, shop_id)
+        .await?)
+}
+
+/// `POST /adminapi/product/product/saleStatus`：平台/门店设置禁售。
+async fn product_sale_save(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(mut param): Json<ProductSaleParam>,
+) -> ApiResult<&'static str> {
+    if let Some(shop_id) = auth.scoped_shop_id() {
+        param.shop_id = Some(shop_id);
+    }
+    state.repos.catalog.product_sale.save(&param).await?;
+    ok("操作成功")
 }
 
 /// `GET /adminapi/product/product/list`：商品分页。

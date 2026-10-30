@@ -7,6 +7,7 @@ pub mod cart_summary;
 pub mod check;
 pub mod order;
 pub mod order_admin;
+pub mod offline_payment_claim;
 pub mod order_invoice_client;
 pub mod order_log;
 pub mod proxy_shopping_cart;
@@ -39,6 +40,7 @@ pub struct Repositories {
     pub proxy_shopping_cart: proxy_shopping_cart::ProxyShoppingCartRepository,
     pub check: check::CheckRepository,
     pub order_log: order_log::OrderLogRepository,
+    pub offline_payment_claim: offline_payment_claim::OfflinePaymentClaimRepository,
     pub order_invoice_client: order_invoice_client::OrderInvoiceClientRepository,
     pub cart_summary: cart_summary::CartSummaryRepository,
     pub proxy_shopping_delivery: proxy_shopping_delivery::ProxyShoppingDeliveryRepository,
@@ -64,6 +66,7 @@ impl Repositories {
             proxy_shopping_cart: proxy_shopping_cart::ProxyShoppingCartRepository::new(pool.clone()),
             check: check::CheckRepository::new(pool.clone()),
             order_log: order_log::OrderLogRepository::new(pool.clone()),
+            offline_payment_claim: offline_payment_claim::OfflinePaymentClaimRepository::new(pool.clone()),
             order_invoice_client: order_invoice_client::OrderInvoiceClientRepository::new(pool.clone()),
             cart_summary: cart_summary::CartSummaryRepository::new(pool.clone()),
             proxy_shopping_delivery: proxy_shopping_delivery::ProxyShoppingDeliveryRepository::new(pool.clone()),
