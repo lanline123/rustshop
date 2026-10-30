@@ -356,11 +356,112 @@ async fn product_batch_delete(State(state): State<AdminState>, Json(body): Json<
     for id in ids { let _ = sqlx::query("UPDATE vendor_product SET is_del=1 WHERE id=?").bind(id.as_i64().unwrap_or(0)).execute(&state.repos.pool).await; }
     ok(())
 }
-async fn product_save(State(_state): State<AdminState>, Json(_body): Json<Value>) -> ApiResult<i64> {
-    Err(AppError(Error::biz(400, "供应商商品保存未迁移")))
+async fn product_save(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<i64> {
+    save_supplier_product(&state, &body).await
 }
-async fn product_batch_save(State(_state): State<AdminState>, Json(_body): Json<Value>) -> ApiResult<()> {
-    Err(AppError(Error::biz(400, "供应商商品批量保存未迁移")))
+
+async fn product_batch_save(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let products = body.get("products").and_then(Value::as_array).cloned().unwrap_or_default();
+    for item in products {
+        let mut single = item.clone();
+        if let Some(obj) = single.as_object_mut() {
+            obj.insert("vendorId".into(), body.get("vendorId").cloned().unwrap_or(Value::Null));
+            obj.insert("shopId".into(), body.get("shopId").cloned().unwrap_or(Value::Null));
+        }
+        save_supplier_product(&state, &single).await?;
+    }
+    ok(())
+}
+
+async fn save_supplier_product(state: &AdminState, body: &Value) -> ApiResult<i64> {
+    let vendor_id = body.get("vendorId").and_then(Value::as_i64).unwrap_or(0) as i32;
+    let product_id = body.get("productId").and_then(Value::as_i64).unwrap_or(0) as i32;
+    if vendor_id <= 0 || product_id <= 0 {
+        return Err(AppError(Error::biz(400, "请选择供应商和商品")));
+    }
+    let vendor = sqlx::query("SELECT vendor_id FROM vendor WHERE vendor_id=? AND source_type=2 AND status=1 LIMIT 1")
+        .bind(vendor_id).fetch_optional(&state.repos.pool).await.map_err(db)?
+        .ok_or_else(|| AppError(Error::biz(400, "供应商不存在或已停用")))?;
+    let _ = vendor;
+    let product = sqlx::query("SELECT product_id, product_name, product_sn, category_id, pic_url, pic_thumb, pic_original, pic_large, product_brief FROM product WHERE product_id=? AND is_delete=0 LIMIT 1")
+        .bind(product_id).fetch_optional(&state.repos.pool).await.map_err(db)?
+        .ok_or_else(|| AppError(Error::biz(400, "商品不存在")))?;
+    let skus = body.get("skus").and_then(Value::as_array).cloned().unwrap_or_default();
+    if skus.is_empty() {
+        return Err(AppError(Error::biz(400, "请选择采购规格")));
+    }
+    let now = tigshop_common::utils::now_seconds() as i64;
+    let existing_id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    let mut tx = state.repos.pool.begin().await.map_err(db)?;
+    let relation_id = if existing_id > 0 {
+        let row = sqlx::query("SELECT vendor_id, source_product_id FROM vendor_product WHERE id=? AND is_del=0 LIMIT 1")
+            .bind(existing_id).fetch_optional(&mut *tx).await.map_err(db)?
+            .ok_or_else(|| AppError(Error::biz(400, "供应商商品不存在")))?;
+        if row.try_get::<i32, _>("vendor_id").unwrap_or(0) != vendor_id
+            || row.try_get::<i32, _>("source_product_id").unwrap_or(0) != product_id
+        {
+            return Err(AppError(Error::biz(400, "供应商和来源商品不可变更")));
+        }
+        sqlx::query("UPDATE vendor_product SET product_name=?, product_state=?, sku_type=?, update_time=? WHERE id=?")
+            .bind(product.try_get::<String, _>("product_name").unwrap_or_default())
+            .bind(body.get("status").and_then(Value::as_i64).unwrap_or(1) as i32)
+            .bind(if skus.len() > 1 { 2 } else { 1 })
+            .bind(now).bind(existing_id)
+            .execute(&mut *tx).await.map_err(db)?;
+        sqlx::query("DELETE FROM vendor_product_sku WHERE vendor_product_id=?").bind(existing_id)
+            .execute(&mut *tx).await.map_err(db)?;
+        existing_id
+    } else {
+        let duplicate: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM vendor_product WHERE vendor_id=? AND source_product_id=? AND is_del=0")
+            .bind(vendor_id).bind(product_id).fetch_one(&mut *tx).await.map_err(db)?;
+        if duplicate.0 > 0 {
+            return Err(AppError(Error::biz(400, "该供应商已绑定此商品")));
+        }
+        sqlx::query("INSERT INTO vendor_product(product_name,product_sn,product_category_id,product_sn_generate_type,product_brief,product_state,sku_type,audit_state,pic_url,pic_thumb,pic_original,pic_large,is_recycle,vendor_id,source_product_id,create_time,create_by_id,update_time,update_by_id,update_by_name,is_del) VALUES(?,?,?,0,?,?,?,1,?,?,?,?,0,?,?,?,0,?,0,'',0)")
+            .bind(product.try_get::<String, _>("product_name").unwrap_or_default())
+            .bind(product.try_get::<Option<String>, _>("product_sn").unwrap_or_default())
+            .bind(product.try_get::<i32, _>("category_id").unwrap_or(0))
+            .bind(product.try_get::<String, _>("product_brief").unwrap_or_default())
+            .bind(body.get("status").and_then(Value::as_i64).unwrap_or(1) as i32)
+            .bind(if skus.len() > 1 { 2 } else { 1 })
+            .bind(product.try_get::<String, _>("pic_url").unwrap_or_default())
+            .bind(product.try_get::<String, _>("pic_thumb").unwrap_or_default())
+            .bind(product.try_get::<String, _>("pic_original").unwrap_or_default())
+            .bind(product.try_get::<String, _>("pic_large").unwrap_or_default())
+            .bind(vendor_id).bind(product_id)
+            .bind(now).bind(now)
+            .execute(&mut *tx).await.map_err(db)?.last_insert_id() as i64
+    };
+    for sku in skus {
+        let source_sku_id = sku.get("skuId").and_then(Value::as_i64).filter(|v| *v > 0);
+        let price = rust_decimal::Decimal::from_str(
+            &sku.get("supplyPrice").and_then(Value::as_str).unwrap_or("0"),
+        ).unwrap_or(rust_decimal::Decimal::ZERO);
+        let min_qty = sku.get("minPurchaseQty").and_then(Value::as_i64).unwrap_or(1);
+        let mut attr = "默认".to_string();
+        let mut sn = product.try_get::<Option<String>, _>("product_sn").unwrap_or_default();
+        if let Some(source_sku_id) = source_sku_id {
+            if let Some(row) = sqlx::query("SELECT sku_value, sku_sn, sku_tsn, sku_weight, sku_stock FROM product_sku WHERE sku_id=? LIMIT 1")
+                .bind(source_sku_id).fetch_optional(&mut *tx).await.map_err(db)?
+            {
+                attr = row.try_get::<String, _>("sku_value").unwrap_or(attr);
+                sn = row.try_get::<Option<String>, _>("sku_sn").unwrap_or(sn);
+                sqlx::query("INSERT INTO vendor_product_sku(vendor_product_id,source_sku_id,min_purchase_qty,sku_attr_val,sku_sn,sku_tsn,sku_weight,sku_stock,supply_price,supply_price_limit_type,supply_price_limit_val,sales_volume,vendor_id,create_time,create_by_id,update_time,update_by_id,update_by_name,is_del) VALUES(?,?,?,?,?,?,?,?,?,0,0,0,?,?,0,?,0,'',0)")
+                    .bind(relation_id).bind(source_sku_id).bind(min_qty).bind(&attr).bind(&sn)
+                    .bind(row.try_get::<Option<String>, _>("sku_tsn").unwrap_or_default())
+                    .bind(row.try_get::<Option<rust_decimal::Decimal>, _>("sku_weight").ok().flatten())
+                    .bind(row.try_get::<Option<i32>, _>("sku_stock").ok().flatten())
+                    .bind(price).bind(vendor_id).bind(now).bind(now)
+                    .execute(&mut *tx).await.map_err(db)?;
+                continue;
+            }
+        }
+        sqlx::query("INSERT INTO vendor_product_sku(vendor_product_id,source_sku_id,min_purchase_qty,sku_attr_val,sku_sn,supply_price,supply_price_limit_type,supply_price_limit_val,sales_volume,vendor_id,create_time,create_by_id,update_time,update_by_id,update_by_name,is_del) VALUES(?,NULL,?,?,?,?,0,0,0,?,?,0,?,0,'',0)")
+            .bind(relation_id).bind(min_qty).bind(attr).bind(sn).bind(price).bind(vendor_id).bind(now).bind(now)
+            .execute(&mut *tx).await.map_err(db)?;
+    }
+    tx.commit().await.map_err(db)?;
+    ok(relation_id)
 }
 
 // ————————————————— purchase order —————————————————

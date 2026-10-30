@@ -212,3 +212,38 @@ total_amount = receipt_amount - return_amount
 cargo check -p tigshop-admin-api
 Finished
 ```
+
+## 2026-10-31 补充 4：供应商商品保存
+
+已实现：
+
+```text
+POST /supplyChain/supplierProduct/save
+POST /supplyChain/supplierProduct/batchSave
+```
+
+save：
+
+```text
+校验自建供应商和来源商品
+新增校验同一供应商不能重复绑定商品
+写 vendor_product（名称/分类/图片/状态/审核状态）
+按 skus 写 vendor_product_sku（采购价/起订量/规格）
+编辑时先删除旧规格再重建
+```
+
+batchSave：
+
+```text
+逐商品复用 save
+```
+
+本地接口验证：
+
+```text
+创建供应商成功：vendorId=1
+supplierProduct/save 返回：code=0, id=28
+supplierProduct/list 能查到新绑定
+```
+
+验证后已清理测试数据。
