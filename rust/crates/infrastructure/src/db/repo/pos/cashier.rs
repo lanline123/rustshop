@@ -471,7 +471,7 @@ impl PosCashierRepository {
     pub async fn areas(&self, shop_id: i32) -> Result<Vec<PosTableArea>> {
         sqlx::query_as::<_, PosTableArea>(
             "SELECT area_id, shop_id, area_name, sort, add_time FROM pos_table_area \
-             WHERE shop_id = ? ORDER BY sort, area_id",
+             WHERE shop_id = ? AND is_delete = 0 ORDER BY sort, area_id",
         )
         .bind(shop_id)
         .fetch_all(&self.pool)
@@ -491,11 +491,13 @@ impl PosCashierRepository {
 
     pub async fn area_insert(&self, shop_id: i32, name: &str, sort: i32) -> Result<i32> {
         let r = sqlx::query(
-            "INSERT INTO pos_table_area (shop_id, area_name, sort, add_time) VALUES (?, ?, ?, ?)",
+            "INSERT INTO pos_table_area (shop_id, area_name, sort, sort_order, status, add_time, update_time) VALUES (?, ?, ?, ?, 1, ?, ?)",
         )
         .bind(shop_id)
         .bind(name)
         .bind(sort)
+        .bind(sort)
+        .bind(now())
         .bind(now())
         .execute(&self.pool)
         .await
@@ -504,9 +506,11 @@ impl PosCashierRepository {
     }
 
     pub async fn area_update(&self, id: i32, name: &str, sort: i32) -> Result<()> {
-        sqlx::query("UPDATE pos_table_area SET area_name = ?, sort = ? WHERE area_id = ?")
+        sqlx::query("UPDATE pos_table_area SET area_name = ?, sort = ?, sort_order = ?, update_time = ? WHERE area_id = ?")
             .bind(name)
             .bind(sort)
+            .bind(sort)
+            .bind(now())
             .bind(id)
             .execute(&self.pool)
             .await
@@ -515,7 +519,8 @@ impl PosCashierRepository {
     }
 
     pub async fn area_delete(&self, id: i32) -> Result<()> {
-        sqlx::query("DELETE FROM pos_table_area WHERE area_id = ?")
+        sqlx::query("UPDATE pos_table_area SET is_delete = 1, update_time = ? WHERE area_id = ?")
+            .bind(now())
             .bind(id)
             .execute(&self.pool)
             .await
@@ -532,7 +537,7 @@ impl PosCashierRepository {
         sqlx::query_as::<_, PosTable>(
             "SELECT table_id, shop_id, area_id, table_name, capacity, status, order_id, user_id, \
              remark, add_time, update_time FROM pos_table \
-             WHERE shop_id = ? AND (? IS NULL OR area_id = ?) AND (? IS NULL OR status = ?) \
+             WHERE shop_id = ? AND is_delete = 0 AND (? IS NULL OR area_id = ?) AND (? IS NULL OR status = ?) \
              ORDER BY table_id DESC",
         )
         .bind(shop_id)
@@ -565,12 +570,14 @@ impl PosCashierRepository {
         capacity: i32,
     ) -> Result<i32> {
         let r = sqlx::query(
-            "INSERT INTO pos_table (shop_id, area_id, table_name, capacity, status, add_time) \
-             VALUES (?, ?, ?, ?, 0, ?)",
+            "INSERT INTO pos_table (shop_id, area_id, table_name, table_no, capacity, seat_count, status, sort_order, add_time) \
+             VALUES (?, ?, ?, ?, ?, ?, 0, 50, ?)",
         )
         .bind(shop_id)
         .bind(area_id)
         .bind(name)
+        .bind(name)
+        .bind(capacity)
         .bind(capacity)
         .bind(now())
         .execute(&self.pool)
@@ -587,11 +594,13 @@ impl PosCashierRepository {
         capacity: i32,
     ) -> Result<()> {
         sqlx::query(
-            "UPDATE pos_table SET table_name = ?, area_id = ?, capacity = ?, update_time = ? \
+            "UPDATE pos_table SET table_name = ?, table_no = ?, area_id = ?, capacity = ?, seat_count = ?, update_time = ? \
              WHERE table_id = ?",
         )
         .bind(name)
+        .bind(name)
         .bind(area_id)
+        .bind(capacity)
         .bind(capacity)
         .bind(now())
         .bind(id)
@@ -632,12 +641,15 @@ impl PosCashierRepository {
         order_id: i32,
     ) -> Result<()> {
         sqlx::query(
-            "UPDATE pos_table SET status = ?, user_id = ?, order_id = ?, update_time = ? \
+            "UPDATE pos_table SET status = ?, table_status = ?, user_id = ?, order_id = ?, last_order_id = ?, open_time = ?, update_time = ? \
              WHERE table_id = ?",
         )
         .bind(i32::from(occupied))
+        .bind(if occupied { 1 } else { 0 })
         .bind(user_id)
         .bind(order_id)
+        .bind(order_id)
+        .bind(if occupied { now() } else { 0 })
         .bind(now())
         .bind(id)
         .execute(&self.pool)
