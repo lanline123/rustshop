@@ -1,36 +1,8 @@
 {
   "java_count": 1743,
-  "rust_count": 2075,
-  "missing_count": 36,
+  "rust_count": 2097,
+  "missing_count": 10,
   "missing": [
-    {
-      "method": "GET",
-      "path": "/file/aiImage/getTranslateConfig"
-    },
-    {
-      "method": "GET",
-      "path": "/finance/merchantApplication/localMedia"
-    },
-    {
-      "method": "GET",
-      "path": "/finance/merchantApplication/wechatBankBranches"
-    },
-    {
-      "method": "GET",
-      "path": "/finance/merchantApplication/wechatBankCities"
-    },
-    {
-      "method": "GET",
-      "path": "/finance/merchantApplication/wechatBankNames"
-    },
-    {
-      "method": "GET",
-      "path": "/finance/merchantApplication/wechatBankProvinces"
-    },
-    {
-      "method": "GET",
-      "path": "/finance/merchantApplication/wechatBanks"
-    },
     {
       "method": "GET",
       "path": "/order/pay/notify/stripe"
@@ -38,14 +10,6 @@
     {
       "method": "GET",
       "path": "/product/product/downloadRawImages"
-    },
-    {
-      "method": "GET",
-      "path": "/setting/config/aiImageSettings"
-    },
-    {
-      "method": "GET",
-      "path": "/setting/config/amapSettings"
     },
     {
       "method": "GET",
@@ -58,66 +22,6 @@
     {
       "method": "GET",
       "path": "/setting/config/xenditSettings"
-    },
-    {
-      "method": "GET",
-      "path": "/vendor/adminVendorUser/list"
-    },
-    {
-      "method": "GET",
-      "path": "/vendor/product/platform/pageList"
-    },
-    {
-      "method": "GET",
-      "path": "/vendor/vendorShopBind/list"
-    },
-    {
-      "method": "GET",
-      "path": "/vendor/vendorWithdraw/list"
-    },
-    {
-      "method": "POST",
-      "path": "/file/aiImage/inpaint"
-    },
-    {
-      "method": "POST",
-      "path": "/file/aiImage/localesList"
-    },
-    {
-      "method": "POST",
-      "path": "/file/aiImage/translate"
-    },
-    {
-      "method": "POST",
-      "path": "/finance/merchantApplication/abandon"
-    },
-    {
-      "method": "POST",
-      "path": "/finance/merchantApplication/delete"
-    },
-    {
-      "method": "POST",
-      "path": "/finance/merchantApplication/reapply"
-    },
-    {
-      "method": "POST",
-      "path": "/finance/merchantApplication/retry"
-    },
-    {
-      "method": "POST",
-      "path": "/promotion/giftCards/create"
-    },
-    {
-      "method": "POST",
-      "path": "/promotion/giftCards/update"
-    },
-    {
-      "method": "POST",
-      "path": "/setting/config/saveAiImage"
-    },
-    {
-      "method": "POST",
-      "path": "/setting/config/saveAmapSettings"
     },
     {
       "method": "POST",
@@ -137,18 +41,10 @@
     },
     {
       "method": "POST",
-      "path": "/vendor/product/update"
-    },
-    {
-      "method": "POST",
       "path": "/vendor/stock/getImportErrorData"
-    },
-    {
-      "method": "POST",
-      "path": "/vendor/vendor/update"
     }
   ],
-  "extra_count": 373,
+  "extra_count": 369,
   "extra_sample": [
     {
       "method": "GET",

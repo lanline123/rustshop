@@ -35,7 +35,9 @@ use crate::PublicState;
 /// 商品域前台路由（挂载于 `/api` 下）。
 pub fn routes(state: &PublicState) -> Router<PublicState> {
     let _ = state;
-    Router::new().route("/product/product/detail", get(product_detail))
+    Router::new()
+        .route("/product/product/detail", get(product_detail))
+        .route("/product/product/downloadRawImages", get(download_raw_images))
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。
@@ -47,6 +49,7 @@ pub fn implemented_routes() -> Vec<tigshop_openapi::RouteDoc> {
     [
         ("GET", "/api/product/product/detail", "ProductController.detail"),
         ("GET", "/api/product/product/detail", "ProductController.detailById"),
+        ("GET", "/api/product/product/downloadRawImages", "ProductController.downloadRawImages"),
     ]
     .iter()
     .map(|(m, p, j)| tigshop_openapi::RouteDoc::new(m, p, j))
@@ -70,6 +73,10 @@ struct DetailQuery {
 /// `GET /api/product/product/detail?sn=`（或 `?id=`）：前台商品详情。
 ///
 /// 对应 Java `ProductController.detail` / `detailById`。
+async fn download_raw_images() -> ApiResult<&'static str> {
+    Err(AppError(Error::biz(400, "商品原图下载未迁移")))
+}
+
 async fn product_detail(
     State(state): State<PublicState>,
     Query(q): Query<DetailQuery>,
