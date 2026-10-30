@@ -93,3 +93,34 @@ Rust POS DTO/API 切换到 v5.8.61 桌台状态机
 ## 结论
 
 本轮完成 POS 表结构兼容层；业务状态机仍未完全切换。
+
+## 2026-10-31 补充：桌台状态机
+
+实体/接口已补 v5.8.61 字段：
+
+```text
+PosTable.tableNo / seatCount / sortOrder
+tableStatus / diningCount / openAdminId / openTime
+sessionSn / lastOrderId / transferFromTableNo
+PosTableArea.sortOrder / status / picUrl / areaDesc / isDelete / updateTime
+```
+
+写入同步：
+
+```text
+新增/编辑桌台：table_no / seat_count / sort_order
+开台：table_status=1、open_time、session_sn
+清台：table_status=0、session_sn=''
+转台：目标桌台继承 session_sn，transfer_from_table_no 记录来源桌号
+区域删除：is_delete=1
+```
+
+旧字段 `table_name` / `capacity` / `status` / `order_id` 继续兼容写入。
+
+验证：
+
+```text
+cargo check -p tigshop-services -p tigshop-admin-api
+cargo test -p tigshop-services -p tigshop-admin-api --lib
+599 + 1586 passed
+```

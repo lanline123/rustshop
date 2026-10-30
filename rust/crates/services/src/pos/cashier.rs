@@ -527,14 +527,20 @@ impl PosCashierService {
     }
 
     pub async fn table_save(&self, dto: &PosTableWriteDTO) -> Result<i32> {
-        let name = dto.table_name.clone().unwrap_or_default();
+        let name = dto
+            .table_no
+            .clone()
+            .or_else(|| dto.table_name.clone())
+            .unwrap_or_default();
         if name.trim().is_empty() {
             return Err(Error::Validation("桌台名称不能为空".into()));
         }
+        let capacity = dto.seat_count.or(dto.capacity).unwrap_or(4);
+        let sort_order = dto.sort_order.or(dto.sort).unwrap_or(50);
         match dto.table_id {
             Some(id) if id > 0 => {
                 self.repo()
-                    .table_update(id, &name, dto.area_id.unwrap_or(0), dto.capacity.unwrap_or(4))
+                    .table_update(id, &name, dto.area_id.unwrap_or(0), capacity, sort_order)
                     .await?;
                 Ok(id)
             }
@@ -544,7 +550,8 @@ impl PosCashierService {
                     dto.shop_id.unwrap_or(0),
                     dto.area_id.unwrap_or(0),
                     &name,
-                    dto.capacity.unwrap_or(4),
+                    capacity,
+                    sort_order,
                 )
                 .await,
         }

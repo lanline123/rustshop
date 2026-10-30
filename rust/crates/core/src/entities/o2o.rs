@@ -637,7 +637,14 @@ pub struct PosTableArea {
     pub shop_id: i32,
     pub area_name: String,
     pub sort: i32,
+    /// v5.8.61 排序（与旧 `sort` 同步）
+    pub sort_order: Option<i32>,
+    pub status: Option<i32>,
+    pub pic_url: Option<String>,
+    pub area_desc: Option<String>,
+    pub is_delete: Option<i32>,
     pub add_time: Option<i32>,
+    pub update_time: Option<i32>,
 }
 
 impl PosTableArea {
@@ -657,6 +664,19 @@ pub struct PosTable {
     pub status: i32,
     pub order_id: i32,
     pub user_id: i32,
+    /// v5.8.61 桌号（与旧 `table_name` 同步）
+    pub table_no: Option<String>,
+    pub seat_count: Option<i32>,
+    pub sort_order: Option<i32>,
+    /// 0 未开台 1 待下单 2 待结账 3 待清台
+    pub table_status: Option<i32>,
+    pub dining_count: Option<i32>,
+    pub open_admin_id: Option<i32>,
+    pub open_time: Option<i32>,
+    pub session_sn: Option<String>,
+    pub last_order_id: Option<i32>,
+    pub transfer_from_table_no: Option<String>,
+    pub is_delete: Option<i32>,
     pub remark: Option<String>,
     pub add_time: Option<i32>,
     pub update_time: Option<i32>,
