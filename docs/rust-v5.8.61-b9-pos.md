@@ -124,3 +124,37 @@ cargo check -p tigshop-services -p tigshop-admin-api
 cargo test -p tigshop-services -p tigshop-admin-api --lib
 599 + 1586 passed
 ```
+
+## 2026-10-31 补充 2：状态机接口验证
+
+本地用纯 v5.8.61 结构验证：
+
+```text
+创建区域 B区 -> areaId=2
+创建桌台 B01 -> tableId=1
+创建桌台 B02 -> tableId=2
+开台 B01（userId=99）
+转台 B01 -> B02
+```
+
+结果：
+
+```text
+B01 status=0 table_status=0 session='' open_time 清零
+B02 status=1 table_status=1 user_id=99
+B02 session_sn=T...，transfer_from_table_no=B01
+```
+
+期间修正：
+
+```text
+PosTableArea.sort 改为可选，读写只使用 sort_order
+PosTable 查询改用 v5.8.61 新列，全部 unsigned 主键 CAST 为 SIGNED
+表/区域删除改为软删除
+```
+
+提交：
+
+```text
+5d341be5 fix(pos): use v5.8.61 columns for table read/write
+```
