@@ -320,6 +320,10 @@ pub struct ProductSkuSaveDTO {
     pub sku_sn: Option<String>,
     pub sku_stock: Option<i32>,
     pub sku_tsn: Option<String>,
+    /// 单件规格重量，单位 kg；NULL 沿用商品重量（v5.8.61）
+    pub sku_weight: Option<Decimal>,
+    /// 单件规格体积，单位 m³；NULL 沿用商品体积（v5.8.61）
+    pub sku_volume: Option<Decimal>,
     /// Java 侧为 String，前端可能传 `"12.00"`
     pub sku_price: Option<Decimal>,
     pub is_enabled: Option<i32>,
@@ -695,6 +699,8 @@ pub struct ProductSaveDTO {
     pub rank_integral: Option<i32>,
     pub integral: Option<i32>,
     pub product_weight: Option<Decimal>,
+    /// 单件商品体积，单位 m³（v5.8.61）
+    pub product_volume: Option<Decimal>,
     /// 商品描述片段（Java `productDescArr`，服务端拼成 `product_desc` HTML）
     pub product_desc_arr: Option<Vec<ProductDescVO>>,
     pub product_related: Option<Vec<i32>>,

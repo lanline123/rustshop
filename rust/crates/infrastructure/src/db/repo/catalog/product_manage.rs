@@ -511,7 +511,15 @@ impl ProductManageRepository {
         .execute(&self.pool)
         .await
         .map_err(map_err)?;
-        Ok(r.last_insert_id() as i32)
+        let product_id = r.last_insert_id() as i32;
+        // v5.8.61 体积列：保留旧 INSERT 列清单，插入后补写，避免影响历史字段顺序。
+        sqlx::query("UPDATE product SET product_volume = ? WHERE product_id = ?")
+            .bind(p.product_volume)
+            .bind(product_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(product_id)
     }
 
     /// 全列更新商品（调用方先 `find_product` 再按入参合并，
@@ -604,6 +612,12 @@ impl ProductManageRepository {
         .execute(&self.pool)
         .await
         .map_err(map_err)?;
+        sqlx::query("UPDATE product SET product_volume = ? WHERE product_id = ?")
+            .bind(p.product_volume)
+            .bind(p.product_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
         Ok(r.rows_affected())
     }
 
@@ -733,7 +747,15 @@ impl ProductManageRepository {
         .execute(&self.pool)
         .await
         .map_err(map_err)?;
-        Ok(r.last_insert_id() as i32)
+        let sku_id = r.last_insert_id() as i32;
+        sqlx::query("UPDATE product_sku SET sku_weight = ?, sku_volume = ? WHERE sku_id = ?")
+            .bind(s.sku_weight)
+            .bind(s.sku_volume)
+            .bind(sku_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(sku_id)
     }
 
     /// 按主键更新规格（全列写入，调用方先查后合并）。
@@ -760,6 +782,13 @@ impl ProductManageRepository {
         .execute(&self.pool)
         .await
         .map_err(map_err)?;
+        sqlx::query("UPDATE product_sku SET sku_weight = ?, sku_volume = ? WHERE sku_id = ?")
+            .bind(s.sku_weight)
+            .bind(s.sku_volume)
+            .bind(s.sku_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
         Ok(r.rows_affected())
     }
 

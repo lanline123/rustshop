@@ -1782,6 +1782,7 @@ fn apply_dto_to_product(product: &mut Product, dto: ProductSaveDTO, is_create: b
     set_opt!(rank_integral, dto.rank_integral);
     set_opt!(integral, dto.integral);
     set_opt!(product_weight, dto.product_weight);
+    set_some!(product_volume, dto.product_volume);
     set_some!(seo_identification, dto.seo_identification);
     set_opt!(product_sn, dto.product_sn);
     set_some!(product_tsn, dto.product_tsn);
@@ -2267,6 +2268,8 @@ fn build_sku_from_dto(
         sku_stock: item.sku_stock.or(base.sku_stock),
         sku_tsn: item.sku_tsn.clone().or_else(|| base.sku_tsn.clone()),
         sku_price: item.sku_price.or(base.sku_price),
+        sku_weight: item.sku_weight.or(base.sku_weight),
+        sku_volume: item.sku_volume.or(base.sku_volume),
         is_enabled: normalize_sku_enabled(item.is_enabled)?,
         market_price: item.market_price.or(base.market_price),
         cost_price: item.cost_price.or(base.cost_price),

@@ -320,6 +320,8 @@ pub struct Product {
     pub click_count: i32,
     /// 商品的重量，以千克为单位 [NOT NULL]
     pub product_weight: Decimal,
+    /// 单件商品体积，单位 m³（v5.8.61）
+    pub product_volume: Option<Decimal>,
     /// 是否特价促销；0，否；1，是 [NOT NULL]
     pub is_promote: i32,
     /// 是否参加了秒杀 [NOT NULL]
@@ -933,6 +935,10 @@ pub struct ProductSku {
     pub sku_stock: Option<i32>,
     /// 条形码
     pub sku_tsn: Option<String>,
+    /// 单件规格重量，单位 kg；NULL 沿用商品重量（v5.8.61）
+    pub sku_weight: Option<Decimal>,
+    /// 单件规格体积，单位 m³；NULL 沿用商品体积（v5.8.61）
+    pub sku_volume: Option<Decimal>,
     /// 货品价格
     pub sku_price: Option<Decimal>,
     /// 是否启用：0-禁用，1-启用 [NOT NULL]
