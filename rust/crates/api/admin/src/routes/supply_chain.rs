@@ -600,12 +600,126 @@ async fn reconciliation_list(State(state): State<AdminState>, Query(q): Query<Pg
 async fn reconciliation_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> { ok(detail_table(&state, "purchase_reconciliation", q.id.unwrap_or(0)).await?) }
 async fn reconciliation_candidates(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> { ok(list_table(&state, "purchase_receipt", &q, false).await?) }
 async fn reconciliation_export() -> ApiResult<Value> { ok(json!([])) }
-async fn reconciliation_create(State(_): State<AdminState>, Json(_): Json<Value>) -> ApiResult<i64> { Err(AppError(Error::biz(400, "对账单创建未迁移"))) }
-async fn reconciliation_update(State(_): State<AdminState>, Json(_): Json<Value>) -> ApiResult<()> { Err(AppError(Error::biz(400, "对账单修改未迁移"))) }
-async fn reconciliation_approve(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> { set_status(&state, "purchase_reconciliation", body.get("id").and_then(Value::as_i64).unwrap_or(0), 2).await?; ok(()) }
-async fn reconciliation_reject(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> { set_status(&state, "purchase_reconciliation", body.get("id").and_then(Value::as_i64).unwrap_or(0), 3).await?; ok(()) }
-async fn reconciliation_resubmit(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> { set_status(&state, "purchase_reconciliation", body.get("id").and_then(Value::as_i64).unwrap_or(0), 0).await?; ok(()) }
-async fn reconciliation_void(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> { set_status(&state, "purchase_reconciliation", body.get("id").and_then(Value::as_i64).unwrap_or(0), 4).await?; ok(()) }
+async fn reconciliation_create(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<i64> {
+    save_reconciliation(&state, body, false).await
+}
+async fn reconciliation_update(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    save_reconciliation(&state, body, true).await?;
+    ok(())
+}
+
+async fn save_reconciliation(state: &AdminState, body: Value, is_update: bool) -> ApiResult<i64> {
+    let vendor_id = body.get("vendorId").and_then(Value::as_i64).unwrap_or(0) as i32;
+    if vendor_id <= 0 {
+        return Err(AppError(Error::biz(400, "请选择供应商")));
+    }
+    let vendor = sqlx::query("SELECT vendor_id, vendor_name, vendor_code, contact_mobile, shop_id FROM vendor WHERE vendor_id=? AND source_type=2 LIMIT 1")
+        .bind(vendor_id).fetch_optional(&state.repos.pool).await.map_err(db)?
+        .ok_or_else(|| AppError(Error::biz(400, "供应商不存在")))?;
+    let shop_id: i32 = vendor.try_get("shop_id").unwrap_or(0);
+    let sources = body.get("sources").and_then(Value::as_array).cloned().unwrap_or_default();
+    if sources.is_empty() {
+        return Err(AppError(Error::biz(400, "请选择对账来源单据")));
+    }
+    let now = tigshop_common::utils::now_seconds() as i64;
+    let existing_id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    let mut tx = state.repos.pool.begin().await.map_err(db)?;
+    let reconciliation_id = if is_update && existing_id > 0 {
+        let row = sqlx::query("SELECT status FROM purchase_reconciliation WHERE id=? AND is_del=0 LIMIT 1")
+            .bind(existing_id).fetch_optional(&mut *tx).await.map_err(db)?
+            .ok_or_else(|| AppError(Error::biz(400, "采购对账单不存在")))?;
+        let status: i32 = row.try_get("status").unwrap_or(0);
+        if status != 3 {
+            return Err(AppError(Error::biz(400, "只有已驳回采购对账单可以修改")));
+        }
+        sqlx::query("DELETE FROM purchase_reconciliation_source WHERE reconciliation_id=?").bind(existing_id).execute(&mut *tx).await.map_err(db)?;
+        sqlx::query("DELETE FROM purchase_reconciliation_item WHERE reconciliation_id=?").bind(existing_id).execute(&mut *tx).await.map_err(db)?;
+        sqlx::query("UPDATE purchase_reconciliation SET vendor_id=?, shop_id=?, remark=?, status=1, update_time=? WHERE id=?")
+            .bind(vendor_id).bind(shop_id).bind(body.get("remark").and_then(Value::as_str).unwrap_or("")).bind(now).bind(existing_id)
+            .execute(&mut *tx).await.map_err(db)?;
+        existing_id
+    } else {
+        let sn = format!("PC{}{:04}", now, rand_suffix());
+        let snapshot = serde_json::json!({
+            "vendorId": vendor_id,
+            "vendorName": vendor.try_get::<String,_>("vendor_name").unwrap_or_default(),
+            "vendorCode": vendor.try_get::<String,_>("vendor_code").unwrap_or_default(),
+            "contactMobile": vendor.try_get::<String,_>("contact_mobile").unwrap_or_default()
+        }).to_string();
+        sqlx::query("INSERT INTO purchase_reconciliation(reconciliation_sn,shop_id,vendor_id,status,receipt_amount,return_amount,total_amount,supplier_snapshot,remark,version,create_time,update_time) VALUES(?,?,?,1,0,0,0,?,?,0,?,?)")
+            .bind(&sn).bind(shop_id).bind(vendor_id).bind(snapshot)
+            .bind(body.get("remark").and_then(Value::as_str).unwrap_or(""))
+            .bind(now).bind(now)
+            .execute(&mut *tx).await.map_err(db)?.last_insert_id() as i64
+    };
+    let mut receipt_amount = rust_decimal::Decimal::ZERO;
+    let mut return_amount = rust_decimal::Decimal::ZERO;
+    for source in sources {
+        let source_type = source.get("sourceType").and_then(Value::as_i64).unwrap_or(0) as i32;
+        let source_id = source.get("sourceId").and_then(Value::as_i64).unwrap_or(0);
+        let row = if source_type == 1 {
+            sqlx::query("SELECT id, receipt_sn, business_date, total_amount FROM purchase_receipt WHERE id=? AND vendor_id=? AND status=2 AND is_del=0 LIMIT 1")
+                .bind(source_id).bind(vendor_id).fetch_optional(&mut *tx).await.map_err(db)?
+        } else if source_type == 2 {
+            sqlx::query("SELECT id, return_sn AS receipt_sn, business_date, total_amount FROM purchase_return WHERE id=? AND vendor_id=? AND status=2 AND is_del=0 LIMIT 1")
+                .bind(source_id).bind(vendor_id).fetch_optional(&mut *tx).await.map_err(db)?
+        } else {
+            None
+        };
+        let Some(row) = row else {
+            return Err(AppError(Error::biz(400, "对账来源单据不存在或状态不正确")));
+        };
+        let amount: rust_decimal::Decimal = row.try_get("total_amount").unwrap_or_default();
+        sqlx::query("INSERT INTO purchase_reconciliation_source(reconciliation_id,source_type,source_id,source_sn,business_date,source_amount,create_time,update_time) VALUES(?,?,?,?,?,?,?,?)")
+            .bind(reconciliation_id).bind(source_type).bind(source_id)
+            .bind(row.try_get::<String,_>("receipt_sn").unwrap_or_default())
+            .bind(row.try_get::<i64,_>("business_date").unwrap_or(0))
+            .bind(amount).bind(now).bind(now)
+            .execute(&mut *tx).await.map_err(db)?;
+        if source_type == 1 { receipt_amount += amount; } else { return_amount += amount; }
+    }
+    let total = receipt_amount - return_amount;
+    sqlx::query("UPDATE purchase_reconciliation SET receipt_amount=?, return_amount=?, total_amount=? WHERE id=?")
+        .bind(receipt_amount).bind(return_amount).bind(total).bind(reconciliation_id)
+        .execute(&mut *tx).await.map_err(db)?;
+    tx.commit().await.map_err(db)?;
+    ok(reconciliation_id)
+}
+async fn reconciliation_approve(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    sqlx::query("UPDATE purchase_reconciliation SET status=2, review_remark=?, review_time=?, update_time=? WHERE id=? AND status=1")
+        .bind(body.get("remark").and_then(Value::as_str).unwrap_or(""))
+        .bind(tigshop_common::utils::now_seconds() as i64)
+        .bind(tigshop_common::utils::now_seconds() as i64)
+        .bind(id).execute(&state.repos.pool).await.map_err(db)?;
+    ok(())
+}
+async fn reconciliation_reject(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    let remark = body.get("remark").and_then(Value::as_str).unwrap_or("").trim();
+    if remark.is_empty() {
+        return Err(AppError(Error::biz(400, "请填写驳回原因")));
+    }
+    let now = tigshop_common::utils::now_seconds() as i64;
+    sqlx::query("UPDATE purchase_reconciliation SET status=3, review_remark=?, review_time=?, update_time=? WHERE id=? AND status=1")
+        .bind(remark).bind(now).bind(now).bind(id).execute(&state.repos.pool).await.map_err(db)?;
+    ok(())
+}
+async fn reconciliation_resubmit(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    sqlx::query("UPDATE purchase_reconciliation SET status=1, review_remark=NULL, review_time=NULL, update_time=? WHERE id=? AND status=3")
+        .bind(tigshop_common::utils::now_seconds() as i64).bind(id)
+        .execute(&state.repos.pool).await.map_err(db)?;
+    ok(())
+}
+async fn reconciliation_void(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    let now = tigshop_common::utils::now_seconds() as i64;
+    sqlx::query("UPDATE purchase_reconciliation SET status=4, review_remark=?, review_time=?, update_time=? WHERE id=? AND status=3")
+        .bind(body.get("remark").and_then(Value::as_str).unwrap_or("")).bind(now).bind(now).bind(id)
+        .execute(&state.repos.pool).await.map_err(db)?;
+    ok(())
+}
 
 async fn return_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> { ok(list_table(&state, "purchase_return", &q, false).await?) }
 async fn return_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> { ok(detail_table(&state, "purchase_return", q.id.unwrap_or(0)).await?) }

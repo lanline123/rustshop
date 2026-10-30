@@ -170,3 +170,45 @@ POST /supplyChain/purchaseReturn/save
 cargo check -p tigshop-admin-api
 Finished
 ```
+
+## 2026-10-31 补充 3：对账单
+
+已实现：
+
+```text
+POST /supplyChain/purchaseReconciliation/create
+POST /supplyChain/purchaseReconciliation/update
+POST /supplyChain/purchaseReconciliation/approve
+POST /supplyChain/purchaseReconciliation/reject
+POST /supplyChain/purchaseReconciliation/resubmit
+POST /supplyChain/purchaseReconciliation/void
+```
+
+create/update：
+
+```text
+校验供应商
+生成 PC 单号
+写入供应商快照
+按 sourceType=1/2 汇总入库单/退货单金额
+写 purchase_reconciliation_source
+total_amount = receipt_amount - return_amount
+```
+
+状态流转：
+
+```text
+1 待对账 → 2 已对账
+1 待对账 → 3 已驳回（必须填原因）
+3 已驳回 → 1 待对账
+3 已驳回 → 4 已作废
+```
+
+只允许已驳回的对账单修改。
+
+验证：
+
+```text
+cargo check -p tigshop-admin-api
+Finished
+```
