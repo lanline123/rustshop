@@ -9,6 +9,7 @@ use axum::{
     Json, Router,
 };
 use serde::Deserialize;
+use std::str::FromStr;
 use serde_json::{json, Map, Value};
 use sqlx::mysql::MySqlRow;
 use sqlx::{Column, MySql, QueryBuilder, Row, TypeInfo};
@@ -502,7 +503,98 @@ fn rand_suffix() -> u32 {
 // ————————————————— receipt / reconciliation / return —————————————————
 async fn receipt_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> { ok(list_table(&state, "purchase_receipt", &q, false).await?) }
 async fn receipt_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> { ok(detail_table(&state, "purchase_receipt", q.id.unwrap_or(0)).await?) }
-async fn receipt_save(State(_): State<AdminState>, Json(_): Json<Value>) -> ApiResult<()> { Err(AppError(Error::biz(400, "入库单保存未迁移"))) }
+async fn receipt_save(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<i64> {
+    use std::str::FromStr;
+    let order_id = body.get("orderId").and_then(Value::as_i64).unwrap_or(0);
+    if order_id <= 0 {
+        return Err(AppError(Error::biz(400, "直采入库未迁移，请关联采购订单")));
+    }
+    let order = sqlx::query("SELECT * FROM purchase_order WHERE id=? AND is_del=0 LIMIT 1")
+        .bind(order_id)
+        .fetch_optional(&state.repos.pool).await.map_err(db)?
+        .ok_or_else(|| AppError(Error::biz(400, "采购订单不存在")))?;
+    let status: i32 = order.try_get("status").unwrap_or(0);
+    if status != 1 && status != 2 {
+        return Err(AppError(Error::biz(400, "采购订单已结束或状态不允许入库")));
+    }
+    let shop_id: i32 = order.try_get("shop_id").unwrap_or(0);
+    let vendor_id: i32 = order.try_get("vendor_id").unwrap_or(0);
+    let inputs = body.get("items").and_then(Value::as_array).cloned().unwrap_or_default();
+    if inputs.is_empty() {
+        return Err(AppError(Error::biz(400, "请选择入库商品")));
+    }
+    let now = tigshop_common::utils::now_seconds() as i64;
+    let receipt_sn = format!("PR{}{:04}", now, rand_suffix());
+    let mut tx = state.repos.pool.begin().await.map_err(db)?;
+    let receipt_id = sqlx::query(
+        "INSERT INTO purchase_receipt(receipt_sn,order_id,shop_id,vendor_id,business_date,status,total_quantity,total_amount,remark,confirm_time,version,create_time,update_time) VALUES(?,?,?,?,?,2,0,0,?,?,0,?,?)",
+    )
+    .bind(&receipt_sn)
+    .bind(order_id)
+    .bind(shop_id)
+    .bind(vendor_id)
+    .bind(body.get("businessDate").and_then(Value::as_i64).unwrap_or(now))
+    .bind(body.get("remark").and_then(Value::as_str).unwrap_or(""))
+    .bind(now).bind(now).bind(now)
+    .execute(&mut *tx).await.map_err(db)?.last_insert_id() as i64;
+
+    let mut total_qty = 0i64;
+    let mut total_amount = rust_decimal::Decimal::ZERO;
+    for input in inputs {
+        let order_item_id = input.get("orderItemId").and_then(Value::as_i64).unwrap_or(0);
+        let qty = input.get("quantity").and_then(Value::as_i64).unwrap_or(0);
+        if order_item_id <= 0 || qty <= 0 {
+            return Err(AppError(Error::biz(400, "入库商品或数量不合法")));
+        }
+        let item = sqlx::query("SELECT * FROM purchase_order_item WHERE id=? AND order_id=? AND is_del=0 LIMIT 1")
+            .bind(order_item_id).bind(order_id)
+            .fetch_optional(&mut *tx).await.map_err(db)?
+            .ok_or_else(|| AppError(Error::biz(400, "入库商品不属于采购订单")))?;
+        let ordered: i32 = item.try_get("quantity").unwrap_or(0);
+        let received: i32 = item.try_get("received_quantity").unwrap_or(0);
+        if received + qty as i32 > ordered {
+            return Err(AppError(Error::biz(400, "入库数量超过剩余采购数量")));
+        }
+        let price = item.try_get::<rust_decimal::Decimal, _>("purchase_price").unwrap_or_default();
+        let amount = price * rust_decimal::Decimal::from(qty);
+        let product_id: i32 = item.try_get("product_id").unwrap_or(0);
+        let sku_id: i32 = item.try_get("sku_id").unwrap_or(0);
+        sqlx::query("UPDATE purchase_order_item SET received_quantity=received_quantity+? WHERE id=?")
+            .bind(qty as i32).bind(order_item_id).execute(&mut *tx).await.map_err(db)?;
+        sqlx::query(
+            "INSERT INTO purchase_receipt_item(receipt_id,order_item_id,product_id,sku_id,product_name,sku_name,product_sn,sku_sn,pic_thumb,product_unit,quantity,returned_quantity,purchase_price,amount,create_time,update_time) VALUES(?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?)",
+        )
+        .bind(receipt_id).bind(order_item_id).bind(product_id).bind(sku_id)
+        .bind(item.try_get::<String, _>("product_name").unwrap_or_default())
+        .bind(item.try_get::<String, _>("sku_name").unwrap_or_default())
+        .bind(item.try_get::<String, _>("product_sn").unwrap_or_default())
+        .bind(item.try_get::<String, _>("sku_sn").unwrap_or_default())
+        .bind(item.try_get::<String, _>("pic_thumb").unwrap_or_default())
+        .bind(item.try_get::<String, _>("product_unit").unwrap_or_default())
+        .bind(qty as i32).bind(price).bind(amount).bind(now).bind(now)
+        .execute(&mut *tx).await.map_err(db)?;
+        // 平台商品库存增加；SKU 与商品汇总同时更新。
+        sqlx::query("UPDATE product SET product_stock=product_stock+? WHERE product_id=?")
+            .bind(qty as i32).bind(product_id).execute(&mut *tx).await.map_err(db)?;
+        if sku_id > 0 {
+            sqlx::query("UPDATE product_sku SET sku_stock=COALESCE(sku_stock,0)+? WHERE sku_id=?")
+                .bind(qty as i32).bind(sku_id).execute(&mut *tx).await.map_err(db)?;
+        }
+        total_qty += qty;
+        total_amount += amount;
+    }
+    sqlx::query("UPDATE purchase_receipt SET total_quantity=?, total_amount=?, stock_record_id=0 WHERE id=?")
+        .bind(total_qty).bind(total_amount).bind(receipt_id).execute(&mut *tx).await.map_err(db)?;
+    let (pending,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM purchase_order_item WHERE order_id=? AND is_del=0 AND received_quantity < quantity",
+    ).bind(order_id).fetch_one(&mut *tx).await.map_err(db)?;
+    let next_status = if pending == 0 { 3 } else { 2 };
+    sqlx::query("UPDATE purchase_order SET status=?, received_quantity=received_quantity+?, update_time=? WHERE id=?")
+        .bind(next_status).bind(total_qty).bind(now).bind(order_id)
+        .execute(&mut *tx).await.map_err(db)?;
+    tx.commit().await.map_err(db)?;
+    ok(receipt_id)
+}
 
 async fn reconciliation_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> { ok(list_table(&state, "purchase_reconciliation", &q, false).await?) }
 async fn reconciliation_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> { ok(detail_table(&state, "purchase_reconciliation", q.id.unwrap_or(0)).await?) }
@@ -517,7 +609,87 @@ async fn reconciliation_void(State(state): State<AdminState>, Json(body): Json<V
 
 async fn return_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> { ok(list_table(&state, "purchase_return", &q, false).await?) }
 async fn return_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> { ok(detail_table(&state, "purchase_return", q.id.unwrap_or(0)).await?) }
-async fn return_save(State(_): State<AdminState>, Json(_): Json<Value>) -> ApiResult<()> { Err(AppError(Error::biz(400, "退货单保存未迁移"))) }
+async fn return_save(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<i64> {
+    let receipt_id = body.get("receiptId").and_then(Value::as_i64).unwrap_or(0);
+    if receipt_id <= 0 {
+        return Err(AppError(Error::biz(400, "采购入库单不能为空")));
+    }
+    let receipt = sqlx::query("SELECT * FROM purchase_receipt WHERE id=? AND is_del=0 AND status=2 LIMIT 1")
+        .bind(receipt_id).fetch_optional(&state.repos.pool).await.map_err(db)?
+        .ok_or_else(|| AppError(Error::biz(400, "采购入库单不存在或未确认")))?;
+    let shop_id: i32 = receipt.try_get("shop_id").unwrap_or(0);
+    let vendor_id: i32 = receipt.try_get("vendor_id").unwrap_or(0);
+    let order_id: i64 = receipt.try_get("order_id").unwrap_or(0);
+    let inputs = body.get("items").and_then(Value::as_array).cloned().unwrap_or_default();
+    if inputs.is_empty() {
+        return Err(AppError(Error::biz(400, "请选择退货商品")));
+    }
+    let now = tigshop_common::utils::now_seconds() as i64;
+    let return_sn = format!("PT{}{:04}", now, rand_suffix());
+    let mut tx = state.repos.pool.begin().await.map_err(db)?;
+    let return_id = sqlx::query(
+        "INSERT INTO purchase_return(return_sn,order_id,receipt_id,shop_id,vendor_id,business_date,status,total_quantity,total_amount,reason,remark,confirm_time,version,create_time,update_time) VALUES(?,?,?,?,?,?,2,0,0,?,?,?,0,?,?)",
+    )
+    .bind(&return_sn).bind(order_id).bind(receipt_id).bind(shop_id).bind(vendor_id)
+    .bind(body.get("businessDate").and_then(Value::as_i64).unwrap_or(now))
+    .bind(body.get("reason").and_then(Value::as_str).unwrap_or(""))
+    .bind(body.get("remark").and_then(Value::as_str).unwrap_or(""))
+    .bind(now).bind(now).bind(now)
+    .execute(&mut *tx).await.map_err(db)?.last_insert_id() as i64;
+    let mut total_qty = 0i64;
+    let mut total_amount = rust_decimal::Decimal::ZERO;
+    for input in inputs {
+        let item_id = input.get("receiptItemId").and_then(Value::as_i64).unwrap_or(0);
+        let qty = input.get("quantity").and_then(Value::as_i64).unwrap_or(0);
+        if item_id <= 0 || qty <= 0 {
+            return Err(AppError(Error::biz(400, "退货商品或数量不合法")));
+        }
+        let item = sqlx::query("SELECT * FROM purchase_receipt_item WHERE id=? AND receipt_id=? AND is_del=0 LIMIT 1")
+            .bind(item_id).bind(receipt_id).fetch_optional(&mut *tx).await.map_err(db)?
+            .ok_or_else(|| AppError(Error::biz(400, "退货明细不属于入库单")))?;
+        let q: i32 = item.try_get("quantity").unwrap_or(0);
+        let returned: i32 = item.try_get("returned_quantity").unwrap_or(0);
+        if returned + qty as i32 > q {
+            return Err(AppError(Error::biz(400, "退货数量超过可退数量")));
+        }
+        let original_price = item.try_get::<rust_decimal::Decimal, _>("purchase_price").unwrap_or_default();
+        let return_price = rust_decimal::Decimal::from_str(
+            &input.get("returnPrice").and_then(Value::as_str).unwrap_or("0"),
+        ).unwrap_or(original_price);
+        let amount = return_price * rust_decimal::Decimal::from(qty);
+        let product_id: i32 = item.try_get("product_id").unwrap_or(0);
+        let sku_id: i32 = item.try_get("sku_id").unwrap_or(0);
+        sqlx::query(
+            "INSERT INTO purchase_return_item(return_id,receipt_item_id,product_id,sku_id,product_name,sku_name,product_sn,sku_sn,pic_thumb,product_unit,quantity,returnable_quantity,available_quantity,returnable_quantity_after,original_price,return_price,amount,reason,create_time,update_time) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        )
+        .bind(return_id).bind(item_id).bind(product_id).bind(sku_id)
+        .bind(item.try_get::<String, _>("product_name").unwrap_or_default())
+        .bind(item.try_get::<String, _>("sku_name").unwrap_or_default())
+        .bind(item.try_get::<String, _>("product_sn").unwrap_or_default())
+        .bind(item.try_get::<String, _>("sku_sn").unwrap_or_default())
+        .bind(item.try_get::<String, _>("pic_thumb").unwrap_or_default())
+        .bind(item.try_get::<String, _>("product_unit").unwrap_or_default())
+        .bind(qty as i32).bind(q).bind(q - returned).bind(q - returned - qty as i32)
+        .bind(original_price).bind(return_price).bind(amount)
+        .bind(input.get("reason").and_then(Value::as_str).unwrap_or(""))
+        .bind(now).bind(now)
+        .execute(&mut *tx).await.map_err(db)?;
+        sqlx::query("UPDATE purchase_receipt_item SET returned_quantity=returned_quantity+? WHERE id=?")
+            .bind(qty as i32).bind(item_id).execute(&mut *tx).await.map_err(db)?;
+        sqlx::query("UPDATE product SET product_stock=product_stock-? WHERE product_id=?")
+            .bind(qty as i32).bind(product_id).execute(&mut *tx).await.map_err(db)?;
+        if sku_id > 0 {
+            sqlx::query("UPDATE product_sku SET sku_stock=GREATEST(COALESCE(sku_stock,0)-?,0) WHERE sku_id=?")
+                .bind(qty as i32).bind(sku_id).execute(&mut *tx).await.map_err(db)?;
+        }
+        total_qty += qty;
+        total_amount += amount;
+    }
+    sqlx::query("UPDATE purchase_return SET total_quantity=?, total_amount=? WHERE id=?")
+        .bind(total_qty).bind(total_amount).bind(return_id).execute(&mut *tx).await.map_err(db)?;
+    tx.commit().await.map_err(db)?;
+    ok(return_id)
+}
 async fn return_confirm(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> { set_status(&state, "purchase_return", body.get("id").and_then(Value::as_i64).unwrap_or(0), 1).await?; ok(()) }
 async fn return_delete(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> { soft_delete(&state, "purchase_return", body.get("id").and_then(Value::as_i64).unwrap_or(0)).await?; ok(()) }
 

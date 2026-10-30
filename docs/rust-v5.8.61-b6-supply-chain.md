@@ -132,3 +132,41 @@ detail 现在返回 `items` 明细。
 cargo check -p tigshop-admin-api
 Finished
 ```
+
+## 2026-10-31 补充 2：入库/退货
+
+已实现：
+
+```text
+POST /supplyChain/purchaseReceipt/save
+POST /supplyChain/purchaseReturn/save
+```
+
+入库：
+
+```text
+仅关联采购订单（直采入库未迁移）
+校验订单状态 1/2
+按 orderItemId 入库
+写 purchase_receipt + purchase_receipt_item
+增加 product_stock / product_sku.sku_stock
+累加 purchase_order_item.received_quantity
+订单全部入库 → 3 已完成，否则 2 部分入库
+```
+
+退货：
+
+```text
+校验采购入库单已确认
+校验可退数量
+写 purchase_return + purchase_return_item
+扣减 product_stock / sku_stock
+更新 receipt_item.returned_quantity
+```
+
+验证：
+
+```text
+cargo check -p tigshop-admin-api
+Finished
+```
