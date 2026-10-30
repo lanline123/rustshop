@@ -606,9 +606,42 @@ async fn receipt_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> A
 async fn receipt_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> { ok(detail_table(&state, "purchase_receipt", q.id.unwrap_or(0)).await?) }
 async fn receipt_save(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<i64> {
     use std::str::FromStr;
-    let order_id = body.get("orderId").and_then(Value::as_i64).unwrap_or(0);
+    let mut order_id = body.get("orderId").and_then(Value::as_i64).unwrap_or(0);
+    let mut inputs = body.get("items").and_then(Value::as_array).cloned().unwrap_or_default();
+    if inputs.is_empty() {
+        return Err(AppError(Error::biz(400, "请选择入库商品")));
+    }
     if order_id <= 0 {
-        return Err(AppError(Error::biz(400, "直采入库未迁移，请关联采购订单")));
+        // 直采入库：先按采购单创建逻辑生成采购单，再把供应商规格映射到采购明细。
+        let order_body = serde_json::json!({
+            "vendorId": body.get("vendorId"),
+            "expectedDeliveryDate": body.get("expectedDeliveryDate"),
+            "shippingMethod": body.get("shippingMethod"),
+            "logisticsId": body.get("logisticsId"),
+            "logisticsName": body.get("logisticsName"),
+            "trackingNo": body.get("trackingNo"),
+            "remark": body.get("remark"),
+            "items": inputs.clone()
+        });
+        let created = order_create(State(state.clone()), Json(order_body)).await?;
+        order_id = created
+            .0
+            .data
+            .ok_or_else(|| AppError(Error::biz(400, "采购单创建失败")))?;
+        let mut mapped = Vec::new();
+        for input in inputs {
+            let sku_id = input.get("vendorProductSkuId").and_then(Value::as_i64).unwrap_or(0);
+            let qty = input.get("quantity").and_then(Value::as_i64).unwrap_or(0);
+            let row = sqlx::query("SELECT id FROM purchase_order_item WHERE order_id=? AND vendor_product_sku_id=? AND is_del=0 ORDER BY id DESC LIMIT 1")
+                .bind(order_id).bind(sku_id)
+                .fetch_optional(&state.repos.pool).await.map_err(db)?
+                .ok_or_else(|| AppError(Error::biz(400, "采购明细生成失败")))?;
+            mapped.push(serde_json::json!({
+                "orderItemId": row.try_get::<i64, _>("id").unwrap_or(0),
+                "quantity": qty
+            }));
+        }
+        inputs = mapped;
     }
     let order = sqlx::query("SELECT * FROM purchase_order WHERE id=? AND is_del=0 LIMIT 1")
         .bind(order_id)
@@ -620,10 +653,6 @@ async fn receipt_save(State(state): State<AdminState>, Json(body): Json<Value>) 
     }
     let shop_id: i32 = order.try_get("shop_id").unwrap_or(0);
     let vendor_id: i32 = order.try_get("vendor_id").unwrap_or(0);
-    let inputs = body.get("items").and_then(Value::as_array).cloned().unwrap_or_default();
-    if inputs.is_empty() {
-        return Err(AppError(Error::biz(400, "请选择入库商品")));
-    }
     let now = tigshop_common::utils::now_seconds() as i64;
     let receipt_sn = format!("PR{}{:04}", now, rand_suffix());
     let mut tx = state.repos.pool.begin().await.map_err(db)?;

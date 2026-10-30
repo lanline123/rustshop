@@ -247,3 +247,25 @@ supplierProduct/list 能查到新绑定
 ```
 
 验证后已清理测试数据。
+
+## 2026-10-31 补充 5：直采入库
+
+`purchaseReceipt/save` 已支持 `orderId` 为空：
+
+```text
+按 vendorId + items 创建采购单
+把 vendorProductSkuId 映射为采购明细 orderItemId
+再走入库流程
+```
+
+本地接口验证：
+
+```text
+直采入库返回 receiptId=1
+采购单 PO17933876215100 状态 3 已完成
+入库单 PR17933876212900 状态 2 已确认
+商品库存 30 → 32
+金额 20.00
+```
+
+验证后测试数据已清理。
