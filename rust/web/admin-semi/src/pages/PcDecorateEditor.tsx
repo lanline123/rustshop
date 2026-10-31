@@ -31,6 +31,7 @@ import {
 } from '@douyinfe/semi-ui';
 import {
   IconArrowLeft,
+  IconCart,
   IconChevronDown,
   IconChevronUp,
   IconClose,
@@ -53,12 +54,17 @@ interface PicItem {
   picName?: string;
   picTitle?: string;
   picDesc?: string;
+  /** 分类导航3 卡片级图片背景色（原版 PcCategoryNav3Item） */
+  imageBackgroundColor?: string;
   picLink?: { link?: string; name?: string; title?: string };
 }
 
 const DEMO_PIC_1 = 'https://oss.vortmall.com/upload/c4ca4238/img/gallery/202411/1731301937REbUnsSmPehWiBMaFd.webp';
 const DEMO_PIC_2 = 'https://oss.vortmall.com/upload/c4ca4238/img/gallery/202411/1731301941uaSjIShOBNL2VBSr0y.webp';
 const NOTICE_ICON = 'https://oss.vortmall.com/upload/c4ca4238/img/gallery/202508/1754895669bP3iJSUiXSBoRB1VQq.png';
+/** 分类导航3 描述行火苗图标（对齐原版 preview.less 内联 hot.svg 渐变） */
+const HOT_FLAME_ICON =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none'%3E%3Cdefs%3E%3ClinearGradient id='fa' x1='3.563' x2='12.438' y1='8.398' y2='8.398' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%23FF475D'/%3E%3Cstop offset='1' stop-color='%23FF0F23'/%3E%3C/linearGradient%3E%3ClinearGradient id='fb' x1='8' x2='8' y1='1.008' y2='14.988' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%23FFB78A'/%3E%3Cstop offset='1' stop-color='%23FF3449'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23fa)' d='M11.516 6.855q-.226.364-.538.712a1.14 1.14 0 0 1-.797.381 1.15 1.15 0 0 1-1.132-.717 1.16 1.16 0 0 1-.083-.51c.047-.741-.194-1.612-.716-2.59-.264-.49-.58-.91-.956-1.256a3.8 3.8 0 0 1-.19.727 5.5 5.5 0 0 1-.909 1.578q-.406.497-.915.887a4.4 4.4 0 0 0-1.263 1.53 4.3 4.3 0 0 0-.454 1.937c0 1.17.46 2.27 1.296 3.1A4.43 4.43 0 0 0 8 13.922a4.43 4.43 0 0 0 3.14-1.288 4.34 4.34 0 0 0 1.297-3.1c0-.612-.126-1.207-.374-1.767a4.3 4.3 0 0 0-.547-.912'/%3E%3Cpath fill='url(%23fb)' d='M13.033 7.334a5.4 5.4 0 0 0-1.295-1.8l-.455-.417a.126.126 0 0 0-.203.052l-.203.583c-.127.365-.36.739-.69 1.106a.1.1 0 0 1-.064.031.09.09 0 0 1-.067-.023.1.1 0 0 1-.031-.075c.058-.941-.223-2.002-.84-3.157-.508-.959-1.216-1.707-2.1-2.23l-.646-.379a.125.125 0 0 0-.187.114l.034.75c.023.513-.036.966-.177 1.342-.171.461-.418.89-.734 1.274q-.331.401-.742.72a5.5 5.5 0 0 0-1.567 1.898 5.43 5.43 0 0 0-.133 4.536 5.49 5.49 0 0 0 2.928 2.9A5.5 5.5 0 0 0 8 14.988c.742 0 1.46-.144 2.14-.427a5.45 5.45 0 0 0 1.747-1.167A5.4 5.4 0 0 0 13.5 9.536c0-.763-.156-1.503-.467-2.202m-1.892 5.302A4.43 4.43 0 0 1 8 13.923a4.43 4.43 0 0 1-3.14-1.287 4.34 4.34 0 0 1-1.298-3.1c0-.68.154-1.331.455-1.938a4.4 4.4 0 0 1 1.263-1.53c.338-.258.646-.556.915-.887.39-.476.697-1.008.91-1.578a3.8 3.8 0 0 0 .189-.726c.376.346.692.765.956 1.256.522.978.762 1.848.716 2.589a1.156 1.156 0 0 0 2.012.847q.313-.349.538-.713.328.42.547.913a4.3 4.3 0 0 1 .374 1.767c0 1.17-.46 2.272-1.296 3.1'/%3E%3C/svg%3E";
 
 const demoPic = (id: string, url: string, name: string, title: string): PicItem => ({
   picId: id,
@@ -213,8 +219,16 @@ interface SettingFieldDef {
   numberStep?: number;
   /** container 字段的子结构类型 */
   containerType?: 'frame' | 'buyBtn' | 'productColor' | 'groupTitle' | 'moduleStyle' | 'contentStyle';
+  /** color 字段"重置"按钮写回的值（原版各 SelectColor 的 dec-color-reset 语义），缺省为 '' */
+  resetValue?: unknown;
+  /** title 字段是否隐藏"更多链接/倒计时"二选（原版 enableMoreType 未开启的模块） */
+  titleHideMoreType?: boolean;
+  /** title 字段是否隐藏标题上/下内边距（原版 enableTitleVerticalPadding 未开启的模块） */
+  titleHideVerticalPadding?: boolean;
   /** title 字段是否隐藏对齐选项（原版 hide-title-align） */
   titleHideAlign?: boolean;
+  /** picList 字段是否显示描述输入（原版 ModulePicList show-desc） */
+  picDesc?: boolean;
   /** 字段写入后的附加行为（如切换拼团类型时清空活动） */
   onChangeExtra?: (moduleData: Record<string, any>, newValue: unknown) => Record<string, any>;
   showIf?: (m: Record<string, any>) => boolean;
@@ -253,7 +267,7 @@ function setPath(obj: Record<string, any>, path: string, value: unknown): Record
 }
 
 const containerFields = (opts: { showInnerPadding?: boolean } = {}): SettingFieldDef[] => [
-  { kind: 'color', key: 'frame.backgroundColor', label: '背景颜色' },
+  { kind: 'color', key: 'frame.backgroundColor', label: '背景颜色', resetValue: '#ffffff' },
   { kind: 'slider', key: 'frame.boxRadius', label: '容器圆角', max: 30 },
   { kind: 'slider', key: 'frame.boxPadding', label: '左右边距', max: 30 },
   { kind: 'slider', key: 'frame.boxPaddingTop', label: '上边距', max: 30 },
@@ -263,31 +277,49 @@ const containerFields = (opts: { showInnerPadding?: boolean } = {}): SettingFiel
     : []),
 ];
 
-const titleFields = (opts: { moreType?: boolean; verticalPadding?: boolean; hideAlign?: boolean } = {}): SettingFieldDef[] => [
-  { kind: 'switch', key: 'title.showTitle', label: '显示标题' },
-  { kind: 'radio', key: 'title.titleStyle', label: '标题栏风格', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }, { label: '样式三', value: 3 }], showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 },
-  { kind: 'radio', key: 'title.titleAlign', label: '标题位置', options: [{ label: '居左', value: 1 }, { label: '居中', value: 2 }, { label: '居右', value: 3 }], showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 && !opts.hideAlign },
-  { kind: 'input', key: 'title.titleText', label: '标题内容', showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 },
-  { kind: 'color', key: 'title.titleColor', label: '标题颜色', showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 },
-  { kind: 'color', key: 'title.titleBackground', label: '标题背景色', showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 },
-  { kind: 'slider', key: 'title.titleRadius', label: '标题圆角', max: 30, showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 },
-  { kind: 'input', key: 'title.descText', label: '描述内容', showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 },
-  { kind: 'color', key: 'title.descColor', label: '描述颜色', showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 },
-  ...(opts.moreType
-    ? [
-        { kind: 'radio' as const, key: 'title.moreType', label: '右侧内容', options: [{ label: '更多链接', value: 1 }, { label: '倒计时', value: 2 }], showIf: (m: Record<string, any>) => Number(getPath(m, 'title.showTitle')) === 1 },
-        { kind: 'input' as const, key: 'title.countdownLabel', label: '倒计时前缀文字', showIf: (m: Record<string, any>) => Number(getPath(m, 'title.showTitle')) === 1 && Number(getPath(m, 'title.moreType')) === 2 },
-      ]
-    : []),
-  { kind: 'switch', key: 'title.showMore', label: '显示查看更多', showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 && (!opts.moreType || Number(getPath(m, 'title.moreType')) === 1) },
-  { kind: 'link', key: 'title.moreLink', label: '更多链接', showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 && Number(getPath(m, 'title.showMore')) === 1 && (!opts.moreType || Number(getPath(m, 'title.moreType')) === 1) },
-  ...(opts.verticalPadding
-    ? [
-        { kind: 'slider' as const, key: 'title.titlePaddingTop', label: '标题上内边距', max: 60 },
-        { kind: 'slider' as const, key: 'title.titlePaddingBottom', label: '标题下内边距', max: 60 },
-      ]
-    : []),
-];
+/**
+ * 标题设置字段集（对齐原版 _shared/ModuleTitleSettings.vue 的字段顺序/条件显隐/重置值/文案）：
+ * 显示标题 → 标题样式 → 标题对齐 → 标题内容 → 标题颜色 → 描述内容 → 描述颜色 → 背景颜色
+ * → 标题圆角 → [标题上/下边距] → 显示右侧内容/显示更多链接 → [右侧内容二选]
+ * → 链接模式：[链接文字] → 链接颜色 → 链接地址 ｜ 倒计时模式：前缀文字 → 文字颜色
+ */
+const titleFields = (opts: { moreType?: boolean; verticalPadding?: boolean; hideAlign?: boolean } = {}): SettingFieldDef[] => {
+  const moreColorDefault = opts.moreType ? '#1a1a1a' : '#969799';
+  const showTitleOn = (m: Record<string, any>) => Number(getPath(m, 'title.showTitle')) === 1;
+  const showMoreOn = (m: Record<string, any>) => showTitleOn(m) && Number(getPath(m, 'title.showMore')) === 1;
+  const countdownMode = (m: Record<string, any>) =>
+    showMoreOn(m) && !!opts.moreType && Number(getPath(m, 'title.moreType')) === 2;
+  const linkMode = (m: Record<string, any>) =>
+    showMoreOn(m) && (!opts.moreType || Number(getPath(m, 'title.moreType')) !== 2);
+  return [
+    { kind: 'switch', key: 'title.showTitle', label: '显示标题' },
+    { kind: 'radio', key: 'title.titleStyle', label: '标题样式', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }, { label: '样式三', value: 3 }], showIf: showTitleOn },
+    { kind: 'radio', key: 'title.titleAlign', label: '标题对齐', options: [{ label: '左对齐', value: 1 }, { label: '居中', value: 2 }, { label: '右对齐', value: 3 }], showIf: (m) => showTitleOn(m) && !opts.hideAlign },
+    { kind: 'input', key: 'title.titleText', label: '标题内容', showIf: showTitleOn },
+    { kind: 'color', key: 'title.titleColor', label: '标题颜色', resetValue: '#2a3145', showIf: showTitleOn },
+    { kind: 'input', key: 'title.descText', label: '描述内容', showIf: showTitleOn },
+    { kind: 'color', key: 'title.descColor', label: '描述颜色', resetValue: '#aaaaaa', showIf: showTitleOn },
+    { kind: 'color', key: 'title.titleBackground', label: '背景颜色', showIf: showTitleOn },
+    { kind: 'slider', key: 'title.titleRadius', label: '标题圆角', max: 30, showIf: showTitleOn },
+    ...(opts.verticalPadding
+      ? [
+          { kind: 'slider' as const, key: 'title.titlePaddingTop', label: '标题上边距', max: 60 },
+          { kind: 'slider' as const, key: 'title.titlePaddingBottom', label: '标题下边距', max: 60 },
+        ]
+      : []),
+    { kind: 'switch', key: 'title.showMore', label: opts.moreType ? '显示右侧内容' : '显示更多链接', showIf: showTitleOn },
+    ...(opts.moreType
+      ? [
+          { kind: 'radio' as const, key: 'title.moreType', label: '右侧内容', options: [{ label: '显示更多', value: 1 }, { label: '显示倒计时', value: 2 }], showIf: showMoreOn },
+          { kind: 'input' as const, key: 'title.countdownLabel', label: '前缀文字', showIf: countdownMode },
+        ]
+      : []),
+    { kind: 'input', key: 'title.moreLink.title', label: '链接文字', showIf: linkMode },
+    { kind: 'color', key: 'title.moreColor', label: opts.moreType ? '文字颜色' : '链接颜色', resetValue: moreColorDefault, showIf: countdownMode },
+    { kind: 'color', key: 'title.moreColor', label: '链接颜色', resetValue: moreColorDefault, showIf: (m) => linkMode(m) && (!opts.moreType || Number(getPath(m, 'title.moreType')) !== 2) },
+    { kind: 'link', key: 'title.moreLink', label: '链接地址', showIf: linkMode },
+  ];
+};
 
 /* ===================== 新版模块集（modules/pcHome 20 个，kebab-case） ===================== */
 
@@ -301,7 +333,7 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       picList2: [], picList3: [], number: 1, slideGap: 12,
     }),
     settings: [
-      { kind: 'picList', key: 'picList', label: '轮播图', hint: '建议 1264*280' },
+      { kind: 'picList', key: 'picList', label: '轮播图', hint: '可拖拽排序，建议尺寸 1264*280' },
       ...containerFields(),
     ],
     summary: (m) => `${((m.picList || []) as PicItem[]).length} 图`,
@@ -315,8 +347,8 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       picList2: [], picList3: [], number: 3,
     }),
     settings: [
-      { kind: 'picList', key: 'picList', label: 'Banner图', hint: '1180*940 / 750*479' },
-      { kind: 'number', key: 'number', label: '一组显示的数量', min: 1, max: 3, hint: '最多 3 个' },
+      { kind: 'picList', key: 'picList', label: 'Banner图', hint: '可拖拽排序，建议 1180*940（高清）或 750*479' },
+      { kind: 'number', key: 'number', label: '一组显示的数量', min: 1, max: 3, hint: '最多只显示3个' },
       ...containerFields(),
     ],
     summary: (m) => `每组 ${m.number || '-'} 个 · ${((m.picList || []) as PicItem[]).length} 图`,
@@ -332,15 +364,16 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
     }),
     settings: [
       { kind: 'radio', key: 'picType', label: '选择模板', options: [{ label: '一行一个', value: 1 }, { label: '轮播', value: 2 }, { label: '一行两个', value: 5 }, { label: '一行三个', value: 6 }, { label: '一行四个', value: 7 }] },
-      { kind: 'picList', key: 'picList', label: '广告图' },
+      { kind: 'picList', key: 'picList', label: '广告图', hint: '可拖拽排序，建议宽1500px' },
       { kind: 'radio', key: 'picPageType', label: '指示器样式', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }, { label: '样式三', value: 3 }], showIf: (m) => Number(m.picType) === 2 },
-      { kind: 'color', key: 'swiperPageColor', label: '指示器颜色', showIf: (m) => Number(m.picType) === 2 },
-      { kind: 'select', key: 'swiperPreView', label: '轮播一行显示', options: [1, 2, 3, 4].map((n) => ({ label: `${n} 个`, value: n })), showIf: (m) => Number(m.picType) === 2 },
+      { kind: 'color', key: 'swiperPageColor', label: '指示器颜色', resetValue: '#333333', showIf: (m) => Number(m.picType) === 2 },
+      { kind: 'select', key: 'swiperPreView', label: '轮播一行显示', options: [1, 2, 3, 4].map((n) => ({ label: `${n}个`, value: n })), showIf: (m) => Number(m.picType) === 2 },
       { kind: 'slider', key: 'imgPadding', label: '图片边距', max: 30 },
       { kind: 'radio', key: 'picRadioStyle', label: '图片边角', options: [{ label: '直角', value: 1 }, { label: '圆角', value: 2 }] },
-      { kind: 'title', key: 'title', label: '标题设置' },
-      { kind: 'radio', key: 'isFluxWidth', label: '通宽排版', options: [{ label: '通宽', value: 1 }, { label: '居中', value: 0 }] },
-      ...containerFields(),
+      { kind: 'title', key: 'title', label: '标题设置', titleHideMoreType: true, titleHideVerticalPadding: true },
+      { kind: 'radio', key: 'isFluxWidth', label: '是否通宽排版', options: [{ label: '是', value: 1 }, { label: '否', value: 0 }] },
+      // 原版 ModuleContainerSettings hide-horizontal-spacing：通宽排版时隐藏"左右边距"
+      ...containerFields().map((f) => (f.key === 'frame.boxPadding' ? { ...f, showIf: (m: Record<string, any>) => Number(m.isFluxWidth) !== 1 } : f)),
     ],
     summary: (m) => `模板${m.picType} · ${((m.picList || []) as PicItem[]).length} 图`,
   },
@@ -350,20 +383,19 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       navType: 1, navStyle: 1, rowNum: 4, colNum: 2, picList: [],
       backgroundColor: '#ffffff', imgPadding: 8, radioStyle: 1, picPageType: 1, swiperPageColor: '#333333',
       frame: standardFrame(),
-      title: standardTitle(),
     }),
     settings: [
-      { kind: 'radio', key: 'navType', label: '显示模式', options: [{ label: '固定', value: 1 }, { label: '滑动分页', value: 2 }] },
+      { kind: 'radio', key: 'navType', label: '显示模式', options: [{ label: '固定显示', value: 1 }, { label: '滑动分页', value: 2 }] },
       { kind: 'radio', key: 'navStyle', label: '样式', options: [{ label: '图文', value: 1 }, { label: '仅图片', value: 2 }, { label: '仅文字', value: 3 }] },
-      { kind: 'select', key: 'rowNum', label: '一行显示', options: [3, 4, 5, 6].map((n) => ({ label: `${n} 个`, value: n })) },
-      { kind: 'select', key: 'colNum', label: '显示行数', options: [1, 2, 3].map((n) => ({ label: `${n} 行`, value: n })) },
-      { kind: 'picList', key: 'picList', label: '导航项' },
-      { kind: 'color', key: 'backgroundColor', label: '背景颜色' },
+      { kind: 'select', key: 'rowNum', label: '一行显示', options: [3, 4, 5, 6].map((n) => ({ label: `${n}个`, value: n })) },
+      { kind: 'select', key: 'colNum', label: '显示行数', options: [1, 2, 3].map((n) => ({ label: `${n}行`, value: n })) },
+      { kind: 'picList', key: 'picList', label: '导航项', hint: '可拖拽排序' },
+      { kind: 'color', key: 'backgroundColor', label: '背景颜色', resetValue: '#ffffff' },
       { kind: 'slider', key: 'imgPadding', label: '元素边距', max: 30 },
-      { kind: 'radio', key: 'radioStyle', label: '图片边角', options: [{ label: '直角', value: 1 }, { label: '圆角', value: 2 }], showIf: (m) => Number(m.navStyle) === 2 },
+      // 原版 isNavStyleImage = navStyle !== 3：仅文字模式下不显示图片边角
+      { kind: 'radio', key: 'radioStyle', label: '图片边角', options: [{ label: '直角', value: 1 }, { label: '圆角', value: 2 }], showIf: (m) => Number(m.navStyle) !== 3 },
       { kind: 'radio', key: 'picPageType', label: '指示器样式', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }], showIf: (m) => Number(m.navType) === 2 },
-      { kind: 'color', key: 'swiperPageColor', label: '指示器颜色', showIf: (m) => Number(m.navType) === 2 },
-      { kind: 'title', key: 'title', label: '标题设置' },
+      { kind: 'color', key: 'swiperPageColor', label: '指示器颜色', resetValue: '#333333', showIf: (m) => Number(m.navType) === 2 },
       ...containerFields(),
     ],
     summary: (m) => `${m.rowNum}×${m.colNum} · ${((m.picList || []) as PicItem[]).length} 项`,
@@ -379,9 +411,9 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
     }),
     settings: [
       { kind: 'radio', key: 'picType', label: '选择布局', options: [{ label: '一行两个', value: 1 }, { label: '一行三个', value: 2 }, { label: '一行四个', value: 3 }, { label: '左二右二', value: 4 }, { label: '左一右二', value: 5 }, { label: '左一右三', value: 6 }, { label: '上一下二', value: 7 }] },
-      { kind: 'picList', key: 'picList', label: '魔方图', hint: '槽位数量由布局决定' },
+      { kind: 'picList', key: 'picList', label: '魔方图', hint: '先选模板确定格子数量（固定张数）' },
       { kind: 'slider', key: 'imgPadding', label: '图片边距', max: 30 },
-      { kind: 'title', key: 'title', label: '标题设置' },
+      { kind: 'title', key: 'title', label: '标题设置', titleHideMoreType: true, titleHideVerticalPadding: true },
       ...containerFields({ showInnerPadding: true }),
     ],
     summary: (m) => `布局${m.picType} · ${((m.picList || []) as PicItem[]).length} 图`,
@@ -395,10 +427,9 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       title: standardTitle(),
     }),
     settings: [
-      { kind: 'picList', key: 'picList', label: '热图' },
-      { kind: 'hotarea', key: 'hotarea', label: '热区（宽/高/上/左 为像素，基准 500px 宽）' },
-      { kind: 'slider', key: 'imgPadding', label: '图片边距', max: 30 },
-      { kind: 'title', key: 'title', label: '标题设置' },
+      { kind: 'picList', key: 'picList', label: '热图', hint: '添加图片后在每张图下绘制热区（宽/高/上/左 为像素，基准 500px 宽）' },
+      { kind: 'hotarea', key: 'hotarea', label: '热区' },
+      { kind: 'title', key: 'title', label: '标题设置', titleHideMoreType: true, titleHideVerticalPadding: true },
       ...containerFields({ showInnerPadding: true }),
     ],
     summary: (m) => `${((m.picList || []) as PicItem[]).length} 图`,
@@ -411,17 +442,17 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       items: QUICK_NAV_ITEMS,
     }),
     settings: [
-      { kind: 'picList', key: 'items', label: '导航项', hint: '图标+文字+链接，可排序' },
+      { kind: 'picList', key: 'items', label: '导航项', hint: '图标+文字+链接，可拖拽排序' },
       { kind: 'slider', key: 'style.fontSize', label: '字号', min: 12, max: 24 },
-      { kind: 'radio', key: 'style.fontWeight', label: '文字粗细', options: [{ label: '常规', value: 400 }, { label: '加粗', value: 700 }] },
+      { kind: 'radio', key: 'style.fontWeight', label: '文字粗细', options: [{ label: '常规体', value: 400 }, { label: '加粗体', value: 700 }] },
       { kind: 'slider', key: 'style.lineHeight', label: '行高', min: 12, max: 40 },
-      { kind: 'color', key: 'style.textColor', label: '文字颜色' },
-      { kind: 'color', key: 'style.hoverColor', label: '悬停颜色' },
+      { kind: 'color', key: 'style.textColor', label: '文字颜色', resetValue: '#333333' },
+      { kind: 'color', key: 'style.hoverColor', label: '悬停颜色', resetValue: '#e1251b' },
       { kind: 'slider', key: 'style.iconSize', label: '图标尺寸', min: 12, max: 32 },
       { kind: 'slider', key: 'style.iconGap', label: '图文间距', min: 0, max: 16 },
       { kind: 'radio', key: 'style.containerAlign', label: '整体排布', options: [{ label: '居左', value: 1 }, { label: '居中', value: 2 }, { label: '居右', value: 3 }] },
       { kind: 'slider', key: 'style.itemGap', label: '项目间距', min: 8, max: 60 },
-      { kind: 'radio', key: 'style.singleLine', label: '单行模式', options: [{ label: '单行', value: 1 }, { label: '自动换行', value: 0 }] },
+      { kind: 'radio', key: 'style.singleLine', label: '单行模式', options: [{ label: '单行不换行', value: 1 }, { label: '自动换行', value: 0 }] },
       ...containerFields(),
     ],
     summary: (m) => `${((m.items || []) as PicItem[]).length} 项`,
@@ -433,10 +464,10 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       titleName: '热门分类', showTitle: 1, displayNum: 6, backgroundColor: '#f7f7f7',
     }),
     settings: [
-      { kind: 'switch', key: 'showTitle', label: '显示标题' },
+      { kind: 'radio', key: 'showTitle', label: '显示标题', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
       { kind: 'input', key: 'titleName', label: '标题', showIf: (m) => Number(m.showTitle) === 1 },
       { kind: 'slider', key: 'displayNum', label: '一屏显示数量', min: 1, max: 10 },
-      { kind: 'color', key: 'backgroundColor', label: '背景颜色' },
+      { kind: 'color', key: 'backgroundColor', label: '背景颜色', resetValue: '#f7f7f7' },
       ...containerFields(),
     ],
     summary: (m) => `${m.titleName || ''} · 每屏 ${m.displayNum}`,
@@ -449,13 +480,13 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       imageBackgroundColor: '', picList: [], backgroundColor: 'rgba(0, 0, 0, 0.02)',
     }),
     settings: [
-      { kind: 'picList', key: 'picList', label: '图片卡片', hint: '建议 180*180' },
-      { kind: 'color', key: 'imageBackgroundColor', label: '图片背景色' },
+      { kind: 'picList', key: 'picList', label: '图片卡片', hint: '可拖拽排序，建议 180*180 像素', picDesc: true },
+      { kind: 'color', key: 'imageBackgroundColor', label: '图片背景色', resetValue: '' },
       { kind: 'input', key: 'titleText', label: '标题内容' },
-      { kind: 'switch', key: 'showMore', label: '显示查看更多' },
-      { kind: 'input', key: 'showMoreText', label: '更多文字', showIf: (m) => Number(m.showMore) === 1 },
+      { kind: 'radio', key: 'showMore', label: '显示查看更多', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
+      { kind: 'input', key: 'showMoreText', label: '查看更多文字', showIf: (m) => Number(m.showMore) === 1 },
       { kind: 'link', key: 'moreLink', label: '更多链接', showIf: (m) => Number(m.showMore) === 1 },
-      { kind: 'color', key: 'backgroundColor', label: '模块背景颜色' },
+      { kind: 'color', key: 'backgroundColor', label: '模块背景颜色', resetValue: 'rgba(0, 0, 0, 0.02)' },
     ],
     summary: (m) => `${m.titleText || ''} · ${((m.picList || []) as PicItem[]).length} 卡`,
   },
@@ -474,65 +505,79 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       { kind: 'radio', key: 'style', label: '展示样式', options: [{ label: '一行四个', value: 1 }, { label: '一行五个', value: 2 }] },
       { kind: 'slider', key: 'goodsPadding', label: '商品边距', max: 30 },
       { kind: 'products', key: 'products', label: '商品设置' },
-      { kind: 'title', key: 'title', label: '标题设置' },
+      { kind: 'title', key: 'title', label: '标题设置', titleHideMoreType: true, titleHideVerticalPadding: true },
       ...containerFields({ showInnerPadding: true }),
     ],
     summary: (m) => `样式${Number(m.style) === 2 ? 5 : 4}列 · ${((m.products?.productIds || []) as number[]).length} 商品`,
   },
   {
     type: 'pc-product-group', label: '商品分组', group: '商品',
-    defaults: () => ({
-      productSource: 'products',
-      productGroups: ['为你推荐', '热卖爆款', '折扣专区', '预售专场'].map((title, gi) => ({
+    defaults: () => {
+      // 演示商品（原版 demoProductList 逐字段）
+      const demoProductList = [
+        ['1732004872pw39D1oGqdAaZMpvyo', 88.8, 98.8],
+        ['1732004872f6EcZnbAqdW5kIGzxL', 56.8, 68.88],
+        ['1732004872o3s8aqPGdICr1DOCdB', 48.8, 69.9],
+        ['1732004872Mry8L9BWOCiawPhp72', 48.8, 69.9],
+        ['1732004872yPYr4zSj7AXrfw9oON', 32.0, 39.0],
+        ['1732004872NlX49KeGeYSN4Tw0wa', 32.0, 39.0],
+      ].map(([hash, price, marketPrice]) => ({
+        productId: 0,
+        productSn: '',
+        productName: '商品的大标题雨价格在后台他会自动调用读取',
+        productDesc: '',
+        productPrice: price as number,
+        marketPrice: marketPrice as number,
+        picThumb: `https://oss.vortmall.com/upload/c4ca4238/img/gallery/202411/${hash}.jpg`,
+      }));
+      const demoGroup = (title: string, withTitlePic: boolean): Record<string, any> => ({
         sourceType: 'products',
         title,
-        titlePic: gi === 0 ? { picUrl: DEMO_PIC_1, picThumb: DEMO_PIC_1 } : { picUrl: '', picThumb: '' },
+        titlePic: withTitlePic
+          ? {
+              picUrl: 'https://oss.vortmall.com/demo/upload/c4ca4238/2026/02/07/147580fe25834bb09199267ee601b834.png',
+              picThumb: 'https://oss.vortmall.com/demo/upload/c4ca4238/2026/02/07/147580fe25834bb09199267ee601b834.png?x-oss-process=image/resize,m_pad,h_200,h_200',
+            }
+          : { picUrl: '', picThumb: '' },
         titleLink: { link: '', name: '' },
         bannerPic: { picUrl: '', picThumb: '' },
         bannerLink: { link: '', name: '' },
-        productList: Array.from({ length: 4 }, (_, i) => ({
-          productId: 0,
-          productSn: '',
-          productName: '商品标题（后台自动调用读取）',
-          productDesc: '',
-          productPrice: [88.8, 56.8, 48.8, 32.0][i % 4],
-          marketPrice: [98.8, 68.88, 69.9, 39.0][i % 4],
-          picThumb: HERO_DEMO_PRODUCTS[(gi + i) % 6].pic.picThumb,
-        })),
-      })),
-      groupList: [],
-      productCardStyle: 1, listStyle: 4, cardPadding: 0, cardRadius: 4,
-      showProductName: 1, productNameRow: 1, productNameWeight: 400, productNameSize: 16,
-      showProductPrice: 1, productPriceMarginTop: 10, productPriceWeight: 400, productPriceSize: 28,
-      crossedOutPrice: 1, showSales: 1, showShopTag: 1,
-      buyBtnStyle: { showBtn: 1, btnType: 1, text: '', textColor: '#ffffff', iconColor: '#ffffff', paddingLeftRight: 3 },
-      productColor: { infoLeftRightPadding: 10, backgroundColor: '#ffffff', titleColor: '#19191b', priceColor: '', crossedOutPriceColor: '#999999' },
-      groupTitle: { marginLeftRight: 5, showTitle: 1, bigTitleFontSize: 14, titleColor: '#444444', activeTitleColor: '#FF0F23', activeTitleBgColor: '#ffebf1', titleMinWidth: 80, titlePaddingTopBottom: 8, titlePaddingLeftRight: 12, titleRadius: 4, splitLineColor: 'transparent' },
-      moduleStyle: { boxPaddingTop: 5, boxPaddingBottom: 5, boxPadding: 10, backgroundColor: '' },
-      contentStyle: { paddingTop: 0, paddingBottom: 0, paddingLeftRight: 0, boxRadius: 0, backgroundColor: '', backgroundPic: { picUrl: '', picThumb: '' }, backgroundPicFillType: 'cover', boxShadow: 0 },
-    }),
+        productList: demoProductList.map((p) => ({ ...p })),
+      });
+      return {
+        productSource: 'products',
+        productGroups: [demoGroup('为你推荐', true), demoGroup('热卖', false), demoGroup('折扣', false), demoGroup('预售', false)],
+        groupList: [],
+        productCardStyle: 1, listStyle: 4, cardPadding: 0, cardRadius: 4,
+        showProductName: 1, productNameRow: 1, productNameWeight: 400, productNameSize: 16,
+        showProductPrice: 1, productPriceMarginTop: 10, productPriceWeight: 400, productPriceSize: 28,
+        crossedOutPrice: 1, showSales: 1, showShopTag: 1,
+        buyBtnStyle: { showBtn: 1, btnType: 1, text: '', textColor: '#ffffff', iconColor: '#ffffff', paddingLeftRight: 3 },
+        productColor: { infoLeftRightPadding: 10, backgroundColor: '#ffffff', titleColor: '#19191b', priceColor: '', crossedOutPriceColor: '#999999' },
+        groupTitle: { marginLeftRight: 5, showTitle: 1, bigTitleFontSize: 14, titleColor: '#444444', activeTitleColor: '#FF0F23', activeTitleBgColor: '#ffebf1', titleMinWidth: 80, titlePaddingTopBottom: 8, titlePaddingLeftRight: 12, titleRadius: 4, splitLineColor: 'transparent' },
+        moduleStyle: { boxPaddingTop: 5, boxPaddingBottom: 5, boxPadding: 10, backgroundColor: '' },
+        contentStyle: { paddingTop: 0, paddingBottom: 0, paddingLeftRight: 0, boxRadius: 0, backgroundColor: '', backgroundPic: { picUrl: '', picThumb: '' }, backgroundPicFillType: 'cover', boxShadow: 0 },
+      };
+    },
     settings: [
       { kind: 'groupList', key: 'productGroups', label: '分组列表' },
       { kind: 'radio', key: 'productCardStyle', label: '商品样式', options: [{ label: '扁平', value: 1 }, { label: '卡片', value: 2 }, { label: '描边', value: 3 }] },
       { kind: 'radio', key: 'listStyle', label: '展示样式', options: [{ label: '一行四个', value: 4 }, { label: '一行五个', value: 6 }, { label: '一行六个', value: 7 }] },
       { kind: 'slider', key: 'cardPadding', label: '商品内部边距', max: 10 },
       { kind: 'slider', key: 'cardRadius', label: '商品圆角半径', max: 20 },
-      { kind: 'switch', key: 'showProductName', label: '商品标题' },
-      { kind: 'radio', key: 'productNameRow', label: '标题行数', options: [{ label: '1 行', value: 1 }, { label: '2 行', value: 2 }], showIf: (m) => Number(m.showProductName) === 1 },
+      { kind: 'radio', key: 'showProductName', label: '商品标题', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
+      { kind: 'radio', key: 'productNameRow', label: '标题行数', options: [{ label: '一行', value: 1 }, { label: '两行', value: 2 }], showIf: (m) => Number(m.showProductName) === 1 },
       { kind: 'radio', key: 'productNameWeight', label: '标题粗细', options: [{ label: '常规', value: 400 }, { label: '加粗', value: 700 }], showIf: (m) => Number(m.showProductName) === 1 },
       { kind: 'slider', key: 'productNameSize', label: '标题大小', min: 12, max: 16, showIf: (m) => Number(m.showProductName) === 1 },
-      { kind: 'switch', key: 'showProductPrice', label: '商品价格' },
-      { kind: 'slider', key: 'productPriceMarginTop', label: '价格上间距', max: 30, showIf: (m) => Number(m.showProductPrice) === 1 },
-      { kind: 'radio', key: 'productPriceWeight', label: '价格粗细', options: [{ label: '常规', value: 400 }, { label: '加粗', value: 700 }], showIf: (m) => Number(m.showProductPrice) === 1 },
-      { kind: 'slider', key: 'productPriceSize', label: '价格大小', min: 12, max: 40, showIf: (m) => Number(m.showProductPrice) === 1 },
-      { kind: 'switch', key: 'crossedOutPrice', label: '划线价' },
-      { kind: 'switch', key: 'showSales', label: '已售' },
-      { kind: 'switch', key: 'showShopTag', label: '商品店铺' },
+      { kind: 'radio', key: 'showProductPrice', label: '商品价格', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
+      { kind: 'radio', key: 'crossedOutPrice', label: '商品划线价', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
+      { kind: 'radio', key: 'showSales', label: '已售', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
+      { kind: 'radio', key: 'showShopTag', label: '商品店铺', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
       { kind: 'container', key: 'buyBtnStyle', label: '购买按钮', containerType: 'buyBtn' },
-      { kind: 'container', key: 'productColor', label: '商品颜色', containerType: 'productColor' },
-      { kind: 'container', key: 'groupTitle', label: '分组标题', containerType: 'groupTitle' },
-      { kind: 'container', key: 'moduleStyle', label: '模块样式', containerType: 'moduleStyle' },
-      { kind: 'container', key: 'contentStyle', label: '内容样式', containerType: 'contentStyle' },
+      { kind: 'container', key: 'productColor', label: '商品颜色设置', containerType: 'productColor' },
+      { kind: 'container', key: 'groupTitle', label: '分组标题设置', containerType: 'groupTitle' },
+      { kind: 'container', key: 'moduleStyle', label: '模块样式设置', containerType: 'moduleStyle' },
+      { kind: 'container', key: 'contentStyle', label: '内容区样式设置', containerType: 'contentStyle' },
     ],
     summary: (m) => `${((m.productGroups || []) as Array<Record<string, any>>).length} 组 · 样式${m.listStyle}`,
   },
@@ -544,9 +589,9 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       products: { ...productsDefaults(), productNumber: 20 },
     }),
     settings: [
-      { kind: 'input', key: 'titleName', label: '标题' },
+      { kind: 'input', key: 'titleName', label: '标题', hint: '可不填' },
       { kind: 'products', key: 'products', label: '商品设置', numberMax: 50 },
-      ...containerFields({ showInnerPadding: true }),
+      ...containerFields(),
     ],
     summary: (m) => `${m.titleName || ''} · ${((m.products?.productIds || []) as number[]).length} 商品`,
   },
@@ -575,12 +620,12 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
     defaults: () => ({
       frame: { boxPadding: 0, boxPaddingTop: 0, boxPaddingBottom: 0, boxRadius: 0 },
       seckillTitle: '全场优惠限时9折起',
-      title: standardTitle({ showTitle: 1, titleText: '全场优惠限时9折起', titleColor: '#1a1a1a', moreType: 2, countdownLabel: '倒计时', moreColor: '#1a1a1a' }),
+      title: standardTitle({ showTitle: 1, titlePaddingTop: 20, titlePaddingBottom: 20, titleText: '全场优惠限时9折起', titleColor: '#1a1a1a', moreType: 2, countdownLabel: '倒计时', moreColor: '#1a1a1a' }),
       goodsGap: 10,
     }),
     settings: [
       { kind: 'slider', key: 'goodsGap', label: '商品间距', max: 40 },
-      { kind: 'title', key: 'title', label: '标题设置', hint: '秒杀商品由营销-秒杀决定' },
+      { kind: 'title', key: 'title', label: '标题设置', hint: '秒杀商品由营销-秒杀决定', titleHideAlign: true },
       ...containerFields({ showInnerPadding: true }),
     ],
     summary: (m) => String(getPath(m, 'title.titleText') || m.seckillTitle || ''),
@@ -603,11 +648,11 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       { kind: 'groupon', key: 'grouponActivityItem', label: '拼团活动' },
       { kind: 'radio', key: 'cardStyle', label: '商品卡片样式', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }] },
       { kind: 'radio', key: 'textAlign', label: '文本对齐', options: [{ label: '左对齐', value: 1 }, { label: '居中对齐', value: 2 }] },
-      { kind: 'switch', key: 'showName', label: '显示商品名称' },
-      { kind: 'switch', key: 'showPrice', label: '显示商品价格' },
+      { kind: 'radio', key: 'showName', label: '显示商品名称', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
+      { kind: 'radio', key: 'showPrice', label: '显示商品价格', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
       { kind: 'slider', key: 'goodsPadding', label: '商品边距', max: 50 },
       { kind: 'title', key: 'title', label: '标题设置', titleHideAlign: true },
-      { kind: 'color', key: 'backgroundColor', label: '背景颜色' },
+      { kind: 'color', key: 'backgroundColor', label: '背景颜色', resetValue: '#ffffff' },
       { kind: 'slider', key: 'boxRadius', label: '圆角', max: 30 },
       { kind: 'slider', key: 'innerPadding', label: '内边距', max: 30 },
       { kind: 'slider', key: 'boxPadding', label: '左右边距', max: 30 },
@@ -695,13 +740,13 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
     defaults: () => ({
       text: '公告内容',
       icoPic: { picUrl: NOTICE_ICON, picThumb: NOTICE_ICON },
-      frame: standardFrame({ textColor: '#555555', itemBackgroundColor: '#fff8e6', itemRadius: 4 }),
+      frame: { textColor: '#555555', itemBackgroundColor: '#fff8e6', backgroundColor: '#ffffff', innerPadding: 0, itemHeight: 35, itemRadius: 4, boxRadius: 0, boxPadding: 10, boxPaddingTop: 5, boxPaddingBottom: 5 },
     }),
     settings: [
       { kind: 'input', key: 'text', label: '公告内容' },
-      { kind: 'pic', key: 'icoPic', label: '公告图标' },
-      { kind: 'color', key: 'frame.textColor', label: '文字颜色' },
-      { kind: 'color', key: 'frame.itemBackgroundColor', label: '组件背景' },
+      { kind: 'pic', key: 'icoPic', label: '公告图标', resetValue: { picUrl: NOTICE_ICON, picThumb: NOTICE_ICON } },
+      { kind: 'color', key: 'frame.textColor', label: '文字颜色', resetValue: '#555555' },
+      { kind: 'color', key: 'frame.itemBackgroundColor', label: '组件背景', resetValue: '#ffffff' },
       { kind: 'slider', key: 'frame.itemRadius', label: '组件圆角', max: 50 },
       { kind: 'slider', key: 'frame.itemHeight', label: '组件高度', min: 20, max: 80 },
       ...containerFields(),
@@ -711,21 +756,26 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
   {
     type: 'pc-title-ad', label: '文本标题', group: '辅助元素',
     defaults: () => ({
-      title: standardTitle({ showTitle: 1, titleText: '标题内容', titleColor: '#2a3145', moreColor: '#969799' }),
+      title: {
+        showTitle: 1, titleStyle: 1, titleAlign: 1, titleBackground: '', titleBackground2: '',
+        titleBackgroundPic: { picUrl: '', picThumb: '' }, titleRadius: 0, titleText: '标题内容',
+        titleColor: '#2a3145', descText: '', descColor: '#aaaaaa', showMore: 0,
+        moreLink: { link: '', title: '' }, moreColor: '#969799',
+      },
       frame: standardFrame(),
     }),
     settings: [
-      { kind: 'radio', key: 'title.titleStyle', label: '标题栏风格', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }] },
+      { kind: 'radio', key: 'title.titleStyle', label: '标题栏风格', options: [{ label: '风格一', value: 1 }, { label: '风格二', value: 2 }] },
       { kind: 'radio', key: 'title.titleAlign', label: '标题位置', options: [{ label: '居左', value: 1 }, { label: '居中', value: 2 }] },
-      { kind: 'color', key: 'title.titleBackground', label: '标题背景色' },
+      { kind: 'color', key: 'title.titleBackground', label: '标题背景色', resetValue: '' },
       { kind: 'slider', key: 'title.titleRadius', label: '标题圆角', max: 30 },
       { kind: 'input', key: 'title.titleText', label: '标题内容', onChangeExtra: (m) => setPath(m, 'title.showTitle', 1) },
-      { kind: 'color', key: 'title.titleColor', label: '标题颜色' },
+      { kind: 'color', key: 'title.titleColor', label: '标题颜色', resetValue: '#2a3145' },
       { kind: 'input', key: 'title.descText', label: '描述内容' },
-      { kind: 'color', key: 'title.descColor', label: '描述颜色' },
-      { kind: 'switch', key: 'title.showMore', label: '显示查看更多' },
-      { kind: 'color', key: 'title.moreColor', label: '更多文字颜色' },
-      { kind: 'link', key: 'title.moreLink', label: '更多链接', showIf: (m) => Number(getPath(m, 'title.showMore')) === 1 },
+      { kind: 'color', key: 'title.descColor', label: '描述颜色', resetValue: '#aaaaaa' },
+      { kind: 'radio', key: 'title.showMore', label: '显示查看更多', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
+      { kind: 'color', key: 'title.moreColor', label: '更多文字颜色', resetValue: '#969799' },
+      { kind: 'link', key: 'title.moreLink', label: '更多链接' },
       ...containerFields({ showInnerPadding: true }),
     ],
     summary: (m) => String(getPath(m, 'title.titleText') || ''),
@@ -734,11 +784,11 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
     type: 'pc-divider', label: '分割线', group: '辅助元素',
     defaults: () => ({
       lineType: 2, lineStyle: 1,
-      frame: standardFrame({ itemHeight: 10, itemRadius: 0 }),
+      frame: { textColor: '', itemBackgroundColor: '', backgroundColor: '#ffffff', innerPadding: 0, itemHeight: 10, itemRadius: 0, boxRadius: 0, boxPadding: 10, boxPaddingTop: 5, boxPaddingBottom: 5 },
     }),
     settings: [
       { kind: 'radio', key: 'lineType', label: '分割类型', options: [{ label: '空白', value: 1 }, { label: '分割线', value: 2 }] },
-      { kind: 'radio', key: 'lineStyle', label: '选择样式', options: [{ label: '实线', value: 1 }, { label: '虚线', value: 2 }, { label: '点状线', value: 3 }], showIf: (m) => Number(m.lineType) === 2 },
+      { kind: 'radio', key: 'lineStyle', label: '选择样式', options: [{ label: '实线', value: 1 }, { label: '虚线', value: 2 }, { label: '点状线', value: 3 }] },
       { kind: 'slider', key: 'frame.itemHeight', label: '组件高度', min: 0, max: 100 },
       ...containerFields(),
     ],
@@ -752,8 +802,10 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       blankHeight: 30,
     }),
     settings: [
-      { kind: 'color', key: 'backgroundColor', label: '背景颜色' },
+      { kind: 'color', key: 'backgroundColor', label: '背景颜色', resetValue: '#ffffff' },
       { kind: 'slider', key: 'blankHeight', label: '高度', min: 0, max: 200 },
+      // 原版 ModuleContainerSettings hide-background-color：自身已有背景色字段，容器设置里不再重复
+      ...containerFields().filter((f) => f.key !== 'frame.backgroundColor'),
     ],
     summary: (m) => `高 ${m.blankHeight}px`,
   },
@@ -1296,32 +1348,52 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
 
 /* ===================== 画布预览（轻量真实结构渲染） ===================== */
 
+/** 模块标题预览（对齐原版 _shared/ModuleTitle.vue：样式一/二/三 装饰、对齐、背景色、圆角、更多/倒计时） */
 function PreviewTitle({ title }: { title?: Record<string, any> }) {
   if (!title || Number(title.showTitle) !== 1) return null;
+  const align = Number(title.titleAlign) || 1;
+  const style = Number(title.titleStyle) || 1;
+  const moreColor = title.moreColor || '#969799';
+  const containerStyle: Record<string, any> = {
+    display: 'flex',
+    alignItems: 'center',
+    lineHeight: '30px',
+    padding: '5px 10px 3px',
+    position: 'relative',
+    justifyContent: align === 2 ? 'center' : align === 3 ? 'flex-end' : 'space-between',
+  };
+  if (align === 3) containerStyle.flexDirection = 'row-reverse';
+  if (title.titleBackground) containerStyle.backgroundColor = title.titleBackground;
+  if (Number(title.titleRadius)) containerStyle.borderRadius = `${Number(title.titleRadius)}px ${Number(title.titleRadius)}px 0 0`;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: Number(title.titleAlign) === 2 ? 'center' : 'space-between', padding: '10px 12px' }}>
-      <div>
-        <div style={{ fontSize: 16, fontWeight: 700, color: title.titleColor || '#333' }}>{title.titleText || ''}</div>
-        {title.descText ? <div style={{ fontSize: 12, color: title.descColor || '#aaa' }}>{title.descText}</div> : null}
+    <div style={containerStyle}>
+      <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', flexDirection: align === 2 ? 'column' : align === 3 ? 'row-reverse' : undefined, textAlign: align === 2 ? 'center' : undefined }}>
+        {title.titleBackgroundPic?.picUrl ? (
+          <img src={title.titleBackgroundPic.picUrl} alt="" style={{ width: 30, height: 30, marginRight: align === 2 || align === 3 ? 0 : 5, objectFit: 'contain', flexShrink: 0 }} />
+        ) : null}
+        <div style={{ position: 'relative', fontWeight: 700, fontSize: 16, color: title.titleColor || '#2a3145', paddingLeft: style === 2 ? 10 : undefined }}>
+          {style === 2 && (
+            <span style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: 3, height: 16, borderRadius: 2, background: 'linear-gradient(180deg, #155bd4 0%, #64b5f6 100%)' }} />
+          )}
+          {title.titleText || ''}
+          {style === 3 && (
+            <span style={{ position: 'absolute', left: 0, bottom: -2, width: '100%', height: 2, borderRadius: 1, background: 'linear-gradient(90deg, #155bd4 0%, transparent 100%)' }} />
+          )}
+        </div>
+        {title.descText ? (
+          <div style={{ fontSize: 12, color: title.descColor || '#aaaaaa', marginLeft: align === 2 ? 0 : 5, marginTop: align === 2 ? 2 : 0, position: 'relative', top: align === 2 ? undefined : 1 }}>
+            {title.descText}
+          </div>
+        ) : null}
       </div>
-      {Number(title.showMore) === 1 && Number(title.moreType) === 1 && (
-        <span style={{ fontSize: 12, color: title.moreColor || '#999' }}>{getPath(title, 'moreLink.title') || getPath(title, 'moreLink.name') || '查看更多'} ›</span>
+      {Number(title.showMore) === 1 && Number(title.moreType ?? 1) === 1 && (
+        <span style={{ display: 'flex', alignItems: 'center', fontSize: 12, color: moreColor, ...(align === 2 ? { position: 'absolute' as const, right: 10 } : {}) }}>
+          {getPath(title, 'moreLink.title') || getPath(title, 'moreLink.name') || '更多'} ›
+        </span>
       )}
       {Number(title.moreType) === 2 && (
-        <span style={{ fontSize: 12, color: title.moreColor || '#999' }}>{title.countdownLabel || '倒计时'} 00:00:00</span>
+        <span style={{ fontSize: 12, color: moreColor, ...(align === 2 ? { position: 'absolute' as const, right: 10 } : {}) }}>{title.countdownLabel || '倒计时'} 00:00:00</span>
       )}
-    </div>
-  );
-}
-
-function PicGrid({ pics, cols, gap = 8, radius = 4, ratio }: { pics: PicItem[]; cols: number; gap?: number; radius?: number; ratio?: string }) {
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap, padding: 8 }}>
-      {pics.map((p, i) => (
-        <div key={i} style={{ aspectRatio: ratio || '3 / 1', borderRadius: radius, overflow: 'hidden', background: '#f2f3f5' }}>
-          {p.picUrl ? <img src={p.picUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
-        </div>
-      ))}
     </div>
   );
 }
@@ -1507,112 +1579,222 @@ function ProductCards({
 function ModulePreview({ type, data }: { type: string; data: Record<string, any> }) {
   const m = data || {};
   switch (type) {
-    case 'pc-banner2':
-      return <PicGrid pics={(m.picList || []) as PicItem[]} cols={1} ratio="1264 / 280" radius={Number(getPath(m, 'frame.boxRadius')) || 0} />;
-    case 'pc-group-banner':
-      return <PicGrid pics={(m.picList || []).slice(0, Number(m.number) || 3) as PicItem[]} cols={Number(m.number) || 3} ratio="750 / 479" radius={Number(getPath(m, 'frame.boxRadius')) || 0} />;
+    case 'pc-banner2': {
+      // 对齐原版 dec-pc-banner2：frame 内边距在外层，背景色/圆角在内层，一屏 1~3 张、间距 12
+      const pics = (m.picList || []) as PicItem[];
+      const f = (m.frame || {}) as Record<string, any>;
+      const num = Math.min(3, Math.max(1, Number(m.number) || 1));
+      if (!pics.length) {
+        return (
+          <div style={{ height: 280, border: '1px dashed #dcdfe6', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa', color: '#909399', fontSize: 14 }}>
+            点击添加轮播Banner2
+          </div>
+        );
+      }
+      return (
+        <div style={{ padding: `${Number(f.boxPaddingTop) || 0}px ${Number(f.boxPadding) || 0}px ${Number(f.boxPaddingBottom) || 0}px` }}>
+          <div style={{ width: '100%', overflow: 'hidden', borderRadius: Number(f.boxRadius) || 8, background: f.backgroundColor || '#eeeeee' }}>
+            <div style={{ display: 'flex', gap: num > 1 ? 12 : 0 }}>
+              {pics.slice(0, num).map((p, i) => (
+                <div key={i} style={{ flex: 1, minWidth: 0 }}>
+                  {p.picUrl ? (
+                    <img src={p.picUrl} alt="" style={{ display: 'block', width: '100%', height: 'auto', objectFit: 'contain', objectPosition: 'center', backgroundColor: '#eeeeee' }} />
+                  ) : (
+                    <div style={{ width: '100%', aspectRatio: '1264 / 280', background: '#eeeeee' }} />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+    case 'pc-group-banner': {
+      // 对齐原版 dec-pc-group-banner：外层 frame 背景/圆角，内层固定高 slideHeight，图片 cover、间隙 30
+      const pics = (m.picList || []) as PicItem[];
+      const f = (m.frame || {}) as Record<string, any>;
+      const num = Math.min(3, Math.max(1, Number(m.number) || 3));
+      const slideHeight = Number(f.slideHeight) || 195;
+      if (!pics.length) {
+        return (
+          <div style={{ height: 140, border: '1px dashed #dcdfe6', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa', color: '#909399', fontSize: 14 }}>
+            点击添加分组轮播Banner
+          </div>
+        );
+      }
+      return (
+        <div style={{ padding: `${Number(f.boxPaddingTop) || 0}px ${Number(f.boxPadding ?? 10)}px ${Number(f.boxPaddingBottom) || 0}px`, backgroundColor: f.backgroundColor || 'transparent', borderRadius: Number(f.boxRadius) || 8 }}>
+          <div style={{ height: slideHeight, borderRadius: Number(f.boxRadius) || 8, overflow: 'hidden', display: 'flex', gap: 30 }}>
+            {pics.slice(0, num).map((p, i) => (
+              <div key={i} style={{ flex: 1, minWidth: 0, height: '100%', overflow: 'hidden', borderRadius: 8 }}>
+                {p.picUrl ? <img src={p.picUrl} alt="" style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
     case 'pc-image-ad': {
-      const t = Number(m.picType);
+      // 对齐原版 dec-image-ad：通宽时左右 padding 为 0，背景/圆角内外双层，图片高度自适应，间距=图片边距
+      const t = Number(m.picType) || 1;
       const pics = (m.picList || []) as PicItem[];
       const radius = Number(m.picRadioStyle) === 2 ? 8 : 0;
+      const f = (m.frame || {}) as Record<string, any>;
+      const flux = Number(m.isFluxWidth) === 1;
+      const pad = Number(m.imgPadding) || 0;
+      const boxBg = f.backgroundColor || '#ffffff';
+      const boxRadius = Number(f.boxRadius) || 0;
+      const cols = t === 5 ? 2 : t === 6 ? 3 : t === 7 ? 4 : 1;
       let grid: JSX.Element;
       if (t === 2) {
-        const perView = Number(m.swiperPreView) || 1;
+        const perView = Math.max(1, Number(m.swiperPreView) || 1);
         grid = (
-          <div style={{ display: 'flex', gap: Number(m.swiperPreView) > 1 ? 6 : 0, overflow: 'hidden' }}>
+          <div style={{ borderRadius: radius, overflow: 'hidden', display: 'flex', gap: pad }}>
             {pics.slice(0, perView).map((p, i) => (
-              <div key={i} style={{ flex: 1, aspectRatio: '1500 / 350', background: '#f2f3f5', borderRadius: radius, overflow: 'hidden' }}>
-                {p.picUrl ? <img src={p.picUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
+              <div key={i} style={{ flex: 1, minWidth: 0, padding: pad, boxSizing: 'border-box', borderRadius: radius, overflow: 'hidden' }}>
+                {p.picUrl ? <img src={p.picUrl} alt="" style={{ display: 'block', width: '100%', height: 'auto', objectFit: 'cover', borderRadius: radius }} /> : <div style={{ width: '100%', aspectRatio: '1500 / 350', background: '#f5f5f5', borderRadius: radius }} />}
               </div>
             ))}
           </div>
         );
       } else {
-        const cols = t === 5 ? 2 : t === 6 ? 3 : t === 7 ? 4 : 1;
         grid = (
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: Number(m.imgPadding) || 0 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: pad }}>
             {pics.map((p, i) => (
-              <div key={i} style={{ aspectRatio: cols === 1 ? '1500 / 350' : '1 / 1', background: '#f2f3f5', borderRadius: radius, overflow: 'hidden' }}>
-                {p.picUrl ? <img src={p.picUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
+              <div key={i} style={{ boxSizing: 'border-box', padding: pad, width: `calc((100% - ${pad * (cols - 1)}px) / ${cols})`, borderRadius: radius, overflow: 'hidden' }}>
+                {p.picUrl ? <img src={p.picUrl} alt="" style={{ display: 'block', width: '100%', height: 'auto', objectFit: 'cover', borderRadius: radius }} /> : <div style={{ width: '100%', aspectRatio: cols === 1 ? '1500 / 350' : '1 / 1', background: '#f5f5f5', borderRadius: radius }} />}
               </div>
             ))}
           </div>
         );
       }
       return (
-        <div style={{ ...frameStyle(m) }}>
-          <PreviewTitle title={m.title} />
-          <div style={{ padding: Number(m.imgPadding) || 0 }}>{grid}</div>
+        <div style={{ padding: `${Number(f.boxPaddingTop ?? 5)}px ${flux ? 0 : Number(f.boxPadding ?? 10)}px ${Number(f.boxPaddingBottom ?? 5)}px`, backgroundColor: boxBg, borderRadius: boxRadius }}>
+          <div style={{ backgroundColor: boxBg, borderRadius: boxRadius, overflow: 'hidden' }}>
+            <PreviewTitle title={m.title} />
+            {pics.length === 0 ? (
+              <div style={{ padding: '40px 20px', textAlign: 'center', background: '#f5f5f5', borderRadius: 4, color: '#999', fontSize: 12 }}>点击添加图片广告</div>
+            ) : (
+              grid
+            )}
+          </div>
         </div>
       );
     }
     case 'pc-image-nav': {
+      // 对齐原版 dec-pc-image-nav：内容背景/容器背景分层，rowNum 列栅格，图片宽度 100% 高度自适应，仅图片/仅文字按 navStyle 裁剪
       const pics = (m.picList || []) as PicItem[];
-      const style = Number(m.navStyle);
+      const navStyle = Number(m.navStyle) || 1;
+      const navType = Number(m.navType) || 1;
+      const rowNum = Math.min(6, Math.max(3, Number(m.rowNum) || 4));
+      const colNum = Math.min(3, Math.max(1, Number(m.colNum) || 2));
+      const f = (m.frame || {}) as Record<string, any>;
+      const pad = Number(m.imgPadding ?? 8);
+      const radius = Number(m.radioStyle) === 2 ? 8 : 0;
+      const items = navType === 1 ? pics.slice(0, rowNum * colNum) : pics;
       return (
-        <div style={{ padding: 8, background: m.backgroundColor || '#fff' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${m.rowNum || 4}, 1fr)`, gap: m.imgPadding ?? 8 }}>
-            {pics.slice(0, (m.rowNum || 4) * (m.colNum || 2)).map((p, i) => (
-              <div key={i} style={{ textAlign: 'center' }}>
-                {style !== 3 && p.picUrl ? <img src={p.picUrl} alt="" style={{ width: 44, height: 44, borderRadius: Number(m.radioStyle) === 2 ? '50%' : 6, objectFit: 'cover' }} /> : null}
-                {style !== 2 && <div style={{ fontSize: 12, marginTop: 2 }}>{p.picTitle}</div>}
+        <div style={{ padding: `${Number(f.boxPaddingTop ?? 5)}px ${Number(f.boxPadding ?? 10)}px ${Number(f.boxPaddingBottom ?? 5)}px`, backgroundColor: f.backgroundColor || '#ffffff' }}>
+          <div style={{ backgroundColor: m.backgroundColor || '#ffffff', borderRadius: Number(f.boxRadius) || 0, overflow: 'hidden' }}>
+            {items.length === 0 ? (
+              <div style={{ padding: '40px 20px', textAlign: 'center', background: '#f5f5f5', borderRadius: 4, color: '#999', fontSize: 12 }}>点击添加图文导航</div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${rowNum}, minmax(0, 1fr))`, gap: pad, padding: pad, boxSizing: 'border-box' }}>
+                {items.map((p, i) => (
+                  <div key={i} style={{ minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                    {navStyle !== 3 && (p.picUrl ? (
+                      <img src={p.picUrl} alt={p.picTitle || ''} style={{ display: 'block', width: '100%', height: 'auto', borderRadius: radius, background: '#f0f0f0', objectFit: 'cover' }} />
+                    ) : (
+                      <div style={{ width: '100%', aspectRatio: '1 / 1', borderRadius: radius, background: '#f0f0f0' }} />
+                    ))}
+                    {navStyle !== 2 && <div style={{ fontSize: 12, color: '#333', lineHeight: 1.2, textAlign: 'center', wordBreak: 'break-all' }}>{p.picTitle}</div>}
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         </div>
       );
     }
     case 'pc-image-square-ad': {
-      const t = Number(m.picType);
-      const cols = t === 1 ? 2 : t === 2 ? 3 : t === 3 ? 4 : t === 4 ? 2 : t === 5 ? 3 : t === 6 ? 4 : 2;
-      return <PicGrid pics={(m.picList || []) as PicItem[]} cols={cols} ratio="1 / 1" />;
-    }
-    case 'pc-image-hotarea': {
-      const pics = (m.picList || []) as Array<PicItem & { hotarea?: Array<Record<string, any>> }>;
-      const first = pics[0];
-      return (
-        <div style={{ padding: 8 }}>
-          <div style={{ position: 'relative', background: '#f2f3f5', borderRadius: 4, overflow: 'hidden', minHeight: 120 }}>
-            {first?.picUrl ? <img src={first.picUrl} alt="" style={{ width: '100%', display: 'block' }} /> : <div style={{ padding: 40, textAlign: 'center', color: '#c0c4cc' }}>热图未设置</div>}
-            {(first?.hotarea || []).map((h, i) => (
-              <div key={i} style={{ position: 'absolute', border: '1px dashed #e1251b', background: 'rgba(225,37,27,0.12)', left: `${(Number(h.left) / 500) * 100}%`, top: `${(Number(h.top) / 500) * 100}%`, width: `${(Number(h.width) / 500) * 100}%`, height: `${(Number(h.height) / 500) * 100}%` }} />
+      // 对齐原版 dec-image-cube：布局 4/5/6/7 为特殊拼版，1/2/3 为等分栅格；间距=图片边距，内容区带左右内边距
+      const pics = ((m.picList || []) as PicItem[]).map((p) => p || ({} as PicItem));
+      const t = Number(m.picType) || 1;
+      const f = (m.frame || {}) as Record<string, any>;
+      const pad = Number(m.imgPadding) || 0;
+      const boxBg = f.backgroundColor || '#ffffff';
+      const boxRadius = Number(f.boxRadius) || 0;
+      const inner = Number(f.leftAndRightPadding) || 0;
+      const cubeImg = (p?: PicItem, fill?: boolean) => (
+        <div style={{ overflow: 'hidden', ...(fill ? { height: '100%' } : {}) }}>
+          {p?.picUrl ? <img src={p.picUrl} alt="" style={{ display: 'block', width: '100%', height: fill ? '100%' : 'auto', objectFit: 'cover' }} /> : <div style={{ width: '100%', aspectRatio: fill ? undefined : '1 / 1', height: fill ? '100%' : undefined, minHeight: fill ? 80 : undefined, background: '#f5f5f5' }} />}
+        </div>
+      );
+      let body: JSX.Element;
+      if (t === 5) {
+        // 左一右二
+        body = (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: pad, alignItems: 'stretch' }}>
+            <div style={{ minHeight: 120 }}>{cubeImg(pics[0], true)}</div>
+            <div style={{ display: 'grid', gridTemplateRows: 'repeat(2, 1fr)', gap: pad }}>{cubeImg(pics[1], true)}{cubeImg(pics[2], true)}</div>
+          </div>
+        );
+      } else if (t === 7) {
+        // 上一下二
+        body = (
+          <div style={{ display: 'grid', gridTemplateRows: 'auto auto', gap: pad }}>
+            {cubeImg(pics[0])}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: pad }}>{cubeImg(pics[1])}{cubeImg(pics[2])}</div>
+          </div>
+        );
+      } else if (t === 6) {
+        // 左一右三
+        body = (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: pad, alignItems: 'stretch' }}>
+            <div style={{ minHeight: 120 }}>{cubeImg(pics[0], true)}</div>
+            <div style={{ display: 'grid', gridTemplateRows: 'repeat(2, 1fr)', gap: pad }}>
+              {cubeImg(pics[1], true)}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: pad }}>{cubeImg(pics[2], true)}{cubeImg(pics[3], true)}</div>
+            </div>
+          </div>
+        );
+      } else if (t === 4) {
+        // 左二右二：列优先排布（左列 1/2，右列 3/4）
+        body = (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gridTemplateRows: 'repeat(2, 1fr)', gridAutoFlow: 'column', gap: pad }}>
+            {cubeImg(pics[0], true)}{cubeImg(pics[1], true)}{cubeImg(pics[2], true)}{cubeImg(pics[3], true)}
+          </div>
+        );
+      } else {
+        const cols = t === 2 ? 3 : t === 3 ? 4 : 2;
+        body = (
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: pad }}>
+            {pics.map((p, i) => (
+              <div key={i}>{cubeImg(p)}</div>
             ))}
+          </div>
+        );
+      }
+      return (
+        <div style={{ padding: `${Number(f.boxPaddingTop ?? 5)}px ${Number(f.boxPadding ?? 10)}px ${Number(f.boxPaddingBottom ?? 5)}px` }}>
+          <div style={{ backgroundColor: boxBg, borderRadius: boxRadius, overflow: 'hidden', padding: inner }}>
+            <PreviewTitle title={m.title} />
+            {pics.length === 0 ? (
+              <div style={{ padding: '40px 20px', textAlign: 'center', background: '#f5f5f5', borderRadius: 4, color: '#999', fontSize: 12 }}>点击添加图片魔方</div>
+            ) : (
+              <div style={{ overflow: 'hidden' }}>{body}</div>
+            )}
           </div>
         </div>
       );
     }
+    case 'pc-image-hotarea':
+      return <HotareaPreview data={m} />;
     case 'pc-home-quick-nav':
-      return (
-        <div style={{ display: 'flex', justifyContent: Number(getPath(m, 'style.containerAlign')) === 1 ? 'flex-start' : Number(getPath(m, 'style.containerAlign')) === 3 ? 'flex-end' : 'center', flexWrap: Number(getPath(m, 'style.singleLine')) === 1 ? 'nowrap' : 'wrap', gap: Number(getPath(m, 'style.itemGap')) ?? 16, padding: 12, overflow: 'hidden' }}>
-          {((m.items || []) as PicItem[]).map((p, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: Number(getPath(m, 'style.iconGap')) ?? 6, fontSize: Number(getPath(m, 'style.fontSize')) || 14, fontWeight: Number(getPath(m, 'style.fontWeight')) === 700 ? 700 : 400, color: getPath(m, 'style.textColor') || '#333', whiteSpace: 'nowrap' }}>
-              {p.picUrl ? <img src={p.picUrl} alt="" style={{ width: Number(getPath(m, 'style.iconSize')) || 18, height: Number(getPath(m, 'style.iconSize')) || 18 }} /> : null}
-              {p.picTitle}
-            </div>
-          ))}
-        </div>
-      );
+      return <QuickNavPreview data={m} />;
     case 'pc-category-nav':
       return <CategoryNavPreview data={m} />;
     case 'pc-category-nav3':
-      return (
-        <div style={{ padding: 12, background: m.backgroundColor || 'rgba(0,0,0,0.02)', borderRadius: 8 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-            <b>{m.titleText}</b>
-            {Number(m.showMore) === 1 && <span style={{ fontSize: 12, color: '#999' }}>{m.showMoreText || '更多'} ›</span>}
-          </div>
-          <div style={{ display: 'flex', gap: 10, overflow: 'hidden' }}>
-            {((m.picList || []) as PicItem[]).slice(0, 8).map((p, i) => (
-              <div key={i} style={{ width: 90, flexShrink: 0, textAlign: 'center' }}>
-                <div style={{ aspectRatio: '1/1', borderRadius: 8, overflow: 'hidden', background: m.imageBackgroundColor || '#fff' }}>
-                  {p.picUrl ? <img src={p.picUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
-                </div>
-                {p.picTitle ? <div style={{ fontSize: 12, marginTop: 4 }}>{p.picTitle}</div> : null}
-              </div>
-            ))}
-          </div>
-        </div>
-      );
+      return <CategoryNav3Preview data={m} />;
     case 'pc-product': {
       return <ProductPreview data={m} />;
     }
@@ -1623,45 +1805,15 @@ function ModulePreview({ type, data }: { type: string; data: Record<string, any>
       return <RecommendPreview data={m} />;
     }
     case 'pc-divider':
-      return Number(m.lineType) === 1 ? (
-        <div style={{ height: Number(getPath(m, 'frame.itemHeight')) || 10 }} />
-      ) : (
-        <div style={{ padding: '5px 10px' }}>
-          <div style={{ borderTopWidth: 1, borderTopStyle: Number(m.lineStyle) === 2 ? 'dashed' : Number(m.lineStyle) === 3 ? 'dotted' : 'solid', borderTopColor: '#e5e9f0' }} />
-        </div>
-      );
+      return <DividerPreview data={m} />;
     case 'pc-spacer':
-      return <div style={{ height: Number(m.blankHeight) || 30, background: m.backgroundColor || '#fff' }} />;
+      return <SpacerPreview data={m} />;
     case 'pc-notice':
-      return (
-        <div style={{ padding: '5px 10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: getPath(m, 'frame.itemBackgroundColor') || '#fff8e6', borderRadius: Number(getPath(m, 'frame.itemRadius')) || 4, height: Number(getPath(m, 'frame.itemHeight')) || 35, padding: '0 10px', color: getPath(m, 'frame.textColor') || '#555' }}>
-            {m.icoPic?.picUrl ? <img src={m.icoPic.picUrl} alt="" style={{ width: 16, height: 16 }} /> : null}
-            <span style={{ fontSize: 13 }}>{m.text || '点击添加通知公告'}</span>
-          </div>
-        </div>
-      );
+      return <NoticePreview data={m} />;
     case 'pc-title-ad':
-      return <PreviewTitle title={{ ...(m.title || {}), showTitle: 1 }} />;
+      return <TitleAdPreview data={m} />;
     case 'pc-home-coupon':
-      return (
-        <div style={{ padding: m.boxPadding ?? 10 }}>
-          {Number(m.showTitle) === 1 && (
-            <div style={{ marginBottom: 8 }}>
-              <b>{m.title}</b>
-              <div style={{ fontSize: 12, color: '#999' }}>{m.desc}</div>
-            </div>
-          )}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-            {['5', '8', '5', '8'].map((v, i) => (
-              <div key={i} style={{ background: '#fff1f0', border: '1px solid #ffccc7', borderRadius: m.boxRadius ?? 8, padding: 10, textAlign: 'center' }}>
-                <div style={{ color: '#e1251b', fontWeight: 700 }}>{i % 2 === 0 ? `¥${v}` : `${v}折`}</div>
-                <div style={{ fontSize: 11, color: '#999' }}>满可用</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      );
+      return <CouponPreview data={m} />;
     case 'pc-home-seckill':
       return <SeckillPreview data={m} />;
     case 'pc-home-groupon':
@@ -1676,131 +1828,1331 @@ function ModulePreview({ type, data }: { type: string; data: Record<string, any>
 
 /* ---- 真实数据预览子组件（hooks 按实例隔离） ---- */
 
-function ProductPreview({ data }: { data: Record<string, any> }) {
-  const rows = usePreviewProducts(data.products);
-  const style: Record<string, any> = {
-    ...frameStyle(data),
-    ...(data.backgroundColor ? { background: data.backgroundColor } : {}),
-  };
+/** 热图绘制预览（对齐原版 dec-image-hotarea：图片纵向堆叠，热区按 500px 基准随容器宽度等比缩放） */
+function HotareaPreview({ data }: { data: Record<string, any> }) {
+  const pics = (data.picList || []) as Array<PicItem & { hotarea?: Array<Record<string, any>> }>;
+  const f = (data.frame || {}) as Record<string, any>;
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [wrapWidth, setWrapWidth] = useState(0);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setWrapWidth(Number((entry.target as HTMLElement).offsetWidth.toFixed(2)));
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [pics.length]);
+  const scale = (v?: number) => ((wrapWidth || 0) / 500) * (Number(v) || 0);
   return (
-    <div style={style}>
-      <PreviewTitle title={data.title} />
-      <ProductCards rows={rows} cols={Number(data.style) === 2 ? 5 : 4} emptyHint="请在设置中选择商品" />
-    </div>
-  );
-}
-
-function RecommendPreview({ data }: { data: Record<string, any> }) {
-  const rows = usePreviewProducts(data.products);
-  return (
-    <div style={{ ...frameStyle(data) }}>
-      {data.titleName ? <div style={{ padding: '10px 12px', fontWeight: 700 }}>{data.titleName}</div> : null}
-      <ProductCards rows={rows} cols={Number(getPath(data, 'frame.columns')) || 5} emptyHint="请在设置中选择商品" />
-    </div>
-  );
-}
-
-function GroupPreviewBlock({ group, cols }: { group: Record<string, any>; cols: number }) {
-  const ids = (group.productIds || []) as number[];
-  const fetched = usePreviewProducts(ids.length ? { productSelectType: 1, productIds: ids } : undefined);
-  const rows: PreviewProduct[] = fetched.length
-    ? fetched
-    : ((group.productList || []) as PreviewProduct[]).filter((p) => p.picThumb || p.picUrl || p.productName);
-  if (!rows.length) return null;
-  return <ProductCards rows={rows} cols={cols} />;
-}
-
-function ProductGroupPreview({ data }: { data: Record<string, any> }) {
-  const groups = (data.productGroups || []) as Array<Record<string, any>>;
-  const cols = Number(data.listStyle) === 4 ? 4 : Number(data.listStyle) === 6 ? 5 : 6;
-  const ms = data.moduleStyle || {};
-  const cs = data.contentStyle || {};
-  return (
-    <div style={{ padding: `${Number(ms.boxPaddingTop) || 0}px ${Number(ms.boxPadding) || 0}px ${Number(ms.boxPaddingBottom) || 0}px`, background: ms.backgroundColor || 'transparent' }}>
-      <div style={{ ...(Number(cs.boxRadius) ? { borderRadius: Number(cs.boxRadius) } : {}), background: cs.backgroundColor || 'transparent', padding: `${Number(cs.paddingTop) || 0}px ${Number(cs.paddingLeftRight) || 0}px ${Number(cs.paddingBottom) || 0}px` }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8, padding: `0 ${Number(getPath(data, 'groupTitle.marginLeftRight')) || 5}px` }}>
-          {groups.map((g, i) => (
-            <span
-              key={i}
-              style={{
-                fontSize: Number(getPath(data, 'groupTitle.bigTitleFontSize')) || 14,
-                fontWeight: 700,
-                padding: `${Number(getPath(data, 'groupTitle.titlePaddingTopBottom')) || 8}px ${Number(getPath(data, 'groupTitle.titlePaddingLeftRight')) || 12}px`,
-                borderRadius: Number(getPath(data, 'groupTitle.titleRadius')) || 4,
-                minWidth: Number(getPath(data, 'groupTitle.titleMinWidth')) || 80,
-                textAlign: 'center',
-                background: i === 0 ? getPath(data, 'groupTitle.activeTitleBgColor') || '#ffebf1' : '#f5f5f5',
-                color: i === 0 ? getPath(data, 'groupTitle.activeTitleColor') || '#FF0F23' : getPath(data, 'groupTitle.titleColor') || '#444',
-              }}
-            >
-              {g.title}
-            </span>
-          ))}
-        </div>
-        {groups.map((g, i) => (
-          <div key={i} style={i === 0 ? {} : { display: 'none' }}>
-            <GroupPreviewBlock group={g} cols={cols} />
+    <div style={{ padding: `${Number(f.boxPaddingTop ?? 5)}px ${Number(f.boxPadding ?? 10)}px ${Number(f.boxPaddingBottom ?? 5)}px` }}>
+      <div style={{ backgroundColor: f.backgroundColor || '#ffffff', borderRadius: Number(f.boxRadius) || 0, overflow: 'hidden', padding: Number(f.leftAndRightPadding) || 0 }}>
+        <PreviewTitle title={data.title} />
+        {pics.length === 0 ? (
+          <div style={{ paddingTop: 30, paddingBottom: 50, textAlign: 'center', backgroundColor: '#f2f4f6', color: '#666', fontSize: 14 }}>
+            <div style={{ width: 100, height: 100, margin: '0 auto 10px', background: '#e5e9f0', borderRadius: 8 }} />
+            点击添加热图绘制
           </div>
-        ))}
+        ) : (
+          <div style={{ overflow: 'hidden' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: Number(data.imgPadding) || 0 }}>
+              {pics.map((pic, pi) => (
+                <div key={pi} style={{ position: 'relative', overflow: 'hidden' }} ref={pi === 0 ? wrapRef : undefined}>
+                  {pic.picUrl ? (
+                    <img src={pic.picUrl} alt={pic.picTitle || ''} style={{ display: 'block', width: '100%', height: 'auto', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ width: '100%', paddingTop: '40%', background: '#f2f4f6' }} />
+                  )}
+                  {(pic.hotarea || []).map((h, hi) => (
+                    <div
+                      key={hi}
+                      style={{
+                        position: 'absolute',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'rgba(21, 91, 212, 0.6)',
+                        color: '#fff',
+                        boxSizing: 'border-box',
+                        border: '1px solid transparent',
+                        width: scale(h.width),
+                        height: scale(h.height),
+                        top: scale(h.top),
+                        left: scale(h.left),
+                      }}
+                    >
+                      <span style={{ fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', padding: '0 4px' }}>{h.link?.name || ''}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
+/** 商品模块预览（对齐原版 dec-pc-product：4/5 列栅格 gap 12、商品边距包裹层、卡片描边、名称/描述/价格开关） */
+function ProductPreview({ data }: { data: Record<string, any> }) {
+  const rows = usePreviewProducts(data.products);
+  const f = (data.frame || {}) as Record<string, any>;
+  const cols = Number(data.style) === 2 ? 5 : 4;
+  const hasData = Number(data.products?.productSelectType || 0) === 1
+    ? ((data.products?.productIds || []) as number[]).length > 0
+    : Number(data.products?.productSelectType || 0) > 0;
+  return (
+    <div style={{ padding: `${Number(f.boxPaddingTop ?? 5)}px ${Number(f.boxPadding ?? 10)}px ${Number(f.boxPaddingBottom ?? 5)}px`, backgroundColor: f.backgroundColor || data.backgroundColor || '#ffffff', borderRadius: Number(f.boxRadius) || 0 }}>
+      <div style={{ padding: `0 ${Number(f.leftAndRightPadding) || 0}px` }}>
+        <PreviewTitle title={data.title} />
+        {!hasData || rows.length === 0 ? (
+          <div style={{ paddingTop: 30, paddingBottom: 50, textAlign: 'center', backgroundColor: '#f2f4f6', color: '#666', fontSize: 14 }}>
+            <div style={{ width: 100, height: 100, margin: '0 auto 10px', background: '#e5e9f0', borderRadius: 8 }} />
+            点击添加商品
+          </div>
+        ) : (
+          <div style={{ padding: Number(data.goodsPadding ?? 5) }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: 12 }}>
+              {rows.slice(0, 30).map((p, i) => (
+                <div key={p.productId ?? i} style={{ minWidth: 0 }}>
+                  <div style={{ display: 'block', border: '1px solid rgba(50, 50, 51, 0.08)', borderRadius: 6, overflow: 'hidden', background: '#fff' }}>
+                    <div style={{ width: '100%', aspectRatio: '1 / 1', background: '#f5f5f5', overflow: 'hidden' }}>
+                      {(p.picThumb || p.picUrl) && <img src={p.picThumb || p.picUrl} alt={p.productName || ''} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
+                    </div>
+                    <div style={{ padding: '10px 10px 12px' }}>
+                      {Number(data.showName) !== 0 && (
+                        <div style={{ fontSize: 13, lineHeight: '18px', color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.productName}</div>
+                      )}
+                      {Number(data.showBrief) !== 0 && (
+                        <div style={{ marginTop: 6, fontSize: 12, lineHeight: '16px', color: '#999', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(p as any).brief || '商品描述'}</div>
+                      )}
+                      {Number(data.showPrice) !== 0 && (
+                        <div style={{ marginTop: 8, fontSize: 14, fontWeight: 600, color: '#e60012' }}>¥{Number(p.productPrice ?? 0).toFixed(2)}</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** 推荐商品预览（对齐原版 dec-pc-recommend-product：大标题+下划线、columns/itemGap 栅格、白卡 1:1 contain 图、加购圆钮） */
+function RecommendPreview({ data }: { data: Record<string, any> }) {
+  const rows = usePreviewProducts(data.products);
+  const f = (data.frame || {}) as Record<string, any>;
+  const columns = Number(f.columns) || 5;
+  const itemGap = Number(f.itemGap ?? 16);
+  return (
+    <div style={{ padding: `${Number(f.boxPaddingTop ?? 0)}px ${Number(f.boxPadding ?? 10)}px 0`, backgroundColor: f.backgroundColor || 'transparent', borderRadius: Number(f.boxRadius) || 0 }}>
+      {!rows.length ? (
+        <div style={{ minHeight: 120, borderRadius: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '30px 0 50px', textAlign: 'center', backgroundColor: '#f2f4f6', color: '#666', fontSize: 14 }}>
+          <div style={{ width: 100, height: 100, margin: '0 auto 10px', background: '#e5e9f0', borderRadius: 8 }} />
+          点击添加商品
+        </div>
+      ) : (
+        <>
+          {data.titleName ? (
+            <h3 style={{ position: 'relative', width: 'fit-content', margin: 0, whiteSpace: 'nowrap', fontSize: 24, fontWeight: 700, color: '#333333', textAlign: 'left', paddingBottom: 4, overflow: 'hidden', display: 'flex', alignItems: 'flex-start' }}>
+              {data.titleName}
+              <span style={{ position: 'absolute', width: 36, left: '50%', bottom: 0, height: 3, borderRadius: 1, backgroundColor: '#1a1a1a', transform: 'translateX(-50%)' }} />
+            </h3>
+          ) : null}
+          <div style={{ marginTop: data.titleName ? 32 : 0, overflow: 'hidden', display: 'grid', gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap: itemGap, paddingBottom: Number(f.boxPaddingBottom ?? 50) }}>
+            {rows.slice(0, 30).map((p, i) => (
+              <div key={p.productId ?? i} style={{ boxSizing: 'border-box', width: '100%', borderRadius: 4, paddingBottom: 12, background: '#ffffff', overflow: 'hidden', border: '1px solid transparent' }}>
+                <div style={{ width: '100%', aspectRatio: '1 / 1', background: '#ffffff', overflow: 'hidden' }}>
+                  {(p.picThumb || p.picUrl) && <img src={p.picThumb || p.picUrl} alt={p.productName || ''} style={{ width: '100%', height: '100%', display: 'block', objectFit: 'contain' }} />}
+                </div>
+                <div style={{ padding: '8px 12px 0', marginTop: 8 }}>
+                  <div style={{ fontSize: 16, fontWeight: 400, lineHeight: '22px', wordBreak: 'break-word', textAlign: 'left', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any, color: '#19191b', minHeight: 44 }}>{p.productName}</div>
+                  <div style={{ minHeight: 18, marginTop: 10 }}>
+                    <div style={{ fontSize: 14, fontWeight: 400, lineHeight: '18px', color: '#888b94', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>已售 {(p as any).virtualSales ?? 0}</div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, minHeight: 32 }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', color: '#be081d', fontWeight: 600 }}>
+                      <span style={{ fontSize: 16, fontWeight: 400 }}>¥</span>
+                      <span style={{ fontSize: 28, fontWeight: 600, lineHeight: '28px' }}>{Number(p.productPrice ?? 0).toFixed(2).split('.')[0]}</span>
+                      <span style={{ fontSize: 16, fontWeight: 400 }}>.{Number(p.productPrice ?? 0).toFixed(2).split('.')[1] || '00'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: 32, height: 32, borderRadius: '50%', background: 'rgba(255, 63, 79, 0.12)', color: '#ff3f4f', flexShrink: 0 }}>
+                      <IconPlus />
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 14, lineHeight: '18px', color: '#269636', fontWeight: 600, marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {(p as any).shopTitle || '官方自营'}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** 商品分组预览（对齐原版 dec-pc-product-group：分组标题栏（标题图/分割线/选中态）+ 卡片式商品列表） */
+function ProductGroupPreview({ data }: { data: Record<string, any> }) {
+  const groups = (data.productGroups || []) as Array<Record<string, any>>;
+  const [activeIndex, setActiveIndex] = useState(0);
+  const ms = data.moduleStyle || {};
+  const cs = data.contentStyle || {};
+  const gt = data.groupTitle || {};
+  const pc = data.productColor || {};
+  const listStyle = Number(data.listStyle) || 4;
+  const gap = Number(pc.infoLeftRightPadding) || 0;
+  const widthByStyle: Record<number, string> = { 1: '100%', 2: '50%', 3: '33.333%', 4: '25%', 6: '20%', 7: '16.666%' };
+  const itemWidth = listStyle >= 1 && listStyle <= 4
+    ? `calc((100% - ${gap * (listStyle - 1)}px) / ${listStyle})`
+    : widthByStyle[listStyle] || `calc((100% - ${gap * 3}px) / 4)`;
+  const activeGroup = groups[Math.min(activeIndex, groups.length - 1)] || groups[0];
+  return (
+    <div style={{ backgroundColor: ms.backgroundColor || 'transparent', padding: `${Number(ms.boxPaddingTop) || 5}px ${Number(ms.boxPadding) || 10}px ${Number(ms.boxPaddingBottom) || 5}px` }}>
+      <div style={{ paddingTop: Number(cs.paddingTop) || 0, paddingBottom: Number(cs.paddingBottom) || 0, paddingLeft: Number(cs.paddingLeftRight) || 0, paddingRight: Number(cs.paddingLeftRight) || 0, borderRadius: Number(cs.boxRadius) || 0, backgroundColor: cs.backgroundColor || 'transparent', boxShadow: Number(cs.boxShadow) ? '0 2px 8px rgba(93, 113, 127, 0.08)' : undefined }}>
+        {Number(gt.showTitle ?? 1) === 1 && groups.length > 0 && (
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', overflow: 'hidden', marginBottom: 20 }}>
+            <div style={{ display: 'flex', gap: Number(gt.marginLeftRight) || 0, overflowX: 'auto', overflowY: 'hidden', flex: 1, scrollbarWidth: 'none' }}>
+              {groups.map((g, i) => (
+                <div
+                  key={i}
+                  onClick={() => setActiveIndex(i)}
+                  style={{ flex: '0 0 auto', position: 'relative', textAlign: 'center', cursor: 'pointer', display: 'flex', alignItems: 'stretch' }}
+                >
+                  {i > 0 && <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, borderRight: `1px solid ${gt.splitLineColor || 'transparent'}`, transform: 'scale(0.5)' }} />}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      minWidth: Number(gt.titleMinWidth) || 80,
+                      padding: `${Number(gt.titlePaddingTopBottom ?? 8)}px ${Number(gt.titlePaddingLeftRight ?? 12)}px`,
+                      backgroundColor: i === activeIndex ? gt.activeTitleBgColor || '#ffebf1' : 'transparent',
+                      borderRadius: Number(gt.titleRadius) || 4,
+                      justifyContent: 'center',
+                      boxSizing: 'border-box',
+                      transition: 'background-color 0.3s',
+                    }}
+                  >
+                    {g.titlePic?.picUrl ? <img src={g.titlePic.picUrl} alt="" style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }} /> : null}
+                    <span style={{ fontSize: Number(gt.bigTitleFontSize) || 14, fontWeight: 700, color: i === activeIndex ? gt.activeTitleColor || '#FF0F23' : gt.titleColor || '#444444', whiteSpace: 'nowrap', transition: 'color 0.3s' }}>{g.title}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <div style={{ marginTop: 5, overflow: 'hidden' }}>
+          {activeGroup ? (
+            <GroupProductsList key={activeIndex} group={activeGroup} itemWidth={itemWidth} data={data} />
+          ) : (
+            <div style={{ padding: 30, textAlign: 'center', color: '#c0c4cc', fontSize: 13 }}>请在设置中添加商品分组</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** 商品分组商品列表（listStyle 定宽 + productColor/groupTitle/buyBtnStyle 变量，对齐原版 preview.less；取数口径对齐原版 fetchProductList） */
+function GroupProductsList({ group, itemWidth, data }: { group: Record<string, any>; itemWidth: string; data: Record<string, any> }) {
+  const listStyle = Number(data.listStyle) || 4;
+  const cols = listStyle === 6 ? 5 : listStyle === 7 ? 6 : 4;
+  const demoList = ((group.productList || []) as PreviewProduct[]).filter((p) => p.picThumb || p.picUrl || p.productName);
+  const ids = ((group.productIds || demoList.map((p) => Number(p.productId)).filter((id) => Number(id) > 0)) || []) as number[];
+  const byGroup = (group.sourceType || 'products') === 'productGroup' && Number(group.productGroupId) > 0;
+  const fetched = usePreviewProducts(!byGroup && ids.length ? { productSelectType: 1, productIds: ids } : undefined);
+  const [groupRows, setGroupRows] = useState<PreviewProduct[]>([]);
+  const gid = Number(group.productGroupId) || 0;
+  useEffect(() => {
+    if (!byGroup) {
+      setGroupRows([]);
+      return;
+    }
+    let alive = true;
+    apiGet<{ records?: PreviewProduct[]; list?: PreviewProduct[] }>('/product/product/list', { productGroupId: gid, page: 1, size: cols * 3 })
+      .then((res) => {
+        if (alive) setGroupRows(res.records || res.list || []);
+      })
+      .catch(() => {
+        if (alive) setGroupRows([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [byGroup, gid, cols]);
+  const rows = byGroup ? groupRows : fetched.length ? fetched : demoList;
+  const pc = data.productColor || {};
+  const gap = Number(pc.infoLeftRightPadding) || 0;
+  const cardStyle = Number(data.productCardStyle) || 1;
+  const buyBtn = data.buyBtnStyle || {};
+  const fmtParts = (v: unknown) => {
+    const num = Number(v ?? 0);
+    const text = Number.isFinite(num) ? num.toFixed(2) : '0.00';
+    const [int, dec] = text.split('.');
+    return { int, dec };
+  };
+  if (!rows.length) return null;
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', rowGap: gap, columnGap: gap }}>
+      {rows.slice(0, 30).map((p, i) => {
+        const parts = fmtParts(p.productPrice);
+        return (
+          <div key={`${p.productId ?? 'x'}-${i}`} style={{ boxSizing: 'border-box', width: itemWidth }}>
+            <div
+              style={{
+                display: 'block',
+                overflow: 'hidden',
+                padding: `${Number(data.cardPadding) || 0}px`,
+                paddingBottom: 12,
+                borderRadius: Number(data.cardRadius) || 4,
+                backgroundColor: pc.backgroundColor || '#ffffff',
+                border: cardStyle === 3 ? '1px solid #eeeeee' : '1px solid transparent',
+                boxShadow: cardStyle === 2 ? '0 2px 8px rgba(93, 113, 127, 0.08)' : undefined,
+                boxSizing: 'border-box',
+              }}
+            >
+              <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height: 0, paddingTop: '100%', background: '#ffffff' }}>
+                {(p.picThumb || p.picUrl) && (
+                  <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundImage: `url(${p.picThumb || p.picUrl})`, backgroundRepeat: 'no-repeat', backgroundPosition: 'center', backgroundSize: 'contain' }} />
+                )}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', minHeight: 156, padding: '8px 12px 0', marginTop: 8, textAlign: 'left' }}>
+                {Number(data.showProductName ?? 1) !== 0 && (
+                  <div
+                    style={{
+                      fontSize: Number(data.productNameSize) || 16,
+                      fontWeight: Number(data.productNameWeight) || 400,
+                      color: pc.titleColor || '#19191b',
+                      lineHeight: '22px',
+                      minHeight: `calc(${Number(data.productNameRow) || 1} * 22px)`,
+                      overflow: 'hidden',
+                      display: '-webkit-box',
+                      WebkitLineClamp: Number(data.productNameRow) || 1,
+                      WebkitBoxOrient: 'vertical' as any,
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    {p.productName}
+                  </div>
+                )}
+                {Number(data.showSales ?? 1) !== 0 && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ height: 18, fontSize: 14, color: '#888b94', lineHeight: '18px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>已售 {(p as any).virtualSales ?? 0}</div>
+                  </div>
+                )}
+                <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 32 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', flex: 1, overflow: 'hidden' }}>
+                    {Number(data.showProductPrice ?? 1) !== 0 && (
+                      <span style={{ marginRight: 5, display: 'flex', alignItems: 'baseline', color: pc.priceColor || '#be081d', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        <span style={{ fontSize: 16, fontWeight: 400 }}>¥</span>
+                        <span style={{ fontSize: 24, fontWeight: 600 }}>{parts.int}</span>
+                        <span style={{ fontSize: 24, fontWeight: 600 }}>.{parts.dec}</span>
+                      </span>
+                    )}
+                    {Number(data.crossedOutPrice ?? 1) !== 0 && Number(p.marketPrice) > 0 && (
+                      <span style={{ marginLeft: 5, fontSize: 16, color: pc.crossedOutPriceColor || '#999999', position: 'relative', display: 'inline-flex', alignItems: 'baseline', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span style={{ fontSize: 12, fontWeight: 400 }}>¥</span>
+                        {Number(p.marketPrice).toFixed(2)}
+                        <span style={{ position: 'absolute', left: 0, right: 0, top: '50%', borderTop: '1px solid currentColor', transform: 'translateY(-50%)' }} />
+                      </span>
+                    )}
+                  </div>
+                  {Number(buyBtn.showBtn ?? 1) !== 0 && (
+                    <span
+                      style={{
+                        width: 32,
+                        height: 32,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: 'transparent',
+                        color: pc.priceColor || '#be081d',
+                        borderRadius: Number(buyBtn.btnType) === 3 ? 6 : '50%',
+                        flexShrink: 0,
+                        paddingLeft: Number(buyBtn.btnType) === 1 ? (Number(buyBtn.paddingLeftRight) || 0) : 0,
+                        paddingRight: Number(buyBtn.btnType) === 1 ? (Number(buyBtn.paddingLeftRight) || 0) : 0,
+                      }}
+                    >
+                      {Number(buyBtn.btnType) === 1 ? <IconPlus /> : <IconCart />}
+                    </span>
+                  )}
+                </div>
+                {Number(data.showShopTag ?? 1) !== 0 && (
+                  <div style={{ fontSize: 14, color: '#269636', fontWeight: 600, lineHeight: '18px', marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {(p as any).shopTitle || '官方自营'}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** 分类导航预览（对齐原版 dec-pc-category-nav：外层 frame 留白、内层背景/圆角/固定高、一屏 displayNum 个、圆形箭头） */
 function CategoryNavPreview({ data }: { data: Record<string, any> }) {
   const rows = useHotCategories();
-  const display = rows.slice(0, Number(data.displayNum) || 6);
+  const f = (data.frame || {}) as Record<string, any>;
+  const displayNum = Math.min(10, Math.max(1, Number(data.displayNum) || 6));
+  const display = rows.slice(0, displayNum);
   return (
-    <div style={{ padding: 12, background: data.backgroundColor || '#f7f7f7', borderRadius: Number(getPath(data, 'frame.boxRadius')) || 8, minHeight: Number(getPath(data, 'frame.boxHeight')) || undefined }}>
-      {Number(data.showTitle) === 1 && <div style={{ fontWeight: 700, marginBottom: 8 }}>{data.titleName}</div>}
-      {display.length === 0 ? (
-        <div style={{ padding: 30, textAlign: 'center', color: '#c0c4cc', fontSize: 13 }}>暂无热门分类（请在分类管理中勾选"热门"）</div>
-      ) : (
-        <div style={{ display: 'flex', gap: 12, overflow: 'hidden' }}>
-          {display.map((c, i) => (
-            <div key={c.categoryId ?? i} style={{ textAlign: 'center', flexShrink: 0, width: 84 }}>
-              <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#ececec', margin: '0 auto', overflow: 'hidden' }}>
-                {(c as any).picUrl || (c as any).pic ? <img src={(c as any).picUrl || (c as any).pic} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
-              </div>
-              <div style={{ fontSize: 12, marginTop: 4, color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.categoryName}</div>
+    <div
+      style={{
+        boxSizing: 'border-box',
+        backgroundColor: f.backgroundColor || 'transparent',
+        borderRadius: Number(f.boxRadius ?? 8),
+        overflow: Number(f.boxRadius) ? 'hidden' : undefined,
+        padding: `${Number(f.boxPaddingTop) || 0}px ${Number(f.boxPadding) || 0}px ${Number(f.boxPaddingBottom) || 0}px`,
+      }}
+    >
+      <div style={{ backgroundColor: data.backgroundColor || '#f7f7f7', borderRadius: 8, height: Number(f.boxHeight ?? 328), display: 'flex', flexDirection: 'column', overflow: 'hidden', width: '100%', boxSizing: 'border-box' }}>
+        {Number(data.showTitle) === 1 && (
+          <div style={{ padding: '20px 24px', fontSize: 24, fontWeight: 700, color: '#1a1a1a' }}>{data.titleName || '热门分类'}</div>
+        )}
+        <div style={{ position: 'relative', flex: 1, width: '100%', minHeight: 0 }}>
+          {display.length === 0 ? (
+            <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 24px', color: '#999', fontSize: 14 }}>
+              暂无热门分类（请在分类管理中勾选"热门"）
             </div>
-          ))}
+          ) : (
+            <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+              {display.map((c, i) => (
+                <div key={c.categoryId ?? i} style={{ flex: 1, minWidth: 0, boxSizing: 'border-box' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <div style={{ width: 'min(180px, 100%)', aspectRatio: '1', background: '#ecf5ff', borderRadius: 4, overflow: 'hidden' }}>
+                      {((c as any).picUrl || (c as any).pic)
+                        ? <img src={(c as any).picUrl || (c as any).pic} alt={c.categoryName || ''} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                        : <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Crect fill='%23f0f0f0' width='180' height='180'/%3E%3C/svg%3E" alt="" style={{ width: '100%', height: '100%', display: 'block' }} />}
+                    </div>
+                    <div style={{ maxWidth: 180, width: '100%', marginTop: 12, marginBottom: 8, textAlign: 'center', color: '#1a1a1a', fontSize: 16, lineHeight: '20px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any }}>
+                      {c.categoryName}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {display.length > 0 && (
+            <>
+              <div className="pc-decorate-swiper-arrow pc-decorate-swiper-arrow--prev"><span /></div>
+              <div className="pc-decorate-swiper-arrow pc-decorate-swiper-arrow--next"><span /></div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** 快捷导航预览（对齐原版 dec-pc-home-quick-nav：frame 留白/背景 + nav_container fs_mod 图左文右横排） */
+function QuickNavPreview({ data }: { data: Record<string, any> }) {
+  const f = (data.frame || {}) as Record<string, any>;
+  const s = (data.style || {}) as Record<string, any>;
+  const items = (data.items || []) as PicItem[];
+  const align = Number(s.containerAlign ?? 1);
+  const justify = align === 2 ? 'center' : align === 3 ? 'flex-end' : 'flex-start';
+  const iconSize = Number(s.iconSize ?? 16);
+  return (
+    <div
+      style={{
+        boxSizing: 'border-box',
+        padding: `${Number(f.boxPaddingTop) || 0}px ${Number(f.boxPadding) || 0}px ${Number(f.boxPaddingBottom) || 0}px`,
+        backgroundColor: f.backgroundColor || 'transparent',
+        borderRadius: Number(f.boxRadius) || 0,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: Number(s.singleLine) === 1 ? 'nowrap' : 'wrap',
+          alignItems: 'center',
+          justifyContent: justify,
+          gap: Number(s.itemGap ?? 20),
+          overflow: 'hidden',
+          lineHeight: `${Number(s.lineHeight ?? 20)}px`,
+          fontWeight: Number(s.fontWeight ?? 400),
+        }}
+      >
+        {items.length === 0 ? (
+          <div style={{ padding: '16px 0', textAlign: 'center', color: '#999', fontSize: 14, width: '100%' }}>请在设置中添加导航项</div>
+        ) : (
+          items.map((item, i) => (
+            <a
+              key={item.picId || i}
+              className="pc-quick-nav-item"
+              style={
+                {
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: Number(s.iconGap ?? 4),
+                  fontSize: Number(s.fontSize ?? 14),
+                  fontWeight: Number(s.fontWeight ?? 400),
+                  lineHeight: `${Number(s.lineHeight ?? 20)}px`,
+                  color: s.textColor || '#333333',
+                  textDecoration: 'none',
+                  whiteSpace: 'nowrap',
+                  cursor: 'pointer',
+                  '--quick-nav-hover-color': s.hoverColor || '#e1251b',
+                } as Record<string, any>
+              }
+              title={item.picTitle || ''}
+            >
+              {(item.picUrl || item.picThumb) && (
+                <img src={(item.picUrl || item.picThumb) as string} alt={item.picTitle || ''} style={{ flexShrink: 0, width: iconSize, height: iconSize, objectFit: 'contain' }} />
+              )}
+              <span style={{ flexShrink: 0 }}>{item.picTitle}</span>
+            </a>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** 分类导航3预览（对齐原版 dec-pc-category-nav3：顶栏 24px 标题+更多、一屏 6 卡、图片背景色、火苗描述行） */
+function CategoryNav3Preview({ data }: { data: Record<string, any> }) {
+  const f = (data.frame || {}) as Record<string, any>;
+  const picList = (Array.isArray(data.picList) ? data.picList : []) as PicItem[];
+  const bgColor = data.backgroundColor || f.backgroundColor || 'rgba(0, 0, 0, 0.02)';
+  const moduleImageBg = data.imageBackgroundColor || '';
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        width: '100%',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+        padding: `${Number(f.boxPaddingTop) || 0}px ${Number(f.boxPadding) || 0}px ${Number(f.boxPaddingBottom) || 0}px`,
+        height: Number(f.boxHeight ?? 352),
+        borderRadius: Number(f.boxRadius ?? 8),
+        backgroundColor: bgColor,
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px' }}>
+        <div style={{ fontSize: 24, fontWeight: 700, color: '#1a1a1a' }}>{data.titleText || '热门推荐'}</div>
+        {Number(data.showMore) === 1 && (
+          <span style={{ display: 'flex', alignItems: 'center', fontSize: 16, color: '#1a1a1a' }}>
+            <span style={{ lineHeight: '20px' }}>{data.showMoreText || '更多'}</span>
+            <span style={{ marginLeft: 6, fontSize: 18, lineHeight: '18px' }}>&gt;</span>
+          </span>
+        )}
+      </div>
+      <div style={{ position: 'relative', flex: 1, height: '100%', width: '100%', minHeight: 0 }}>
+        {picList.length === 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 120, borderRadius: 6, padding: '30px 0 50px', textAlign: 'center', backgroundColor: '#f2f4f6', color: '#666', fontSize: 14 }}>
+            <div style={{ width: 100, height: 100, margin: '0 auto 10px', background: '#e5e9f0', borderRadius: 8 }} />
+            请在设置中添加内容
+          </div>
+        ) : (
+          <div style={{ display: 'flex', width: '100%', height: '100%', overflowX: 'auto', overflowY: 'hidden', boxSizing: 'border-box', padding: '0 12px', scrollbarWidth: 'none' }}>
+            {picList.map((item, i) => (
+              <div key={String(item.picId || i)} style={{ boxSizing: 'border-box', flex: '0 0 calc(100% / 6)', minWidth: 0, height: '100%', padding: '0 14px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                  <div style={{ width: '100%', aspectRatio: '1', flex: '0 1 auto', minHeight: 0, backgroundColor: item.imageBackgroundColor || moduleImageBg || '#ecf5ff', borderRadius: 4, overflow: 'hidden' }}>
+                    {(item.picUrl || item.picThumb)
+                      ? <img src={(item.picUrl || item.picThumb) as string} alt={item.picTitle || ''} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+                      : <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Crect fill='%23f0f0f0' width='180' height='180'/%3E%3C/svg%3E" alt="" style={{ width: '100%', height: '100%', display: 'block' }} />}
+                  </div>
+                  <div style={{ flex: 'none', width: '100%', height: 20, marginTop: 12, marginBottom: 8, textAlign: 'center', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', color: '#1a1a1a', fontSize: 16, lineHeight: '20px' }}>
+                    {item.picTitle}
+                  </div>
+                  {item.picDesc ? (
+                    <div style={{ display: 'flex', flex: 'none', justifyContent: 'center', alignItems: 'center', width: '100%' }}>
+                      <img src={HOT_FLAME_ICON} alt="" style={{ width: 16, height: 16 }} />
+                      <span style={{ marginLeft: 4, color: '#888b94', fontSize: 16, lineHeight: '20px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{item.picDesc}</span>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** 公告预览（对齐原版 dec-pc-notice：frame 留白/容器底 + itemHeight 圆角条 + 图标 16px） */
+function NoticePreview({ data }: { data: Record<string, any> }) {
+  const f = (data.frame || {}) as Record<string, any>;
+  const displayText = String(data.text ?? '').trim();
+  const icon = (data.icoPic || {}) as PicItem;
+  return (
+    <div
+      style={{
+        width: '100%',
+        boxSizing: 'border-box',
+        padding: `${Number(f.boxPaddingTop ?? 5)}px ${Number(f.boxPadding ?? 10)}px ${Number(f.boxPaddingBottom ?? 5)}px`,
+        background: f.backgroundColor ?? '#ffffff',
+        borderRadius: Number(f.boxRadius) || 0,
+      }}
+    >
+      <div style={{ width: '100%' }}>
+        {!displayText ? (
+          <div style={{ width: '100%', height: 80, border: '1px dashed #dcdfe6', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa' }}>
+            <span style={{ color: '#909399', fontSize: 14 }}>点击添加通知公告</span>
+          </div>
+        ) : (
+          <div
+            style={{
+              width: '100%',
+              height: Number(f.itemHeight) || 35,
+              background: f.itemBackgroundColor ?? '#fff8e6',
+              borderRadius: Number(f.itemRadius) || 0,
+              color: f.textColor ?? '#555555',
+              display: 'flex',
+              alignItems: 'center',
+              boxSizing: 'border-box',
+              padding: '0 10px',
+            }}
+          >
+            {icon.picUrl ? <img src={icon.picUrl} alt="" style={{ width: 16, height: 16, flexShrink: 0, marginRight: 8, objectFit: 'contain', display: 'block' }} /> : null}
+            <div style={{ flex: 1, fontSize: 14, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayText}</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** 文本标题预览（对齐原版 dec-pc-title-ad：风格一/二、居左/居中、背景渐变、查看更多） */
+function TitleAdPreview({ data }: { data: Record<string, any> }) {
+  const t = (data.title || {}) as Record<string, any>;
+  const f = (data.frame || {}) as Record<string, any>;
+  const align = Number(t.titleAlign ?? 1);
+  const style = Number(t.titleStyle ?? 1);
+  const hasTitleText = String(t.titleText ?? '').trim().length > 0;
+  const bg1 = String(t.titleBackground ?? '');
+  const bg2 = String(t.titleBackground2 ?? '');
+  const background = bg1 && bg2 ? `linear-gradient(to right, ${bg1}, ${bg2})` : bg1;
+  const innerPadding = Number(f.leftAndRightPadding ?? 0);
+  return (
+    <div
+      style={{
+        background: f.backgroundColor ?? '#ffffff',
+        borderRadius: Number(f.boxRadius) || 0,
+        padding: `${Number(f.boxPaddingTop ?? 5)}px ${Number(f.boxPadding ?? 10)}px ${Number(f.boxPaddingBottom ?? 5)}px`,
+        boxSizing: 'border-box',
+      }}
+    >
+      <div style={{ paddingLeft: innerPadding, paddingRight: innerPadding }}>
+        {!hasTitleText ? (
+          <div style={{ padding: '30px 0 50px', textAlign: 'center', backgroundColor: '#f2f4f6', borderRadius: 6, color: '#888', fontSize: 14 }}>点击添加标题</div>
+        ) : (
+          <div style={{ width: '100%' }}>
+            <div
+              style={{
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: align === 2 ? 'center' : 'space-between',
+                gap: 12,
+                padding: `10px ${Number(f.leftAndRightPadding ?? f.innerPadding ?? 0)}px`,
+                boxSizing: 'border-box',
+                overflow: 'hidden',
+                borderRadius: Number(t.titleRadius) || 0,
+                background: background || undefined,
+              }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: align === 2 ? 'none' : 1, overflow: 'hidden', alignItems: align === 2 ? 'center' : undefined, textAlign: align === 2 ? 'center' : undefined }}>
+                <div style={{ lineHeight: '20px', fontSize: 16, fontWeight: style === 2 ? 600 : 'bold', color: t.titleColor || '#2a3145', wordBreak: 'break-all' }}>{t.titleText}</div>
+                {t.descText ? (
+                  <div
+                    style={{
+                      lineHeight: '18px',
+                      paddingTop: style === 2 ? 0 : 8,
+                      fontSize: style === 2 ? 16 : 12,
+                      fontWeight: style === 2 ? 600 : undefined,
+                      color: t.descColor || (style === 2 ? '#11bb55' : '#8c8c8c'),
+                      wordBreak: 'break-all',
+                    }}
+                  >
+                    {t.descText}
+                  </div>
+                ) : null}
+              </div>
+              {Number(t.showMore) === 1 && (
+                <span
+                  style={{
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    color: t.moreColor || '#969799',
+                    whiteSpace: 'nowrap',
+                    ...(align === 2 ? { position: 'absolute' as const, right: 0 } : {}),
+                  }}
+                >
+                  <span>查看更多</span>
+                  <span style={{ fontSize: 12, lineHeight: '12px' }}>&gt;</span>
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** 分割线预览（对齐原版 dec-divider：容器底色/圆角 + itemHeight 行高 + 实线/虚线/点状线） */
+function DividerPreview({ data }: { data: Record<string, any> }) {
+  const f = (data.frame || {}) as Record<string, any>;
+  const lineType = Number(data.lineType ?? 2);
+  const lineStyle = Number(data.lineStyle ?? 1);
+  const lineNode =
+    lineType === 2 ? (
+      <div
+        style={{
+          width: '100%',
+          ...(lineStyle === 2
+            ? { height: 0, borderTop: '1px dashed #e5e5e5' }
+            : lineStyle === 3
+              ? { height: 0, borderTop: '1px dotted #e5e5e5' }
+              : { height: 1, backgroundColor: '#e5e5e5' }),
+        }}
+      />
+    ) : null;
+  return (
+    <div
+      style={{
+        boxSizing: 'border-box',
+        paddingLeft: Number(f.boxPadding ?? 10),
+        paddingRight: Number(f.boxPadding ?? 10),
+        paddingTop: Number(f.boxPaddingTop ?? 5),
+        paddingBottom: Number(f.boxPaddingBottom ?? 5),
+      }}
+    >
+      <div style={{ backgroundColor: f.backgroundColor ?? '#ffffff', borderRadius: Number(f.boxRadius) || 0, overflow: 'hidden' }}>
+        <div style={{ height: Number(f.itemHeight) || 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{lineNode}</div>
+      </div>
+    </div>
+  );
+}
+
+/** 空白辅助预览（对齐原版 dec-pc-spacer：frame 留白 + blankHeight/背景/圆角） */
+function SpacerPreview({ data }: { data: Record<string, any> }) {
+  const f = (data.frame || {}) as Record<string, any>;
+  return (
+    <div
+      style={{
+        boxSizing: 'border-box',
+        paddingLeft: Number(f.boxPadding) || 0,
+        paddingRight: Number(f.boxPadding) || 0,
+        paddingTop: Number(f.boxPaddingTop) || 0,
+        paddingBottom: Number(f.boxPaddingBottom) || 0,
+      }}
+    >
+      <div style={{ height: Number(data.blankHeight) || 30, background: data.backgroundColor || 'transparent', borderRadius: Number(f.boxRadius) || 0, boxSizing: 'border-box' }} />
+    </div>
+  );
+}
+
+/** 优惠券预览（对齐原版 _shared/coupon/PcCouponPreview：标题栏 + 领券中心条 + 4 张演示券 + 查看更多竖条） */
+function CouponPreview({ data }: { data: Record<string, any> }) {
+  const itemPadding = Number(data.itemPadding) || 0;
+  const boxRadius = Number(data.boxRadius) || 0;
+  const mockCoupons = [
+    { type: 1, int: '5', dec: '00', name: '满60减5', desc: '可领取' },
+    { type: 2, discount: '8', name: '折扣券', desc: '可领取' },
+    { type: 1, int: '5', dec: '00', name: '满60减5', desc: '可领取' },
+    { type: 2, discount: '8', name: '折扣券', desc: '可领取' },
+  ];
+  return (
+    <div style={{ boxSizing: 'border-box', padding: itemPadding }}>
+      <div
+        style={{
+          boxSizing: 'border-box',
+          paddingLeft: Number(data.boxPadding ?? 10),
+          paddingRight: Number(data.boxPadding ?? 10),
+          paddingTop: Number(data.boxPaddingTop ?? 5),
+          paddingBottom: Number(data.boxPaddingBottom ?? 5),
+        }}
+      >
+        <div style={{ borderRadius: boxRadius, overflow: 'hidden' }}>
+          {Number(data.showTitle) === 1 && (
+            <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', padding: '10px 0', boxSizing: 'border-box' }}>
+              <div style={{ lineHeight: '20px', fontSize: 16, fontWeight: 'bold', color: '#2a3145', wordBreak: 'break-all' }}>{data.title}</div>
+              {data.desc ? <div style={{ marginLeft: 5, lineHeight: '18px', color: '#8c8c8c', fontSize: 12, wordBreak: 'break-all', position: 'relative', top: 1 }}>{data.desc}</div> : null}
+            </div>
+          )}
+          <div style={{ height: 106, display: 'flex', minWidth: 0, width: '100%', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', flexShrink: 0 }}>
+              <div style={{ width: 153, padding: '12px 0 0 18px', borderRadius: '2px 0 0 2px', backgroundColor: '#ec3639', color: '#fff', boxSizing: 'border-box' }}>
+                <div style={{ height: 30, lineHeight: '30px', fontSize: 22 }}>领券中心</div>
+                <div style={{ fontSize: 14, lineHeight: '28px', color: '#f7afb0' }}>COUPON</div>
+                <div style={{ margin: '8px 0 0', fontSize: 12 }}>GO <em>&gt;&gt;</em></div>
+              </div>
+              <div style={{ width: 15, height: 106, flexShrink: 0, background: 'linear-gradient(90deg, #ec3639 50%, transparent 50%)', opacity: 0.9 }} />
+            </div>
+            <div style={{ display: 'flex', flex: 1, height: 106, overflow: 'hidden', minWidth: 0 }}>
+              {mockCoupons.map((c, i) => (
+                <div key={i} style={{ display: 'flex', flex: 'none', width: 246, maxWidth: 246, overflow: 'hidden', minWidth: 0 }}>
+                  <div style={{ display: 'block', height: 106, padding: '0 5px', boxShadow: '1px 0 2px #ccc', color: '#999', boxSizing: 'border-box', width: '100%', minWidth: 0, background: '#fff' }}>
+                    <div style={{ paddingTop: 15, display: 'flex', boxSizing: 'border-box' }}>
+                      <div style={{ minWidth: 95, marginTop: 3, color: '#ff7070', fontWeight: 'bold', boxSizing: 'border-box' }}>
+                        {c.type === 1 ? (
+                          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', lineHeight: '32px', height: 32 }}>
+                            <span style={{ fontSize: 18, position: 'relative', bottom: -7, lineHeight: '32px' }}>¥</span>
+                            <span style={{ fontSize: 32, fontWeight: 700, lineHeight: '32px' }}>{c.int}</span>
+                            <span style={{ fontSize: 16, position: 'relative', bottom: -5, lineHeight: '32px' }}>.{c.dec}</span>
+                          </div>
+                        ) : (
+                          <div style={{ fontWeight: 'bold', textAlign: 'center', lineHeight: '32px' }}>
+                            {c.discount}<span style={{ fontSize: 12, marginLeft: 5 }}>折</span>
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ color: '#999', lineHeight: '20px', flex: 1, overflow: 'hidden', paddingRight: 10, boxSizing: 'border-box' }}>
+                        <p style={{ height: 20, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', margin: 0, fontSize: 14, fontWeight: 'bold', color: '#ff7070' }}>{c.name}</p>
+                        <p style={{ height: 20, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', margin: 0, fontSize: 12 }}>{c.desc}</p>
+                      </div>
+                    </div>
+                    <p style={{ borderTop: '1px solid #f3f3f3', textAlign: 'center', lineHeight: '30px', marginTop: 15, marginBottom: 0, color: '#999' }}>
+                      马上领<em>&nbsp;&gt;</em>
+                    </p>
+                  </div>
+                  <div style={{ width: 15, height: 106, flexShrink: 0, background: 'radial-gradient(circle at 0 53px, transparent 5px, #fff 5px), #fff', boxShadow: '-1px 0 2px #eee' }} />
+                </div>
+              ))}
+              <div style={{ position: 'relative', width: 20, flexShrink: 0 }}>
+                <span
+                  style={{
+                    height: '100%', position: 'absolute', top: -5, left: -9, overflow: 'hidden', padding: '30px 10px 0', textAlign: 'left', lineHeight: '14px', color: '#ccc',
+                    writingMode: 'vertical-lr', background: 'linear-gradient(180deg, #f5f5f5, #e8e8e8)', fontSize: 12,
+                  }}
+                >
+                  查看更多
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---- 秒杀/拼团共享预览原子（对齐原版 _shared/groupon/utils + utils/titleMore） ---- */
+
+/** 1s 心跳时钟（倒计时实时走秒） */
+function useNowTick(intervalMs = 1000) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), intervalMs);
+    return () => window.clearInterval(timer);
+  }, [intervalMs]);
+  return now;
+}
+
+/** "YYYY-MM-DD HH:mm:ss" → 时间戳（无效返回 0，口径同原版 dateStringToTimestamp） */
+function dateStringToTimestamp(dateString?: string | null): number {
+  if (!dateString) return 0;
+  const parts = String(dateString).split(' ');
+  const datePart = parts[0] || '';
+  const timePart = parts[1] || '';
+  const [year, month, day] = datePart.split('-');
+  const [hour, minute, second] = timePart ? timePart.split(':') : ['0', '0', '0'];
+  return new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second)).getTime();
+}
+
+function parseCountdownParts(remainingMs: number) {
+  return {
+    days: Math.floor(remainingMs / (1000 * 60 * 60 * 24)),
+    hours: Math.floor((remainingMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+    minutes: Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60)),
+    seconds: Math.floor((remainingMs % (1000 * 60)) / 1000),
+  };
+}
+
+const formatNumTwo = (n: number) => String(n).padStart(2, '0');
+
+/** 三段式价格（int/dec），口径同原版 formatPriceParts */
+function priceParts(price: string | number): { int: string; dec: string } {
+  const num = Number(price);
+  const text = Number.isFinite(num) ? num.toFixed(2) : String(price ?? '0.00');
+  const [int, dec] = text.split('.');
+  return { int: int || '0', dec: dec || '00' };
+}
+
+/** 右侧「更多」箭头（原版内联 SVG） */
+function TitleMoreArrow() {
+  return (
+    <svg viewBox="0 0 16 16" width="16" height="16" style={{ display: 'block' }}>
+      <path d="M5.5 2.5l5 5.5-5 5.5" stroke="currentColor" strokeWidth="1.5" fill="none" />
+    </svg>
+  );
+}
+
+/** 标题右侧倒计时（深色数字方块，对齐前台 countdown-box） */
+function TitleCountdownBox({ label, targetTs, now, color }: { label: string; targetTs: number; now: number; color: string }) {
+  const remaining = targetTs ? Math.max(0, targetTs - now) : 0;
+  const { days, hours, minutes, seconds } = parseCountdownParts(remaining);
+  const boxStyle: Record<string, any> = {
+    display: 'inline-block', padding: '2px 0', width: 32, textAlign: 'center',
+    backgroundColor: '#1a1a1a', color: '#fff', borderRadius: 4, fontSize: 16,
+  };
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', fontSize: 18, color }}>
+      <div style={{ display: 'flex', alignItems: 'center', color }}>
+        <span style={{ fontSize: 18, fontWeight: 400, lineHeight: '24px' }}>{label}: </span>
+        {days > 0 && (
+          <>
+            <span style={{ ...boxStyle, width: 'auto', minWidth: 32, padding: '2px 5px' }}>{days}</span>
+            <span style={{ fontSize: 18, margin: '0 2px' }}>天</span>
+          </>
+        )}
+        <span style={boxStyle}>{formatNumTwo(hours)}</span>
+        <span style={{ margin: '0 2px' }}>:</span>
+        <span style={boxStyle}>{formatNumTwo(minutes)}</span>
+        <span style={{ margin: '0 2px' }}>:</span>
+        <span style={boxStyle}>{formatNumTwo(seconds)}</span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 秒杀/拼团标题栏（对齐原版 Preview.vue groupon-top/dec-pc-home-seckill__top）：
+ * titleStyle 3 竖线、标题图 30px、24px 粗标题、desc 12/16px、右侧倒计时方块或「更多」链接
+ */
+function SeckillGrouponTitleBar({
+  title,
+  fallbackText,
+  fallbackLabel,
+  countdownTargetTs,
+  activityStartTs,
+  now,
+  innerPaddingPx,
+}: {
+  title?: Record<string, any>;
+  fallbackText: string;
+  fallbackLabel: string;
+  countdownTargetTs: number;
+  activityStartTs?: number;
+  now: number;
+  innerPaddingPx: number;
+}) {
+  if (!title || Number(title.showTitle) !== 1) return null;
+  const showMore = Number(title.showMore) === 1;
+  const moreTypeRaw = Number(title.moreType);
+  const mode = moreTypeRaw === 1 || moreTypeRaw === 2 ? moreTypeRaw : 2; // 老语义：首页模块缺省即倒计时
+  const titleColor = title.titleColor || '#1a1a1a';
+  const descColor = title.descColor || '#1a1a1a';
+  const moreColor = title.moreColor || '#1a1a1a';
+  const style = Number(title.titleStyle) || 1;
+  const customLabel = String(title.countdownLabel || '').trim();
+  let countdownLabel = customLabel || fallbackLabel;
+  if (!customLabel && countdownTargetTs) {
+    if (activityStartTs && activityStartTs > now) countdownLabel = '距开始';
+    else if (countdownTargetTs - now <= 0) countdownLabel = '已结束';
+  }
+  const barStyle: Record<string, any> = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    boxSizing: 'border-box',
+    padding: `${Number(title.titlePaddingTop) || 20}px ${innerPaddingPx}px ${Number(title.titlePaddingBottom) || 20}px`,
+  };
+  const bg1 = String(title.titleBackground || '');
+  const bg2 = String(title.titleBackground2 || '');
+  if (bg1 && bg2) barStyle.background = `linear-gradient(to right, ${bg1}, ${bg2})`;
+  else if (bg1) barStyle.background = bg1;
+  if (Number(title.titleRadius)) {
+    barStyle.borderTopLeftRadius = `${Number(title.titleRadius)}px`;
+    barStyle.borderTopRightRadius = `${Number(title.titleRadius)}px`;
+  }
+  return (
+    <div style={barStyle}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+        {style === 3 && <div style={{ width: 4, height: 16, backgroundColor: '#1a1a1a', borderRadius: 8, alignSelf: 'center' }} />}
+        {title.titleBackgroundPic?.picUrl ? <img src={title.titleBackgroundPic.picUrl} alt="" style={{ width: 30, height: 30, marginLeft: 10, objectFit: 'contain' }} /> : null}
+        <div style={{ fontSize: 24, fontWeight: 700, color: titleColor, textTransform: 'capitalize' }}>{title.titleText || fallbackText}</div>
+        {title.descText ? <div style={{ fontSize: style === 2 ? 16 : 12, color: descColor }}>{title.descText}</div> : null}
+      </div>
+      {showMore && mode === 2 && <TitleCountdownBox label={countdownLabel} targetTs={countdownTargetTs} now={now} color={moreColor} />}
+      {showMore && mode === 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', fontSize: 14, color: moreColor, cursor: 'pointer' }}>
+          <span>{String(title.moreLink?.title || '').trim() || '更多'}</span>
+          <span style={{ marginLeft: 4, color: 'inherit' }}><TitleMoreArrow /></span>
         </div>
       )}
     </div>
   );
 }
 
+/** 轮播左右切换按钮（对齐原版 swiper-button-prev/next 圆角半透明块 + SVG mask 箭头） */
+function SwiperArrowButton({ dir, left, right }: { dir: 'prev' | 'next'; left?: number | string; right?: number | string }) {
+  return (
+    <div
+      className={`pc-decorate-swiper-arrow pc-decorate-swiper-arrow--${dir}`}
+      style={{ left, right }}
+    >
+      <span />
+    </div>
+  );
+}
+
 function SeckillPreview({ data }: { data: Record<string, any> }) {
   const rows = useSeckillPreview();
+  const now = useNowTick();
+  const f = (data.frame || {}) as Record<string, any>;
+  const title = (data.title || {}) as Record<string, any>;
+  const goodsGap = Number(data.goodsGap) || 10;
+  const innerPadding = Number(f.leftAndRightPadding) || 0;
+  const first = rows[0] as (PreviewProduct & { seckkillData?: { seckillEndTime?: string } }) | undefined;
+  const countdownTargetTs = dateStringToTimestamp(first?.seckkillData?.seckillEndTime || '');
+  const skeletonItems = [1, 2, 3, 4, 5, 6];
   return (
-    <div style={{ ...frameStyle(data) }}>
-      <PreviewTitle title={data.title} />
-      <div style={{ display: 'flex', gap: Number(data.goodsGap) ?? 10, padding: 8, overflow: 'hidden' }}>
-        {rows.slice(0, 8).map((p, i) => (
-          <div key={p.productId ?? i} style={{ flexShrink: 0, width: 120 }}>
-            <div style={{ aspectRatio: '1/1', background: '#f7f8fa', borderRadius: 6, overflow: 'hidden' }}>
-              {(p.picThumb || p.picUrl) && <img src={p.picThumb || p.picUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-            </div>
-            <div style={{ fontSize: 12, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.productName}</div>
-            <div style={{ fontSize: 12, color: '#e1251b', fontWeight: 700 }}>¥{Number(p.productPrice ?? 0).toFixed(2)}</div>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        width: '100%',
+        boxSizing: 'border-box',
+        paddingLeft: Number(f.boxPadding) || 0,
+        paddingRight: Number(f.boxPadding) || 0,
+        paddingBottom: 20,
+        marginTop: Number(f.boxPaddingTop) || 0,
+        marginBottom: Number(f.boxPaddingBottom) || 0,
+        borderRadius: Number(f.boxRadius) || 0,
+        backgroundColor: f.backgroundColor || '#fafafa',
+        overflow: 'hidden',
+      }}
+    >
+      <SeckillGrouponTitleBar
+        title={title}
+        fallbackText={data.seckillTitle || '限时秒杀'}
+        fallbackLabel="倒计时"
+        countdownTargetTs={countdownTargetTs}
+        now={now}
+        innerPaddingPx={innerPadding}
+      />
+      <div style={{ position: 'relative', zIndex: 1, flex: 1, width: '100%' }}>
+        {rows.length > 0 ? (
+          <div
+            style={{
+              display: 'flex',
+              overflowX: 'auto',
+              overflowY: 'hidden',
+              width: '100%',
+              padding: `0 ${innerPadding}px`,
+              gap: goodsGap,
+              boxSizing: 'border-box',
+              scrollbarWidth: 'none',
+            }}
+          >
+            {rows.slice(0, 15).map((p, i) => {
+              const current = Number((p as any).seckillPrice ?? p.productPrice ?? 0);
+              const original = Number((p as any).productPrice ?? (p as any).marketPrice ?? 0);
+              const discount = original > 0 && current < original ? Math.floor(((original - current) / original) * 100 * 10) / 10 : 0;
+              const parts = priceParts(current);
+              return (
+                <div
+                  key={p.productId ?? i}
+                  style={{ flexShrink: 0, boxSizing: 'border-box', position: 'relative', zIndex: 1, width: `calc((100% - ${goodsGap * 5}px) / 6)`, background: '#ffffff', borderRadius: 4 }}
+                >
+                  <div style={{ width: '100%', aspectRatio: '1 / 1', overflow: 'hidden' }}>
+                    {(p.picThumb || p.picUrl) ? (
+                      <img src={(p.picThumb || p.picUrl) as string} alt={p.productName || ''} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    ) : (
+                      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Crect fill='%23f0f0f0' width='180' height='180'/%3E%3C/svg%3E" alt="" style={{ width: '100%', height: '100%', display: 'block' }} />
+                    )}
+                  </div>
+                  {discount > 0 && (
+                    <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', margin: 5, width: 'fit-content', height: 24, lineHeight: '24px', padding: '0 6px', color: '#fff', fontSize: 14, borderRadius: 2, backgroundColor: '#ee0a24' }}>
+                      优惠{discount}%
+                    </div>
+                  )}
+                  <div style={{ height: 20, marginTop: 5, marginBottom: 8, padding: '0 5px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', color: '#1a1a1a', fontSize: 16, fontWeight: 700, lineHeight: '18px' }}>
+                    {p.productName}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', padding: '0 5px' }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', marginRight: 8, color: '#1a1a1a', lineHeight: '28px' }}>
+                      <span style={{ fontSize: 16, fontWeight: 400 }}>¥</span>
+                      <span style={{ fontSize: 24, fontWeight: 700 }}>{parts.int}</span>
+                      <span style={{ fontSize: 16, fontWeight: 700 }}>.{parts.dec}</span>
+                    </div>
+                    <div style={{ marginLeft: 'auto' }}>
+                      <span style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: 32, height: 32, borderRadius: '50%', background: 'rgba(255, 63, 79, 0.12)', color: '#ff3f4f', flexShrink: 0, position: 'relative', cursor: 'pointer' }} title="添加购物车">
+                        <span style={{ width: 18, height: 18, position: 'relative', display: 'block' }}>
+                          <span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', background: 'currentColor', borderRadius: 1, width: 14, height: 2 }} />
+                          <span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', background: 'currentColor', borderRadius: 1, width: 2, height: 14 }} />
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                  {original > 0 && (
+                    <div style={{ marginBottom: 10, padding: '0 5px', height: 19, color: '#888b94', fontSize: 16, textDecoration: 'line-through', lineHeight: '22px', boxSizing: 'border-box' }}>
+                      ¥{Number.isFinite(original) ? original.toFixed(2) : '0.00'}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        ))}
-        {rows.length === 0 && <div style={{ padding: 30, textAlign: 'center', color: '#c0c4cc', fontSize: 13, width: '100%' }}>暂无秒杀商品（由营销-秒杀决定）</div>}
+        ) : (
+          <div style={{ display: 'flex', overflow: 'hidden', width: '100%', padding: `0 ${innerPadding}px`, gap: goodsGap, boxSizing: 'border-box' }}>
+            {skeletonItems.map((i) => (
+              <div key={i} style={{ flexShrink: 0, boxSizing: 'border-box', width: `calc((100% - ${goodsGap * 5}px) / 6)`, background: '#ffffff', borderRadius: 4 }}>
+                <div style={{ width: '100%', aspectRatio: '1 / 1', background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)', backgroundSize: '200% 100%' }} />
+                <div style={{ height: 30, marginTop: 10, borderRadius: 4, background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)', backgroundSize: '200% 100%' }} />
+              </div>
+            ))}
+          </div>
+        )}
+        {rows.length > 0 && (
+          <>
+            <SwiperArrowButton dir="prev" left={innerPadding} />
+            <SwiperArrowButton dir="next" right={innerPadding} />
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-function GrouponPreview({ data }: { data: Record<string, any> }) {
-  const activityId = Number(data.grouponActivityItem?.grouponPromotionId ?? data.grouponActivityItem?.grouponId) || undefined;
-  const rows = useGrouponItems(activityId);
-  const cols = Number(data.style) === 3 ? 5 : Number(data.style) === 4 ? 6 : 4;
+/** 拼团 mock 商品（无活动时展示，与原版 mockProducts 逐字段一致） */
+const GROUPON_MOCK_PRODUCTS: PreviewProduct[] = [
+  { productId: 1, productName: '拼团商品示例一号', picThumb: 'https://dummyimage.com/200x200/f5f5f5/999&text=1', minGroupPrice: 99, productPrice: 199, minGroupNum: 2 } as PreviewProduct,
+  { productId: 2, productName: '拼团商品示例二号', picThumb: 'https://dummyimage.com/200x200/f5f5f5/999&text=2', minGroupPrice: 128, productPrice: 256, minGroupNum: 3 } as PreviewProduct,
+  { productId: 3, productName: '拼团商品示例三号', picThumb: 'https://dummyimage.com/200x200/f5f5f5/999&text=3', minGroupPrice: 68, productPrice: 168, minGroupNum: 2 } as PreviewProduct,
+  { productId: 4, productName: '拼团商品示例四号', picThumb: 'https://dummyimage.com/200x200/f5f5f5/999&text=4', minGroupPrice: 188, productPrice: 388, minGroupNum: 5 } as PreviewProduct,
+  { productId: 5, productName: '拼团商品示例五号', picThumb: 'https://dummyimage.com/200x200/f5f5f5/999&text=5', minGroupPrice: 58, productPrice: 118, minGroupNum: 2 } as PreviewProduct,
+  { productId: 6, productName: '拼团商品示例六号', picThumb: 'https://dummyimage.com/200x200/f5f5f5/999&text=6', minGroupPrice: 88, productPrice: 168, minGroupNum: 3 } as PreviewProduct,
+];
+
+/** 拼团商品卡（对齐原版 GrouponItemCard：cardStyle 1 图片倒计时条+priceBox / 2 简版价格行） */
+function GrouponCard({
+  item,
+  cardStyle,
+  textAlign,
+  buyBtnStyle,
+  showName,
+  showPrice,
+  countdownText,
+  countdownLabel,
+}: {
+  item: PreviewProduct;
+  cardStyle: number;
+  textAlign: number;
+  buyBtnStyle: number;
+  showName: boolean;
+  showPrice: boolean;
+  countdownText: string;
+  countdownLabel: string;
+}) {
+  const isCardStyle1 = cardStyle === 1;
+  const groupNum = String((item as any).minGroupNum || '2');
+  const groupPrice = String((item as any).minGroupPrice ?? item.productPrice ?? '0');
+  const originPrice = String(item.productPrice ?? '0');
   return (
-    <div style={{ background: data.backgroundColor || '#fff', borderRadius: Number(data.boxRadius) || 0, padding: `${Number(data.boxPaddingTop) || 0}px ${Number(data.boxPadding) || 0}px ${Number(data.boxPaddingBottom) || 0}px` }}>
-      <PreviewTitle title={data.title} />
-      <div style={{ padding: Number(data.innerPadding) || 0 }}>
-        <ProductCards rows={rows} cols={Number(data.style) === 6 ? 4 : cols} priceField="minGroupPrice" groupMode emptyHint="请选择拼团活动" />
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+      <div style={{ width: '100%' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+          <div style={{ margin: '0 auto', display: 'flex', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#f5f5f5', aspectRatio: '1 / 1', width: isCardStyle1 ? '90%' : '100%' }}>
+            {(item.picThumb || item.picUrl) ? (
+              <img src={(item.picThumb || item.picUrl) as string} alt={item.productName || ''} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+            ) : (
+              <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23f5f5f5' width='100' height='100'/%3E%3C/svg%3E" alt="" style={{ width: '100%', height: '100%', display: 'block' }} />
+            )}
+          </div>
+        </div>
+        {isCardStyle1 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(90deg, #f86e30, #e91817)', height: 34, padding: '0 10px', boxSizing: 'border-box', fontSize: 12, color: '#ffffff' }}>
+            <div style={{ flex: '0 0 auto', fontWeight: 'bold', fontSize: 16, color: '#ffffff' }}>拼团</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flex: 1, gap: 6, whiteSpace: 'nowrap' }}>
+              <div style={{ fontSize: 12 }}>{countdownLabel}</div>
+              {countdownText ? <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 12 }}>{countdownText}</div> : null}
+            </div>
+          </div>
+        )}
+      </div>
+      {showName && (
+        <div
+          style={{
+            minHeight: 20, marginTop: 10, marginBottom: isCardStyle1 ? 0 : 12,
+            overflow: 'hidden', whiteSpace: 'nowrap', color: '#1a1a1a', fontSize: 16, fontWeight: 400, lineHeight: '18px',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', flexWrap: 'nowrap', gap: 4,
+            textAlign: textAlign === 1 ? 'left' : 'center', justifyContent: textAlign === 1 ? 'flex-start' : 'center',
+          }}
+        >
+          <span
+            style={{
+              display: 'inline-flex', alignItems: 'center', color: '#ff4d4f', background: '#fff1f0', height: 16,
+              padding: '0 4px', borderRadius: 2, fontSize: 12, lineHeight: '16px', fontWeight: 'normal',
+              whiteSpace: 'nowrap', boxSizing: 'border-box', marginRight: 4, flexShrink: 0, transform: 'translateY(-1px)',
+            }}
+          >
+            {groupNum}人团
+          </span>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{item.productName}</span>
+        </div>
+      )}
+      {showPrice && (
+        isCardStyle1 ? (
+          <div style={{ width: '100%', height: 35, background: '#fff2f3', borderRadius: 3, marginTop: 18, display: 'flex', alignItems: 'center', position: 'relative' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+              <span style={{ color: '#ee0a24', fontWeight: 500, fontSize: 22, paddingLeft: 9, height: 26, display: 'flex', alignItems: 'flex-end' }}>¥{groupPrice}</span>
+              <div style={{ marginLeft: 7, display: 'flex', alignItems: 'flex-end', fontWeight: 500, fontSize: 12, color: '#9a9a9a', textDecorationLine: 'line-through' }}>¥{originPrice}</div>
+            </div>
+            <div style={{ padding: '0 20px', height: 30, background: '#ee0a25', borderRadius: 3, fontWeight: 600, fontSize: 20, color: '#ffffff', lineHeight: '30px', marginLeft: 'auto', clipPath: 'polygon(20% 0, 100% 0, 100% 100%, 0 100%)', textAlign: 'center' }}>拼</div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', flexDirection: textAlign === 1 ? 'row' : 'column' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+              <span style={{ marginRight: 8, color: '#ee0a24', lineHeight: '22px', fontSize: 24, fontWeight: 600 }}>¥{groupPrice}</span>
+              <span style={{ height: 19, color: '#888b94', textDecoration: 'line-through', fontSize: 14 }}>¥{originPrice}</span>
+            </div>
+            <div style={{ marginLeft: 'auto' }}>
+              {buyBtnStyle > 0 ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 13, background: '#ee0a24', color: '#fff', fontSize: 12 }}>
+                  {buyBtnStyle === 5 || buyBtnStyle === 6 ? '购买' : buyBtnStyle === 7 || buyBtnStyle === 8 ? '马上抢' : buyBtnStyle === 3 || buyBtnStyle === 4 ? <IconPlus size="small" /> : <IconCart size="small" />}
+                </span>
+              ) : (
+                <span style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: 32, height: 32, borderRadius: '50%', background: '#ecf5ff', color: '#409eff', cursor: 'pointer' }}>
+                  <IconPlus size="small" />
+                </span>
+              )}
+            </div>
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
+/** 拼团预览（对齐原版 dec-pc-home-groupon：root 边距/内边距 + 标题倒计时 + 2/3/4 栅格、6 横滚 + 双卡片样式 + mock 商品） */
+function GrouponPreview({ data }: { data: Record<string, any> }) {
+  const activity = (data.grouponActivityItem || null) as Record<string, any> | null;
+  const activityId = Number(activity?.grouponPromotionId ?? activity?.grouponId) || undefined;
+  const fetched = useGrouponItems(activityId);
+  const now = useNowTick();
+
+  const style = Number(data.style ?? 4);
+  const isScrollLayout = style === 6;
+  const cardStyle = Number(data.cardStyle ?? 1);
+  const textAlign = Number(data.textAlign ?? 1);
+  const buyBtnStyle = Number(data.buyBtnStyle ?? 0);
+  const showName = Number(data.showName ?? 1) === 1;
+  const showPrice = Number(data.showPrice ?? 1) === 1;
+  const goodsPadding = Number(data.goodsPadding) || 0;
+
+  const activityStartTs = dateStringToTimestamp(activity?.startTime || '');
+  const activityEndTs = dateStringToTimestamp(activity?.endTime || '');
+
+  // 无活动时按 style 取 mock（原版 displayProducts 口径：2→4 个，4→6 个，其余全部）
+  const baseRows: PreviewProduct[] = fetched.length
+    ? fetched
+    : style === 2
+      ? GROUPON_MOCK_PRODUCTS.slice(0, 4)
+      : style === 4
+        ? GROUPON_MOCK_PRODUCTS.slice(0, 6)
+        : GROUPON_MOCK_PRODUCTS;
+  const rows = baseRows.map((r) => ({ ...r, startTime: activity?.startTime || '', endTime: activity?.endTime || '' }));
+
+  // 卡片倒计时文案（进行中→距结束，未开始→距开始，已结束→空）
+  const cardCountdown = (item: PreviewProduct): { label: string; text: string } => {
+    const startTs = dateStringToTimestamp((item as any).startTime || '');
+    const endTs = dateStringToTimestamp((item as any).endTime || '');
+    const started = !startTs || startTs < now;
+    const ended = !!endTs && endTs < now;
+    if (ended) return { label: '已结束', text: '' };
+    const target = !started ? startTs : endTs;
+    const remaining = target ? Math.max(0, target - now) : 0;
+    if (!remaining) return { label: started ? '距结束' : '距开始', text: '' };
+    const { days, hours, minutes, seconds } = parseCountdownParts(remaining);
+    return { label: started ? '距结束' : '距开始', text: days > 0 ? `${days}天${formatNumTwo(hours)}:${formatNumTwo(minutes)}:${formatNumTwo(seconds)}` : `${formatNumTwo(hours)}:${formatNumTwo(minutes)}:${formatNumTwo(seconds)}` };
+  };
+
+  // 列宽（原版 itemWidth/scrollItemWidth：gap 参与宽度补偿）
+  const gapComp = (perRow: number) => (goodsPadding > 0 ? `calc(${100 / perRow}% - ${(goodsPadding * (perRow - 1)) / perRow}px)` : `${100 / perRow}%`);
+  const itemWidth = style === 2 ? gapComp(4) : style === 4 ? gapComp(6) : gapComp(5);
+
+  return (
+    <div
+      style={{
+        width: `calc(100% - ${(Number(data.boxPadding) || 0) * 2}px)`,
+        boxSizing: 'border-box',
+        position: 'relative',
+        backgroundColor: data.backgroundColor || '#ffffff',
+        borderRadius: Number(data.boxRadius) || 0,
+        marginLeft: Number(data.boxPadding) || 0,
+        marginRight: Number(data.boxPadding) || 0,
+        marginTop: Number(data.boxPaddingTop ?? 5),
+        marginBottom: Number(data.boxPaddingBottom ?? 5),
+        padding: `0 ${Number(data.innerPadding) || 0}px`,
+        overflow: 'hidden',
+      }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', width: '100%', overflow: 'hidden' }}>
+        <SeckillGrouponTitleBar
+          title={data.title}
+          fallbackText="拼团"
+          fallbackLabel="距结束"
+          countdownTargetTs={activityEndTs}
+          activityStartTs={activityStartTs}
+          now={now}
+          innerPaddingPx={0}
+        />
+        <div style={{ position: 'relative', zIndex: 1, flex: 1, width: '100%' }}>
+          {isScrollLayout ? (
+            <div style={{ position: 'relative', width: '100%', overflow: 'hidden', boxSizing: 'border-box' }}>
+              <div style={{ display: 'flex', flexWrap: 'nowrap', overflowX: 'auto', overflowY: 'hidden', gap: goodsPadding, padding: goodsPadding, boxSizing: 'border-box', scrollbarWidth: 'none' }}>
+                {rows.map((item, index) => (
+                  <div key={index} style={{ flex: '0 0 auto', boxSizing: 'border-box', position: 'relative', backgroundColor: '#ffffff', width: gapComp(6) }}>
+                    <GrouponCard
+                      item={item}
+                      cardStyle={cardStyle}
+                      textAlign={textAlign}
+                      buyBtnStyle={buyBtnStyle}
+                      showName={showName}
+                      showPrice={showPrice}
+                      countdownText={cardCountdown(item).text}
+                      countdownLabel={cardCountdown(item).label}
+                    />
+                  </div>
+                ))}
+              </div>
+              <SwiperArrowButton dir="prev" left={0} />
+              <SwiperArrowButton dir="next" right={0} />
+            </div>
+          ) : (
+            <div style={{ overflow: 'hidden', boxSizing: 'border-box', padding: goodsPadding }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: goodsPadding }}>
+                {rows.map((item, index) => (
+                  <div key={index} style={{ boxSizing: 'border-box', position: 'relative', backgroundColor: '#ffffff', width: itemWidth }}>
+                    <div style={{ backgroundColor: 'transparent' }}>
+                      <div style={{ backgroundColor: '#ffffff', paddingBottom: 10 }}>
+                        <GrouponCard
+                          item={item}
+                          cardStyle={cardStyle}
+                          textAlign={textAlign}
+                          buyBtnStyle={buyBtnStyle}
+                          showName={showName}
+                          showPrice={showPrice}
+                          countdownText={cardCountdown(item).text}
+                          countdownLabel={cardCountdown(item).label}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -2836,7 +4188,7 @@ function GrouponPickerModal({
   );
 }
 
-function PicListEditor({ value, onChange }: { value: PicItem[]; onChange: (next: PicItem[]) => void }) {
+function PicListEditor({ value, onChange, showDesc = false }: { value: PicItem[]; onChange: (next: PicItem[]) => void; showDesc?: boolean }) {
   const list = Array.isArray(value) ? value : [];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -2850,6 +4202,9 @@ function PicListEditor({ value, onChange }: { value: PicItem[]; onChange: (next:
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
             <Input value={item.picUrl} onChange={(v) => onChange(list.map((it, i) => (i === index ? { ...it, picUrl: v, picThumb: v } : it)))} placeholder="图片 URL" size="small" />
             <Input value={item.picTitle || ''} onChange={(v) => onChange(list.map((it, i) => (i === index ? { ...it, picTitle: v } : it)))} placeholder="文字标题(可选)" size="small" />
+            {showDesc && (
+              <Input value={item.picDesc || ''} onChange={(v) => onChange(list.map((it, i) => (i === index ? { ...it, picDesc: v } : it)))} placeholder="描述(可选)" size="small" />
+            )}
             <Input
               value={item.picLink?.link || ''}
               onChange={(v) => onChange(list.map((it, i) => (i === index ? { ...it, picLink: { ...it.picLink, link: v, name: it.picLink?.name || '' } } : it)))}
@@ -2879,50 +4234,46 @@ function PicListEditor({ value, onChange }: { value: PicItem[]; onChange: (next:
   );
 }
 
-/** 命名容器（非 frame）的字段集：pc-product-group 的扩展设置 */
+/** 命名容器（非 frame）的字段集：pc-product-group 的扩展设置（对齐原版 components/*Settings.vue） */
 const CONTAINER_VARIANTS: Record<string, SettingFieldDef[]> = {
+  // 对齐原版 BuyBtnSettings.vue：showBtn/btnType/paddingLeftRight（按钮宽度仅在自定义文字时生效），无 text/颜色字段
   buyBtn: [
-    { kind: 'switch', key: 'showBtn', label: '显示按钮' },
-    { kind: 'radio', key: 'btnType', label: '按钮样式', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }], showIf: (m) => Number(m.showBtn) === 1 },
-    { kind: 'input', key: 'text', label: '按钮文字', showIf: (m) => Number(m.showBtn) === 1 },
-    { kind: 'color', key: 'textColor', label: '文字颜色', showIf: (m) => Number(m.showBtn) === 1 },
-    { kind: 'color', key: 'iconColor', label: '图标颜色', showIf: (m) => Number(m.showBtn) === 1 },
-    { kind: 'slider', key: 'paddingLeftRight', label: '左右内边距', max: 10, showIf: (m) => Number(m.showBtn) === 1 },
+    { kind: 'radio', key: 'showBtn', label: '购买按钮', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
+    { kind: 'radio', key: 'btnType', label: '购买样式', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }, { label: '样式三', value: 3 }], showIf: (m) => Number(m.showBtn) === 1 },
+    { kind: 'slider', key: 'paddingLeftRight', label: '按钮宽度', max: 10, showIf: (m) => Number(m.showBtn) === 1 && String(m.text ?? '') !== '' },
   ],
+  // 对齐原版 Settings.vue 扩展设置"商品颜色设置"
   productColor: [
-    { kind: 'slider', key: 'infoLeftRightPadding', label: '信息区左右内边距', max: 30 },
-    { kind: 'color', key: 'backgroundColor', label: '背景颜色' },
-    { kind: 'color', key: 'titleColor', label: '标题颜色' },
-    { kind: 'color', key: 'priceColor', label: '价格颜色' },
-    { kind: 'color', key: 'crossedOutPriceColor', label: '划线价颜色' },
+    { kind: 'slider', key: 'infoLeftRightPadding', label: '商品间距', max: 20 },
+    { kind: 'color', key: 'backgroundColor', label: '商品背景颜色' },
+    { kind: 'color', key: 'titleColor', label: '商品标题颜色' },
+    { kind: 'color', key: 'priceColor', label: '商品价格颜色' },
+    { kind: 'color', key: 'crossedOutPriceColor', label: '商品划线价颜色', resetValue: '#999999' },
   ],
+  // 对齐原版 Settings.vue 扩展设置"分组标题设置"（标题分割线颜色不受"分组标题"开关控制）
   groupTitle: [
-    { kind: 'slider', key: 'marginLeftRight', label: '左右间距', max: 30 },
-    { kind: 'switch', key: 'showTitle', label: '显示分组标题' },
-    { kind: 'select', key: 'bigTitleFontSize', label: '标题大小', options: [{ label: '14', value: 14 }, { label: '16', value: 16 }, { label: '18', value: 18 }], showIf: (m) => Number(m.showTitle) === 1 },
-    { kind: 'color', key: 'titleColor', label: '默认颜色', showIf: (m) => Number(m.showTitle) === 1 },
-    { kind: 'color', key: 'activeTitleColor', label: '选中颜色', showIf: (m) => Number(m.showTitle) === 1 },
-    { kind: 'color', key: 'activeTitleBgColor', label: '选中背景色', showIf: (m) => Number(m.showTitle) === 1 },
-    { kind: 'slider', key: 'titleMinWidth', label: '标题最小宽度', min: 0, max: 200, showIf: (m) => Number(m.showTitle) === 1 },
-    { kind: 'slider', key: 'titlePaddingTopBottom', label: '上下内边距', max: 30, showIf: (m) => Number(m.showTitle) === 1 },
-    { kind: 'slider', key: 'titlePaddingLeftRight', label: '左右内边距', max: 30, showIf: (m) => Number(m.showTitle) === 1 },
-    { kind: 'slider', key: 'titleRadius', label: '圆角', max: 30, showIf: (m) => Number(m.showTitle) === 1 },
-    { kind: 'color', key: 'splitLineColor', label: '分割线颜色', showIf: (m) => Number(m.showTitle) === 1 },
+    { kind: 'slider', key: 'marginLeftRight', label: '分组标题间距', max: 50 },
+    { kind: 'radio', key: 'showTitle', label: '分组标题', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
+    { kind: 'radio', key: 'bigTitleFontSize', label: '标题大小', options: [{ label: '小', value: 14 }, { label: '中', value: 16 }, { label: '大', value: 18 }], showIf: (m) => Number(m.showTitle) === 1 },
+    { kind: 'color', key: 'titleColor', label: '标题默认颜色', showIf: (m) => Number(m.showTitle) === 1 },
+    { kind: 'color', key: 'activeTitleColor', label: '标题选中颜色', showIf: (m) => Number(m.showTitle) === 1 },
+    { kind: 'color', key: 'activeTitleBgColor', label: '标题选中背景色', showIf: (m) => Number(m.showTitle) === 1 },
+    { kind: 'slider', key: 'titlePaddingTopBottom', label: '标题上下内边距', max: 30, showIf: (m) => Number(m.showTitle) === 1 },
+    { kind: 'slider', key: 'titlePaddingLeftRight', label: '标题左右内边距', max: 30, showIf: (m) => Number(m.showTitle) === 1 },
+    { kind: 'slider', key: 'titleRadius', label: '标题圆角', max: 20, showIf: (m) => Number(m.showTitle) === 1 },
+    { kind: 'color', key: 'splitLineColor', label: '标题分割线颜色', resetValue: 'transparent' },
   ],
+  // 对齐原版 ModuleStyleSettings.vue
   moduleStyle: [
-    { kind: 'slider', key: 'boxPaddingTop', label: '上边距', max: 30 },
-    { kind: 'slider', key: 'boxPaddingBottom', label: '下边距', max: 30 },
-    { kind: 'slider', key: 'boxPadding', label: '左右边距', max: 30 },
-    { kind: 'color', key: 'backgroundColor', label: '背景颜色' },
+    { kind: 'slider', key: 'boxPaddingTop', label: '模块顶部间距', max: 30 },
+    { kind: 'slider', key: 'boxPaddingBottom', label: '模块底部间距', max: 30 },
+    { kind: 'slider', key: 'boxPadding', label: '模块左右间距', max: 30 },
+    { kind: 'color', key: 'backgroundColor', label: '模块背景颜色' },
   ],
+  // 对齐原版 ContentStyleSettings.vue：精简为圆角 + 背景颜色
   contentStyle: [
-    { kind: 'slider', key: 'paddingTop', label: '上内边距', max: 30 },
-    { kind: 'slider', key: 'paddingBottom', label: '下内边距', max: 30 },
-    { kind: 'slider', key: 'paddingLeftRight', label: '左右内边距', max: 30 },
-    { kind: 'slider', key: 'boxRadius', label: '圆角', max: 30 },
-    { kind: 'color', key: 'backgroundColor', label: '背景颜色' },
-    { kind: 'input', key: 'backgroundPic.picUrl', label: '背景图 URL' },
-    { kind: 'switch', key: 'boxShadow', label: '阴影' },
+    { kind: 'slider', key: 'boxRadius', label: '内容区圆角半径', max: 40 },
+    { kind: 'color', key: 'backgroundColor', label: '内容区背景颜色', resetValue: '#ffffff' },
   ],
 };
 
@@ -2999,20 +4350,25 @@ function FieldControl({
             onChange={(e) => set(e.target.value)}
             style={{ width: 46, height: 30, border: '1px solid var(--semi-color-border)', borderRadius: 4, cursor: 'pointer' }}
           />
-          <Button size="small" onClick={() => set('')}>重置</Button>
+          <Button size="small" onClick={() => set(field.resetValue ?? '')}>重置</Button>
           <Text type="tertiary" size="small">{String(value || '未设置')}</Text>
         </div>
       );
     case 'picList':
-      return <PicListEditor value={(value as PicItem[]) || []} onChange={(v) => set(v)} />;
+      return <PicListEditor value={(value as PicItem[]) || []} onChange={(v) => set(v)} showDesc={field.picDesc} />;
     case 'pic':
-      return <PicListEditor value={value && (value as PicItem).picUrl ? [value as PicItem] : []} onChange={(v) => set(v[0] || { picUrl: '', picThumb: '' })} />;
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <PicListEditor value={value && (value as PicItem).picUrl ? [value as PicItem] : []} onChange={(v) => set(v[0] || { picUrl: '', picThumb: '' })} />
+          <Button size="small" onClick={() => set((field.resetValue as PicItem) || { picUrl: '', picThumb: '' })}>重置</Button>
+        </div>
+      );
     case 'link': {
       const link = (value && typeof value === 'object' ? value : { link: '', title: '' }) as Record<string, any>;
       return (
         <div style={{ display: 'flex', gap: 6 }}>
           <Input value={link.link || ''} onChange={(v) => set({ ...link, link: v })} placeholder="链接地址" />
-          <Input value={link.title || link.name || ''} onChange={(v) => set({ ...link, title: v, name: v })} placeholder="名称" style={{ width: 110 }} />
+          <Input value={link.name || ''} onChange={(v) => set({ ...link, name: v })} placeholder="名称" style={{ width: 110 }} />
         </div>
       );
     }
@@ -3103,16 +4459,18 @@ function FieldControl({
           {Number(products.productSelectType) === 3 && (
             <Input value={products.productTag || ''} onChange={(v) => setProducts({ ...products, productTag: v })} placeholder="商品标签" />
           )}
-          <div>
-            <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>商品数量</Text>
-            <InputNumber
-              value={products.productNumber ?? 10}
-              onChange={(v) => setProducts({ ...products, productNumber: v ?? 10 })}
-              min={field.numberMin ?? 1}
-              max={field.numberMax}
-              style={{ width: 140 }}
-            />
-          </div>
+          {[2, 3].includes(Number(products.productSelectType)) && (
+            <div>
+              <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>商品数量</Text>
+              <InputNumber
+                value={products.productNumber ?? 10}
+                onChange={(v) => setProducts({ ...products, productNumber: v ?? 10 })}
+                min={field.numberMin ?? 1}
+                max={field.numberMax}
+                style={{ width: 140 }}
+              />
+            </div>
+          )}
         </div>
       );
     }
@@ -3140,7 +4498,11 @@ function FieldControl({
       return (
         <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
           <Text strong size="small">{field.label}</Text>
-          {titleFields({ moreType: true, verticalPadding: Object.prototype.hasOwnProperty.call(titleData, 'titlePaddingTop'), hideAlign: field.titleHideAlign }).map((f) => {
+          {titleFields({
+            moreType: !field.titleHideMoreType,
+            verticalPadding: !field.titleHideVerticalPadding && Object.prototype.hasOwnProperty.call(titleData, 'titlePaddingTop'),
+            hideAlign: field.titleHideAlign,
+          }).map((f) => {
             if (f.showIf && !f.showIf({ title: titleData })) return null;
             return (
               <div key={f.key}>
@@ -3322,28 +4684,60 @@ function FieldControl({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {groups.map((g, index) => (
             <div key={index} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <Input value={g.title || ''} onChange={(v) => set(groups.map((x, i) => (i === index ? { ...x, title: v } : x)))} placeholder="分组标题" />
-                <Button size="small" theme="borderless" type="danger" icon={<IconClose />} onClick={() => set(groups.filter((_, i) => i !== index))} />
+              <Text strong size="small">第【{index + 1}】组{index === 0 ? '（固定，不可删除/拖动）' : ''}</Text>
+              <div>
+                <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>标题</Text>
+                <Input value={g.title || ''} onChange={(v) => set(groups.map((x, i) => (i === index ? { ...x, title: v } : x)))} placeholder="请输入标题内容" />
               </div>
-              <RadioGroup value={g.sourceType || 'products'} onChange={(e: any) => set(groups.map((x, i) => (i === index ? { ...x, sourceType: e.target.value } : x)))}>
-                <Radio value="products">选商品</Radio>
+              <div>
+                <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>标题图片</Text>
+                <FieldControl
+                  field={{ kind: 'pic', key: 'titlePic', label: '标题图片' }}
+                  moduleData={g}
+                  onChange={(nextGroup) => set(groups.map((x, i) => (i === index ? nextGroup : x)))}
+                />
+              </div>
+              <RadioGroup value={g.sourceType || 'products'} onChange={(e: any) => {
+                const type = e.target.value;
+                if ((g.sourceType || 'products') === type) return;
+                // 对齐原版 handleSourceTypeChange：切换来源时清空对应数据
+                set(groups.map((x, i) => (i === index
+                  ? (type === 'products'
+                    ? { ...x, sourceType: type, productGroupId: undefined, productGroupName: undefined }
+                    : { ...x, sourceType: type, productList: [] })
+                  : x)));
+              }}>
+                <Radio value="products">选择商品</Radio>
                 <Radio value="productGroup">商品分组</Radio>
               </RadioGroup>
               {(g.sourceType || 'products') === 'products' ? (
                 <div>
-                  <Button size="small" icon={<IconPlus />} onClick={() => setPickerVisible(true)}>选择商品（已选 {((g.productIds || []) as number[]).length}）</Button>
+                  <Button
+                    size="small"
+                    icon={<IconPlus />}
+                    onClick={() => setPickerVisible(true)}
+                  >
+                    选择商品（已选 {((g.productIds || []) as number[]).length}）
+                  </Button>
                   {pickerVisible && (
                     <ProductPickerModal visible selectedIds={(g.productIds || []) as number[]} onOk={(nextIds) => { set(groups.map((x, i) => (i === index ? { ...x, productIds: nextIds } : x))); setPickerVisible(false); }} onCancel={() => setPickerVisible(false)} />
                   )}
                 </div>
               ) : (
-                <InputNumber value={g.productGroupId} onChange={(v) => set(groups.map((x, i) => (i === index ? { ...x, productGroupId: v ?? undefined } : x)))} placeholder="商品分组 ID" style={{ width: 160 }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <InputNumber value={g.productGroupId} onChange={(v) => set(groups.map((x, i) => (i === index ? { ...x, productGroupId: v ?? undefined } : x)))} placeholder="商品分组 ID" style={{ width: 160 }} />
+                  {g.productGroupName ? <Text type="tertiary" size="small">已选分组：{g.productGroupName}</Text> : null}
+                </div>
+              )}
+              {index > 0 && (
+                <Button size="small" theme="borderless" type="danger" icon={<IconClose />} onClick={() => set(groups.filter((_, i) => i !== index))}>
+                  删除该组
+                </Button>
               )}
             </div>
           ))}
-          <Button size="small" icon={<IconPlus />} onClick={() => set([...groups, { sourceType: 'products', title: `分组${groups.length + 1}`, titlePic: { picUrl: '', picThumb: '' }, titleLink: { link: '', name: '' }, bannerPic: { picUrl: '', picThumb: '' }, bannerLink: { link: '', name: '' }, productIds: [], productList: [] }])}>
-            添加分组
+          <Button size="small" icon={<IconPlus />} onClick={() => set([...groups, { sourceType: 'products', title: '', titlePic: { picUrl: '', picThumb: '' }, titleLink: { link: '', name: '' }, bannerPic: { picUrl: '', picThumb: '' }, bannerLink: { link: '', name: '' }, productIds: [], productList: [] }])}>
+            添加一组
           </Button>
         </div>
       );

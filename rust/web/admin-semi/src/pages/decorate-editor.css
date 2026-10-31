@@ -873,3 +873,52 @@
 }
 .dec-pchead-cartpic--empty { font-size: 12px; color: #9ca3af; }
 .dec-pchead-cartpic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* ===================== PC 装修画布：模块预览补充（对齐原版 preview.less） ===================== */
+
+/* 分类导航 / 秒杀 / 拼团横滚的左右切换按钮（原版 swiper-button-prev/next 圆角半透明块 + SVG mask 箭头） */
+.pc-decorate-swiper-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 48px;
+  background-color: rgba(0, 0, 0, 0.122);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: background-color 0.2s ease;
+  outline: none;
+  box-sizing: border-box;
+}
+.pc-decorate-swiper-arrow:hover { background-color: rgba(0, 0, 0, 0.239); }
+.pc-decorate-swiper-arrow span {
+  display: block;
+  width: 14px;
+  height: 14px;
+  background-color: #fff;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Cpath d='M238.016 179.008C227.776 168.832 220.16 157.312 215.04 144.64c-5.12-12.736-7.616-25.856-7.616-39.296 0-13.44 2.56-26.752 7.616-39.808 5.12-13.12 12.736-24.768 22.912-34.944C258.368 10.176 282.752 0 311.104 0c28.352 0 52.736 10.176 73.152 30.528l404.928 408.192c10.176 8.704 17.472 19.84 21.824 33.28 4.352 13.44 6.208 27.456 5.44 42.048-0.704 14.528-4.032 28.928-9.792 43.136-5.824 14.208-13.824 26.368-24 36.544l-398.336 401.664c-20.352 21.12-44.736 31.68-73.152 31.68-28.352 0-52.736-10.56-73.088-31.68-10.176-10.176-17.856-21.632-22.912-34.368-5.12-12.736-7.616-25.856-7.616-39.296 0-13.44 2.56-26.752 7.616-39.872 5.12-13.12 12.736-24.768 22.912-34.944l329.6-333.952L238.016 179.008 238.016 179.008zM238.016 179.008'/%3E%3C/svg%3E") no-repeat center / contain;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Cpath d='M238.016 179.008C227.776 168.832 220.16 157.312 215.04 144.64c-5.12-12.736-7.616-25.856-7.616-39.296 0-13.44 2.56-26.752 7.616-39.808 5.12-13.12 12.736-24.768 22.912-34.944C258.368 10.176 282.752 0 311.104 0c28.352 0 52.736 10.176 73.152 30.528l404.928 408.192c10.176 8.704 17.472 19.84 21.824 33.28 4.352 13.44 6.208 27.456 5.44 42.048-0.704 14.528-4.032 28.928-9.792 43.136-5.824 14.208-13.824 26.368-24 36.544l-398.336 401.664c-20.352 21.12-44.736 31.68-73.152 31.68-28.352 0-52.736-10.56-73.088-31.68-10.176-10.176-17.856-21.632-22.912-34.368-5.12-12.736-7.616-25.856-7.616-39.296 0-13.44 2.56-26.752 7.616-39.872 5.12-13.12 12.736-24.768 22.912-34.944l329.6-333.952L238.016 179.008 238.016 179.008zM238.016 179.008'/%3E%3C/svg%3E") no-repeat center / contain;
+  transform-origin: center;
+}
+.pc-decorate-swiper-arrow--prev {
+  left: 0;
+  padding-right: 7px;
+  border-radius: 0 24px 24px 0;
+}
+.pc-decorate-swiper-arrow--prev span { transform: rotate(180deg); }
+.pc-decorate-swiper-arrow--next {
+  right: 0;
+  padding-left: 7px;
+  border-radius: 24px 0 0 24px;
+}
+
+/* 快捷导航项 hover 变色（原版 &__item:hover color: var(--dec-hover-color)） */
+.pc-quick-nav-item:hover { color: var(--quick-nav-hover-color, #e1251b) !important; }
+.pc-quick-nav-item:hover img { filter: brightness(1.1); }
+
+/* 分类导航3 横向列表隐藏滚动条（原版 scrollbar-width: none） */
+.pc-decorate-hide-scrollbar::-webkit-scrollbar { display: none; }
+
