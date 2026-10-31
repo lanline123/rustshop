@@ -405,6 +405,28 @@ impl MerchantApplyService {
             .bind(admin_id)
             .execute(&self.repos.pool)
             .await;
+        // 默认运费模板（Java ShippingTplServiceImpl#initShippingTpl）
+        let tpl_id: i32 = sqlx::query(
+            "INSERT INTO shipping_tpl(shipping_time,shipping_tpl_name,is_free,pricing_type,is_default,shop_id) VALUES(?,?,0,1,1,?)",
+        )
+        .bind("1天内").bind("默认模板").bind(shop_id)
+        .execute(&self.repos.pool).await.map_err(|e| Error::Database(e.to_string()))?
+        .last_insert_id() as i32;
+        let region_data = "{\"areaRegions\":[],\"areaRegionNames\":[]}";
+        let _ = sqlx::query(
+            "INSERT INTO shipping_tpl_info(shipping_type_id,shipping_tpl_id,is_free,is_default,region_data,start_number,start_price,add_number,add_price,free_price,pricing_type) VALUES(1,?,0,1,?,1,1,1,1,0,1)",
+        )
+        .bind(tpl_id).bind(region_data)
+        .execute(&self.repos.pool).await;
+        // 默认装修页（Java DecorateServiceImpl#initDecorate）
+        let _ = sqlx::query(
+            "INSERT INTO decorate(decorate_title,data,decorate_type,page_type,is_home,shop_id,status,update_time,locale_id,parent_id,sort_order,binded_h5_id) VALUES(? ,?,1,1,1,?,1,?,0,0,0,0)",
+        )
+        .bind("默认模板")
+        .bind(crate::merchant::default_decorate::DEFAULT_DECORATE_DATA)
+        .bind(shop_id)
+        .bind(now)
+        .execute(&self.repos.pool).await;
         let bank_card = merchant_json.get("bank_card").and_then(Value::as_str).unwrap_or("").trim();
         if !(apply.r#type == Some(3) && bank_card.is_empty()) {
             let account_name = if apply.r#type == Some(1) {

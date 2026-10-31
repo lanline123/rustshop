@@ -11,6 +11,7 @@ pub mod deposit_setting;
 pub mod deposit_shop;
 pub mod merchant;
 pub mod merchant_account;
+mod default_decorate;
 pub mod merchant_apply;
 pub mod merchant_client;
 pub mod order_config;

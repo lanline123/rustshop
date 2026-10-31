@@ -565,3 +565,13 @@ shop_id=新店铺
 ```
 
 个体工商户且银行卡为空的，按 Java 规则跳过。
+
+## 2026-10-31 补充：商户开店运费模板与装修页
+
+审核通过开店时新增：
+
+```text
+shipping_tpl：默认模板 / 1天内 / 不包邮 / 计价方式1 / 默认
+shipping_tpl_info：运送方式1，首件1/首价1/续件1/续价1
+decorate：默认模板，Java InitDecorateDataConstants.DECORATE_DATA
+```
