@@ -1666,81 +1666,9 @@ function ModulePreview({ type, data }: { type: string; data: Record<string, any>
       return <SeckillPreview data={m} />;
     case 'pc-home-groupon':
       return <GrouponPreview data={m} />;
-    case 'pc-home-hero': {
-      const style = m.style || {};
-      const left = m.left || {};
-      const center = m.center || {};
-      const right = m.right || {};
-      const banners = (center.banners || []) as PicItem[];
-      const cards = (center.modules || []) as Array<Record<string, any>>;
-      return (
-        <div style={{ display: 'flex', gap: style.gap ?? 16, padding: 10, background: style.panelBackgroundColor || '#fff' }}>
-          <div style={{ width: style.leftWidth ?? 220, flexShrink: 0, background: left.backgroundColor || '#fff', borderRadius: style.panelRadius ?? 8, border: '1px solid #f0f0f0', overflow: 'hidden' }}>
-            <div style={{ padding: '10px 12px', fontWeight: 700, fontSize: 14, color: style.titleColor || '#333' }}>{left.title || '全部商品分类'}</div>
-            {(left.categories || []).slice(0, 8).map((c: PicItem, i: number) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', fontSize: 12, color: left.textColor || '#333' }}>
-                {c.picUrl ? <img src={c.picUrl} alt="" style={{ width: 18, height: 18 }} /> : null}
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.picTitle}</span>
-              </div>
-            ))}
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ borderRadius: style.bannerRadius ?? 12, overflow: 'hidden', aspectRatio: '1500/350', background: '#f2f3f5' }}>
-              {banners[0]?.picUrl ? <img src={banners[0].picUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 10 }}>
-              {cards.slice(0, 6).map((c, i) => (
-                <div key={i} style={{ border: '1px solid #f0f0f0', borderRadius: style.cardRadius ?? 12, padding: 8 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700 }}>{c.moduleTitle}</div>
-                  <div style={{ fontSize: 11, color: '#fff', background: `linear-gradient(90deg, ${c.moduleSubTitleBgColorA}, ${c.moduleSubTitleBgColorB})`, display: 'inline-block', borderRadius: 3, padding: '0 4px', marginTop: 2 }}>{c.moduleSubTitle}</div>
-                  <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                    {(c.products || []).slice(0, 2).map((p: any, j: number) => (
-                      <div key={j} style={{ flex: 1 }}>
-                        <div style={{ aspectRatio: '1/1', background: '#f7f8fa', borderRadius: 6, overflow: 'hidden' }}>
-                          {p.pic?.picUrl ? <img src={p.pic.picUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
-                        </div>
-                        {Number(c.showPrice) === 1 ? <div style={{ fontSize: 11, color: style.priceColor || '#e1251b' }}>{p.price}</div> : null}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div style={{ width: style.rightWidth ?? 260, flexShrink: 0 }}>
-            <div style={{ borderRadius: style.panelRadius ?? 8, border: '1px solid #f0f0f0', padding: 12, background: `linear-gradient(${getPath(m, 'right.userCardGradientType') === 'leftRight' ? '90deg' : '180deg'}, ${getPath(m, 'right.userCardGradientColorA') || '#FFEDE1'}, ${getPath(m, 'right.userCardGradientColorB') || '#FCF9F8'})` }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {getPath(m, 'right.user.avatar.picUrl') ? <img src={getPath(m, 'right.user.avatar.picUrl')} alt="" style={{ width: 36, height: 36, borderRadius: '50%' }} /> : null}
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700 }}>{getPath(m, 'right.user.nickname')}</div>
-                  <div style={{ fontSize: 11, color: style.mutedColor || '#999' }}>{getPath(m, 'right.user.welcomeText')}</div>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
-                {((m.right?.stats || []) as Array<{ label: string; value: string }>).map((s, i) => (
-                  <div key={i} style={{ fontSize: 11, color: '#666' }}>
-                    <b>{s.value}</b>
-                    <div style={{ color: '#999' }}>{s.label}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div style={{ marginTop: 10, fontSize: 13, fontWeight: 700 }}>
-              {getPath(m, 'right.shopsTitle')}
-              {getPath(m, 'right.shopsSubTitle') ? <span style={{ fontSize: 10, color: '#fff', background: getPath(m, 'right.shopsSubTitleBg') || '#FF4E4E', borderRadius: 3, padding: '0 4px', marginLeft: 6 }}>{getPath(m, 'right.shopsSubTitle')}</span> : null}
-            </div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 6, color: getPath(m, 'right.shopsTextColor') || '#a06a38', fontSize: 12 }}>
-              {((m.right?.shortcuts || []) as PicItem[]).map((s, i) => (
-                <div key={i} style={{ textAlign: 'center' }}>
-                  <div style={{ width: 34, height: 34, borderRadius: 8, background: '#f7f8fa' }} />
-                  <div style={{ marginTop: 2 }}>{s.picTitle}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      );
-    }
+    case 'pc-home-hero':
+      return <HeroPreview data={m} />;
+
     default:
       return <span>{MODULE_DEF_MAP.get(type)?.summary ? MODULE_DEF_MAP.get(type)!.summary!(data) : type}</span>;
   }
@@ -1873,6 +1801,200 @@ function GrouponPreview({ data }: { data: Record<string, any> }) {
       <PreviewTitle title={data.title} />
       <div style={{ padding: Number(data.innerPadding) || 0 }}>
         <ProductCards rows={rows} cols={Number(data.style) === 6 ? 4 : cols} priceField="minGroupPrice" groupMode emptyHint="请选择拼团活动" />
+      </div>
+    </div>
+  );
+}
+
+/** 营销通栏画布预览（对齐原版 Preview.vue + preview.less：左类目 / 中轮播+促销+频道卡 / 右会员+店铺街） */
+function HeroPreview({ data }: { data: Record<string, any> }) {
+  const m = data || {};
+  const frame = m.frame || {};
+  const style = m.style || {};
+  const left = m.left || {};
+  const right = m.right || {};
+  const center = m.center || {};
+
+  const gap = Number(style.gap) || 16;
+  const height = Number(style.height) || 336;
+  const panelShadow = Number(style.panelShadow) === 1 ? '0 2px 12px 0 rgba(0,0,0,0.06)' : 'none';
+  const panelBg = style.panelBackgroundColor || '#ffffff';
+  const panelRadius = Number(style.panelRadius) || 8;
+  const titleSize = Number(style.titleFontSize) || 14;
+  const titleColor = style.titleColor || '#333333';
+  const mutedColor = style.mutedColor || '#999999';
+  const priceColor = style.priceColor || '#e1251b';
+  const cardRadius = Number(style.cardRadius) || 12;
+  const bannerRadius = Number(style.bannerRadius) || 12;
+
+  const gradientDirMap: Record<string, string> = { upDown: 'to bottom', leftRight: 'to right', diagonal: 'to bottom right' };
+  const userGradient =
+    right.userCardGradientColorA && right.userCardGradientColorB
+      ? `linear-gradient(${gradientDirMap[right.userCardGradientType || 'upDown'] || 'to bottom'}, ${right.userCardGradientColorA}, ${right.userCardGradientColorB})`
+      : 'none';
+
+  const allModules: Array<Record<string, any>> = (center.modules || []).length ? center.modules : [];
+  const promoCards = allModules.slice(0, 2);
+  const channelCards = allModules.slice(2, 6);
+  const banners = (center.banners || []) as PicItem[];
+  const categories = ((left.categories || []) as PicItem[]).slice(0, Number(left.showCount) || 10);
+  const shortcuts = (right.shortcuts || []) as PicItem[];
+
+  const panelStyle: Record<string, any> = { background: panelBg, borderRadius: panelRadius, boxShadow: panelShadow, overflow: 'hidden' };
+  const cardStyle: Record<string, any> = { ...panelStyle, borderRadius: cardRadius };
+
+  const subtitleBg = (card: Record<string, any>) =>
+    `linear-gradient(${gradientDirMap[card.moduleSubTitleBgType || 'leftRight'] || 'to right'}, ${card.moduleSubTitleBgColorA || '#FF4E4E'}, ${card.moduleSubTitleBgColorB || '#E1251B'})`;
+
+  const HeroCard = ({ card }: { card: Record<string, any> }) => (
+    <div style={{ ...cardStyle, width: '100%', height: '100%', padding: 8, display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
+        <span style={{ fontSize: titleSize, fontWeight: 700, color: titleColor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {card.moduleTitle || '推荐'}
+        </span>
+        {card.moduleSubTitle ? (
+          <span style={{ fontSize: 10, color: '#fff', background: subtitleBg(card), borderRadius: 3, padding: '1px 4px', flexShrink: 0 }}>
+            {card.moduleSubTitle}
+          </span>
+        ) : null}
+      </div>
+      <div style={{ flex: 1, display: 'flex', gap: 6, minHeight: 0 }}>
+        {((card.products || []) as Array<Record<string, any>>).slice(0, 2).map((p, pi) => (
+          <div key={pi} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+            <div style={{ flex: 1, borderRadius: 6, overflow: 'hidden', background: '#f7f8fa', position: 'relative', minHeight: 0 }}>
+              {p.pic?.picUrl ? <img src={p.pic.picUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
+              {p.label ? (
+                <span
+                  style={{
+                    position: 'absolute', left: 0, bottom: 0, fontSize: 9, color: '#fff', padding: '1px 4px',
+                    background: `linear-gradient(to right, ${p.labelBgColorA || '#FF4E4E'}, ${p.labelBgColorB || '#E1251B'})`,
+                  }}
+                >
+                  {p.label}
+                </span>
+              ) : null}
+            </div>
+            {String(card.showPrice) !== '0' && (
+              <div style={{ fontSize: 12, fontWeight: 700, color: priceColor, textAlign: 'center' }}>{p.price || '¥0'}</div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const framePad = `${Number(frame.boxPaddingTop) || 0}px ${Number(frame.boxPadding) || 0}px ${Number(frame.boxPaddingBottom) || 0}px`;
+
+  return (
+    <div style={{ padding: framePad, background: frame.backgroundColor || 'transparent', borderRadius: Number(frame.boxRadius) || 0 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: `${style.leftWidth || 220}px minmax(0, 1fr) ${style.rightWidth || 260}px`, gap, height, overflow: 'hidden', alignItems: 'stretch' }}>
+        {/* 左：类目列表 */}
+        <section style={{ ...panelStyle, background: left.backgroundColor || '#ffffff', color: left.textColor || '#333333', paddingTop: 6 }}>
+          {categories.length ? (
+            categories.map((c, i) => (
+              <div key={c.picId ?? i} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 28, padding: '4px 8px 4px 16px', fontSize: 12 }}>
+                {c.picUrl ? <img src={c.picUrl} alt="" style={{ width: 18, height: 18, flexShrink: 0 }} /> : <span style={{ width: 12, color: 'inherit' }}>-</span>}
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.picTitle || '类目'}</span>
+              </div>
+            ))
+          ) : (
+            <div style={{ padding: 30, textAlign: 'center', color: mutedColor, fontSize: 12 }}>点击配置左侧类目</div>
+          )}
+        </section>
+
+        {/* 中：上（轮播+促销卡）/ 下（4 频道卡） */}
+        <section style={{ display: 'flex', flexDirection: 'column', gap, minWidth: 0, minHeight: 0 }}>
+          <div style={{ flex: 1, display: 'flex', gap, minHeight: 0 }}>
+            <div style={{ ...panelStyle, flex: 1, borderRadius: bannerRadius, minWidth: 0 }}>
+              {banners.length ? (
+                <img src={banners[0]?.picUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              ) : (
+                <div style={{ padding: 20, textAlign: 'center', color: mutedColor, fontSize: 12 }}>点击添加轮播</div>
+              )}
+            </div>
+            <div style={{ flex: 1, display: 'flex', gap, minWidth: 0 }}>
+              {promoCards.map((card, i) => (
+                <div key={i} style={{ flex: 1, minWidth: 0 }}>
+                  <HeroCard card={card} />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap, height: '100%' }}>
+              {channelCards.map((card, i) => (
+                <HeroCard key={i} card={card} />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* 右：用户卡 + 店铺街 */}
+        <section style={{ display: 'flex', flexDirection: 'column', gap, minWidth: 0, minHeight: 0 }}>
+          <div style={{ ...panelStyle, height: 220, flexShrink: 0, padding: '16px 12px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', background: userGradient !== 'none' ? userGradient : right.userCardBackground || panelBg }}>
+            {right.premiumMember?.show === true && (
+              <div style={{ alignSelf: 'stretch', marginBottom: 8, background: '#1a1a1a', color: '#ffd700', borderRadius: 6, padding: '4px 8px', fontSize: 12, fontWeight: 700 }}>
+                {right.premiumMember.title || '会员'}
+                {right.premiumMember.description ? <span style={{ fontWeight: 400, marginLeft: 6 }}>{right.premiumMember.description}</span> : null}
+              </div>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <img src={getPath(right, 'user.avatar.picUrl') || ''} alt="" style={{ width: 36, height: 36, borderRadius: '50%', background: '#ececec' }} />
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a' }}>{getPath(right, 'user.nickname') || '欢迎来商城'}</div>
+                <div style={{ fontSize: 11, color: mutedColor }}>
+                  <span>注册</span>
+                  <span style={{ margin: '0 4px' }}>|</span>
+                  <span>入驻</span>
+                </div>
+              </div>
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a' }}>{getPath(right, 'user.welcomeText') || '登录后更多精彩'}</div>
+              <div style={{ fontSize: 11, color: mutedColor, marginTop: 2 }}>一键登录，福利好物全拥有</div>
+            </div>
+            <div style={{ marginTop: 8, background: priceColor, color: '#fff', fontSize: 12, fontWeight: 700, borderRadius: 14, padding: '4px 18px' }}>立即登录</div>
+            <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2, marginTop: 10 }}>
+              {['我的订单', '浏览记录', '商品收藏', '关注店铺'].map((t) => (
+                <div key={t} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, fontSize: 11, color: '#333' }}>
+                  <span style={{ width: 18, height: 18, borderRadius: '50%', background: '#f2f3f5', display: 'inline-block' }} />
+                  <span>{t}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ ...panelStyle, flex: 1, padding: '10px 12px', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontWeight: 700, fontSize: titleSize, color: titleColor }}>
+                {getPath(right, 'shopsTitle') || '店铺街'}
+                {getPath(right, 'shopsSubTitle') ? (
+                  <span style={{ fontSize: 10, color: '#fff', background: getPath(right, 'shopsSubTitleBg') || '#FF4E4E', borderRadius: 3, padding: '1px 4px', marginLeft: 6 }}>
+                    {getPath(right, 'shopsSubTitle')}
+                  </span>
+                ) : null}
+              </div>
+              <a style={{ fontSize: 11, color: mutedColor }}>
+                {getPath(right, 'shopsMoreText') || '查看全部'} ▾
+              </a>
+            </div>
+            {shortcuts.length ? (
+              <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginTop: 8, alignContent: 'start' }}>
+                {shortcuts.map((sc, i) => (
+                  <div key={sc.picId ?? i} style={{ textAlign: 'center' }}>
+                    <div style={{ width: '100%', aspectRatio: '1/1', borderRadius: 8, overflow: 'hidden', background: '#f7f8fa' }}>
+                      {sc.picUrl ? <img src={sc.picUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
+                    </div>
+                    <span style={{ fontSize: 11, color: getPath(right, 'shopsTextColor') || '#a06a38', display: 'block', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {sc.picTitle || '进入店铺'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: mutedColor, fontSize: 12 }}>点击配置店铺</div>
+            )}
+          </div>
+        </section>
       </div>
     </div>
   );

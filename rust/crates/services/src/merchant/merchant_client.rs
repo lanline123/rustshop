@@ -561,7 +561,6 @@ impl MerchantClientService {
             .await?;
         tx.commit().await.map_err(|e| Error::Database(e.to_string()))?;
 
-        // 免审核：事务提交后复用审核通过的开店链路（merchant/admin/shop/角色/账户/模板）
         if apply.status == Some(APPLY_STATUS_PASS) {
             let mut applied = apply.clone();
             applied.merchant_apply_id = id;

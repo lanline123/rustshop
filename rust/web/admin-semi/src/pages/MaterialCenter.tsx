@@ -27,6 +27,7 @@ import {
   IconUpload,
 } from '@douyinfe/semi-icons';
 import { apiGet, apiPost, apiUpload, clearToken, getContextHeaders, getToken, isDemo } from '../api';
+import { AiEraseDialog, AiTranslateDialog, ensureAiImageEnabled } from './components/AiImageDialogs';
 import './material-center.css';
 
 /**
@@ -409,6 +410,9 @@ export default function MaterialCenter() {
 
   // 预览（下标驱动，支持上一个/下一个）
   const [previewIndex, setPreviewIndex] = useState(-1);
+
+  // AI图片处理（v5.8.61：翻译 / 智能消除，仅图片 tab）
+  const [aiDialog, setAiDialog] = useState<{ mode: 'translate' | 'erase'; item: PicItem } | null>(null);
 
   // 编辑素材
   const [editOpen, setEditOpen] = useState(false);
@@ -848,6 +852,27 @@ export default function MaterialCenter() {
   const openPreview = (item: MaterialItem) => {
     const index = items.findIndex((row) => itemId(row, tab) === itemId(item, tab));
     setPreviewIndex(index);
+  };
+
+  // ——— AI图片处理入口（原版对商品图/业务图触发 AI翻译/AI擦除；素材中心对图片项提供同样入口） ———
+  const openAiDialog = async (mode: 'translate' | 'erase', item: MaterialItem) => {
+    if (isDemo()) {
+      Toast.warning({ content: '演示模式不支持该操作' });
+      return;
+    }
+    if (!(await ensureAiImageEnabled())) return;
+    setAiDialog({ mode, item: item as PicItem });
+  };
+
+  const aiDialogImageUrl = aiDialog
+    ? aiDialog.item.picUrl || aiDialog.item.picThumb || ''
+    : '';
+
+  const handleAiDialogOk = () => {
+    // 与原版一致：结果不回写素材库记录；后端已把结果图上传至素材库（未分组），
+    // 这里刷新列表让新图可见，并交回结果 URL
+    setAiDialog(null);
+    reload();
   };
 
   // ——— 编辑素材 ———
@@ -1298,6 +1323,18 @@ export default function MaterialCenter() {
           <Button theme="borderless" size="small" icon={<IconEdit />} title="编辑" onClick={() => openEdit(item)} />
           <Button theme="borderless" size="small" icon={<IconDownload />} title="下载" onClick={() => downloadOne(item)} />
           <Button theme="borderless" size="small" icon={<IconLink />} title="复制链接" onClick={() => copyOne(item)} />
+          {isVideo ? null : (
+            <Dropdown
+              trigger="click"
+              position="bottomRight"
+              menu={[
+                { node: 'item', name: 'AI翻译', onClick: () => openAiDialog('translate', item) },
+                { node: 'item', name: 'AI擦除', onClick: () => openAiDialog('erase', item) },
+              ]}
+            >
+              <Button theme="borderless" size="small" icon={<IconMore />} title="AI图片处理" />
+            </Dropdown>
+          )}
           <Button
             theme="borderless"
             type="danger"
@@ -2107,6 +2144,19 @@ export default function MaterialCenter() {
           ) : null}
         </div>
       </Modal>
+      {/* AI图片处理（v5.8.61） */}
+      <AiTranslateDialog
+        visible={aiDialog?.mode === 'translate'}
+        imageUrl={aiDialogImageUrl}
+        onCancel={() => setAiDialog(null)}
+        onOk={handleAiDialogOk}
+      />
+      <AiEraseDialog
+        visible={aiDialog?.mode === 'erase'}
+        imageUrl={aiDialogImageUrl}
+        onCancel={() => setAiDialog(null)}
+        onOk={handleAiDialogOk}
+      />
     </div>
   );
 }
