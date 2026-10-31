@@ -802,6 +802,11 @@ impl PayService {
         }
         let v: serde_json::Value = serde_json::from_str(&text)
             .map_err(|e| Error::Internal(format!("PayPal 订单响应解析失败: {e}")))?;
+        if let Some(order_id) = v.get("id").and_then(|v| v.as_str()) {
+            let _ = sqlx::query("UPDATE paylog SET transaction_id=? WHERE pay_sn=?")
+                .bind(order_id).bind(pay_sn)
+                .execute(&self.repos.pool).await;
+        }
         let approve = v
             .get("links")
             .and_then(|l| l.as_array())

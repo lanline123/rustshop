@@ -597,3 +597,27 @@ data.object.metadata.refund_sn
 status=succeeded -> paylog_refund 成功 + 回写退款金额
 status=failed/canceled -> paylog_refund 失败
 ```
+
+## 2026-10-31 补充：PayPal Webhook
+
+新增：
+
+```text
+POST /api/order/pay/notify/paypal
+```
+
+处理：
+
+```text
+OAuth2 获取 token
+POST /v1/notifications/verify-webhook-signature 验签
+CHECKOUT.ORDER.APPROVED:
+  按 paylog.transaction_id 找回 pay_sn
+  POST /v2/checkout/orders/{id}/capture
+  COMPLETED -> mark_paid + settle
+PAYMENT.CAPTURE.REFUNDED:
+  resource.invoice_id = refund_sn
+  paylog_refund 成功 + 回写退款金额
+```
+
+PayPal 下单时已将 PayPal order id 写入 `paylog.transaction_id`。

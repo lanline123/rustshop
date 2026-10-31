@@ -48,6 +48,7 @@ pub fn public_routes() -> Router<PublicState> {
         .route("/order/pay/notify/stripe", get(stripe_notify).post(stripe_notify))
         .route("/order/pay/notify/xendit", post(xendit_notify))
         .route("/order/pay/notify/antom", post(antom_notify))
+        .route("/order/pay/notify/paypal", post(paypal_notify))
         .route("/order/pay/notify/lakala", post(notify))
         .route("/order/pay/notify/{payType}", post(notify))
         .route("/order/pay/refundNotify/wechat", post(wechat_refund_notify))
@@ -415,6 +416,107 @@ async fn xendit_notify(
         tracing::warn!("Xendit 回调推进订单失败: pay_sn={pay_sn}, err={e}");
     }
     Ok((StatusCode::OK, Json(serde_json::json!({"status":"OK"}))).into_response())
+}
+
+/// `POST /api/order/pay/notify/paypal`：PayPal Webhook（验签 + capture/退款）。
+async fn paypal_notify(
+    State(state): State<PublicState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Response, AppError> {
+    let configs = state.payment.pay.channel_configs().await?;
+    let cfg = &configs.paypal;
+    if !cfg.is_configured() {
+        return Err(AppError(tigshop_core::Error::biz(1001, "PayPal 未配置")));
+    }
+    let webhook_id = state.payment.pay.config_value("paypalWebhookId").await?
+        .filter(|v| !v.trim().is_empty())
+        .ok_or_else(|| AppError(tigshop_core::Error::biz(1001, "PayPal 未配置 webhookId")))?;
+    let body_str = String::from_utf8_lossy(&body).to_string();
+    let event: serde_json::Value = serde_json::from_str(&body_str)
+        .map_err(|e| AppError(tigshop_core::Error::Validation(format!("PayPal 回调报文非法: {e}"))))?;
+    let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(25)).build()
+        .map_err(|e| AppError(tigshop_core::Error::Internal(e.to_string())))?;
+    let token_resp = client.post(cfg.oauth_token_url())
+        .basic_auth(&cfg.client_id, Some(&cfg.client_secret))
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .body("grant_type=client_credentials")
+        .send().await
+        .map_err(|e| AppError(tigshop_core::Error::biz(1001, format!("PayPal 获取 token 异常: {e}"))))?;
+    let token_json: serde_json::Value = token_resp.json().await.unwrap_or(serde_json::Value::Null);
+    let access = token_json.get("access_token").and_then(|v| v.as_str()).unwrap_or_default();
+    if access.is_empty() {
+        return Err(AppError(tigshop_core::Error::biz(1001, "PayPal 获取 token 失败")));
+    }
+    let verify_body = serde_json::json!({
+        "auth_algo": header_str(&headers, "paypal-auth-algo").unwrap_or_default(),
+        "cert_url": header_str(&headers, "paypal-cert-url").unwrap_or_default(),
+        "transmission_id": header_str(&headers, "paypal-transmission-id").unwrap_or_default(),
+        "transmission_sig": header_str(&headers, "paypal-transmission-sig").unwrap_or_default(),
+        "transmission_time": header_str(&headers, "paypal-transmission-time").unwrap_or_default(),
+        "webhook_id": webhook_id,
+        "webhook_event": event.clone()
+    });
+    let verify_resp = client.post(format!("{}/v1/notifications/verify-webhook-signature", cfg.base_url()))
+        .bearer_auth(access)
+        .header("Content-Type", "application/json")
+        .body(verify_body.to_string())
+        .send().await
+        .map_err(|e| AppError(tigshop_core::Error::biz(1001, format!("PayPal 验签网络异常: {e}"))))?;
+    let verify: serde_json::Value = verify_resp.json().await.unwrap_or(serde_json::Value::Null);
+    if verify.get("verification_status").and_then(|v| v.as_str()) != Some("SUCCESS") {
+        return Ok((StatusCode::BAD_REQUEST, "FAIL").into_response());
+    }
+    let event_type = event.get("event_type").and_then(|v| v.as_str()).unwrap_or_default();
+    let resource = event.get("resource").cloned().unwrap_or(serde_json::Value::Null);
+    if event_type == "PAYMENT.CAPTURE.REFUNDED" {
+        let refund_sn = resource.get("invoice_id").and_then(|v| v.as_str()).unwrap_or("");
+        if !refund_sn.is_empty() {
+            let row: Option<(i32, i32, Decimal)> = sqlx::query_as(
+                "SELECT paylog_refund_id, paylog_id, refund_amount FROM paylog_refund WHERE refund_sn=? LIMIT 1",
+            ).bind(refund_sn).fetch_optional(&state.repos.pool).await
+                .map_err(|e| AppError(tigshop_core::Error::Database(e.to_string())))?;
+            if let Some((id, paylog_id, amount)) = row {
+                state.payment.paylog.update_refund_status(id, RefundStatus::Success).await?;
+                state.repos.payment.paylog.add_refund_amount(paylog_id, amount).await?;
+            }
+            return Ok((StatusCode::OK, "SUCCESS").into_response());
+        }
+        return Ok((StatusCode::BAD_REQUEST, "FAIL").into_response());
+    }
+    if event_type != "CHECKOUT.ORDER.APPROVED" {
+        return Ok((StatusCode::OK, "SUCCESS").into_response());
+    }
+    let paypal_order_id = resource.get("id").and_then(|v| v.as_str()).unwrap_or("");
+    let row: Option<(String,)> = sqlx::query_as("SELECT pay_sn FROM paylog WHERE transaction_id=? LIMIT 1")
+        .bind(paypal_order_id)
+        .fetch_optional(&state.repos.pool).await
+        .map_err(|e| AppError(tigshop_core::Error::Database(e.to_string())))?;
+    let Some((pay_sn,)) = row else {
+        return Ok((StatusCode::BAD_REQUEST, "FAIL").into_response());
+    };
+    let capture = client.post(format!("{}/v2/checkout/orders/{paypal_order_id}/capture", cfg.base_url()))
+        .bearer_auth(access)
+        .header("Content-Type", "application/json")
+        .body("{}")
+        .send().await
+        .map_err(|e| AppError(tigshop_core::Error::biz(1001, format!("PayPal capture 网络异常: {e}"))))?;
+    let capture_json: serde_json::Value = capture.json().await.unwrap_or(serde_json::Value::Null);
+    let cap = capture_json.get("purchase_units").and_then(|v| v.as_array()).and_then(|a| a.first())
+        .and_then(|u| u.get("payments")).and_then(|p| p.get("captures")).and_then(|c| c.as_array())
+        .and_then(|a| a.first());
+    let (capture_id, capture_status) = cap.map(|c| (
+        c.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        c.get("status").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+    )).unwrap_or_default();
+    if !capture_id.is_empty() && capture_status.eq_ignore_ascii_case("COMPLETED") {
+        state.payment.paylog.mark_paid_by_pay_sn(&pay_sn, &capture_id, &body_str).await?;
+        if let Err(e) = state.payment.paylog.settle_order_by_pay_sn(&pay_sn, &capture_id).await {
+            tracing::warn!("PayPal 回调推进订单失败: pay_sn={pay_sn}, err={e}");
+        }
+        return Ok((StatusCode::OK, "SUCCESS").into_response());
+    }
+    Ok((StatusCode::BAD_REQUEST, "FAIL").into_response())
 }
 
 /// `POST /api/order/pay/notify/antom`：Antom 支付/退款回调（SHA256withRSA 验签）。
