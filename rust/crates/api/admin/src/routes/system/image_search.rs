@@ -448,10 +448,12 @@ async fn run_build(state: AdminState, job_id: i64, product_id: i32) -> Result<()
                 match download_upload_add(&client, &region, &key, &secret, &index, pid, &pic_name, &url).await {
                     Ok(()) => added += 1,
                     Err(e) => {
+                        skipped += 1;
                         let short = e.chars().take(120).collect::<String>();
                         sqlx::query("UPDATE image_search_sync_job SET last_error=?, updated_at=? WHERE id=?")
-                            .bind(short).bind(tigshop_common::utils::now_seconds() as i64).bind(job_id)
+                            .bind(&short).bind(tigshop_common::utils::now_seconds() as i64).bind(job_id)
                             .execute(&state.repos.pool).await.ok();
+                        tracing::warn!(product_id = pid, error = %short, "图搜单商品同步失败");
                     }
                 }
             }
@@ -463,7 +465,7 @@ async fn run_build(state: AdminState, job_id: i64, product_id: i32) -> Result<()
             .bind(tigshop_common::utils::now_seconds() as i64).bind(job_id)
             .execute(&state.repos.pool).await.ok();
     }
-    sqlx::query("UPDATE image_search_sync_job SET state='COMPLETED', scanned=?, added=?, skipped=?, last_error='', updated_at=? WHERE id=?")
+    sqlx::query("UPDATE image_search_sync_job SET state='COMPLETED', scanned=?, added=?, skipped=?, updated_at=? WHERE id=?")
         .bind(scanned).bind(added).bind(skipped)
         .bind(tigshop_common::utils::now_seconds() as i64).bind(job_id)
         .execute(&state.repos.pool).await.map_err(|e| e.to_string())?;
