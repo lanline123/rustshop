@@ -4,15 +4,19 @@ import {
   Button,
   Card,
   Input,
+  InputNumber,
   Popconfirm,
+  Popover,
   Select,
   Space,
+  Spin,
+  Switch,
   Table,
   Tag,
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
-import { IconPlus, IconRefresh, IconSearch } from '@douyinfe/semi-icons';
+import { IconEdit, IconPlus, IconRefresh, IconSearch } from '@douyinfe/semi-icons';
 import { apiGet, apiPost, isDemo } from '../api';
 import { mockProductPage } from '../mock';
 import type { PageResult, ProductRow } from '../types';
@@ -29,6 +33,177 @@ const statusOptions = [
 interface Option {
   id: number;
   name: string;
+}
+
+/** GET /product/product/skuList 返回的规格行（ProductStockPop 契约所需字段） */
+interface SkuRow {
+  skuId: number;
+  skuValue?: string;
+  skuSn?: string;
+  skuStock?: number;
+  isEnabled?: number;
+}
+
+/** 规格值展示：a|b → a;b（对齐旧版 formatSpecValue） */
+const formatSkuValue = (value?: string) =>
+  (value || '')
+    .split('|')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .join(';') || '-';
+
+/**
+ * 库存编辑弹层（对应原版 ProductStockPop.vue）：
+ * 打开时用 GET /product/product/skuList 拉规格库存；多规格逐行改库存，
+ * 保存走 POST /product/product/updateField {field:'productSku', val:[{skuId, skuStock}]}；
+ * 单规格/无规格时编辑商品库存，保存 field='productStock'。
+ */
+function StockPopover({
+  productId,
+  stock,
+  onSaved,
+}: {
+  productId: number;
+  stock: number;
+  onSaved: () => void;
+}) {
+  const [visible, setVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [skus, setSkus] = useState<SkuRow[]>([]);
+  const [singleStock, setSingleStock] = useState<string>(String(stock || 0));
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!visible || !productId || isDemo()) return;
+    let alive = true;
+    setLoading(true);
+    setSkus([]);
+    apiGet<PageResult<SkuRow>>('/product/product/skuList', { id: productId, page: 1, size: 100 })
+      .then((result) => {
+        if (!alive) return;
+        const records = (result?.records || []).filter((item) => Number(item.isEnabled ?? 1) !== 0);
+        setSkus(records);
+        if (!records.length) setSingleStock(String(stock || 0));
+      })
+      .catch((error) => alive && Toast.error({ content: error.message }))
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, productId]);
+
+  const save = async () => {
+    if (isDemo()) {
+      Toast.warning({ content: '演示模式不支持操作' });
+      return;
+    }
+    if (skus.length > 0) {
+      const empty = skus.find((item) => item.skuStock === undefined || item.skuStock === null || String(item.skuStock) === '');
+      if (empty) {
+        Toast.error({ content: '请填写库存' });
+        return;
+      }
+    } else if (singleStock === '') {
+      Toast.error({ content: '请填写库存' });
+      return;
+    }
+    setSaving(true);
+    try {
+      if (skus.length > 0) {
+        await apiPost('/product/product/updateField', {
+          id: productId,
+          field: 'productSku',
+          val: skus.map((item) => ({ skuId: item.skuId, skuStock: Number(item.skuStock || 0) })),
+        });
+      } else {
+        await apiPost('/product/product/updateField', {
+          id: productId,
+          field: 'productStock',
+          val: Number(singleStock || 0),
+        });
+      }
+      Toast.success({ content: '操作成功' });
+      setVisible(false);
+      onSaved();
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : '保存失败' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Popover
+      trigger="custom"
+      visible={visible}
+      onClickOutSide={() => setVisible(false)}
+      content={
+        <div style={{ width: skus.length > 0 ? 320 : 180, padding: 4 }}>
+          <Spin spinning={loading}>
+            {skus.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 280, overflowY: 'auto' }}>
+                {skus.map((item) => (
+                  <div key={item.skuId} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {formatSkuValue(item.skuValue)}
+                      </div>
+                      {item.skuSn ? (
+                        <Text type="tertiary" size="small">
+                          {item.skuSn}
+                        </Text>
+                      ) : null}
+                    </div>
+                    <InputNumber
+                      precision={0}
+                      min={0}
+                      style={{ width: 100 }}
+                      value={Number(item.skuStock || 0)}
+                      onChange={(next) =>
+                        setSkus((current) =>
+                          current.map((row) =>
+                            row.skuId === item.skuId ? { ...row, skuStock: Number(next || 0) } : row,
+                          ),
+                        )
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <InputNumber
+                precision={0}
+                min={0}
+                style={{ width: 140 }}
+                value={Number(singleStock || 0)}
+                onChange={(next) => setSingleStock(String(Number(next || 0)))}
+              />
+            )}
+          </Spin>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+            <Button size="small" onClick={() => setVisible(false)}>
+              取消
+            </Button>
+            <Button size="small" theme="solid" type="primary" loading={saving} onClick={save}>
+              保存
+            </Button>
+          </div>
+        </div>
+      }
+    >
+      <span
+        style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 2 }}
+        onClick={(event) => {
+          event.stopPropagation();
+          setVisible(true);
+        }}
+      >
+        {stock}
+        <IconEdit size="small" style={{ color: 'var(--semi-color-text-2)' }} />
+      </span>
+    </Popover>
+  );
 }
 
 export default function Products() {
@@ -49,6 +224,8 @@ export default function Products() {
     () => new URLSearchParams(window.location.search).get('modal') === 'product',
   );
   const [editingId, setEditingId] = useState<number | undefined>(undefined);
+  /** 在售状态切换中的商品（防重复点击） */
+  const [salePendingId, setSalePendingId] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     if (isDemo()) return;
@@ -110,6 +287,28 @@ export default function Products() {
       setReloadKey((key) => key + 1);
     } catch (error) {
       Toast.error({ content: error instanceof Error ? error.message : '操作失败' });
+    }
+  };
+
+  /** 在售状态切换（v5.8.61，对齐原版 List.vue changeSaleStatus：POST /product/product/saleStatus） */
+  const changeSaleStatus = async (record: ProductRow, val: number) => {
+    if (isDemo()) {
+      Toast.warning({ content: '演示模式不支持操作' });
+      return;
+    }
+    setSalePendingId(record.productId);
+    try {
+      await apiPost('/product/product/saleStatus', {
+        productId: record.productId,
+        saleStatus: val,
+        saleBanTime: 0,
+      });
+      Toast.success({ content: val === 1 ? '商品已设为可售' : '商品已设为禁售' });
+      setReloadKey((key) => key + 1);
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : '操作失败' });
+    } finally {
+      setSalePendingId(undefined);
     }
   };
 
@@ -207,13 +406,44 @@ export default function Products() {
               width: 140,
               render: (value: string) => <span className="money">¥ {Number(value || 0).toLocaleString()}</span>,
             },
-            { title: '库存', dataIndex: 'productStock', width: 90 },
+            {
+              title: '库存',
+              dataIndex: 'productStock',
+              width: 110,
+              render: (value: number, record: ProductRow) => (
+                <StockPopover
+                  productId={record.productId}
+                  stock={Number(value || 0)}
+                  onSaved={() => setReloadKey((key) => key + 1)}
+                />
+              ),
+            },
             {
               title: '状态',
               dataIndex: 'productStatus',
               width: 90,
               render: (value: number) =>
                 value === 1 ? <Tag color="green">在售</Tag> : <Tag color="grey">下架</Tag>,
+            },
+            {
+              title: '在售状态',
+              dataIndex: 'saleStatus',
+              width: 100,
+              render: (_: unknown, record: ProductRow) => {
+                const onSale = Number(record.saleStatus ?? 1) === 1;
+                return (
+                  <Popconfirm
+                    title={onSale ? '确定将所选商品设为禁售状态吗?' : '确定将所选商品设为可售状态吗?'}
+                    onConfirm={() => changeSaleStatus(record, onSale ? 0 : 1)}
+                  >
+                    <Switch
+                      size="small"
+                      checked={onSale}
+                      loading={salePendingId === record.productId}
+                    />
+                  </Popconfirm>
+                );
+              },
             },
             {
               title: '审核',

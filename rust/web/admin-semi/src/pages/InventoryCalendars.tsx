@@ -220,6 +220,10 @@ interface UnifiedModalState {
   productName?: string;
   picThumb?: string;
   skuCount: number;
+  /** 规格选项（v5.8.61：用 GET /product/product/skuList 拉取，对齐原版 BatchSetInventory 的规格选择） */
+  skuOptions: Array<{ skuId: number; skuValue?: string }>;
+  /** 已选规格：多规格商品必选（原版"请选择规格"校验） */
+  skuId: number;
   /** 1 全部门店（配合排除） 3 指定门店；提交时若有排除门店自动转为 2 */
   selectionType: number;
   storeIds: number[];
@@ -238,6 +242,8 @@ const closedUnifiedModal = (): UnifiedModalState => ({
   productName: '',
   picThumb: '',
   skuCount: 0,
+  skuOptions: [],
+  skuId: 0,
   selectionType: 1,
   storeIds: [],
   dateRange: [],
@@ -488,10 +494,10 @@ export default function InventoryCalendars() {
 
   const loadUnifiedProduct = (productId: number) => {
     if (!productId) {
-      setUnified((current) => ({ ...current, productName: '', picThumb: '', skuCount: 0 }));
+      setUnified((current) => ({ ...current, productName: '', picThumb: '', skuCount: 0, skuOptions: [], skuId: 0 }));
       return;
     }
-    setUnified((current) => ({ ...current, loading: true }));
+    setUnified((current) => ({ ...current, loading: true, skuOptions: [], skuId: 0 }));
     apiGet<{
       records?: Array<{ productName?: string; picThumb?: string; picUrl?: string; productSku?: unknown[] }>;
     }>('/product/product/list', { ids: productId, page: 1, pageSize: 1 })
@@ -506,6 +512,24 @@ export default function InventoryCalendars() {
         }));
       })
       .catch(() => setUnified((current) => ({ ...current, loading: false })));
+    // 规格列表：GET /product/product/skuList（原版从商品详情 productSku 取，这里按接口化契约拉取）
+    apiGet<{ records?: Array<{ skuId: number; skuValue?: string; isEnabled?: number }> }>(
+      '/product/product/skuList',
+      { id: productId, page: 1, size: 100 },
+    )
+      .then((result) => {
+        const options = (result?.records || [])
+          .filter((item) => Number(item.skuId || 0) > 0 && Number(item.isEnabled ?? 1) !== 0)
+          .map((item) => ({ skuId: Number(item.skuId), skuValue: item.skuValue }));
+        setUnified((current) => ({
+          ...current,
+          skuOptions: options,
+          // 单规格自动选中（原版 syncSelectedSkuIds：单规格默认选唯一规格）
+          skuId: options.length === 1 ? options[0].skuId : current.skuId && options.some((o) => o.skuId === current.skuId) ? current.skuId : 0,
+          skuCount: options.length || current.skuCount,
+        }));
+      })
+      .catch(() => undefined);
   };
 
   const openUnifiedModal = () => {
@@ -519,6 +543,11 @@ export default function InventoryCalendars() {
       Toast.warning({ content: '请选择商品' });
       return;
     }
+    // 原版 BatchSetInventory：多规格商品必须选择规格
+    if (unified.skuOptions.length > 1 && !unified.skuId) {
+      Toast.warning({ content: '请选择规格' });
+      return;
+    }
     if (!unified.dateRange[0] || !unified.dateRange[1]) {
       Toast.warning({ content: '请选择时间范围' });
       return;
@@ -530,6 +559,8 @@ export default function InventoryCalendars() {
     try {
       await apiPost('/o2o/stockCalendar/setUnifiedStock', {
         productId: unified.productId,
+        // 原版提交 skuId（首个已选规格），单规格/未选时缺省作用于全部规格
+        skuId: Number(unified.skuId || 0) || undefined,
         shopSelection: { selectionType, shopIds: unified.storeIds },
         startDate: unified.dateRange[0],
         endDate: unified.dateRange[1],
@@ -1006,6 +1037,8 @@ export default function InventoryCalendars() {
                   productName: '',
                   picThumb: '',
                   skuCount: 0,
+                  skuOptions: [],
+                  skuId: 0,
                 }));
                 loadUnifiedProduct(productId);
               }}
@@ -1017,11 +1050,48 @@ export default function InventoryCalendars() {
                   <Image src={unified.picThumb} width={40} height={40} style={{ objectFit: 'contain' }} />
                 ) : null}
                 <span title={unified.productName}>{unified.productName}</span>
-                {unified.skuCount > 1 ? (
-                  <Text type="tertiary" size="small">
-                    多规格商品未选择规格，将作用于商品全部规格
-                  </Text>
+                {unified.skuOptions.length > 1 ? (
+                  unified.skuId ? (
+                    <Text type="tertiary" size="small">
+                      已选规格：
+                      {(
+                        unified.skuOptions.find((option) => option.skuId === unified.skuId)?.skuValue || ''
+                      )
+                        .split('|')
+                        .map((item) => item.trim())
+                        .filter(Boolean)
+                        .join(';')}
+                    </Text>
+                  ) : (
+                    <Text type="warning" size="small">
+                      请选择规格
+                    </Text>
+                  )
                 ) : null}
+              </div>
+            ) : null}
+            {unified.productId > 0 && unified.skuOptions.length > 1 ? (
+              <div className="cal-form-field" style={{ marginTop: 8 }}>
+                <label className="cal-form-label">规格</label>
+                <div className="cal-form-control">
+                  <Select
+                    placeholder="请选择规格"
+                    optionList={unified.skuOptions.map((option) => ({
+                      value: option.skuId,
+                      label:
+                        (option.skuValue || '')
+                          .split('|')
+                          .map((item) => item.trim())
+                          .filter(Boolean)
+                          .join(';') || `规格${option.skuId}`,
+                    }))}
+                    value={unified.skuId || undefined}
+                    onChange={(next) =>
+                      setUnified((current) => ({ ...current, skuId: Number(next || 0) }))
+                    }
+                    style={{ width: 360 }}
+                  />
+                </div>
               </div>
             ) : null}
           </div>

@@ -331,6 +331,14 @@ interface CurrencyItem {
   isDefault?: number;
 }
 
+/** GET /lang/currency/dictionary 返回的币种代码字典项（原版 CurrencyDictionaryItem） */
+interface CurrencyDictionaryItem {
+  id: number;
+  name: string;
+  code: string;
+  numericCode?: string;
+}
+
 export function CurrencyManagement() {
   const [reloadKey, setReloadKey] = useState(0);
   const [formVisible, setFormVisible] = useState(false);
@@ -351,6 +359,10 @@ export function CurrencyManagement() {
     lastSyncTime: '',
   });
 
+  // 国际通用代号数据源：后端币种字典（原版 getCurrencyDictionary），失败时回退为手输
+  const [dictionary, setDictionary] = useState<CurrencyDictionaryItem[]>([]);
+  const [dictFailed, setDictFailed] = useState(false);
+
   const loadRateConfig = async () => {
     try {
       const res = await apiGet<any>('/lang/currency/exchangeRateConfig');
@@ -360,8 +372,20 @@ export function CurrencyManagement() {
     }
   };
 
+  const loadDictionary = async () => {
+    try {
+      const res = await apiGet<CurrencyDictionaryItem[]>('/lang/currency/dictionary');
+      setDictionary(Array.isArray(res) ? res : []);
+      setDictFailed(false);
+    } catch {
+      // 字典不可用时回退手输（保留现有数据兜底）
+      setDictFailed(true);
+    }
+  };
+
   useEffect(() => {
     loadRateConfig();
+    loadDictionary();
   }, []);
 
   const openForm = async (record?: CurrencyItem) => {
@@ -389,8 +413,22 @@ export function CurrencyManagement() {
       setEditingId(null);
       setFormState({ name: '', symbol: '', code: '', rate: 1, isDefault: 0 });
     }
+    loadDictionary();
     setFormVisible(true);
   };
+
+  // 代号下拉：字典项「名称 (代号)」；编辑时已保存代号不在字典中则补充为选项保证回显（对齐原版 codeOptions）
+  const codeOptions = (() => {
+    const options = dictionary.map((item) => ({
+      label: `${item.name} (${item.code})`,
+      value: item.code,
+    }));
+    const current = formState.code;
+    if (current && !options.some((item) => item.value === current)) {
+      options.unshift({ label: current, value: current });
+    }
+    return options;
+  })();
 
   const handleFormSubmit = async () => {
     if (!formState.name.trim()) {
@@ -581,11 +619,22 @@ export function CurrencyManagement() {
           </div>
           <div>
             <div style={{ marginBottom: 6, fontWeight: 500 }}>国际通用代号</div>
-            <Input
-              placeholder="如：CNY / USD"
-              value={formState.code}
-              onChange={(val) => setFormState({ ...formState, code: val })}
-            />
+            {dictFailed ? (
+              // 字典加载失败时保留原手输兜底
+              <Input
+                placeholder="如：CNY / USD"
+                value={formState.code}
+                onChange={(val) => setFormState({ ...formState, code: val })}
+              />
+            ) : (
+              <Select
+                placeholder="请选择国际通用代号"
+                optionList={codeOptions}
+                value={formState.code || undefined}
+                onChange={(val) => setFormState({ ...formState, code: String(val || '') })}
+                style={{ width: '100%' }}
+              />
+            )}
           </div>
           <div>
             <div style={{ marginBottom: 6, fontWeight: 500 }}>汇率</div>

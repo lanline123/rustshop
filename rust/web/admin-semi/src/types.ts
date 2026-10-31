@@ -52,6 +52,8 @@ export interface ProductRow {
   marketPrice: string;
   productStock: number;
   productStatus: number;
+  /** 在售状态：1 可售 / 0 禁售（v5.8.61 saleStatus） */
+  saleStatus?: number;
   checkStatus: number;
   picThumb: string;
   picUrl: string;
