@@ -4080,6 +4080,7 @@ dependencies = [
  "chrono",
  "futures",
  "hmac",
+ "image",
  "mime_guess",
  "reqwest",
  "rust_decimal",

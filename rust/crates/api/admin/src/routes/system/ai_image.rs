@@ -233,8 +233,164 @@ async fn translate(
     ok(json!({"results": results}))
 }
 
-async fn inpaint(Json(_body): Json<Value>) -> ApiResult<Value> {
-    Err(AppError(Error::biz(400, "AI 图片修复服务未配置")))
+async fn inpaint(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<Value>,
+) -> ApiResult<Value> {
+    let rows = state.system.config_basic.repo().find_by_codes(&CONFIG_KEYS).await.map_err(AppError)?;
+    let get = |key: &str| rows.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone()).unwrap_or_default();
+    if get("aiImageEnabled") != "1" {
+        return Err(AppError(Error::biz(400, "AI图片处理功能未启用")));
+    }
+    let authorization = get("aiImageAuthorization");
+    let project_id = get("aiImageProjectId");
+    if authorization.is_empty() || project_id.is_empty() {
+        return Err(AppError(Error::biz(400, "请先配置AI Authorization和Project ID")));
+    }
+    let urls: Vec<String> = body.get("imgUrls").and_then(Value::as_array).map(|a| {
+        a.iter().filter_map(Value::as_str).map(ToString::to_string).collect()
+    }).unwrap_or_default();
+    if urls.is_empty() {
+        return Err(AppError(Error::biz(400, "图片列表不能为空")));
+    }
+    if urls.len() > 10 {
+        return Err(AppError(Error::biz(400, "单次最多处理10张图片")));
+    }
+    let options: Vec<String> = body.get("inpaintOptions").and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(Value::as_str).map(ToString::to_string).collect())
+        .unwrap_or_else(|| vec!["text".into()]);
+    if options != vec!["text".to_string()] {
+        return Err(AppError(Error::biz(400, "当前仅支持文字消除(inpaintOptions=[\"text\"])")));
+    }
+    let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(320)).build()
+        .map_err(|e| AppError(Error::Internal(e.to_string())))?;
+    let mut results = Vec::new();
+    for url in urls {
+        let mut item = json!({"originalUrl": url, "success": false});
+        match inpaint_one(&state, &auth, &client, &authorization, &project_id, &url).await {
+            Ok(out) => {
+                item["resultUrl"] = Value::String(out);
+                item["success"] = Value::Bool(true);
+            }
+            Err(e) => item["errorMsg"] = Value::String(e),
+        }
+        results.push(item);
+    }
+    ok(json!({"results": results}))
+}
+
+async fn inpaint_one(
+    state: &AdminState,
+    auth: &AuthUser,
+    client: &reqwest::Client,
+    authorization: &str,
+    project_id: &str,
+    url: &str,
+) -> Result<String, String> {
+    let ocr = fengniao_post(client, authorization, project_id, "/api/v1/editor/ocr", json!({"image": url})).await?;
+    let data = ocr.get("data").ok_or("蜂鸟任务创建响应缺少 data")?;
+    let task_id = data.get("id").or_else(|| data.get("taskid")).and_then(Value::as_str).ok_or("蜂鸟任务创建响应缺少任务ID")?;
+    let task_key = data.get("key").and_then(Value::as_str).unwrap_or("2");
+    let ocr_item = poll_task(client, authorization, project_id, task_key, task_id).await?;
+    let texts = ocr_item.get("result").and_then(|r| r.get("texts")).and_then(Value::as_array).cloned().unwrap_or_default();
+    if texts.is_empty() {
+        return Ok(url.to_string());
+    }
+    let origin = client.get(url).send().await.map_err(|e| e.to_string())?
+        .error_for_status().map_err(|e| e.to_string())?.bytes().await.map_err(|e| e.to_string())?;
+    let img = image::load_from_memory(&origin).map_err(|e| format!("原图解析失败: {e}"))?;
+    let (w, h) = (img.width(), img.height());
+    let mut mask = image::RgbImage::new(w, h);
+    for t in &texts {
+        let x = t.get("x").and_then(Value::as_i64).unwrap_or(0).max(0) as u32;
+        let y = t.get("y").and_then(Value::as_i64).unwrap_or(0).max(0) as u32;
+        let rw = t.get("width").and_then(Value::as_i64).unwrap_or(0).max(0) as u32;
+        let rh = t.get("height").and_then(Value::as_i64).unwrap_or(0).max(0) as u32;
+        for py in y..(y + rh).min(h) {
+            for px in x..(x + rw).min(w) {
+                mask.put_pixel(px, py, image::Rgb([255, 255, 255]));
+            }
+        }
+    }
+    let mut mask_bytes = std::io::Cursor::new(Vec::new());
+    image::DynamicImage::ImageRgb8(mask).write_to(&mut mask_bytes, image::ImageFormat::Png)
+        .map_err(|e| e.to_string())?;
+    let mask_bytes = mask_bytes.into_inner();
+    let size = u64::try_from(mask_bytes.len()).unwrap_or(u64::MAX);
+    let vo = state.content.gallery_pic
+        .upload_img(None, Some("image/png"), size, Some("ai-mask.png"), &mask_bytes, 0, auth.id)
+        .await.map_err(|e| e.to_string())?;
+    let mask_url = serde_json::to_value(vo).ok()
+        .and_then(|v| v.get("url").and_then(Value::as_str).map(ToString::to_string))
+        .ok_or("遮罩图上传失败")?;
+    let elim = fengniao_post(client, authorization, project_id, "/api/v1/editor/eliminate",
+        json!({"originImage": url, "maskImage": mask_url})).await?;
+    let data = elim.get("data").ok_or("蜂鸟消除任务创建响应缺少 data")?;
+    let elim_id = data.get("id").or_else(|| data.get("taskid")).and_then(Value::as_str).ok_or("蜂鸟消除任务创建响应缺少任务ID")?;
+    let key = data.get("key").and_then(Value::as_str).unwrap_or("1");
+    let item = poll_task(client, authorization, project_id, key, elim_id).await?;
+    let result = item.get("result").cloned().unwrap_or(Value::Null);
+    let temp = extract_result_url(&result).ok_or("蜂鸟消除响应缺少结果图URL")?;
+    let bytes = client.get(&temp).send().await.map_err(|e| e.to_string())?
+        .error_for_status().map_err(|e| e.to_string())?.bytes().await.map_err(|e| e.to_string())?;
+    let size = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+    let vo = state.content.gallery_pic
+        .upload_img(None, Some("image/jpeg"), size, Some("ai-inpaint.jpg"), &bytes, 0, auth.id)
+        .await.map_err(|e| e.to_string())?;
+    serde_json::to_value(vo).ok()
+        .and_then(|v| v.get("url").and_then(Value::as_str).map(ToString::to_string))
+        .ok_or_else(|| "结果图转存失败".to_string())
+}
+
+async fn fengniao_post(client: &reqwest::Client, auth: &str, project: &str, path: &str, body: Value) -> Result<Value, String> {
+    let resp = client.post(format!("https://api.fengniaoai.com{path}"))
+        .header("Authorization", auth)
+        .header("fengniaoai-project", project)
+        .json(&body).send().await.map_err(|e| e.to_string())?;
+    let status = resp.status();
+    let v: Value = resp.json().await.map_err(|e| e.to_string())?;
+    if !status.is_success() || v.get("code").and_then(Value::as_i64) != Some(200) {
+        let msg = v.get("msg").and_then(Value::as_str).or_else(|| v.get("errmsg").and_then(Value::as_str)).unwrap_or("蜂鸟AI调用失败");
+        return Err(msg.to_string());
+    }
+    Ok(v)
+}
+
+async fn poll_task(client: &reqwest::Client, auth: &str, project: &str, key: &str, id: &str) -> Result<Value, String> {
+    let mut interval = 800u64;
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(280);
+    loop {
+        tokio::time::sleep(std::time::Duration::from_millis(interval)).await;
+        if tokio::time::Instant::now() > deadline {
+            return Err("蜂鸟任务轮询超时(280s)".into());
+        }
+        let v = fengniao_post(client, auth, project, "/api/v1/editor/task/info",
+            json!({"ids":[{"key":key,"value":id}]})).await?;
+        let arr = v.get("data").and_then(Value::as_array).ok_or("任务查询响应缺少 data")?;
+        let item = arr.first().cloned().ok_or("任务查询响应缺少 data")?;
+        match item.get("status").and_then(Value::as_str) {
+            Some("3") => return Ok(item),
+            Some("4") => return Err("蜂鸟任务执行失败".into()),
+            _ => {}
+        }
+        interval = (interval + 500).min(2000);
+    }
+}
+
+fn extract_result_url(result: &Value) -> Option<String> {
+    if let Some(arr) = result.as_array() {
+        if let Some(first) = arr.first() {
+            if let Some(s) = first.as_str() { return Some(s.to_string()); }
+            for k in ["url", "image", "result_url"] {
+                if let Some(s) = first.get(k).and_then(Value::as_str) { return Some(s.to_string()); }
+            }
+        }
+    }
+    for k in ["url", "image", "result_url"] {
+        if let Some(s) = result.get(k).and_then(Value::as_str) { return Some(s.to_string()); }
+    }
+    None
 }
 
 async fn locales_list(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<Value> {

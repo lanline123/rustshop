@@ -197,3 +197,22 @@ imgUrls 1-10 张
 ```text
 AI 智能消除（OCR + 遮罩 + eliminate + 轮询）
 ```
+
+### AI 智能消除
+
+```text
+POST /file/aiImage/inpaint
+```
+
+流程：
+
+```text
+蜂鸟 OCR 创建任务
+轮询 OCR 结果 texts
+下载原图
+生成黑底白框遮罩 PNG
+遮罩上传 gallery
+蜂鸟 eliminate 创建任务
+轮询消除结果
+结果图转存 gallery
+```
