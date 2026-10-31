@@ -575,3 +575,15 @@ shipping_tpl：默认模板 / 1天内 / 不包邮 / 计价方式1 / 默认
 shipping_tpl_info：运送方式1，首件1/首价1/续件1/续价1
 decorate：默认模板，Java InitDecorateDataConstants.DECORATE_DATA
 ```
+
+## 2026-10-31 补充：充值支付下单
+
+`POST /api/user/rechargeOrder/create` 已接入渠道下单：
+
+```text
+创建 paylog（order_type=Recharge）
+复用 wechat / alipay / paypal / stripe / xendit / antom
+返回 PayCreateVO
+```
+
+前端可按返回的 payInfo 拉起支付。

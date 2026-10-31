@@ -1,4 +1,4 @@
-﻿//! 前台充值服务（payment::recharge_order，7 个 `optional` 端点）。
+//! 前台充值服务（payment::recharge_order，7 个 `optional` 端点）。
 //!
 //! 对应原 Java `com.tigshop.api.controller.user.RechargeOrderController`
 //! → `UserRechargeOrderServiceImpl` client 部分 + `RechargeSettingServiceImpl#settingPage`
@@ -259,7 +259,7 @@ impl RechargeOrderService {
     }
 
     /// `POST /api/user/rechargeOrder/create`：创建渠道支付单（渠道 SDK 未迁移）。
-    pub async fn create(&self, dto: &RechargeCreatePayDTO) -> Result<()> {
+    pub async fn create(&self, dto: &RechargeCreatePayDTO) -> Result<tigshop_core::models::payment::pay::PayCreateVO> {
         let user_id = authenticated_user(dto.user_id)?;
         let order_id = dto.id.ok_or_else(|| Error::biz_msg(MSG_PARAM_MISSING))?;
         let order = self
@@ -288,7 +288,10 @@ impl RechargeOrderService {
         {
             return Err(Error::biz_msg(MSG_CASH_NOT_ALLOWED));
         }
-        Err(Error::biz_msg(MSG_CHANNEL_UNMIGRATED))
+        let client_type = dto.code.as_deref().unwrap_or("h5");
+        crate::payment::pay::PayService::new(self.repos.clone())
+            .create_recharge_payment(order_id, user_id, order.amount, pay_type, client_type)
+            .await
     }
 
     async fn load_payment_configs(&self) -> Result<std::collections::HashMap<String, String>> {

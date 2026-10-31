@@ -1413,6 +1413,91 @@ impl PayService {
         Ok("SUCCESS".to_string())
     }
 
+    /// 充值支付创建（复用渠道下单，paylog 使用充值订单类型）。
+    pub async fn create_recharge_payment(
+        &self,
+        recharge_id: i32,
+        user_id: i32,
+        amount: rust_decimal::Decimal,
+        pay_type: &str,
+        client_type: &str,
+    ) -> Result<PayCreateVO> {
+        use tigshop_core::models::payment::paylog::{generate_pay_sn, PayOrderType};
+        use tigshop_infrastructure::db::repo::payment::paylog::PAYLOG_STATUS_UNPAID;
+        let pay_sn = generate_pay_sn();
+        let order_sn = format!("RC{recharge_id}");
+        let paylog = Paylog {
+            paylog_id: 0,
+            pay_sn: pay_sn.clone(),
+            pay_name: format!("充值-{recharge_id}"),
+            order_id: recharge_id,
+            order_sn: order_sn.clone(),
+            order_amount: amount,
+            order_type: PayOrderType::Recharge as i32,
+            pay_amount: amount,
+            pay_status: PAYLOG_STATUS_UNPAID,
+            pay_code: pay_type.to_string(),
+            profit_sharing_channel: None,
+            add_time: Some(tigshop_common::utils::now_seconds() as i32),
+            transaction_id: String::new(),
+            notify_data: String::new(),
+            refund_amount: rust_decimal::Decimal::ZERO,
+            token_code: String::new(),
+            appid: None,
+        };
+        self.repos.payment.paylog.insert(&paylog).await?;
+        let order = PayOrderRow {
+            order_id: recharge_id,
+            order_sn,
+            user_id,
+            total_amount: amount,
+            paid_amount: rust_decimal::Decimal::ZERO,
+            unpaid_amount: amount,
+            balance: rust_decimal::Decimal::ZERO,
+            pay_status: 0,
+            order_status: 0,
+            pay_type_id: 1,
+            is_presale: 0,
+            presale_type: None,
+            order_type: Some(PayOrderType::Recharge as i32),
+            parent_order_id: None,
+            add_time: tigshop_common::utils::now_seconds() as i32,
+            shipping_type_name: String::new(),
+        };
+        let configs = crate::payment::channels::load_channel_configs(&self.repos).await?;
+        let pay_info = match pay_type {
+            "wechat" => {
+                if !configs.wechat.is_configured() {
+                    return Err(Error::biz(1001, "微信支付未配置"));
+                }
+                self.wechat_create(&order, &configs.wechat, client_type, user_id, &pay_sn).await?
+            }
+            "alipay" | "ali" => {
+                if !configs.alipay.is_configured() {
+                    return Err(Error::biz(1001, "支付宝未配置"));
+                }
+                self.alipay_create(&order, &configs.alipay, client_type, &pay_sn).await?
+            }
+            "paypal" => {
+                if !configs.paypal.is_configured() {
+                    return Err(Error::biz(1001, "PayPal 未配置"));
+                }
+                self.paypal_create(&order, &configs.paypal, client_type, &pay_sn).await?
+            }
+            "stripe" => self.stripe_create(&order, client_type, &pay_sn).await?,
+            "xendit" => self.xendit_create(&order, client_type, &pay_sn).await?,
+            "antom" => self.antom_create(&order, user_id, client_type, &pay_sn).await?,
+            _ => return Err(Error::biz_msg(MSG_CHANNEL_UNMIGRATED)),
+        };
+        Ok(PayCreateVO {
+            order_id: Some(recharge_id),
+            order_sn: Some(order.order_sn.clone()),
+            order_amount: Some(amount),
+            pay_info: Some(pay_info),
+            code: None,
+        })
+    }
+
     /// 创建通用待支付 paylog（渠道下单前落库）。
     async fn create_pending_paylog(
         &self,
