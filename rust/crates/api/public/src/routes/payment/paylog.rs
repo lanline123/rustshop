@@ -588,15 +588,16 @@ async fn antom_notify(
         {
             return Ok(StatusCode::OK.into_response());
         }
-        let row: Option<(i32,)> = sqlx::query_as(
-            "SELECT paylog_refund_id FROM paylog_refund WHERE refund_sn=? LIMIT 1",
+        let row: Option<(i32,i32,Decimal)> = sqlx::query_as(
+            "SELECT paylog_refund_id,paylog_id,refund_amount FROM paylog_refund WHERE refund_sn=? LIMIT 1",
         )
         .bind(refund_sn)
         .fetch_optional(&state.repos.pool)
         .await
         .map_err(|e| AppError(tigshop_core::Error::Database(e.to_string())))?;
-        if let Some((id,)) = row {
+        if let Some((id,paylog_id,amount)) = row {
             state.payment.paylog.update_refund_status(id, RefundStatus::Success).await?;
+            state.repos.payment.paylog.add_refund_amount(paylog_id, amount).await?;
         }
         return Ok(StatusCode::OK.into_response());
     }
@@ -617,11 +618,14 @@ async fn antom_notify(
         .get("paymentId")
         .and_then(|v| v.as_str())
         .unwrap_or(payment_request_id);
-    let _ = state
+    state
         .payment
         .paylog
         .mark_paid_by_pay_sn(pay_sn, payment_id, &body_text)
-        .await;
+        .await?;
+    if let Err(e) = state.payment.paylog.settle_order_by_pay_sn(pay_sn, payment_id).await {
+        tracing::warn!("Antom 回调推进订单失败: pay_sn={pay_sn}, err={e}");
+    }
     Ok(StatusCode::OK.into_response())
 }
 

@@ -633,3 +633,10 @@ refund.succeeded 或 data.status=SUCCEEDED
 reference_id = refund_sn
 paylog_refund 成功 + 回写退款金额
 ```
+
+## 2026-10-31 补充：Antom 回调补齐
+
+```text
+退款成功：update_refund_status + add_refund_amount
+支付成功：mark_paid_by_pay_sn + settle_order_by_pay_sn
+```
