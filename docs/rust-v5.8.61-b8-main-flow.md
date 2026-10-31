@@ -794,3 +794,34 @@ Authorization: Bearer merchantApplyNotifyKey
 ```
 
 供后续直播订单同步/归因使用。
+
+## 2026-10-31 补充：商户进件渠道适配器
+
+新增配置：
+
+```text
+merchantApplicationSubmitUrl
+merchantApplicationApproveUrl
+merchantApplicationStatusUrl
+merchantApplicationKey
+```
+
+submit/apply：
+
+```text
+本地校验 -> POST 渠道 -> 落库 merchant_application -> 返回详情
+```
+
+approve：
+
+```text
+预检查 -> POST 渠道 -> 更新 status/audit_time
+```
+
+refresh：
+
+```text
+预检查 -> POST 渠道 -> 更新 status/sub_mch_id/sign_url
+```
+
+media / uploadMedia 仍依赖渠道媒体服务，未迁移。
