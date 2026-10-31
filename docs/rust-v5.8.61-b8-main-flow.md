@@ -784,3 +784,13 @@ Authorization: Bearer merchantApplyNotifyKey
 失败 -> status=3 + result_desc
 无记录 -> 「没有可提交的分账记录」
 ```
+
+## 2026-10-31 补充：微信直播明细上下文快照
+
+`order_item.promotion_data` 现在写入：
+
+```json
+{"wechatLive":{"roomId","wechatGoodsId","productId","skuId","shareOpenId","viewerOpenId","scene","customParams"}}
+```
+
+供后续直播订单同步/归因使用。

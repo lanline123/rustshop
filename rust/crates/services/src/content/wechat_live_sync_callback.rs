@@ -138,7 +138,16 @@ impl WechatLiveSyncCallbackService {
             let viewer_open_id = item.get("viewerOpenId").or_else(|| payload.get("viewerOpenId")).and_then(Value::as_str).unwrap_or(open_id).to_string();
             let scene = item.get("scene").or_else(|| payload.get("scene")).and_then(Value::as_str).unwrap_or("").to_string();
             let custom_params = item.get("customParams").or_else(|| payload.get("customParams")).and_then(Value::as_str).unwrap_or("").to_string();
-            prepared.push((product_id, name, sn, pic, shop_id, sku_id, sku_data, price, quantity, product_type, room_id, wechat_goods_id, share_open_id, viewer_open_id, scene, custom_params));
+            let promotion_data = serde_json::json!({"wechatLive": {
+                "roomId": room_id,
+                "wechatGoodsId": wechat_goods_id,
+                "productId": product_id,
+                "skuId": sku_id,
+                "shareOpenId": share_open_id,
+                "viewerOpenId": viewer_open_id,
+                "scene": scene,
+                "customParams": custom_params
+            }}).to_string();            prepared.push((product_id, name, sn, pic, shop_id, sku_id, sku_data, price, quantity, product_type, room_id, wechat_goods_id, share_open_id, viewer_open_id, scene, custom_params, promotion_data));
         }
         let shipping_fee = payload.get("shippingFee")
             .and_then(|v| v.as_str()).and_then(|s| s.parse().ok())
@@ -184,12 +193,12 @@ impl WechatLiveSyncCallbackService {
         .execute(&self.repos.pool).await
         .map_err(|e| Error::Database(e.to_string()))?;
         let order_id = i32::try_from(r.last_insert_id()).unwrap_or(0);
-        for (pid, name, sn, pic, shop, sku_id, sku_data, price, qty, ptype, room_id, wechat_goods_id, share_open_id, viewer_open_id, scene, custom_params) in prepared {
+        for (pid, name, sn, pic, shop, sku_id, sku_data, price, qty, ptype, room_id, wechat_goods_id, share_open_id, viewer_open_id, scene, custom_params, promotion_data) in prepared {
             let item_res = sqlx::query(
-                "INSERT INTO order_item(order_id,order_sn,user_id,product_id,product_name,product_sn,pic_thumb,shop_id,sku_id,sku_data,price,origin_price,quantity,delivery_quantity,product_type,promotion_data) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,0,?, '')",
+                "INSERT INTO order_item(order_id,order_sn,user_id,product_id,product_name,product_sn,pic_thumb,shop_id,sku_id,sku_data,price,origin_price,quantity,delivery_quantity,product_type,promotion_data) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?)",
             )
             .bind(order_id).bind(&order_sn).bind(user_id).bind(pid).bind(&name).bind(&sn).bind(&pic)
-            .bind(shop).bind(sku_id).bind(&sku_data).bind(price).bind(price).bind(qty).bind(ptype)
+            .bind(shop).bind(sku_id).bind(&sku_data).bind(price).bind(price).bind(qty).bind(ptype).bind(&promotion_data)
             .execute(&self.repos.pool).await
             .map_err(|e| Error::Database(e.to_string()))?;
             let item_id = i32::try_from(item_res.last_insert_id()).unwrap_or(0);
