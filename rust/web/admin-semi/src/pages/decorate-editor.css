@@ -489,3 +489,75 @@
   padding: 10px;
   text-align: center;
 }
+
+/* 画布：1600px 整页无缝渲染 + 左右轨道（对齐原版 CanvasViewport） */
+.pc-decorate-window {
+  width: 1600px;
+  margin: 0 12px;
+  background: #fff;
+  box-shadow: 0 2px 12px 0 rgba(100, 101, 102, 0.12);
+  min-height: 400px;
+}
+.pc-decorate-module {
+  position: relative;
+  cursor: pointer;
+}
+.pc-decorate-module:hover {
+  outline: 1px dashed var(--semi-color-primary);
+  outline-offset: -1px;
+}
+.pc-decorate-module--active {
+  outline: 2px solid var(--semi-color-primary);
+  outline-offset: -2px;
+}
+.pc-decorate-module--hidden {
+  opacity: 0.45;
+}
+.pc-decorate-module__tag {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 5;
+  background: var(--semi-color-primary);
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  padding: 0 6px;
+  border-radius: 0 0 4px 0;
+  pointer-events: none;
+}
+.pc-decorate-rail-label {
+  position: absolute;
+  left: 0;
+  width: 92px;
+  background: #fff;
+  box-shadow: 0 2px 8px 0 rgba(200, 201, 204, 0.5);
+  font-size: 12px;
+  color: #333;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-sizing: border-box;
+  z-index: 6;
+}
+.pc-decorate-rail-label--active {
+  background: var(--semi-color-primary);
+  color: #fff;
+}
+.pc-decorate-rail-operate {
+  position: absolute;
+  left: 2px;
+  width: 44px;
+  background: #fff;
+  box-shadow: 0 2px 8px 0 rgba(200, 201, 204, 0.5);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 0;
+  gap: 2px;
+  z-index: 6;
+}

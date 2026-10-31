@@ -837,6 +837,8 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
   const [libOpen, setLibOpen] = useState(true);
   const dirtyRef = useRef(false);
   const decorateIdRef = useRef(decorateId);
+  const moduleElRefs = useRef(new Map<number, HTMLElement>());
+  const [railTops, setRailTops] = useState<Record<number, number>>({});
 
   const markDirty = () => {
     dirtyRef.current = true;
@@ -896,6 +898,18 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, []);
+
+  // 测量各模块在滚动流中的纵向位置，供左右轨道标签/操作条对齐（原版 railTops 机制）
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const tops: Record<number, number> = {};
+      moduleElRefs.current.forEach((el, key) => {
+        tops[key] = el.offsetTop;
+      });
+      setRailTops(tops);
+    }, 80);
+    return () => clearTimeout(timer);
+  }, [moduleList, activeIndex, loading]);
 
   const buildPayload = (data: Record<string, any>) => ({
     id: decorateIdRef.current,
@@ -1143,62 +1157,105 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
           </div>
         </div>
 
-        {/* 中间画布 */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
-          <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-            <div className="pc-decorate-canvas-bar" onClick={() => { setPanelTab('page'); setActiveIndex(-1); }}>
-              页面设置（背景颜色 / 背景图片）
-            </div>
-            <div className="pc-decorate-canvas-bar" onClick={() => { setPanelTab('pcHeader'); setActiveIndex(-1); }}>
-              PC头部装修（LOGO / 搜索 / 主导航 / 顶部菜单 / 悬浮条）
-            </div>
-
-            {moduleList.length === 0 && (
-              <div style={{ padding: 60, textAlign: 'center', color: 'var(--semi-color-text-2)' }}>
-                暂无模块，请从左侧模块库添加
+        {/* 中间画布：1600px 整页无缝渲染（对齐原版 CanvasViewport，与 C 端一致） */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: '#eef1f6' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#fff', borderBottom: '1px solid var(--semi-color-border)' }}>
+            <Button size="small" onClick={() => { setPanelTab('page'); setActiveIndex(-1); }}>页面设置</Button>
+            <Button size="small" onClick={() => { setPanelTab('pcHeader'); setActiveIndex(-1); }}>PC头部装修</Button>
+            <Text type="tertiary" size="small">画布宽 1600px，与前台首页渲染一致；模块可从左侧拖入指定位置</Text>
+          </div>
+          <div style={{ flex: 1, overflow: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', minWidth: 'fit-content', padding: '30px 0 60px', position: 'relative' }}>
+              {/* 左轨道：模块标签 */}
+              <div style={{ width: 100, position: 'relative', flexShrink: 0, minHeight: 300 }}>
+                {moduleList.map((item, index) => (
+                  <div
+                    key={item.moduleIndex}
+                    className={`pc-decorate-rail-label${activeIndex === index ? ' pc-decorate-rail-label--active' : ''}`}
+                    style={{ top: railTops[item.moduleIndex] ?? 0 }}
+                    onClick={() => { setActiveIndex(index); setPanelTab('module'); }}
+                  >
+                    {item.label}
+                  </div>
+                ))}
               </div>
-            )}
-            {moduleList.map((item, index) => {
-              const isActive = activeIndex === index;
-              const isLegacy = LEGACY_TYPES.has(item.type);
-              return (
-                <div
-                  key={item.moduleIndex}
-                  className={`pc-decorate-module-card${isActive ? ' pc-decorate-module-card--active' : ''}${item.isShow ? '' : ' pc-decorate-module-card--hidden'}`}
-                  draggable
-                  onDragStart={(e) => e.dataTransfer.setData('text/pc-decorate-index', String(index))}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    const libType = e.dataTransfer.getData('text/pc-decorate-lib');
-                    if (libType) {
-                      const def = MODULE_DEF_MAP.get(libType);
-                      if (def) addModuleAt(def, index);
-                      return;
-                    }
-                    const from = Number(e.dataTransfer.getData('text/pc-decorate-index'));
-                    if (!Number.isNaN(from)) dropModule(from, index);
-                  }}
-                  onClick={() => { setActiveIndex(index); setPanelTab('module'); }}
-                >
-                  <div className="pc-decorate-module-card__title">
-                    <Text strong>{item.label}</Text>
-                    {isLegacy && <Tag size="small" color="grey">旧版模块</Tag>}
-                    {!item.isShow && <Tag size="small" color="amber">已隐藏</Tag>}
-                    <div style={{ flex: 1 }} />
-                    <div style={{ display: 'flex', gap: 2, alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
-                      <Button size="small" theme="borderless" icon={<IconChevronUp />} disabled={index === 0} onClick={() => moveModule(index, -1)} />
-                      <Button size="small" theme="borderless" icon={<IconChevronDown />} disabled={index === moduleList.length - 1} onClick={() => moveModule(index, 1)} />
-                      <Button size="small" theme="borderless" icon={<IconCopy />} onClick={() => copyModule(index)} />
-                      <Button size="small" theme="borderless" type="danger" icon={<IconDelete />} onClick={() => removeModule(index)} />
+              {/* 1600px 整页窗口（背景取页面设置） */}
+              <div
+                className="pc-decorate-window"
+                style={{
+                  background: pageModule.backgroundColor || '#fff',
+                  ...(pageModule.backgroundImage?.picUrl
+                    ? {
+                        backgroundImage: `url(${pageModule.backgroundImage.picUrl})`,
+                        backgroundRepeat: (['no-repeat', 'repeat', 'repeat-y', 'repeat-x'][Number(pageModule.backgroundRepeat) || 1] || 'no-repeat') as any,
+                        backgroundSize: (['100% auto', 'auto 100%', '100% 100%'][Number(pageModule.backgroundSize) || 1] || '100% auto') as any,
+                      }
+                    : {}),
+                }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const libType = e.dataTransfer.getData('text/pc-decorate-lib');
+                  if (libType) {
+                    const def = MODULE_DEF_MAP.get(libType);
+                    if (def) addModuleAt(def, moduleList.length);
+                  }
+                }}
+              >
+                {moduleList.length === 0 && (
+                  <div style={{ padding: 100, textAlign: 'center', color: '#c0c4cc' }}>暂无模块，请从左侧模块库拖入或点击添加</div>
+                )}
+                {moduleList.map((item, index) => {
+                  const isActive = activeIndex === index;
+                  const isLegacy = LEGACY_TYPES.has(item.type);
+                  return (
+                    <div
+                      key={item.moduleIndex}
+                      data-module-index={index}
+                      ref={(el) => {
+                        if (el) moduleElRefs.current.set(item.moduleIndex, el);
+                        else moduleElRefs.current.delete(item.moduleIndex);
+                      }}
+                      className={`pc-decorate-module${isActive ? ' pc-decorate-module--active' : ''}${item.isShow ? '' : ' pc-decorate-module--hidden'}`}
+                      style={{ position: 'relative' }}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const libType = e.dataTransfer.getData('text/pc-decorate-lib');
+                        if (libType) {
+                          const def = MODULE_DEF_MAP.get(libType);
+                          if (def) addModuleAt(def, index);
+                          return;
+                        }
+                        const from = Number(e.dataTransfer.getData('text/pc-decorate-index'));
+                        if (!Number.isNaN(from)) dropModule(from, index);
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveIndex(index);
+                        setPanelTab('module');
+                      }}
+                    >
+                      {isActive && <span className="pc-decorate-module__tag">{item.label}{isLegacy ? '（旧版）' : ''}</span>}
+                      <ModulePreview type={item.type} data={item.module} />
                     </div>
+                  );
+                })}
+              </div>
+              {/* 右轨道：选中模块操作条 */}
+              <div style={{ width: 120, position: 'relative', flexShrink: 0, minHeight: 300 }}>
+                {activeIndex >= 0 && activeIndex < moduleList.length && (
+                  <div className="pc-decorate-rail-operate" style={{ top: railTops[moduleList[activeIndex]?.moduleIndex] ?? 0 }} onClick={(e) => e.stopPropagation()}>
+                    <Button size="small" theme="borderless" icon={<IconChevronUp />} disabled={activeIndex === 0} onClick={() => moveModule(activeIndex, -1)} />
+                    <Button size="small" theme="borderless" icon={<IconChevronDown />} disabled={activeIndex === moduleList.length - 1} onClick={() => moveModule(activeIndex, 1)} />
+                    <Button size="small" theme="borderless" onClick={() => toggleShow(activeIndex)}>{moduleList[activeIndex]?.isShow ? '隐藏' : '显示'}</Button>
+                    <Button size="small" theme="borderless" icon={<IconCopy />} onClick={() => copyModule(activeIndex)} />
+                    <Button size="small" theme="borderless" type="danger" icon={<IconDelete />} onClick={() => removeModule(activeIndex)} />
                   </div>
-                  <div className="pc-decorate-canvas-preview">
-                    <ModulePreview type={item.type} data={item.module} />
-                  </div>
-                </div>
-              );
-            })}
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1265,15 +1322,177 @@ function PicGrid({ pics, cols, gap = 8, radius = 4, ratio }: { pics: PicItem[]; 
   );
 }
 
-function ProductPlaceholderGrid({ count, cols }: { count: number; cols: number }) {
+/** 模块 frame → 内联样式（背景/内边距/圆角，与 C 端渲染一致） */
+function frameStyle(m: Record<string, any>): Record<string, any> {
+  const f = m?.frame;
+  if (!f || typeof f !== 'object') return {};
+  const style: Record<string, any> = {};
+  if (f.backgroundColor) style.background = f.backgroundColor;
+  if (Number(f.boxRadius)) style.borderRadius = Number(f.boxRadius);
+  const top = Number(f.boxPaddingTop) || 0;
+  const bottom = Number(f.boxPaddingBottom) || 0;
+  const side = Number(f.boxPadding) || 0;
+  const inner = Number(f.leftAndRightPadding) || 0;
+  style.padding = `${top}px ${side + inner}px ${bottom}px ${side + inner}px`;
+  return style;
+}
+
+interface PreviewProduct {
+  productId?: number;
+  productName?: string;
+  picUrl?: string;
+  picThumb?: string;
+  productPrice?: number | string;
+  marketPrice?: number | string;
+  minGroupPrice?: number | string;
+  minGroupNum?: number | string;
+  categoryId?: number;
+  categoryName?: string;
+  isHot?: number;
+  isShow?: number;
+  picUrl1?: string;
+}
+
+/** 按选品配置拉取真实商品（与原版 Preview 取数口径一致） */
+function usePreviewProducts(products?: Record<string, any>) {
+  const [rows, setRows] = useState<PreviewProduct[]>([]);
+  const key = products ? JSON.stringify(products) : '';
+  useEffect(() => {
+    if (!products) {
+      setRows([]);
+      return;
+    }
+    const type = Number(products.productSelectType) || 1;
+    let params: Record<string, unknown> | null = null;
+    if (type === 1) {
+      const ids = (products.productIds || []) as number[];
+      if (!ids.length) {
+        setRows([]);
+        return;
+      }
+      params = { ids: ids.join(','), size: ids.length, page: 1, productStatus: 1, checkStatus: 1 };
+    } else if (type === 2) {
+      params = { categoryId: products.productCategoryId || 1, page: 1, size: products.productNumber || 10, productStatus: 1, checkStatus: 1 };
+    } else {
+      params = { introType: products.productTag || '', page: 1, size: products.productNumber || 10, productStatus: 1, checkStatus: 1 };
+    }
+    let alive = true;
+    apiGet<{ records?: PreviewProduct[]; list?: PreviewProduct[] }>('/product/product/list', params)
+      .then((res) => {
+        if (alive) setRows(res.records || res.list || []);
+      })
+      .catch(() => {
+        if (alive) setRows([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [key]);
+  return rows;
+}
+
+/** 秒杀预览数据（原版 listForHomePreview，size 15 与 C 端分页窗口一致） */
+function useSeckillPreview() {
+  const [rows, setRows] = useState<PreviewProduct[]>([]);
+  useEffect(() => {
+    let alive = true;
+    apiGet<{ records?: PreviewProduct[]; list?: PreviewProduct[] }>('/promotion/seckill/listForHomePreview', { page: 1, size: 15 })
+      .then((res) => {
+        if (alive) setRows(res.records || res.list || []);
+      })
+      .catch(() => {
+        if (alive) setRows([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return rows;
+}
+
+/** 拼团活动商品（promotion/groupon/item/list） */
+function useGrouponItems(promotionId?: number) {
+  const [rows, setRows] = useState<PreviewProduct[]>([]);
+  useEffect(() => {
+    if (!promotionId) {
+      setRows([]);
+      return;
+    }
+    let alive = true;
+    apiGet<{ records?: PreviewProduct[]; list?: PreviewProduct[] }>('/promotion/groupon/item/list', { grouponPromotionId: promotionId, page: 1, size: 20 })
+      .then((res) => {
+        if (alive) setRows(res.records || res.list || []);
+      })
+      .catch(() => {
+        if (alive) setRows([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [promotionId]);
+  return rows;
+}
+
+/** 热门分类（product/category/list 过滤 isHot+isShow） */
+function useHotCategories() {
+  const [rows, setRows] = useState<PreviewProduct[]>([]);
+  useEffect(() => {
+    let alive = true;
+    apiGet<{ records?: PreviewProduct[]; list?: PreviewProduct[] }>('/product/category/list', { page: 1, size: 100, parentId: -1 })
+      .then((res) => {
+        if (!alive) return;
+        const all = res.records || res.list || [];
+        setRows(all.filter((c) => Number(c.isHot) === 1 && Number(c.isShow) === 1));
+      })
+      .catch(() => {
+        if (alive) setRows([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return rows;
+}
+
+/** C 端风格商品卡（真实数据） */
+function ProductCards({
+  rows,
+  cols,
+  emptyHint,
+  priceField = 'productPrice',
+  groupMode = false,
+}: {
+  rows: PreviewProduct[];
+  cols: number;
+  emptyHint?: string;
+  priceField?: string;
+  groupMode?: boolean;
+}) {
+  if (!rows.length) {
+    return <div style={{ padding: 30, textAlign: 'center', color: '#c0c4cc', fontSize: 13 }}>{emptyHint || '暂无商品数据'}</div>;
+  }
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 8, padding: 8 }}>
-      {Array.from({ length: Math.min(count, 20) }, (_, i) => (
-        <div key={i} style={{ background: '#fff', borderRadius: 6, overflow: 'hidden', border: '1px solid #f0f0f0' }}>
-          <div style={{ aspectRatio: '1 / 1', background: '#f7f8fa', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c0c4cc', fontSize: 20 }}>?</div>
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 10, padding: 10 }}>
+      {rows.slice(0, 30).map((p, i) => (
+        <div key={p.productId ?? i} style={{ background: '#fff', borderRadius: 6, overflow: 'hidden', border: '1px solid #f2f3f5' }}>
+          <div style={{ aspectRatio: '1 / 1', background: '#f7f8fa', overflow: 'hidden' }}>
+            {(p.picThumb || p.picUrl) && <img src={p.picThumb || p.picUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+          </div>
           <div style={{ padding: 6 }}>
-            <div style={{ height: 10, borderRadius: 3, background: '#eef1f6', marginBottom: 4 }} />
-            <div style={{ height: 10, width: '55%', borderRadius: 3, background: '#fdecea' }} />
+            {p.productName && (
+              <div style={{ fontSize: 12, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: Number(cols) >= 4 ? 'nowrap' : 'normal', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any }}>
+                {p.productName}
+              </div>
+            )}
+            <div style={{ marginTop: 4, display: 'flex', alignItems: 'baseline', gap: 4 }}>
+              <span style={{ color: '#e1251b', fontWeight: 700, fontSize: 14 }}>
+                ¥{Number((p as any)[priceField] ?? p.productPrice ?? 0).toFixed(2)}
+              </span>
+              {groupMode && p.minGroupNum ? <span style={{ fontSize: 11, color: '#999' }}>{p.minGroupNum}人团</span> : null}
+              {p.marketPrice && Number(p.marketPrice) > 0 ? (
+                <span style={{ fontSize: 11, color: '#999', textDecoration: 'line-through' }}>¥{Number(p.marketPrice).toFixed(2)}</span>
+              ) : null}
+            </div>
           </div>
         </div>
       ))}
@@ -1290,9 +1509,38 @@ function ModulePreview({ type, data }: { type: string; data: Record<string, any>
       return <PicGrid pics={(m.picList || []).slice(0, Number(m.number) || 3) as PicItem[]} cols={Number(m.number) || 3} ratio="750 / 479" radius={Number(getPath(m, 'frame.boxRadius')) || 0} />;
     case 'pc-image-ad': {
       const t = Number(m.picType);
-      if (t === 2) return <PicGrid pics={(m.picList || []) as PicItem[]} cols={1} ratio="1500 / 350" />;
-      const cols = t === 5 ? 2 : t === 6 ? 3 : t === 7 ? 4 : 1;
-      return <PicGrid pics={(m.picList || []) as PicItem[]} cols={cols} ratio={cols === 1 ? '1500 / 350' : '1 / 1'} />;
+      const pics = (m.picList || []) as PicItem[];
+      const radius = Number(m.picRadioStyle) === 2 ? 8 : 0;
+      let grid: JSX.Element;
+      if (t === 2) {
+        const perView = Number(m.swiperPreView) || 1;
+        grid = (
+          <div style={{ display: 'flex', gap: Number(m.swiperPreView) > 1 ? 6 : 0, overflow: 'hidden' }}>
+            {pics.slice(0, perView).map((p, i) => (
+              <div key={i} style={{ flex: 1, aspectRatio: '1500 / 350', background: '#f2f3f5', borderRadius: radius, overflow: 'hidden' }}>
+                {p.picUrl ? <img src={p.picUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
+              </div>
+            ))}
+          </div>
+        );
+      } else {
+        const cols = t === 5 ? 2 : t === 6 ? 3 : t === 7 ? 4 : 1;
+        grid = (
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: Number(m.imgPadding) || 0 }}>
+            {pics.map((p, i) => (
+              <div key={i} style={{ aspectRatio: cols === 1 ? '1500 / 350' : '1 / 1', background: '#f2f3f5', borderRadius: radius, overflow: 'hidden' }}>
+                {p.picUrl ? <img src={p.picUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
+              </div>
+            ))}
+          </div>
+        );
+      }
+      return (
+        <div style={{ ...frameStyle(m) }}>
+          <PreviewTitle title={m.title} />
+          <div style={{ padding: Number(m.imgPadding) || 0 }}>{grid}</div>
+        </div>
+      );
     }
     case 'pc-image-nav': {
       const pics = (m.picList || []) as PicItem[];
@@ -1341,19 +1589,7 @@ function ModulePreview({ type, data }: { type: string; data: Record<string, any>
         </div>
       );
     case 'pc-category-nav':
-      return (
-        <div style={{ padding: 12, background: m.backgroundColor || '#f7f7f7', borderRadius: 8 }}>
-          {Number(m.showTitle) === 1 && <div style={{ fontWeight: 700, marginBottom: 8 }}>{m.titleName}</div>}
-          <div style={{ display: 'flex', gap: 12, overflow: 'hidden' }}>
-            {Array.from({ length: Math.min(Number(m.displayNum) || 6, 10) }, (_, i) => (
-              <div key={i} style={{ textAlign: 'center', flexShrink: 0 }}>
-                <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#ececec' }} />
-                <div style={{ fontSize: 12, marginTop: 4, color: '#888' }}>热门分类</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      );
+      return <CategoryNavPreview data={m} />;
     case 'pc-category-nav3':
       return (
         <div style={{ padding: 12, background: m.backgroundColor || 'rgba(0,0,0,0.02)', borderRadius: 8 }}>
@@ -1374,37 +1610,14 @@ function ModulePreview({ type, data }: { type: string; data: Record<string, any>
         </div>
       );
     case 'pc-product': {
-      const ids = (m.products?.productIds || []) as number[];
-      const count = Number(m.products?.productSelectType) === 1 ? ids.length || Number(m.products?.productNumber) || 10 : Number(m.products?.productNumber) || 10;
-      return (
-        <div style={{ background: m.backgroundColor || '#fff' }}>
-          <PreviewTitle title={m.title} />
-          <ProductPlaceholderGrid count={count} cols={Number(m.style) === 2 ? 5 : 4} />
-        </div>
-      );
+      return <ProductPreview data={m} />;
     }
     case 'pc-product-group': {
-      const groups = (m.productGroups || []) as Array<Record<string, any>>;
-      return (
-        <div style={{ padding: 8 }}>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            {groups.map((g, i) => (
-              <span key={i} style={{ fontSize: 13, padding: '4px 10px', borderRadius: 4, background: i === 0 ? getPath(m, 'groupTitle.activeTitleBgColor') || '#ffebf1' : '#f5f5f5', color: i === 0 ? getPath(m, 'groupTitle.activeTitleColor') || '#FF0F23' : '#444' }}>
-                {g.title}
-              </span>
-            ))}
-          </div>
-          <ProductPlaceholderGrid count={Number(m.listStyle) === 4 ? 4 : Number(m.listStyle) === 6 ? 5 : 6} cols={Number(m.listStyle) === 4 ? 4 : Number(m.listStyle) === 6 ? 5 : 6} />
-        </div>
-      );
+      return <ProductGroupPreview data={m} />;
     }
-    case 'pc-recommend-product':
-      return (
-        <div>
-          {m.titleName ? <div style={{ padding: '10px 12px', fontWeight: 700 }}>{m.titleName}</div> : null}
-          <ProductPlaceholderGrid count={Number(m.products?.productNumber) || 20} cols={Number(getPath(m, 'frame.columns')) || 5} />
-        </div>
-      );
+    case 'pc-recommend-product': {
+      return <RecommendPreview data={m} />;
+    }
     case 'pc-divider':
       return Number(m.lineType) === 1 ? (
         <div style={{ height: Number(getPath(m, 'frame.itemHeight')) || 10 }} />
@@ -1446,34 +1659,9 @@ function ModulePreview({ type, data }: { type: string; data: Record<string, any>
         </div>
       );
     case 'pc-home-seckill':
-      return (
-        <div>
-          <PreviewTitle title={m.title} />
-          <div style={{ display: 'flex', gap: Number(m.goodsGap) ?? 10, padding: 8, overflow: 'hidden' }}>
-            {Array.from({ length: 5 }, (_, i) => (
-              <div key={i} style={{ flexShrink: 0, width: 110 }}>
-                <div style={{ aspectRatio: '1/1', background: '#f7f8fa', borderRadius: 6 }} />
-                <div style={{ fontSize: 12, color: '#e1251b', marginTop: 4 }}>¥9.9</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      );
+      return <SeckillPreview data={m} />;
     case 'pc-home-groupon':
-      return (
-        <div style={{ background: m.backgroundColor || '#fff' }}>
-          <PreviewTitle title={m.title} />
-          <div style={{ padding: 8, display: 'grid', gridTemplateColumns: `repeat(${Number(m.style) === 6 ? 4 : Number(m.style) || 4}, 1fr)`, gap: Number(m.goodsPadding) ?? 0 }}>
-            {Array.from({ length: Number(m.style) === 6 ? 4 : 8 }, (_, i) => (
-              <div key={i}>
-                <div style={{ aspectRatio: '1/1', background: '#f7f8fa', borderRadius: 6 }} />
-                <div style={{ fontSize: 12, marginTop: 4 }}>拼团商品</div>
-                <div style={{ fontSize: 12, color: '#e1251b' }}>¥9.9</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      );
+      return <GrouponPreview data={m} />;
     case 'pc-home-hero': {
       const style = m.style || {};
       const left = m.left || {};
@@ -1552,6 +1740,138 @@ function ModulePreview({ type, data }: { type: string; data: Record<string, any>
     default:
       return <span>{MODULE_DEF_MAP.get(type)?.summary ? MODULE_DEF_MAP.get(type)!.summary!(data) : type}</span>;
   }
+}
+
+/* ---- 真实数据预览子组件（hooks 按实例隔离） ---- */
+
+function ProductPreview({ data }: { data: Record<string, any> }) {
+  const rows = usePreviewProducts(data.products);
+  const style: Record<string, any> = {
+    ...frameStyle(data),
+    ...(data.backgroundColor ? { background: data.backgroundColor } : {}),
+  };
+  return (
+    <div style={style}>
+      <PreviewTitle title={data.title} />
+      <ProductCards rows={rows} cols={Number(data.style) === 2 ? 5 : 4} emptyHint="请在设置中选择商品" />
+    </div>
+  );
+}
+
+function RecommendPreview({ data }: { data: Record<string, any> }) {
+  const rows = usePreviewProducts(data.products);
+  return (
+    <div style={{ ...frameStyle(data) }}>
+      {data.titleName ? <div style={{ padding: '10px 12px', fontWeight: 700 }}>{data.titleName}</div> : null}
+      <ProductCards rows={rows} cols={Number(getPath(data, 'frame.columns')) || 5} emptyHint="请在设置中选择商品" />
+    </div>
+  );
+}
+
+function GroupPreviewBlock({ group, cols }: { group: Record<string, any>; cols: number }) {
+  const ids = (group.productIds || []) as number[];
+  const fetched = usePreviewProducts(ids.length ? { productSelectType: 1, productIds: ids } : undefined);
+  const rows: PreviewProduct[] = fetched.length
+    ? fetched
+    : ((group.productList || []) as PreviewProduct[]).filter((p) => p.picThumb || p.picUrl || p.productName);
+  if (!rows.length) return null;
+  return <ProductCards rows={rows} cols={cols} />;
+}
+
+function ProductGroupPreview({ data }: { data: Record<string, any> }) {
+  const groups = (data.productGroups || []) as Array<Record<string, any>>;
+  const cols = Number(data.listStyle) === 4 ? 4 : Number(data.listStyle) === 6 ? 5 : 6;
+  const ms = data.moduleStyle || {};
+  const cs = data.contentStyle || {};
+  return (
+    <div style={{ padding: `${Number(ms.boxPaddingTop) || 0}px ${Number(ms.boxPadding) || 0}px ${Number(ms.boxPaddingBottom) || 0}px`, background: ms.backgroundColor || 'transparent' }}>
+      <div style={{ ...(Number(cs.boxRadius) ? { borderRadius: Number(cs.boxRadius) } : {}), background: cs.backgroundColor || 'transparent', padding: `${Number(cs.paddingTop) || 0}px ${Number(cs.paddingLeftRight) || 0}px ${Number(cs.paddingBottom) || 0}px` }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, padding: `0 ${Number(getPath(data, 'groupTitle.marginLeftRight')) || 5}px` }}>
+          {groups.map((g, i) => (
+            <span
+              key={i}
+              style={{
+                fontSize: Number(getPath(data, 'groupTitle.bigTitleFontSize')) || 14,
+                fontWeight: 700,
+                padding: `${Number(getPath(data, 'groupTitle.titlePaddingTopBottom')) || 8}px ${Number(getPath(data, 'groupTitle.titlePaddingLeftRight')) || 12}px`,
+                borderRadius: Number(getPath(data, 'groupTitle.titleRadius')) || 4,
+                minWidth: Number(getPath(data, 'groupTitle.titleMinWidth')) || 80,
+                textAlign: 'center',
+                background: i === 0 ? getPath(data, 'groupTitle.activeTitleBgColor') || '#ffebf1' : '#f5f5f5',
+                color: i === 0 ? getPath(data, 'groupTitle.activeTitleColor') || '#FF0F23' : getPath(data, 'groupTitle.titleColor') || '#444',
+              }}
+            >
+              {g.title}
+            </span>
+          ))}
+        </div>
+        {groups.map((g, i) => (
+          <div key={i} style={i === 0 ? {} : { display: 'none' }}>
+            <GroupPreviewBlock group={g} cols={cols} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CategoryNavPreview({ data }: { data: Record<string, any> }) {
+  const rows = useHotCategories();
+  const display = rows.slice(0, Number(data.displayNum) || 6);
+  return (
+    <div style={{ padding: 12, background: data.backgroundColor || '#f7f7f7', borderRadius: Number(getPath(data, 'frame.boxRadius')) || 8, minHeight: Number(getPath(data, 'frame.boxHeight')) || undefined }}>
+      {Number(data.showTitle) === 1 && <div style={{ fontWeight: 700, marginBottom: 8 }}>{data.titleName}</div>}
+      {display.length === 0 ? (
+        <div style={{ padding: 30, textAlign: 'center', color: '#c0c4cc', fontSize: 13 }}>暂无热门分类（请在分类管理中勾选"热门"）</div>
+      ) : (
+        <div style={{ display: 'flex', gap: 12, overflow: 'hidden' }}>
+          {display.map((c, i) => (
+            <div key={c.categoryId ?? i} style={{ textAlign: 'center', flexShrink: 0, width: 84 }}>
+              <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#ececec', margin: '0 auto', overflow: 'hidden' }}>
+                {(c as any).picUrl || (c as any).pic ? <img src={(c as any).picUrl || (c as any).pic} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
+              </div>
+              <div style={{ fontSize: 12, marginTop: 4, color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.categoryName}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SeckillPreview({ data }: { data: Record<string, any> }) {
+  const rows = useSeckillPreview();
+  return (
+    <div style={{ ...frameStyle(data) }}>
+      <PreviewTitle title={data.title} />
+      <div style={{ display: 'flex', gap: Number(data.goodsGap) ?? 10, padding: 8, overflow: 'hidden' }}>
+        {rows.slice(0, 8).map((p, i) => (
+          <div key={p.productId ?? i} style={{ flexShrink: 0, width: 120 }}>
+            <div style={{ aspectRatio: '1/1', background: '#f7f8fa', borderRadius: 6, overflow: 'hidden' }}>
+              {(p.picThumb || p.picUrl) && <img src={p.picThumb || p.picUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+            </div>
+            <div style={{ fontSize: 12, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.productName}</div>
+            <div style={{ fontSize: 12, color: '#e1251b', fontWeight: 700 }}>¥{Number(p.productPrice ?? 0).toFixed(2)}</div>
+          </div>
+        ))}
+        {rows.length === 0 && <div style={{ padding: 30, textAlign: 'center', color: '#c0c4cc', fontSize: 13, width: '100%' }}>暂无秒杀商品（由营销-秒杀决定）</div>}
+      </div>
+    </div>
+  );
+}
+
+function GrouponPreview({ data }: { data: Record<string, any> }) {
+  const activityId = Number(data.grouponActivityItem?.grouponPromotionId ?? data.grouponActivityItem?.grouponId) || undefined;
+  const rows = useGrouponItems(activityId);
+  const cols = Number(data.style) === 3 ? 5 : Number(data.style) === 4 ? 6 : 4;
+  return (
+    <div style={{ background: data.backgroundColor || '#fff', borderRadius: Number(data.boxRadius) || 0, padding: `${Number(data.boxPaddingTop) || 0}px ${Number(data.boxPadding) || 0}px ${Number(data.boxPaddingBottom) || 0}px` }}>
+      <PreviewTitle title={data.title} />
+      <div style={{ padding: Number(data.innerPadding) || 0 }}>
+        <ProductCards rows={rows} cols={Number(data.style) === 6 ? 4 : cols} priceField="minGroupPrice" groupMode emptyHint="请选择拼团活动" />
+      </div>
+    </div>
+  );
 }
 
 /* ===================== 页面设置（对齐原版 commonPage/Edit.vue） ===================== */
