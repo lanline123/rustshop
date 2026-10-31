@@ -142,3 +142,47 @@ SQL 冒烟：
 ```text
 本地 product_id=621 返回 JSON 商品记录
 ```
+
+## 2026-10-31 补充：真实 OSS 上传 + 图库构建 worker
+
+修正：
+
+```text
+ImageSearch API Version 2019-03-25 → 2020-12-14
+SearchImageByPic 不再传 base64，改为 AuthorizeFileUpload → OSS → PicContent URL
+```
+
+新增后台能力：
+
+```text
+setting/imageSearch/check  真实调用 Detail
+setting/imageSearch/build  后台扫描商品图并 AddImage
+setting/imageSearch/syncProduct 单商品构建
+setting/imageSearch/retry  重新执行任务
+```
+
+构建流程：
+
+```text
+商品主图/原图/大图/缩略图
+→ 下载
+→ AuthorizeFileUpload
+→ OSS 上传
+→ AddImage(PicName=product-{id}.jpg, ProductId=商品ID)
+→ 更新 image_search_sync_job 进度
+```
+
+真实测试已完成：
+
+```text
+AddImage 200
+SearchImageByPic 200
+Score=1.0
+ProductId=1576
+```
+
+实例：
+
+```text
+batterysearch / cn-beijing
+```

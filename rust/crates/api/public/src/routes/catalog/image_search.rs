@@ -11,6 +11,7 @@ use axum::{
 use base64::Engine;
 use chrono::Utc;
 use hmac::{Hmac, Mac};
+use reqwest::multipart::{Form, Part};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sha1::Sha1;
@@ -120,20 +121,26 @@ async fn search(
     let Some(bytes) = file.filter(|b| !b.is_empty()) else {
         return Err(AppError(Error::biz(400, "图片为空")));
     };
-    if bytes.len() > 10 * 1024 * 1024 {
-        return Err(AppError(Error::biz(400, "图片不能超过10MB")));
+    if bytes.len() > 4 * 1024 * 1024 {
+        return Err(AppError(Error::biz(400, "图片不能超过4MB")));
     }
-    let max_results: i32 = cfg(&rows, "imageSearchMaxResults").parse().unwrap_or(20).clamp(1, 50);
+    let max_results: i32 = cfg(&rows, "imageSearchMaxResults").parse().unwrap_or(20).clamp(1, 100);
     let similarity: i32 = cfg(&rows, "imageSearchSimilarityPercent").parse().unwrap_or(0);
     let score_threshold = format!("{:.2}", similarity as f64 / 100.0);
-    let pic = base64::engine::general_purpose::STANDARD.encode(&bytes);
+    let client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| AppError(Error::Internal(e.to_string())))?;
+    // 阿里云 SearchImageByPic 只接受 OSS URL；先走 AuthorizeFileUpload 上传。
+    let pic_url = upload_transfer(&client, key_id, key_secret, region, &bytes).await?;
 
     let nonce = uuid::Uuid::new_v4().to_string();
     let timestamp = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
     let params = vec![
         ("Action".to_string(), "SearchImageByPic".to_string()),
         ("InstanceName".to_string(), index.to_string()),
-        ("PicContent".to_string(), pic),
+        ("PicContent".to_string(), pic_url),
         ("Num".to_string(), max_results.to_string()),
         ("Start".to_string(), "0".to_string()),
         ("ScoreThreshold".to_string(), score_threshold),
@@ -143,11 +150,6 @@ async fn search(
     ];
     let body = sign("POST", key_id, key_secret, region, &params);
     let url = format!("https://imagesearch.{region}.aliyuncs.com/");
-    let client = reqwest::Client::builder()
-        .connect_timeout(std::time::Duration::from_secs(5))
-        .timeout(std::time::Duration::from_secs(20))
-        .build()
-        .map_err(|e| AppError(Error::Internal(e.to_string())))?;
     let response = client
         .post(url)
         .header(reqwest::header::CONTENT_TYPE, "application/x-www-form-urlencoded")
@@ -242,13 +244,24 @@ fn percent_encode(input: &str) -> String {
 }
 
 fn sign(method: &str, key_id: &str, secret: &str, region: &str, params: &[(String, String)]) -> String {
+    sign_version(method, key_id, secret, region, "2020-12-14", params)
+}
+
+fn sign_version(
+    method: &str,
+    key_id: &str,
+    secret: &str,
+    region: &str,
+    version: &str,
+    params: &[(String, String)],
+) -> String {
     let mut all = params.to_vec();
     all.push(("AccessKeyId".into(), key_id.into()));
     all.push(("Format".into(), "JSON".into()));
     all.push(("RegionId".into(), region.into()));
     all.push(("SignatureMethod".into(), "HMAC-SHA1".into()));
     all.push(("SignatureVersion".into(), "1.0".into()));
-    all.push(("Version".into(), "2019-03-25".into()));
+    all.push(("Version".into(), version.into()));
     all.sort_by(|a, b| a.0.cmp(&b.0));
     let canonical = all
         .iter()
@@ -260,6 +273,61 @@ fn sign(method: &str, key_id: &str, secret: &str, region: &str, params: &[(Strin
     mac.update(string_to_sign.as_bytes());
     let signature = base64::engine::general_purpose::STANDARD.encode(mac.finalize().into_bytes());
     format!("{canonical}&Signature={}", percent_encode(&signature))
+}
+
+/// 把上传图片写入阿里云图搜授权 OSS，返回可供 PicContent 使用的 URL。
+async fn upload_transfer(
+    client: &reqwest::Client,
+    key_id: &str,
+    secret: &str,
+    region: &str,
+    bytes: &[u8],
+) -> Result<String, AppError> {
+    let auth_params = vec![
+        ("Action".to_string(), "AuthorizeFileUpload".to_string()),
+        ("Product".to_string(), "ImageSearch".to_string()),
+        ("RegionId".to_string(), region.to_string()),
+        ("SignatureNonce".to_string(), uuid::Uuid::new_v4().to_string()),
+        ("Timestamp".to_string(), Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()),
+    ];
+    let auth_query = sign_version("GET", key_id, secret, region, "2019-12-19", &auth_params);
+    let auth: Value = client
+        .get(format!("https://openplatform.aliyuncs.com/?{auth_query}"))
+        .send()
+        .await
+        .map_err(|e| AppError(Error::biz(400, format!("图像上传授权失败：{e}"))))?
+        .json()
+        .await
+        .map_err(|e| AppError(Error::biz(400, format!("图像上传授权响应异常：{e}"))))?;
+    let s = |k: &str| auth.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
+    let bucket = s("Bucket");
+    let endpoint = s("Endpoint");
+    let object_key = s("ObjectKey");
+    if bucket.is_empty() || endpoint.is_empty() || object_key.is_empty() {
+        return Err(AppError(Error::biz(400, "图像上传授权信息不完整")));
+    }
+    let part = Part::bytes(bytes.to_vec())
+        .file_name(object_key.clone())
+        .mime_str("application/octet-stream")
+        .map_err(|e| AppError(Error::Internal(e.to_string())))?;
+    let form = Form::new()
+        .text("OSSAccessKeyId", s("AccessKeyId"))
+        .text("policy", s("EncodedPolicy"))
+        .text("Signature", s("Signature"))
+        .text("key", object_key.clone())
+        .text("success_action_status", "201")
+        .part("file", part);
+    let upload = client
+        .post(format!("https://{bucket}.{endpoint}/"))
+        .multipart(form)
+        .send()
+        .await
+        .map_err(|e| AppError(Error::biz(400, format!("图像上传失败：{e}"))))?;
+    if !upload.status().is_success() {
+        let status = upload.status();
+        return Err(AppError(Error::biz(400, format!("图像上传失败：{status}"))));
+    }
+    Ok(format!("https://{bucket}.{endpoint}/{object_key}"))
 }
 
 #[cfg(test)]

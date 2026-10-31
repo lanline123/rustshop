@@ -12,7 +12,11 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlx::Row;
 use tigshop_core::Error;
-use tigshop_security::web::{ok, ApiResult};
+use tigshop_security::web::{ok, ApiResult, AppError};
+use base64::Engine as _;
+use hmac::{Hmac, Mac};
+use reqwest::multipart::{Form, Part};
+use sha1::Sha1;
 
 use crate::AdminState;
 
@@ -204,9 +208,36 @@ async fn save(
 
 async fn check(State(state): State<AdminState>) -> ApiResult<Value> {
     let rows = load_config(&state).await?;
-    let configured = !cfg_get(&rows, "imageSearchAliyunAccessKeyId").is_empty()
-        && !cfg_get(&rows, "imageSearchAliyunAccessKeySecret").is_empty();
-    ok(json!({"reachable": false, "requestId": Value::Null, "configured": configured}))
+    let key = cfg_get(&rows, "imageSearchAliyunAccessKeyId");
+    let secret = cfg_get(&rows, "imageSearchAliyunAccessKeySecret");
+    let region = cfg_get(&rows, "imageSearchAliyunRegionId");
+    let index = cfg_get(&rows, "imageSearchIndexName");
+    let configured = !key.is_empty() && !secret.is_empty() && !region.is_empty() && !index.is_empty();
+    if !configured {
+        return ok(json!({"reachable": false, "requestId": Value::Null, "configured": false}));
+    }
+    let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(20)).build()
+        .map_err(|e| AppError(Error::Internal(e.to_string())))?;
+    let params = vec![
+        ("Action".to_string(), "Detail".to_string()),
+        ("InstanceName".to_string(), index.to_string()),
+        ("SignatureNonce".to_string(), uuid::Uuid::new_v4().to_string()),
+        ("Timestamp".to_string(), chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()),
+    ];
+    let body = sign_version("POST", key, secret, region, "2020-12-14", &params);
+    let resp = client.post(format!("https://imagesearch.{region}.aliyuncs.com/"))
+        .header(reqwest::header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(body).send().await;
+    match resp {
+        Ok(r) => {
+            let status = r.status();
+            let v: Value = r.json().await.unwrap_or(Value::Null);
+            let request_id = v.get("RequestId").cloned().unwrap_or(Value::Null);
+            let reachable = status.is_success() && v.get("Success").and_then(Value::as_bool) != Some(false);
+            ok(json!({"reachable": reachable, "requestId": request_id, "configured": true}))
+        }
+        Err(e) => ok(json!({"reachable": false, "requestId": Value::Null, "configured": true, "message": e.to_string()})),
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -217,8 +248,10 @@ struct BuildQuery {
 
 async fn build(State(state): State<AdminState>) -> ApiResult<Value> {
     let rows = load_config(&state).await?;
+    validate_sync_config(&rows)?;
     let job_key = format!("{}:build", cfg_get(&rows, "imageSearchIndexName"));
-    let id = insert_job(&state, &job_key, 0).await?;
+    let id = insert_job(&state, &job_key, 0, &rows).await?;
+    spawn_build(state, id, 0);
     ok(json!({"taskId": id, "state": "PENDING"}))
 }
 
@@ -227,20 +260,61 @@ async fn sync_product(
     Query(q): Query<BuildQuery>,
 ) -> ApiResult<Value> {
     let product_id = q.product_id.unwrap_or(0);
+    if product_id <= 0 {
+        return Err(AppError(Error::Validation("productId 必须为正整数".into())));
+    }
     let rows = load_config(&state).await?;
+    validate_sync_config(&rows)?;
     let job_key = format!("{}:product:{}", cfg_get(&rows, "imageSearchIndexName"), product_id);
-    let id = insert_job(&state, &job_key, product_id).await?;
+    let id = insert_job(&state, &job_key, product_id, &rows).await?;
+    spawn_build(state, id, product_id);
     ok(json!({"taskId": id, "state": "PENDING"}))
 }
 
-async fn insert_job(state: &AdminState, job_key: &str, product_id: i32) -> Result<i64, Error> {
+fn validate_sync_config(rows: &[(String, String)]) -> Result<(), AppError> {
+    if cfg_get(rows, "imageSearchEnabled") != "1" {
+        return Err(AppError(Error::biz(400, "图搜未启用")));
+    }
+    for key in [
+        "imageSearchIndexName",
+        "imageSearchAliyunRegionId",
+        "imageSearchAliyunAccessKeyId",
+        "imageSearchAliyunAccessKeySecret",
+    ] {
+        if cfg_get(rows, key).trim().is_empty() {
+            return Err(AppError(Error::biz(400, "图搜配置不完整")));
+        }
+    }
+    Ok(())
+}
+
+fn spawn_build(state: AdminState, job_id: i64, product_id: i32) {
+    tokio::spawn(async move {
+        if let Err(e) = run_build(state.clone(), job_id, product_id).await {
+            mark_job_failed(&state, job_id, &e).await;
+        }
+    });
+}
+
+async fn insert_job(
+    state: &AdminState,
+    job_key: &str,
+    product_id: i32,
+    rows: &[(String, String)],
+) -> Result<i64, Error> {
     let now = tigshop_common::utils::now_seconds() as i64;
+    let index = cfg_get(rows, "imageSearchIndexName");
+    let target = format!("aliyun:{index}");
+    let kind = if product_id > 0 { "PRODUCT" } else { "FULL" };
     let r = sqlx::query(
         "INSERT INTO image_search_sync_job(job_key,target_key,provider,index_name,kind,product_id,version,state,cursor_id,max_product_id,scanned,added,skipped,deleted,attempts,next_run_at,last_error,created_at,updated_at) \
-         VALUES(?, '', 'aliyun', '', 'build', ?, 1, 'PENDING', 0, 0, 0, 0, 0, 0, 0, 0, '', ?, ?) \
-         ON DUPLICATE KEY UPDATE version=version+1, state='PENDING', updated_at=VALUES(updated_at)",
+         VALUES(?, ?, 'aliyun', ?, ?, ?, 1, 'PENDING', 0, 0, 0, 0, 0, 0, 0, 0, '', ?, ?) \
+         ON DUPLICATE KEY UPDATE version=version+1, state='PENDING', target_key=VALUES(target_key), index_name=VALUES(index_name), kind=VALUES(kind), product_id=VALUES(product_id), updated_at=VALUES(updated_at)",
     )
     .bind(job_key)
+    .bind(target)
+    .bind(index)
+    .bind(kind)
     .bind(product_id)
     .bind(now)
     .bind(now)
@@ -277,6 +351,13 @@ async fn retry(
         .execute(&state.repos.pool)
         .await
         .map_err(|e| tigshop_security::web::AppError(Error::Database(e.to_string())))?;
+    let row = sqlx::query("SELECT product_id FROM image_search_sync_job WHERE id=? LIMIT 1")
+        .bind(task_id)
+        .fetch_optional(&state.repos.pool)
+        .await
+        .map_err(|e| tigshop_security::web::AppError(Error::Database(e.to_string())))?;
+    let product_id = row.and_then(|r| r.try_get::<i32, _>("product_id").ok()).unwrap_or(0);
+    spawn_build(state, task_id, product_id);
     ok(())
 }
 
@@ -290,4 +371,216 @@ fn job_json(row: &sqlx::mysql::MySqlRow) -> Value {
         "deleted": row.try_get::<i64, _>("deleted").unwrap_or(0),
         "lastError": row.try_get::<String, _>("last_error").unwrap_or_default()
     })
+}
+
+// ————————————————————— 阿里云图库构建 worker —————————————————————
+
+type HmacSha1 = Hmac<Sha1>;
+
+async fn run_build(state: AdminState, job_id: i64, product_id: i32) -> Result<(), String> {
+    let rows = load_config(&state).await.map_err(|e| e.to_string())?;
+    let key = cfg_get(&rows, "imageSearchAliyunAccessKeyId").to_string();
+    let secret = cfg_get(&rows, "imageSearchAliyunAccessKeySecret").to_string();
+    let region = cfg_get(&rows, "imageSearchAliyunRegionId").to_string();
+    let index = cfg_get(&rows, "imageSearchIndexName").to_string();
+    if key.is_empty() || secret.is_empty() || region.is_empty() || index.is_empty() {
+        return Err("图搜配置不完整".into());
+    }
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(40))
+        .build()
+        .map_err(|e| e.to_string())?;
+    set_job_state(&state, job_id, "RUNNING", 0).await;
+    let sql = if product_id > 0 {
+        "SELECT product_id,pic_url,pic_original,pic_large,pic_thumb FROM product WHERE product_id=? AND is_delete=0 AND product_status=1 LIMIT 1"
+    } else {
+        "SELECT product_id,pic_url,pic_original,pic_large,pic_thumb FROM product WHERE is_delete=0 AND product_status=1 ORDER BY product_id"
+    };
+    let mut q = sqlx::query(sql);
+    if product_id > 0 {
+        q = q.bind(product_id);
+    }
+    let products = q.fetch_all(&state.repos.pool).await.map_err(|e| e.to_string())?;
+    let mut scanned = 0i64;
+    let mut added = 0i64;
+    let mut skipped = 0i64;
+    for product in products {
+        let pid: i32 = product.try_get("product_id").unwrap_or(0);
+        let url = ["pic_url", "pic_original", "pic_large", "pic_thumb"]
+            .iter()
+            .find_map(|c| product.try_get::<Option<String>, _>(*c).ok().flatten())
+            .filter(|u| !u.trim().is_empty());
+        scanned += 1;
+        if let Some(url) = url {
+            let pic_name = format!("product-{pid}.jpg");
+            if check_exists(&client, &region, &key, &secret, &index, pid, &pic_name).await.unwrap_or(false) {
+                skipped += 1;
+            } else {
+                match download_upload_add(&client, &region, &key, &secret, &index, pid, &pic_name, &url).await {
+                    Ok(()) => added += 1,
+                    Err(e) => {
+                        let short = e.chars().take(120).collect::<String>();
+                        sqlx::query("UPDATE image_search_sync_job SET last_error=?, updated_at=? WHERE id=?")
+                            .bind(short).bind(tigshop_common::utils::now_seconds() as i64).bind(job_id)
+                            .execute(&state.repos.pool).await.ok();
+                    }
+                }
+            }
+        } else {
+            skipped += 1;
+        }
+        sqlx::query("UPDATE image_search_sync_job SET scanned=?, added=?, skipped=?, cursor_id=?, updated_at=? WHERE id=?")
+            .bind(scanned).bind(added).bind(skipped).bind(pid)
+            .bind(tigshop_common::utils::now_seconds() as i64).bind(job_id)
+            .execute(&state.repos.pool).await.ok();
+    }
+    sqlx::query("UPDATE image_search_sync_job SET state='COMPLETED', scanned=?, added=?, skipped=?, last_error='', updated_at=? WHERE id=?")
+        .bind(scanned).bind(added).bind(skipped)
+        .bind(tigshop_common::utils::now_seconds() as i64).bind(job_id)
+        .execute(&state.repos.pool).await.map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+async fn set_job_state(state: &AdminState, job_id: i64, state_name: &str, attempts: i32) {
+    sqlx::query("UPDATE image_search_sync_job SET state=?, attempts=?, updated_at=? WHERE id=?")
+        .bind(state_name).bind(attempts).bind(tigshop_common::utils::now_seconds() as i64).bind(job_id)
+        .execute(&state.repos.pool).await.ok();
+}
+
+async fn mark_job_failed(state: &AdminState, job_id: i64, error: &str) {
+    let short = error.chars().take(120).collect::<String>();
+    sqlx::query("UPDATE image_search_sync_job SET state='FAILED', last_error=?, updated_at=? WHERE id=?")
+        .bind(short).bind(tigshop_common::utils::now_seconds() as i64).bind(job_id)
+        .execute(&state.repos.pool).await.ok();
+}
+
+async fn download_upload_add(
+    client: &reqwest::Client,
+    region: &str,
+    key: &str,
+    secret: &str,
+    index: &str,
+    product_id: i32,
+    pic_name: &str,
+    url: &str,
+) -> Result<(), String> {
+    let bytes = client.get(url).send().await.map_err(|e| e.to_string())?
+        .error_for_status().map_err(|e| e.to_string())?.bytes().await.map_err(|e| e.to_string())?;
+    if bytes.is_empty() || bytes.len() > 6 * 1024 * 1024 {
+        return Err("图片为空或超过6MB".into());
+    }
+    let pic_url = upload_transfer(client, region, key, secret, &bytes).await?;
+    let params = vec![
+        ("Action".to_string(), "AddImage".to_string()),
+        ("InstanceName".to_string(), index.to_string()),
+        ("PicContent".to_string(), pic_url),
+        ("PicName".to_string(), pic_name.to_string()),
+        ("ProductId".to_string(), product_id.to_string()),
+        ("CustomContent".to_string(), product_id.to_string()),
+        ("SignatureNonce".to_string(), uuid::Uuid::new_v4().to_string()),
+        ("Timestamp".to_string(), chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()),
+    ];
+    let body = sign_version("POST", key, secret, region, "2020-12-14", &params);
+    let resp = client.post(format!("https://imagesearch.{region}.aliyuncs.com/"))
+        .header(reqwest::header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(body).send().await.map_err(|e| e.to_string())?;
+    let text = resp.text().await.unwrap_or_default();
+    let v: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
+    if v.get("Success").and_then(Value::as_bool) == Some(false) || v.get("Code").and_then(Value::as_i64).unwrap_or(1) != 0 {
+        return Err(v.get("Message").and_then(Value::as_str).unwrap_or("AddImage 失败").to_string());
+    }
+    Ok(())
+}
+
+async fn check_exists(
+    client: &reqwest::Client,
+    region: &str,
+    key: &str,
+    secret: &str,
+    index: &str,
+    product_id: i32,
+    pic_name: &str,
+) -> Result<bool, String> {
+    let params = vec![
+        ("Action".to_string(), "CheckImageExists".to_string()),
+        ("InstanceName".to_string(), index.to_string()),
+        ("PicName".to_string(), pic_name.to_string()),
+        ("ProductId".to_string(), product_id.to_string()),
+        ("SignatureNonce".to_string(), uuid::Uuid::new_v4().to_string()),
+        ("Timestamp".to_string(), chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()),
+    ];
+    let body = sign_version("POST", key, secret, region, "2020-12-14", &params);
+    let resp = client.post(format!("https://imagesearch.{region}.aliyuncs.com/"))
+        .header(reqwest::header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(body).send().await.map_err(|e| e.to_string())?;
+    let v: Value = resp.json().await.unwrap_or(Value::Null);
+    Ok(v.get("Exists").and_then(Value::as_bool).unwrap_or(false))
+}
+
+async fn upload_transfer(
+    client: &reqwest::Client,
+    region: &str,
+    key: &str,
+    secret: &str,
+    bytes: &[u8],
+) -> Result<String, String> {
+    let params = vec![
+        ("Action".to_string(), "AuthorizeFileUpload".to_string()),
+        ("Product".to_string(), "ImageSearch".to_string()),
+        ("RegionId".to_string(), region.to_string()),
+        ("SignatureNonce".to_string(), uuid::Uuid::new_v4().to_string()),
+        ("Timestamp".to_string(), chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()),
+    ];
+    let query = sign_version("GET", key, secret, region, "2019-12-19", &params);
+    let auth: Value = client.get(format!("https://openplatform.aliyuncs.com/?{query}"))
+        .send().await.map_err(|e| e.to_string())?.json().await.map_err(|e| e.to_string())?;
+    let s = |k: &str| auth.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
+    let bucket = s("Bucket");
+    let endpoint = s("Endpoint");
+    let object_key = s("ObjectKey");
+    if bucket.is_empty() || endpoint.is_empty() || object_key.is_empty() {
+        return Err("获取 OSS 上传授权失败".into());
+    }
+    let part = Part::bytes(bytes.to_vec()).file_name(object_key.clone()).mime_str("application/octet-stream")
+        .map_err(|e| e.to_string())?;
+    let form = Form::new()
+        .text("OSSAccessKeyId", s("AccessKeyId"))
+        .text("policy", s("EncodedPolicy"))
+        .text("Signature", s("Signature"))
+        .text("key", object_key.clone())
+        .text("success_action_status", "201")
+        .part("file", part);
+    let resp = client.post(format!("https://{bucket}.{endpoint}/")).multipart(form).send().await.map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("OSS 上传失败：{}", resp.status()));
+    }
+    Ok(format!("https://{bucket}.{endpoint}/{object_key}"))
+}
+
+fn sign_version(method: &str, key_id: &str, secret: &str, region: &str, version: &str, params: &[(String, String)]) -> String {
+    let mut all = params.to_vec();
+    all.push(("AccessKeyId".into(), key_id.into()));
+    all.push(("Format".into(), "JSON".into()));
+    all.push(("RegionId".into(), region.into()));
+    all.push(("SignatureMethod".into(), "HMAC-SHA1".into()));
+    all.push(("SignatureVersion".into(), "1.0".into()));
+    all.push(("Version".into(), version.into()));
+    all.sort_by(|a, b| a.0.cmp(&b.0));
+    let canonical = all.iter().map(|(k, v)| format!("{}={}", pe(k), pe(v))).collect::<Vec<_>>().join("&");
+    let string_to_sign = format!("{}&%2F&{}", method, pe(&canonical));
+    let mut mac = HmacSha1::new_from_slice(format!("{secret}&").as_bytes()).expect("HMAC");
+    mac.update(string_to_sign.as_bytes());
+    let signature = base64::engine::general_purpose::STANDARD.encode(mac.finalize().into_bytes());
+    format!("{canonical}&Signature={}", pe(&signature))
+}
+
+fn pe(input: &str) -> String {
+    let mut out = String::new();
+    for b in input.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => out.push(b as char),
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
 }
