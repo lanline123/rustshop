@@ -516,3 +516,25 @@ out_refund_no / refund_status
 SUCCESS -> paylog_refund 成功 + 回写退款金额
 CLOSED/ABNORMAL -> paylog_refund 失败
 ```
+
+## 2026-10-31 补充：商户入驻审核通过开店
+
+`MerchantApplyService::audit` 通过后新增：
+
+```text
+创建 merchant 行
+按联系人手机号查找/创建 admin_user（admin123321）
+创建 shop
+创建 merchant_user
+创建 admin_user_shop（role_id=0，auth_list=["all"]）
+```
+
+仍待补：
+
+```text
+admin role 初始化
+运费模板初始化
+装修模板初始化
+保证金账户/规则初始化
+审核通过/失败通知
+```

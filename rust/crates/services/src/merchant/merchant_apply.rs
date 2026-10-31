@@ -1,4 +1,4 @@
-﻿//! 入驻申请域服务（merchant::merchant_apply）。
+//! 入驻申请域服务（merchant::merchant_apply）。
 //!
 //! 构造签名固定 `pub fn new(repos: Arc<Repositories>) -> Self`；
 //! 仓储访问为**嵌套**命名：`self.repos.merchant.merchant_apply.<method>()`。
@@ -265,7 +265,7 @@ impl MerchantApplyService {
             if mobile.trim().is_empty() {
                 return Err(Error::biz(SERVICE_DATA_ERROR, MOBILE_NOT_BOUND));
             }
-            self.repo()
+            let merchant_id = self.repo()
                 .insert_merchant_from_apply(
                     id,
                     user_id,
@@ -278,7 +278,126 @@ impl MerchantApplyService {
                     apply.corporate_name.as_deref(),
                 )
                 .await?;
+            self.open_shop_after_audit(&apply, merchant_id, now).await?;
         }
+        Ok(())
+    }
+
+    /// 审核通过后的开店：管理员、店铺、商户用户、店铺管理员关联。
+    async fn open_shop_after_audit(
+        &self,
+        apply: &tigshop_core::entities::MerchantApply,
+        merchant_id: i32,
+        now: i32,
+    ) -> Result<()> {
+        let merchant_json: Value = apply
+            .merchant_data
+            .as_deref()
+            .and_then(|s| serde_json::from_str(s).ok())
+            .unwrap_or(Value::Null);
+        let phone = merchant_json
+            .get("contactPhone")
+            .and_then(Value::as_str)
+            .or(apply.contact_mobile.as_deref())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        if phone.is_empty() {
+            return Err(Error::biz(SERVICE_DATA_ERROR, "联系人电话不能为空"));
+        }
+        let email = merchant_json
+            .get("contactEmail")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let shop_json: Value = apply
+            .shop_data
+            .as_deref()
+            .and_then(|s| serde_json::from_str(s).ok())
+            .unwrap_or(Value::Null);
+        let shop_logo = shop_json
+            .get("shopLogo")
+            .or_else(|| shop_json.get("shop_logo"))
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let shop_title = apply
+            .shop_title
+            .clone()
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or_else(|| format!("店铺{merchant_id}"));
+        let password = tigshop_security::hash_password("admin123321")?;
+        let admin_id = match self
+            .repos
+            .identity
+            .admin_user
+            .find_by_mobile(&phone, Some(false), None)
+            .await?
+        {
+            Some(admin) => admin.admin_id,
+            None => {
+                let r = sqlx::query(
+                    "INSERT INTO admin_user(username,admin_type,mobile,avatar,password,email,add_time,auth_list,user_id,suppliers_id,role_id,merchant_id,parent_id,shop_id,is_using,initial_password,is_deleted) \
+                     VALUES(?, 'shop', ?, '', ?, ?, ?, '[]', ?, 0, 1, ?, 0, 0, 1, ?, 0)",
+                )
+                .bind(&phone)
+                .bind(&phone)
+                .bind(&password)
+                .bind(&email)
+                .bind(now)
+                .bind(apply.user_id.unwrap_or(0))
+                .bind(merchant_id)
+                .bind(&password)
+                .execute(&self.repos.pool)
+                .await
+                .map_err(|e| Error::Database(e.to_string()))?;
+                i32::try_from(r.last_insert_id()).unwrap_or(0)
+            }
+        };
+        if admin_id <= 0 {
+            return Err(Error::Internal("创建店铺管理员失败".into()));
+        }
+        let shop_id: i32 = sqlx::query_scalar("SELECT COALESCE(MAX(shop_id),0)+1 FROM shop")
+            .fetch_one(&self.repos.pool)
+            .await
+            .map_err(|e| Error::Database(e.to_string()))?;
+        sqlx::query(
+            "INSERT INTO shop(shop_id,shop_title,add_time,shop_logo,click_count,status,merchant_id,shop_money,frozen_money,contact_mobile,description,is_contact_kefu,last_login_time,auto_erase_zero,auto_deduction_points,default_collection_method,auto_add_cart_after_scan,auto_print_online_order,auto_print_offline_order,pos_industry_type,is_delete) \
+             VALUES(?,?,?,?,0,1,?,0,0,?,'',0,0,0,0,0,0,0,0,0,0)",
+        )
+        .bind(shop_id)
+        .bind(&shop_title)
+        .bind(now)
+        .bind(&shop_logo)
+        .bind(merchant_id)
+        .bind(&phone)
+        .execute(&self.repos.pool)
+        .await
+        .map_err(|e| Error::Database(e.to_string()))?;
+        let _ = sqlx::query(
+            "INSERT INTO merchant_user(merchant_user_id,user_id,admin_user_id,merchant_id,is_admin) \
+             SELECT COALESCE(MAX(merchant_user_id),0)+1, ?, ?, ?, 1 FROM merchant_user",
+        )
+        .bind(apply.user_id.unwrap_or(0))
+        .bind(admin_id)
+        .bind(merchant_id)
+        .execute(&self.repos.pool)
+        .await;
+        sqlx::query(
+            "INSERT INTO admin_user_shop(admin_id,user_id,shop_id,username,email,avatar,auth_list,is_using,is_admin,add_time,role_id,work_on_time,default_pos_login,last_login_system,device_code) \
+             VALUES(?,?,?,?,?,?,'[\"all\"]',1,1,?,0,0,0,'','')",
+        )
+        .bind(admin_id)
+        .bind(apply.user_id.unwrap_or(0))
+        .bind(shop_id)
+        .bind(&phone)
+        .bind(&email)
+        .bind("")
+        .bind(now)
+        .execute(&self.repos.pool)
+        .await
+        .map_err(|e| Error::Database(e.to_string()))?;
+        tracing::info!(merchant_id, shop_id, admin_id, "商户审核通过，开店链路已完成");
         Ok(())
     }
 
