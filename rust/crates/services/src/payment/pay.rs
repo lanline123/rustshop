@@ -473,6 +473,14 @@ impl PayService {
                 let pay_info = self.xendit_create(&order, client_type, &pay_sn).await?;
                 return Ok(PayCreateVO { order_id: Some(order.order_id), order_sn: Some(order.order_sn.clone()), order_amount: Some(order.unpaid_amount), pay_info: Some(pay_info), code: None });
             }
+            "antom" => {
+                let order_id = q.id.unwrap_or(0);
+                let order = self.repo().find_order_by_id(order_id).await?.ok_or_else(|| Error::biz(500, MSG_ORDER_NOT_FOUND))?;
+                let client_type = q.code.as_deref().unwrap_or("pc");
+                let pay_sn = self.create_pending_paylog(&order, "antom", &format!("Antom-订单{}", order.order_sn)).await?;
+                let pay_info = self.antom_create(&order, user_id, client_type, &pay_sn).await?;
+                return Ok(PayCreateVO { order_id: Some(order.order_id), order_sn: Some(order.order_sn.clone()), order_amount: Some(order.unpaid_amount), pay_info: Some(pay_info), code: None });
+            }
             _ => Err(Error::biz_msg(MSG_CHANNEL_UNMIGRATED)),
         }
     }
@@ -955,6 +963,119 @@ impl PayService {
                 .execute(&self.repos.pool).await;
         }
         Ok(serde_json::json!({"paySn": pay_sn, "payType": "xendit", "url": url}))
+    }
+
+    /// Antom Hosted Checkout 创建支付会话。
+    async fn antom_create(
+        &self,
+        order: &PayOrderRow,
+        user_id: i32,
+        client_type: &str,
+        pay_sn: &str,
+    ) -> Result<serde_json::Value> {
+        use base64::Engine as _;
+        use rsa::pkcs8::DecodePrivateKey;
+        use rsa::signature::Signer;
+        use rsa::pkcs1v15::SigningKey;
+        use sha2::Sha256;
+        let client_id = self.config_value("antomClientId").await?.unwrap_or_default();
+        let private_key = self.config_value("antomMerchantPrivateKey").await?.unwrap_or_default();
+        if client_id.trim().is_empty() || private_key.trim().is_empty() {
+            return Err(Error::biz(1001, "Antom 未配置：缺少 antomClientId / antomMerchantPrivateKey"));
+        }
+        let gateway = self.config_value("antomGatewayUrl").await?
+            .filter(|v| !v.trim().is_empty())
+            .unwrap_or_else(|| "https://open-sea-global.alipay.com".into());
+        let sandbox = self.config_value("antomSandbox").await?.as_deref() == Some("1");
+        let base = gateway.trim_end_matches('/');
+        let base = if sandbox && !base.contains("/ams/sandbox") { format!("{base}/ams/sandbox") } else { base.to_string() };
+        let currency = self.config_value("antomCurrency").await?.unwrap_or_else(|| "usd".into());
+        let currency = currency.to_uppercase();
+        let zero_decimal = ["BIF","CLP","DJF","GNF","JPY","KMF","KRW","MGA","PYG","RWF","UGX","VND","VUV","XAF","XOF","XPF"];
+        let multiplier = if zero_decimal.contains(&currency.as_str()) { 1 } else { 100 };
+        let amount = (order.unpaid_amount * rust_decimal::Decimal::from(multiplier)).round().to_string();
+        let pc_domain = self.config_value("pcDomain").await?.unwrap_or_default();
+        if pc_domain.trim().is_empty() {
+            return Err(Error::biz(1001, "pcDomain 未配置，无法生成 Antom 返回地址"));
+        }
+        let pc = pc_domain.trim_end_matches('/');
+        let redirect = if client_type == "h5" {
+            format!("{pc}/pages/user/order/info?id={}", order.order_id)
+        } else {
+            format!("{pc}/member/order/info?id={}", order.order_id)
+        };
+        let notify = format!("{pc}/api/order/pay/notify/antom");
+        let request_id = format!("{}-{}", pay_sn, &uuid::Uuid::new_v4().simple().to_string()[..8]);
+        let body = serde_json::json!({
+            "productCode": "CASHIER_PAYMENT",
+            "productScene": "CHECKOUT_PAYMENT",
+            "paymentRequestId": request_id,
+            "paymentAmount": {"currency": currency, "value": amount},
+            "order": {
+                "referenceOrderId": order.order_sn,
+                "orderDescription": format!("Tigshop Order {}", order.order_sn),
+                "orderAmount": {"currency": currency, "value": amount},
+                "buyer": {"referenceBuyerId": user_id.to_string()},
+                "goods": [{
+                    "referenceGoodsId": order.order_id.to_string(),
+                    "goodsName": format!("Order {}", order.order_sn),
+                    "goodsQuantity": "1",
+                    "goodsUnitAmount": {"currency": currency, "value": amount}
+                }]
+            },
+            "paymentNotifyUrl": notify,
+            "paymentRedirectUrl": redirect
+        });
+        let body_text = body.to_string();
+        let path = "/ams/api/v1/payments/createPaymentSession";
+        let request_time = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+        let sign_content = format!("POST {path}\n{}.{}.{}", client_id, request_time, body_text);
+        let key = if private_key.contains("BEGIN") {
+            rsa::RsaPrivateKey::from_pkcs8_pem(private_key.trim())
+                .map_err(|e| Error::Validation(format!("Antom 商户私钥解析失败: {e}")))?
+        } else {
+            let der = base64::engine::general_purpose::STANDARD.decode(private_key.trim())
+                .map_err(|e| Error::Validation(format!("Antom 商户私钥解码失败: {e}")))?;
+            rsa::RsaPrivateKey::from_pkcs8_der(&der)
+                .map_err(|e| Error::Validation(format!("Antom 商户私钥解析失败: {e}")))?
+        };
+        let signing_key = SigningKey::<Sha256>::new(key);
+        let signature: rsa::pkcs1v15::Signature = signing_key.sign(sign_content.as_bytes());
+        use rsa::signature::SignatureEncoding;
+        let signature_b64 = base64::engine::general_purpose::STANDARD.encode(signature.to_bytes());
+        let signature_header = format!("algorithm=RSA256,keyVersion=1,signature={signature_b64}");
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(25))
+            .build()
+            .map_err(|e| Error::Internal(e.to_string()))?;
+        let resp = client.post(format!("{base}{path}"))
+            .header("Content-Type", "application/json")
+            .header("client-id", client_id.trim())
+            .header("request-time", request_time)
+            .header("signature", signature_header)
+            .body(body_text)
+            .send().await
+            .map_err(|e| Error::biz(1001, format!("Antom 下单网络异常: {e}")))?;
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        if !status.is_success() {
+            return Err(Error::biz(1001, format!("Antom 下单失败: {text}")));
+        }
+        let v: serde_json::Value = serde_json::from_str(&text)
+            .map_err(|e| Error::Internal(format!("Antom 响应解析失败: {e}")))?;
+        let result_status = v.get("result").and_then(|r| r.get("resultStatus")).and_then(|s| s.as_str()).unwrap_or("");
+        if result_status != "S" {
+            let msg = v.get("result").and_then(|r| r.get("resultMessage")).and_then(|s| s.as_str()).unwrap_or("Antom 创建支付会话失败");
+            return Err(Error::biz(1001, msg.to_string()));
+        }
+        let url = v.get("normalUrl").and_then(|u| u.as_str()).unwrap_or_default();
+        if url.is_empty() {
+            return Err(Error::biz(1001, "Antom 创建支付会话失败：normalUrl 为空"));
+        }
+        let _ = sqlx::query("UPDATE paylog SET transaction_id=? WHERE pay_sn=?")
+            .bind(&request_id).bind(pay_sn)
+            .execute(&self.repos.pool).await;
+        Ok(serde_json::json!({"paySn": pay_sn, "payType": "antom", "url": url}))
     }
 
     /// 创建通用待支付 paylog（渠道下单前落库）。

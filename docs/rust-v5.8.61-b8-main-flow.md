@@ -351,3 +351,30 @@ success_redirect_url/failure_redirect_url
 invoice_duration/payment_methods/items
 返回 invoice_url，并回写 paylog.transaction_id
 ```
+
+## 2026-10-31 补充：Antom 下单
+
+```text
+POST {antomGatewayUrl}/ams/api/v1/payments/createPaymentSession
+```
+
+请求：
+
+```text
+productCode=CASHIER_PAYMENT
+productScene=CHECKOUT_PAYMENT
+paymentRequestId=paySn-{8位}
+paymentAmount/order/goods
+paymentNotifyUrl/paymentRedirectUrl
+```
+
+签名：
+
+```text
+POST /ams/api/v1/payments/createPaymentSession\n
+clientId.requestTime.body
+SHA256withRSA
+header: algorithm=RSA256,keyVersion=1,signature=...
+```
+
+返回 normalUrl，并回写 paylog.transaction_id。
