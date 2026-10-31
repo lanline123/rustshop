@@ -694,3 +694,18 @@ wechatSubMerchantCheckUrl
 wechatSubMerchantCheckKey
 微信服务商子商户关系查询
 ```
+
+## 2026-10-31 补充：通用支付网关适配器
+
+覆盖汇付 / 拉卡拉 / 易宝 / YabandPay / YunPay：
+
+```text
+下单：{channel}GatewayUrl 或 payChannelGatewayUrl
+退款：{channel}RefundUrl 或 {channel}GatewayUrl + /refund
+鉴权：Authorization: Bearer {channel}GatewayKey 或 payChannelGatewayKey
+回调：/api/order/pay/notify/{channel}
+      payChannelNotifySecret + x-pay-signature
+```
+
+订单号回写、退款审核自动调用、支付成功推进订单均已接入。
+真实联调依赖各渠道网关地址/密钥/回调签名规则。

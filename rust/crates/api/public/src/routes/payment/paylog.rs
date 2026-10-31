@@ -285,6 +285,32 @@ async fn notify(
             Ok((StatusCode::OK, "success").into_response())
         }
         // —— PayPal / 其它渠道 ——
+        other if matches!(other, "huifu" | "lakala" | "yeepay" | "yabandpay" | "yunpay") => {
+            let secret: Option<String> = sqlx::query_scalar("SELECT biz_val FROM config WHERE biz_code=? LIMIT 1")
+                .bind("payChannelNotifySecret")
+                .fetch_optional(&state.repos.pool)
+                .await
+                .map_err(|e| AppError(tigshop_core::Error::Database(e.to_string())))?;
+            if let Some(secret) = secret.filter(|v| !v.trim().is_empty()) {
+                let sig = header_str(&headers, "x-pay-signature").unwrap_or_default();
+                if sig != secret {
+                    return Ok((StatusCode::BAD_REQUEST, "FAIL").into_response());
+                }
+            }
+            let json: serde_json::Value = serde_json::from_str(&body_str)
+                .map_err(|e| AppError(tigshop_core::Error::Validation(format!("支付回调报文非法: {e}"))))?;
+            let pay_sn = json.get("paySn").or_else(|| json.get("outTradeNo")).and_then(|v| v.as_str()).unwrap_or("");
+            let tx = json.get("transactionId").or_else(|| json.get("tradeNo")).and_then(|v| v.as_str()).unwrap_or("");
+            let status = json.get("status").and_then(|v| v.as_str()).unwrap_or("SUCCESS");
+            if pay_sn.is_empty() || tx.is_empty() || !matches!(status.to_ascii_uppercase().as_str(), "SUCCESS" | "SUCCEEDED" | "PAID") {
+                return Ok((StatusCode::OK, "SUCCESS").into_response());
+            }
+            state.payment.paylog.mark_paid_by_pay_sn(pay_sn, tx, &body_str).await?;
+            if let Err(e) = state.payment.paylog.settle_order_by_pay_sn(pay_sn, tx).await {
+                tracing::warn!("{other} 回调推进订单失败: pay_sn={pay_sn}, err={e}");
+            }
+            Ok((StatusCode::OK, "SUCCESS").into_response())
+        }
         other => Err(AppError(tigshop_core::Error::biz(
             1001,
             format!("支付渠道 {other} 回调验签待凭据联调（协议骨架已就绪）"),

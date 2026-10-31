@@ -481,6 +481,14 @@ impl PayService {
                 let pay_info = self.antom_create(&order, user_id, client_type, &pay_sn).await?;
                 return Ok(PayCreateVO { order_id: Some(order.order_id), order_sn: Some(order.order_sn.clone()), order_amount: Some(order.unpaid_amount), pay_info: Some(pay_info), code: None });
             }
+            other if matches!(other, "huifu" | "lakala" | "yeepay" | "yabandpay" | "yunpay") => {
+                let order_id = q.id.unwrap_or(0);
+                let order = self.repo().find_order_by_id(order_id).await?.ok_or_else(|| Error::biz(500, MSG_ORDER_NOT_FOUND))?;
+                let client_type = q.code.as_deref().unwrap_or("pc");
+                let pay_sn = self.create_pending_paylog(&order, other, &format!("{other}-订单{}", order.order_sn)).await?;
+                let pay_info = self.generic_channel_create(&order, other, client_type, &pay_sn).await?;
+                return Ok(PayCreateVO { order_id: Some(order.order_id), order_sn: Some(order.order_sn.clone()), order_amount: Some(order.unpaid_amount), pay_info: Some(pay_info), code: None });
+            }
             _ => Err(Error::biz_msg(MSG_CHANNEL_UNMIGRATED)),
         }
     }
@@ -1108,6 +1116,9 @@ impl PayService {
             "stripe" => self.stripe_refund(&paylog.transaction_id, refund_sn, refund_amount).await,
             "paypal" => self.paypal_refund(&paylog.transaction_id, refund_sn, refund_amount).await,
             "xendit" => self.xendit_refund(&paylog.transaction_id, refund_sn, refund_amount).await,
+            other if matches!(other, "huifu" | "lakala" | "yeepay" | "yabandpay" | "yunpay") => {
+                self.generic_channel_refund(other, pay_sn, refund_sn, refund_amount).await
+            }
             other => Err(Error::biz(500, format!("该支付方式暂不支持退款：{other}"))),
         }
     }
@@ -1492,6 +1503,9 @@ impl PayService {
             "stripe" => self.stripe_create(&order, client_type, &pay_sn).await?,
             "xendit" => self.xendit_create(&order, client_type, &pay_sn).await?,
             "antom" => self.antom_create(&order, user_id, client_type, &pay_sn).await?,
+            other if matches!(other, "huifu" | "lakala" | "yeepay" | "yabandpay" | "yunpay") => {
+                self.generic_channel_create(&order, other, client_type, &pay_sn).await?
+            }
             _ => return Err(Error::biz_msg(MSG_CHANNEL_UNMIGRATED)),
         };
         Ok(PayCreateVO {
@@ -1501,6 +1515,142 @@ impl PayService {
             pay_info: Some(pay_info),
             code: None,
         })
+    }
+
+    /// 额外支付渠道的通用网关下单适配器（汇付/拉卡拉/易宝等）。
+    async fn generic_channel_create(
+        &self,
+        order: &PayOrderRow,
+        pay_code: &str,
+        client_type: &str,
+        pay_sn: &str,
+    ) -> Result<serde_json::Value> {
+        let url = match self.config_value(&format!("{pay_code}GatewayUrl")).await? {
+            Some(v) => v,
+            None => self
+                .config_value("payChannelGatewayUrl")
+                .await?
+                .ok_or_else(|| Error::biz(1001, format!("支付渠道 {pay_code} 未配置网关地址")))?,
+        };
+        let key = self
+            .config_value(&format!("{pay_code}GatewayKey"))
+            .await?
+            .or(self.config_value("payChannelGatewayKey").await?)
+            .unwrap_or_default();
+        let currency = self
+            .config_value("payChannelCurrency")
+            .await?
+            .unwrap_or_else(|| "CNY".into());
+        let pc_domain = self.config_value("pcDomain").await?.unwrap_or_default();
+        let notify_url = if pc_domain.trim().is_empty() {
+            String::new()
+        } else {
+            format!("{}/api/order/pay/notify/{pay_code}", pc_domain.trim_end_matches('/'))
+        };
+        let req = serde_json::json!({
+            "paySn": pay_sn,
+            "channel": pay_code,
+            "amount": order.unpaid_amount.to_string(),
+            "currency": currency,
+            "subject": format!("Tigshop Order {}", order.order_sn),
+            "clientType": client_type,
+            "notifyUrl": notify_url
+        });
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(25))
+            .build()
+            .map_err(|e| Error::Internal(e.to_string()))?;
+        let mut builder = client.post(url.trim()).header("Content-Type", "application/json");
+        if !key.trim().is_empty() {
+            builder = builder.header("Authorization", format!("Bearer {}", key.trim()));
+        }
+        let resp = builder
+            .body(req.to_string())
+            .send()
+            .await
+            .map_err(|e| Error::biz(1001, format!("{pay_code} 下单网络异常: {e}")))?;
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        let json: serde_json::Value = serde_json::from_str(&text).unwrap_or(serde_json::Value::Null);
+        if !status.is_success() {
+            return Err(Error::biz(1001, format!("{pay_code} 下单失败: {text}")));
+        }
+        let pay_url = json
+            .get("payUrl")
+            .or_else(|| json.get("url"))
+            .or_else(|| json.get("counterUrl"))
+            .or_else(|| json.get("counter_url"))
+            .or_else(|| json.get("data").and_then(|d| d.get("payUrl")))
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("");
+        if pay_url.is_empty() {
+            return Err(Error::biz(1001, format!("{pay_code} 下单响应缺少支付地址")));
+        }
+        if let Some(tx) = json
+            .get("transactionId")
+            .or_else(|| json.get("orderId"))
+            .or_else(|| json.get("tradeNo"))
+            .and_then(serde_json::Value::as_str)
+            .filter(|v| !v.is_empty())
+        {
+            let _ = sqlx::query("UPDATE paylog SET transaction_id=? WHERE pay_sn=?")
+                .bind(tx)
+                .bind(pay_sn)
+                .execute(&self.repos.pool)
+                .await;
+        }
+        Ok(serde_json::json!({"url": pay_url, "payType": pay_code}))
+    }
+
+    /// 额外支付渠道的通用网关退款适配器。
+    async fn generic_channel_refund(
+        &self,
+        pay_code: &str,
+        pay_sn: &str,
+        refund_sn: &str,
+        amount: rust_decimal::Decimal,
+    ) -> Result<String> {
+        let url = match self.config_value(&format!("{pay_code}RefundUrl")).await? {
+            Some(v) => v,
+            None => match self.config_value(&format!("{pay_code}GatewayUrl")).await? {
+                Some(v) => format!("{}/refund", v.trim_end_matches('/')),
+                None => return Err(Error::biz(1001, format!("支付渠道 {pay_code} 未配置退款地址"))),
+            },
+        };
+        let key = self
+            .config_value(&format!("{pay_code}GatewayKey"))
+            .await?
+            .or(self.config_value("payChannelGatewayKey").await?)
+            .unwrap_or_default();
+        let req = serde_json::json!({
+            "paySn": pay_sn,
+            "refundSn": refund_sn,
+            "channel": pay_code,
+            "amount": amount.to_string()
+        });
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(25))
+            .build()
+            .map_err(|e| Error::Internal(e.to_string()))?;
+        let mut builder = client.post(url.trim()).header("Content-Type", "application/json");
+        if !key.trim().is_empty() {
+            builder = builder.header("Authorization", format!("Bearer {}", key.trim()));
+        }
+        let resp = builder
+            .body(req.to_string())
+            .send()
+            .await
+            .map_err(|e| Error::biz(1001, format!("{pay_code} 退款网络异常: {e}")))?;
+        if !resp.status().is_success() {
+            let text = resp.text().await.unwrap_or_default();
+            return Err(Error::biz(1001, format!("{pay_code} 退款失败: {text}")));
+        }
+        let json: serde_json::Value = resp.json().await.unwrap_or(serde_json::Value::Null);
+        Ok(json
+            .get("status")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("SUCCESS")
+            .to_string())
     }
 
     /// 创建通用待支付 paylog（渠道下单前落库）。
