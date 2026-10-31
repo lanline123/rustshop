@@ -756,3 +756,18 @@ wechat_live_sync_log
   建单 -> ORDER_CREATED / OUTBOUND
   支付 -> ORDER_PAID / OUTBOUND
 ```
+
+## 2026-10-31 补充：商户审核结果通知适配器
+
+配置 `merchantApplyNotifyUrl` 后，审核通过/失败都会 POST：
+
+```text
+event= MERCHANT_SETTLED_IN_SUCCESS / MERCHANT_SETTLED_IN_FAIL
+merchantApplyId / shopTitle / companyName
+contactPhone / contactEmail
+remark
+username / initialPassword（通过时）
+Authorization: Bearer merchantApplyNotifyKey
+```
+
+发送失败只写日志，不阻塞审核主流程；未配置 webhook 时记录 info 日志。

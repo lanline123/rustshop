@@ -279,8 +279,98 @@ impl MerchantApplyService {
                 )
                 .await?;
             self.open_shop_after_audit(&apply, merchant_id, now).await?;
+            self.notify_audit_result(&apply, true, param.audit_remark.as_deref()).await;
+        } else {
+            self.notify_audit_result(&apply, false, param.audit_remark.as_deref()).await;
         }
         Ok(())
+    }
+
+    /// 审核结果通知适配器：配置了 webhook 才发送，失败不阻塞审核主流程。
+    async fn notify_audit_result(
+        &self,
+        apply: &tigshop_core::entities::MerchantApply,
+        passed: bool,
+        remark: Option<&str>,
+    ) {
+        let url: Option<String> = match sqlx::query_scalar::<_, String>(
+            "SELECT biz_val FROM config WHERE biz_code=? LIMIT 1",
+        )
+        .bind("merchantApplyNotifyUrl")
+        .fetch_optional(&self.repos.pool)
+        .await
+        {
+            Ok(v) => v.filter(|s| !s.trim().is_empty()),
+            Err(e) => {
+                tracing::warn!("读取商户审核通知地址失败: {e}");
+                return;
+            }
+        };
+        let Some(url) = url else {
+            tracing::info!(apply_id = apply.merchant_apply_id, passed, "未配置商户审核通知 webhook");
+            return;
+        };
+        let key: Option<String> = sqlx::query_scalar(
+            "SELECT biz_val FROM config WHERE biz_code=? LIMIT 1",
+        )
+        .bind("merchantApplyNotifyKey")
+        .fetch_optional(&self.repos.pool)
+        .await
+        .ok()
+        .flatten();
+        let merchant_json: Value = apply
+            .merchant_data
+            .as_deref()
+            .and_then(|s| serde_json::from_str(s).ok())
+            .unwrap_or(Value::Null);
+        let phone = merchant_json
+            .get("contactPhone")
+            .and_then(Value::as_str)
+            .or(apply.contact_mobile.as_deref())
+            .unwrap_or("");
+        let email = merchant_json
+            .get("contactEmail")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        let payload = serde_json::json!({
+            "event": if passed { "MERCHANT_SETTLED_IN_SUCCESS" } else { "MERCHANT_SETTLED_IN_FAIL" },
+            "merchantApplyId": apply.merchant_apply_id,
+            "shopTitle": apply.shop_title,
+            "companyName": apply.company_name,
+            "contactPhone": phone,
+            "contactEmail": email,
+            "remark": remark,
+            "username": phone,
+            "initialPassword": if passed { Some("admin123321") } else { None }
+        });
+        let client = match reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+        {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!("创建商户审核通知客户端失败: {e}");
+                return;
+            }
+        };
+        let mut req = client
+            .post(url.trim())
+            .header("Content-Type", "application/json")
+            .body(payload.to_string());
+        if let Some(k) = key.filter(|v| !v.trim().is_empty()) {
+            req = req.header("Authorization", format!("Bearer {}", k.trim()));
+        }
+        match req.send().await {
+            Ok(resp) if resp.status().is_success() => {
+                tracing::info!(apply_id = apply.merchant_apply_id, passed, "商户审核通知已发送");
+            }
+            Ok(resp) => {
+                tracing::warn!("商户审核通知返回非 2xx: {}", resp.status());
+            }
+            Err(e) => {
+                tracing::warn!("商户审核通知发送失败: {e}");
+            }
+        }
     }
 
     /// 审核通过后的开店：管理员、店铺、商户用户、店铺管理员关联。
