@@ -405,6 +405,28 @@ impl MerchantApplyService {
             .bind(admin_id)
             .execute(&self.repos.pool)
             .await;
+        let bank_card = merchant_json.get("bank_card").and_then(Value::as_str).unwrap_or("").trim();
+        if !(apply.r#type == Some(3) && bank_card.is_empty()) {
+            let account_name = if apply.r#type == Some(1) {
+                apply.corporate_name.clone().unwrap_or_default()
+            } else {
+                apply.company_name.clone().unwrap_or_default()
+            };
+            let bank_name = merchant_json.get("bank_deposit").and_then(Value::as_str).unwrap_or("");
+            let bank_branch = merchant_json.get("bank_branch").and_then(Value::as_str).unwrap_or("");
+            let _ = sqlx::query(
+                "INSERT INTO merchant_account(merchant_id,account_type,account_name,account_no,bank_name,add_time,bank_branch,shop_id) VALUES(?,1,?,?,?,?,?,?)",
+            )
+            .bind(merchant_id)
+            .bind(&account_name)
+            .bind(bank_card)
+            .bind(bank_name)
+            .bind(now)
+            .bind(bank_branch)
+            .bind(shop_id)
+            .execute(&self.repos.pool)
+            .await;
+        }
         let _ = sqlx::query(
             "INSERT INTO merchant_user(merchant_user_id,user_id,admin_user_id,merchant_id,is_admin) \
              SELECT COALESCE(MAX(merchant_user_id),0)+1, ?, ?, ?, 1 FROM merchant_user",

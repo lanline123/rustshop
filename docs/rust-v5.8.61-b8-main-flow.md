@@ -549,3 +549,19 @@ admin role 初始化
 admin_user.role_id 指向店铺管理员
 admin_user_shop.role_id 指向店铺管理员
 ```
+
+## 2026-10-31 补充：商户结算账户初始化
+
+审核通过开店时新增：
+
+```text
+merchant_account
+account_type=1
+account_name=个人 corporate_name / 企业 company_name
+account_no=merchantData.bank_card
+bank_name=merchantData.bank_deposit
+bank_branch=merchantData.bank_branch
+shop_id=新店铺
+```
+
+个体工商户且银行卡为空的，按 Java 规则跳过。
