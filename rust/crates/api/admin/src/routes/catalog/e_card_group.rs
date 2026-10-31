@@ -45,7 +45,7 @@ use tigshop_core::models::catalog::e_card_group::{
 };
 use tigshop_core::types::PageResult;
 use tigshop_core::Error;
-use tigshop_security::web::{ApiResult, AuthUser, client_ip, ok};
+use tigshop_security::web::{ApiResult, AppError, AuthUser, client_ip, ok};
 
 use crate::AdminState;
 use super::tenant;
@@ -127,9 +127,22 @@ async fn e_card_group_list(
     State(state): State<AdminState>,
     headers: axum::http::HeaderMap,
     Query(q): Query<ECardGroupListQuery>,
-) -> ApiResult<PageResult<ECardGroupVO>> {
+) -> std::result::Result<axum::response::Response, AppError> {
+    if q.wants_download_template() {
+        // Java `isDownload > 0` 时写 xlsx 模板流；列与 ECardExportVO 对齐。
+        let bytes = tigshop_services::system::excel::build_xlsx(
+            &["卡券名称", "卡号密码"],
+            &[],
+            "电子卡券导入模板",
+        )?;
+        return Ok(crate::support::excel_response::xlsx_response(
+            bytes,
+            "e_card_group_template.xlsx",
+        ));
+    }
     let shop_id = shop_id_from_headers(&headers);
-    ok(state.catalog.e_card_group.list(&q, shop_id).await?)
+    let page = state.catalog.e_card_group.list(&q, shop_id).await?;
+    Ok(axum::response::IntoResponse::into_response(ok(page)?))
 }
 
 /// `GET /adminapi/product/eCardGroup/detail?id=`：电子卡券组详情。

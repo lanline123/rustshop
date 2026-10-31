@@ -216,3 +216,28 @@ POST /file/aiImage/inpaint
 轮询消除结果
 结果图转存 gallery
 ```
+
+## 2026-10-31 补充
+
+### Antom 回调验签
+
+```text
+payload = METHOD + " " + path + "\n" + clientId + "." + requestTime + "." + body
+SHA256withRSA
+signature 头 URL 解码后 base64
+公钥 antomPublicKey
+```
+
+处理：
+
+```text
+notifyType 含 REFUND -> 按 refundRequestId 更新退款状态
+PAYMENT_RESULT + resultStatus=S -> paymentRequestId 截取 paySn -> mark_paid
+```
+
+### 电子卡券模板
+
+```text
+GET /product/eCardGroup/list?isDownload>0
+返回 xlsx：卡券名称 / 卡号密码
+```

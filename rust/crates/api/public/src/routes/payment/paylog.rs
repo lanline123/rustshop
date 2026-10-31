@@ -396,12 +396,135 @@ async fn xendit_notify(
     Ok((StatusCode::OK, Json(serde_json::json!({"status":"OK"}))).into_response())
 }
 
-/// `POST /api/order/pay/notify/antom`：Antom 回调（RSA 验签待补）。
-async fn antom_notify() -> Result<Response, AppError> {
-    Err(AppError(tigshop_core::Error::biz(
-        1001,
-        "Antom 回调 RSA 验签尚未迁移，不能接受支付通知",
-    )))
+/// `POST /api/order/pay/notify/antom`：Antom 支付/退款回调（SHA256withRSA 验签）。
+async fn antom_notify(
+    State(state): State<PublicState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Response, AppError> {
+    let public_key = state
+        .payment
+        .pay
+        .config_value("antomPublicKey")
+        .await?
+        .filter(|v| !v.trim().is_empty())
+        .ok_or_else(|| AppError(tigshop_core::Error::biz(1001, "Antom 未配置公钥，无法验签")))?;
+    let header = |name: &str| headers.get(name).and_then(|v| v.to_str().ok()).unwrap_or("");
+    let client_id = header("client-id");
+    let request_time = header("request-time");
+    let signature_header = header("signature");
+    let raw_sig = signature_header.split("signature=").nth(1).unwrap_or("").trim();
+    if raw_sig.is_empty() {
+        return Ok(StatusCode::BAD_REQUEST.into_response());
+    }
+    let body_text = String::from_utf8_lossy(&body);
+    let payload = format!("POST /api/order/pay/notify/antom\n{client_id}.{request_time}.{body_text}");
+    if !verify_antom_signature(&payload, raw_sig, &public_key).unwrap_or(false) {
+        tracing::warn!("Antom 回调验签失败");
+        return Ok(StatusCode::OK.into_response());
+    }
+    let json: serde_json::Value = match serde_json::from_slice(&body) {
+        Ok(v) => v,
+        Err(_) => return Ok(StatusCode::BAD_REQUEST.into_response()),
+    };
+    let notify_type = json
+        .get("notifyType")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_ascii_uppercase();
+    if notify_type.contains("REFUND") {
+        let refund_sn = json.get("refundRequestId").and_then(|v| v.as_str()).unwrap_or("");
+        let result_status = json
+            .get("result")
+            .and_then(|r| r.get("resultStatus"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let refund_status = json.get("refundStatus").and_then(|v| v.as_str()).unwrap_or("");
+        if refund_sn.is_empty()
+            || !(result_status == "S" || refund_status.eq_ignore_ascii_case("SUCCESS"))
+        {
+            return Ok(StatusCode::OK.into_response());
+        }
+        let row: Option<(i32,)> = sqlx::query_as(
+            "SELECT paylog_refund_id FROM paylog_refund WHERE refund_sn=? LIMIT 1",
+        )
+        .bind(refund_sn)
+        .fetch_optional(&state.repos.pool)
+        .await
+        .map_err(|e| AppError(tigshop_core::Error::Database(e.to_string())))?;
+        if let Some((id,)) = row {
+            state.payment.paylog.update_refund_status(id, RefundStatus::Success).await?;
+        }
+        return Ok(StatusCode::OK.into_response());
+    }
+    let result_status = json
+        .get("result")
+        .and_then(|r| r.get("resultStatus"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if result_status != "S" {
+        return Ok(StatusCode::OK.into_response());
+    }
+    let payment_request_id = json.get("paymentRequestId").and_then(|v| v.as_str()).unwrap_or("");
+    let pay_sn = payment_request_id.split('-').next().unwrap_or("");
+    if pay_sn.is_empty() {
+        return Ok(StatusCode::OK.into_response());
+    }
+    let payment_id = json
+        .get("paymentId")
+        .and_then(|v| v.as_str())
+        .unwrap_or(payment_request_id);
+    let _ = state
+        .payment
+        .paylog
+        .mark_paid_by_pay_sn(pay_sn, payment_id, &body_text)
+        .await;
+    Ok(StatusCode::OK.into_response())
+}
+
+/// Antom Webhook 验签：SHA256withRSA，`signature` 头 URL 编码。
+fn verify_antom_signature(payload: &str, signature: &str, public_key: &str) -> Result<bool, String> {
+    use base64::Engine as _;
+    use rsa::pkcs1v15::{Signature, VerifyingKey};
+    use rsa::pkcs8::DecodePublicKey;
+    use rsa::signature::Verifier;
+    use sha2::Sha256;
+    let decoded = percent_decode(signature);
+    let sig = base64::engine::general_purpose::STANDARD
+        .decode(decoded.as_bytes())
+        .map_err(|e| e.to_string())?;
+    let pem: String = public_key.lines().filter(|l| !l.starts_with("-----")).collect();
+    let der = base64::engine::general_purpose::STANDARD
+        .decode(pem.as_bytes())
+        .map_err(|e| e.to_string())?;
+    let key = rsa::RsaPublicKey::from_public_key_der(&der).map_err(|e| e.to_string())?;
+    let verifying = VerifyingKey::<Sha256>::new(key);
+    let sig = Signature::try_from(sig.as_slice()).map_err(|e| e.to_string())?;
+    Ok(verifying.verify(payload.as_bytes(), &sig).is_ok())
+}
+
+fn percent_decode(input: &str) -> String {
+    let bytes = input.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'+' => {
+                out.push(b' ');
+                i += 1;
+            }
+            b'%' if i + 2 < bytes.len() => {
+                let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).unwrap_or("00");
+                out.push(u8::from_str_radix(hex, 16).unwrap_or(b'?'));
+                i += 3;
+            }
+            b => {
+                out.push(b);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).to_string()
 }
 
 /// 退款回调载荷。
