@@ -159,6 +159,45 @@ impl ProfitSharingService {
         if order.transaction_id.trim().is_empty() {
             return Err(Error::biz(500, "分账单缺少transactionId, 无法完结"));
         }
+        // 可配置渠道完结适配器：配置了地址才调用，避免本地单方面完结。
+        let finish_url: Option<String> = sqlx::query_scalar(
+            "SELECT biz_val FROM config WHERE biz_code=? LIMIT 1",
+        )
+        .bind("profitSharingFinishUrl")
+        .fetch_optional(&self.repos.pool)
+        .await
+        .map_err(|e| tigshop_core::Error::Database(e.to_string()))?;
+        if let Some(url) = finish_url.filter(|v| !v.trim().is_empty()) {
+            let key: Option<String> = sqlx::query_scalar(
+                "SELECT biz_val FROM config WHERE biz_code=? LIMIT 1",
+            )
+            .bind("profitSharingFinishKey")
+            .fetch_optional(&self.repos.pool)
+            .await
+            .map_err(|e| tigshop_core::Error::Database(e.to_string()))?;
+            let client = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(20))
+                .build()
+                .map_err(|e| tigshop_core::Error::Internal(e.to_string()))?;
+            let mut req = client
+                .post(url.trim())
+                .header("Content-Type", "application/json")
+                .body(serde_json::json!({
+                    "outOrderNo": order.out_order_no,
+                    "transactionId": order.transaction_id,
+                    "subMchId": order.sub_mch_id,
+                    "channel": order.pay_channel
+                }).to_string());
+            if let Some(k) = key.filter(|v| !v.trim().is_empty()) {
+                req = req.header("Authorization", format!("Bearer {}", k.trim()));
+            }
+            let resp = req.send().await
+                .map_err(|e| tigshop_core::Error::biz(1001, format!("分账完结渠道异常: {e}")))?;
+            if !resp.status().is_success() {
+                let text = resp.text().await.unwrap_or_default();
+                return Err(tigshop_core::Error::biz(1001, format!("分账完结渠道失败: {text}")));
+            }
+        }
         // 更新本地分账单完结状态（对齐 Java manualFinishProfitSharing 核心落库）
         self.repo().finish_order(id, operator_id, &now).await?;
         tracing::info!("分账单手动完结成功: id={}, outOrderNo={}", id, order.out_order_no);

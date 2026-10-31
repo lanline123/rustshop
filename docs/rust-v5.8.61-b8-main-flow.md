@@ -709,3 +709,15 @@ wechatSubMerchantCheckKey
 
 订单号回写、退款审核自动调用、支付成功推进订单均已接入。
 真实联调依赖各渠道网关地址/密钥/回调签名规则。
+
+## 2026-10-31 补充：分账手动完结适配器
+
+配置 `profitSharingFinishUrl` 后，手动完结先调用渠道：
+
+```text
+POST {profitSharingFinishUrl}
+{ outOrderNo, transactionId, subMchId, channel }
+Authorization: Bearer profitSharingFinishKey
+```
+
+渠道成功后再落本地完结状态；未配置地址时保持现有本地完结行为。
