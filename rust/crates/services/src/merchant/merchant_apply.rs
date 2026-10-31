@@ -258,27 +258,7 @@ impl MerchantApplyService {
             .await?;
 
         if status == STATUS_PASS {
-            // Java `Assert.isTrue(user mobile)` → 「请先绑定手机号」
-            let user_id = apply.user_id.unwrap_or(0);
-            let users = self.repo().find_users(&[user_id]).await?;
-            let mobile = users.first().map(|u| u.3.clone()).unwrap_or_default();
-            if mobile.trim().is_empty() {
-                return Err(Error::biz(SERVICE_DATA_ERROR, MOBILE_NOT_BOUND));
-            }
-            let merchant_id = self.repo()
-                .insert_merchant_from_apply(
-                    id,
-                    user_id,
-                    now,
-                    apply.base_data.as_deref(),
-                    apply.shop_data.as_deref(),
-                    apply.merchant_data.as_deref(),
-                    apply.r#type.unwrap_or(1),
-                    apply.company_name.as_deref(),
-                    apply.corporate_name.as_deref(),
-                )
-                .await?;
-            self.open_shop_after_audit(&apply, merchant_id, now).await?;
+            self.open_shop_for_passed_apply(&apply, now).await?;
             self.notify_audit_result(&apply, true, param.audit_remark.as_deref()).await;
         } else {
             self.notify_audit_result(&apply, false, param.audit_remark.as_deref()).await;
@@ -371,6 +351,36 @@ impl MerchantApplyService {
                 tracing::warn!("商户审核通知发送失败: {e}");
             }
         }
+    }
+
+    /// 免审核/人工审核共用的开店入口：建 merchant + 管理员/店铺/角色/账户/模板。
+    pub async fn open_shop_for_passed_apply(
+        &self,
+        apply: &tigshop_core::entities::MerchantApply,
+        now: i32,
+    ) -> Result<i32> {
+        let user_id = apply.user_id.unwrap_or(0);
+        let users = self.repo().find_users(&[user_id]).await?;
+        let mobile = users.first().map(|u| u.3.clone()).unwrap_or_default();
+        if mobile.trim().is_empty() {
+            return Err(Error::biz(SERVICE_DATA_ERROR, MOBILE_NOT_BOUND));
+        }
+        let merchant_id = self
+            .repo()
+            .insert_merchant_from_apply(
+                apply.merchant_apply_id,
+                user_id,
+                now,
+                apply.base_data.as_deref(),
+                apply.shop_data.as_deref(),
+                apply.merchant_data.as_deref(),
+                apply.r#type.unwrap_or(1),
+                apply.company_name.as_deref(),
+                apply.corporate_name.as_deref(),
+            )
+            .await?;
+        self.open_shop_after_audit(apply, merchant_id, now).await?;
+        Ok(merchant_id)
     }
 
     /// 审核通过后的开店：管理员、店铺、商户用户、店铺管理员关联。
