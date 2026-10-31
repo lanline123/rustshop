@@ -392,6 +392,26 @@ async fn xendit_notify(
     let body_str = String::from_utf8_lossy(&body).to_string();
     let payload: serde_json::Value = serde_json::from_str(&body_str)
         .map_err(|e| AppError(tigshop_core::Error::Validation(format!("Xendit 回调报文非法: {e}"))))?;
+    if let Some(event) = payload.get("event").and_then(serde_json::Value::as_str) {
+        if event.to_ascii_lowercase().starts_with("refund.") {
+            let data = payload.get("data").unwrap_or(&payload);
+            let is_succeeded = event.eq_ignore_ascii_case("refund.succeeded")
+                || data.get("status").and_then(serde_json::Value::as_str).is_some_and(|s| s.eq_ignore_ascii_case("SUCCEEDED"));
+            let refund_sn = data.get("reference_id").and_then(serde_json::Value::as_str).unwrap_or("");
+            if is_succeeded && !refund_sn.is_empty() {
+                let row: Option<(i32, i32, Decimal)> = sqlx::query_as(
+                    "SELECT paylog_refund_id, paylog_id, refund_amount FROM paylog_refund WHERE refund_sn=? LIMIT 1",
+                ).bind(refund_sn).fetch_optional(&state.repos.pool).await
+                    .map_err(|e| AppError(tigshop_core::Error::Database(e.to_string())))?;
+                if let Some((id, paylog_id, amount)) = row {
+                    state.payment.paylog.update_refund_status(id, RefundStatus::Success).await?;
+                    state.repos.payment.paylog.add_refund_amount(paylog_id, amount).await?;
+                }
+                return Ok((StatusCode::OK, Json(serde_json::json!({"status":"OK"}))).into_response());
+            }
+            return Ok((StatusCode::BAD_REQUEST, Json(serde_json::json!({"status":"FAILED"}))).into_response());
+        }
+    }
     let status = payload.get("status").and_then(serde_json::Value::as_str).unwrap_or_default();
     if !matches!(status, "PAID" | "SETTLED") {
         return Ok((StatusCode::OK, Json(serde_json::json!({"status":"OK"}))).into_response());

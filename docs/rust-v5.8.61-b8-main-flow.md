@@ -621,3 +621,15 @@ PAYMENT.CAPTURE.REFUNDED:
 ```
 
 PayPal 下单时已将 PayPal order id 写入 `paylog.transaction_id`。
+
+## 2026-10-31 补充：Xendit 退款回调
+
+`xendit_notify` 新增：
+
+```text
+event 以 refund. 开头
+data = payload.data ?? payload
+refund.succeeded 或 data.status=SUCCEEDED
+reference_id = refund_sn
+paylog_refund 成功 + 回写退款金额
+```
