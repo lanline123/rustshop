@@ -352,7 +352,7 @@ impl RefundApplyService {
                         .await?
                     {
                         let code = paylog.pay_code.as_str();
-                        if matches!(code, "stripe" | "paypal" | "xendit") {
+                        if matches!(code, "stripe" | "paypal" | "xendit" | "wechat" | "alipay") {
                             let refund_sn = format!("RF{}{}", tigshop_common::utils::now_seconds(), dto.refund_id);
                             let paylog_service = crate::payment::paylog::PaylogService::new(self.repos.clone());
                             let refund_id = paylog_service

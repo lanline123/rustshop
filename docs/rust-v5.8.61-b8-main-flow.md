@@ -451,3 +451,28 @@ paylog.transaction_id（Stripe payment_intent / PayPal captureId / Xendit invoic
 ```
 
 其它渠道保持处理中，等待人工或后续补渠道方法。
+
+## 2026-10-31 补充：微信/支付宝退款
+
+微信 v3：
+
+```text
+POST /v3/refund/domestic/refunds
+out_trade_no / out_refund_no
+amount.refund / amount.total / currency
+notify_url=/api/order/pay/refundNotify/wechat
+```
+
+支付宝：
+
+```text
+method=alipay.trade.refund
+out_trade_no / refund_amount / out_request_no=refund_sn
+RSA2 签名 POST gateway
+```
+
+退款审核自动处理渠道扩展为：
+
+```text
+wechat / alipay / stripe / paypal / xendit
+```

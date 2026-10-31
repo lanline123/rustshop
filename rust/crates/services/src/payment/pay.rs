@@ -1097,6 +1097,8 @@ impl PayService {
             return Err(Error::biz(500, "原支付交易号缺失，无法退款"));
         }
         match pay_code {
+            "wechat" => self.wechat_refund(pay_sn, refund_sn, refund_amount, paylog.pay_amount).await,
+            "alipay" => self.alipay_refund(pay_sn, refund_sn, refund_amount).await,
             "stripe" => self.stripe_refund(&paylog.transaction_id, refund_sn, refund_amount).await,
             "paypal" => self.paypal_refund(&paylog.transaction_id, refund_sn, refund_amount).await,
             "xendit" => self.xendit_refund(&paylog.transaction_id, refund_sn, refund_amount).await,
@@ -1216,6 +1218,116 @@ impl PayService {
         }
         let v: serde_json::Value = serde_json::from_str(&text).unwrap_or(serde_json::Value::Null);
         Ok(v.get("status").and_then(|s| s.as_str()).unwrap_or("PENDING").to_string())
+    }
+
+    /// 微信支付 v3 退款。
+    async fn wechat_refund(
+        &self,
+        pay_sn: &str,
+        refund_sn: &str,
+        refund_amount: rust_decimal::Decimal,
+        total_amount: rust_decimal::Decimal,
+    ) -> Result<String> {
+        use crate::payment::channels::{load_channel_configs, wechat_authorization, wechat_sign, wechat_sign_message};
+        let configs = load_channel_configs(&self.repos).await?;
+        let cfg = &configs.wechat;
+        if !cfg.is_configured() {
+            return Err(Error::biz(1001, "微信支付未配置"));
+        }
+        let pc_domain = self.config_value("pcDomain").await?.unwrap_or_default();
+        let notify_url = if pc_domain.trim().is_empty() {
+            String::new()
+        } else {
+            format!("{}/api/order/pay/refundNotify/wechat", pc_domain.trim_end_matches('/'))
+        };
+        let refund_fen = (refund_amount * rust_decimal::Decimal::from(100)).round().to_string();
+        let total_fen = (total_amount * rust_decimal::Decimal::from(100)).round().to_string();
+        let mut body = serde_json::json!({
+            "out_trade_no": pay_sn,
+            "out_refund_no": refund_sn,
+            "reason": "退款",
+            "amount": {"refund": refund_fen, "total": total_fen, "currency": "CNY"}
+        });
+        if !notify_url.is_empty() {
+            body["notify_url"] = serde_json::Value::String(notify_url);
+        }
+        let path = "/v3/refund/domestic/refunds";
+        let body_text = body.to_string();
+        let timestamp = tigshop_common::utils::now_seconds().to_string();
+        let nonce = uuid::Uuid::new_v4().simple().to_string();
+        let message = wechat_sign_message("POST", path, &timestamp, &nonce, &body_text);
+        let private_key = cfg.private_key_pem.as_deref().unwrap_or_default();
+        let signature = wechat_sign(private_key, &message)?;
+        let auth = wechat_authorization(&cfg.mchid, &cfg.serial_no, &nonce, &timestamp, &signature);
+        let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(25)).build()
+            .map_err(|e| Error::Internal(e.to_string()))?;
+        let resp = client.post(format!("https://api.mch.weixin.qq.com{path}"))
+            .header("Authorization", auth)
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json")
+            .body(body_text).send().await
+            .map_err(|e| Error::biz(1001, format!("微信退款网络异常: {e}")))?;
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        if !status.is_success() {
+            return Err(Error::biz(1001, format!("微信退款失败: {text}")));
+        }
+        let v: serde_json::Value = serde_json::from_str(&text).unwrap_or(serde_json::Value::Null);
+        Ok(v.get("status").and_then(|s| s.as_str()).unwrap_or("PROCESSING").to_string())
+    }
+
+    /// 支付宝退款。
+    async fn alipay_refund(
+        &self,
+        pay_sn: &str,
+        refund_sn: &str,
+        refund_amount: rust_decimal::Decimal,
+    ) -> Result<String> {
+        use crate::payment::channels::{alipay_rsa2_sign, alipay_sign_content, load_channel_configs};
+        use std::collections::BTreeMap;
+        let configs = load_channel_configs(&self.repos).await?;
+        let cfg = &configs.alipay;
+        if !cfg.is_configured() {
+            return Err(Error::biz(1001, "支付宝未配置"));
+        }
+        let biz = serde_json::json!({
+            "out_trade_no": pay_sn,
+            "refund_amount": refund_amount.to_string(),
+            "out_request_no": refund_sn,
+            "refund_reason": "退款"
+        });
+        let mut params: BTreeMap<String, String> = BTreeMap::new();
+        params.insert("app_id".into(), cfg.app_id.clone());
+        params.insert("method".into(), "alipay.trade.refund".into());
+        params.insert("format".into(), "JSON".into());
+        params.insert("charset".into(), "utf-8".into());
+        params.insert("sign_type".into(), "RSA2".into());
+        params.insert("timestamp".into(), chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string());
+        params.insert("version".into(), "1.0".into());
+        params.insert("biz_content".into(), biz.to_string());
+        let content = alipay_sign_content(&params);
+        let private_key = cfg.private_key_pem.as_deref().unwrap_or_default();
+        let sign = alipay_rsa2_sign(private_key, &content)?;
+        let mut pairs: Vec<String> = params.iter()
+            .map(|(k, v)| format!("{}={}", url_encode(k), url_encode(v)))
+            .collect();
+        pairs.push(format!("sign={}", url_encode(&sign)));
+        let body = pairs.join("&");
+        let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(25)).build()
+            .map_err(|e| Error::Internal(e.to_string()))?;
+        let resp = client.post("https://openapi.alipay.com/gateway.do")
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(body).send().await
+            .map_err(|e| Error::biz(1001, format!("支付宝退款网络异常: {e}")))?;
+        let text = resp.text().await.unwrap_or_default();
+        let v: serde_json::Value = serde_json::from_str(&text).map_err(|_| Error::Internal("支付宝退款响应解析失败".into()))?;
+        let result = v.get("alipay_trade_refund_response").cloned().unwrap_or(serde_json::Value::Null);
+        let code = result.get("code").and_then(|c| c.as_str()).unwrap_or("");
+        if code != "10000" {
+            let msg = result.get("sub_msg").or_else(|| result.get("msg")).and_then(|m| m.as_str()).unwrap_or("支付宝退款失败");
+            return Err(Error::biz(1001, msg.to_string()));
+        }
+        Ok("SUCCESS".to_string())
     }
 
     /// 创建通用待支付 paylog（渠道下单前落库）。
