@@ -1,20 +1,21 @@
 //! AI 图片与地图设置（v5.8.61 `/adminapi/file/aiImage/*`、`/setting/config/*`）。
 
 use axum::{
-    extract::{Query, State},
+    extract::{Extension, Query, State},
     routing::{get, post},
     Json, Router,
 };
 use serde_json::{json, Value};
 use tigshop_core::Error;
-use tigshop_security::web::{ok, ApiResult, AppError};
+use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 
 use crate::AdminState;
 
-const CONFIG_KEYS: [&str; 10] = [
+const CONFIG_KEYS: [&str; 13] = [
     "aiImageEnabled", "aiImageProvider", "aiImageApiKey", "aiImageSecret",
     "aiImageModel", "aiImageTranslateSource", "amapWebKey", "amapWebSecret",
-    "mapProvider", "aiImageTranslateEnabled",
+    "mapProvider", "aiImageTranslateEnabled", "aiImageAuthorization",
+    "aiImageProjectId", "aiImageTranslateProductText",
 ];
 
 pub fn routes(state: &AdminState) -> Router<AdminState> {
@@ -68,6 +69,9 @@ async fn load(state: &AdminState) -> Result<Value, AppError> {
         "secret": mask(&get("aiImageSecret")),
         "model": get("aiImageModel"),
         "translateEnabled": get("aiImageTranslateEnabled") == "1",
+        "authorization": mask(&get("aiImageAuthorization")),
+        "projectId": get("aiImageProjectId"),
+        "translateProductText": get("aiImageTranslateProductText") == "1",
         "mapProvider": get("mapProvider"),
         "amapWebKey": mask(&get("amapWebKey")),
         "amapWebSecret": mask(&get("amapWebSecret"))
@@ -85,7 +89,16 @@ fn mask(v: &str) -> String {
 }
 
 async fn get_translate_config(State(state): State<AdminState>) -> ApiResult<Value> {
-    ok(load(&state).await?)
+    let rows = sqlx::query("SELECT lang_code,lang_name FROM ai_translate_language WHERE is_source=1 ORDER BY sort,id")
+        .fetch_all(&state.repos.pool)
+        .await
+        .map_err(|e| AppError(Error::Database(e.to_string())))?;
+    use sqlx::Row;
+    let list: Vec<Value> = rows.into_iter().map(|r| json!({
+        "language": r.try_get::<String,_>("lang_code").unwrap_or_default(),
+        "languageName": r.try_get::<String,_>("lang_name").unwrap_or_default()
+    })).collect();
+    ok(json!({"sourceLanguageList": list}))
 }
 async fn ai_image_settings(State(state): State<AdminState>) -> ApiResult<Value> {
     ok(load(&state).await?)
@@ -105,6 +118,9 @@ async fn save_ai_image(
         ("aiImageSecret", "secret"),
         ("aiImageModel", "model"),
         ("aiImageTranslateEnabled", "translateEnabled"),
+        ("aiImageAuthorization", "authorization"),
+        ("aiImageProjectId", "projectId"),
+        ("aiImageTranslateProductText", "translateProductText"),
     ];
     for (code, field) in pairs {
         if let Some(v) = body.get(field) {
@@ -131,10 +147,90 @@ async fn save_amap(
     ok(())
 }
 
-async fn translate(Json(body): Json<Value>) -> ApiResult<Value> {
-    // 未接翻译服务时原样返回源文本，不伪造译文。
-    let text = body.get("text").and_then(Value::as_str).unwrap_or("");
-    ok(json!({"text": text, "translated": false}))
+async fn translate(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<Value>,
+) -> ApiResult<Value> {
+    let rows = state.system.config_basic.repo().find_by_codes(&CONFIG_KEYS).await.map_err(AppError)?;
+    let get = |key: &str| rows.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone()).unwrap_or_default();
+    if get("aiImageEnabled") != "1" {
+        return Err(AppError(Error::biz(400, "AI图片处理功能未启用")));
+    }
+    let authorization = get("aiImageAuthorization");
+    let project_id = get("aiImageProjectId");
+    if authorization.is_empty() || project_id.is_empty() {
+        return Err(AppError(Error::biz(400, "请先配置AI Authorization和Project ID")));
+    }
+    let urls: Vec<String> = body.get("imgUrls").and_then(Value::as_array).map(|a| {
+        a.iter().filter_map(Value::as_str).map(ToString::to_string).collect()
+    }).unwrap_or_default();
+    if urls.is_empty() {
+        return Err(AppError(Error::biz(400, "图片列表不能为空")));
+    }
+    if urls.len() > 10 {
+        return Err(AppError(Error::biz(400, "单次最多处理10张图片")));
+    }
+    let source = body.get("sourceLanguage").and_then(Value::as_str).unwrap_or("zh");
+    let target = body.get("targetLanguage").and_then(Value::as_str).unwrap_or("en");
+    let translate_product = body.get("isTranslateProductText").and_then(Value::as_bool)
+        .unwrap_or_else(|| get("aiImageTranslateProductText") == "1");
+    let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(300)).build()
+        .map_err(|e| AppError(Error::Internal(e.to_string())))?;
+    let mut results = Vec::new();
+    for url in urls {
+        let id = uuid::Uuid::new_v4().simple().to_string();
+        let req = json!({
+            "request_id": id,
+            "customer_id": "tigshop",
+            "image": url,
+            "lang_from": source,
+            "lang_to": target,
+            "engine": "2",
+            "commodity_protection": !translate_product,
+            "return_text": false
+        });
+        let resp = client.post("https://api.fengniaoai.com/api/v1/img/translate")
+            .header("Authorization", &authorization)
+            .header("fengniaoai-project", &project_id)
+            .json(&req).send().await;
+        let mut item = json!({"originalUrl": url, "translateImgId": id, "success": false});
+        match resp {
+            Ok(r) => {
+                let v: Value = r.json().await.unwrap_or(Value::Null);
+                if v.get("code").and_then(Value::as_i64) == Some(200) {
+                    if let Some(temp) = v.get("result").and_then(|r| r.get("translatedUrl")).and_then(Value::as_str) {
+                        match client.get(temp).send().await {
+                            Ok(dl) if dl.status().is_success() => {
+                                if let Ok(bytes) = dl.bytes().await {
+                                    let size = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+                                    match state.content.gallery_pic.upload_img(None, Some("image/jpeg"), size, Some("ai-translate.jpg"), &bytes, 0, auth.id).await {
+                                        Ok(vo) => {
+                                            let url_out = serde_json::to_value(vo).ok()
+                                                .and_then(|v| v.get("url").and_then(Value::as_str).map(ToString::to_string))
+                                                .unwrap_or(temp.to_string());
+                                            item["translatedUrl"] = Value::String(url_out);
+                                            item["success"] = Value::Bool(true);
+                                        }
+                                        Err(e) => item["errorMsg"] = Value::String(e.to_string()),
+                                    }
+                                }
+                            }
+                            _ => item["errorMsg"] = Value::String("翻译结果下载失败".into()),
+                        }
+                    } else {
+                        item["errorMsg"] = Value::String("蜂鸟翻译响应缺少结果图URL".into());
+                    }
+                } else {
+                    let msg = v.get("msg").and_then(Value::as_str).or_else(|| v.get("errmsg").and_then(Value::as_str)).unwrap_or("蜂鸟AI调用失败");
+                    item["errorMsg"] = Value::String(msg.to_string());
+                }
+            }
+            Err(e) => item["errorMsg"] = Value::String(format!("蜂鸟AI请求异常: {e}")),
+        }
+        results.push(item);
+    }
+    ok(json!({"results": results}))
 }
 
 async fn inpaint(Json(_body): Json<Value>) -> ApiResult<Value> {

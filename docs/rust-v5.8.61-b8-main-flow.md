@@ -161,3 +161,39 @@ POST /promotion/giftCards/importList       xlsx 导入
 成功数累加 availability_stock
 返回 successCount / failCount / failList
 ```
+
+## 2026-10-31 补充：AI 图片翻译
+
+配置键对齐 Java：
+
+```text
+aiImageEnabled
+aiImageAuthorization
+aiImageProjectId
+aiImageTranslateProductText
+```
+
+接口：
+
+```text
+GET  /file/aiImage/getTranslateConfig  返回 sourceLanguageList
+POST /file/aiImage/translate           调用蜂鸟 /api/v1/img/translate
+POST /file/aiImage/localesList         已接真实 locales
+```
+
+翻译流程：
+
+```text
+校验启用/Authorization/ProjectId
+imgUrls 1-10 张
+逐张调用蜂鸟翻译
+下载 translatedUrl
+转存 gallery_pic
+返回 results（originalUrl/translatedUrl/success/errorMsg）
+```
+
+仍待补：
+
+```text
+AI 智能消除（OCR + 遮罩 + eliminate + 轮询）
+```
