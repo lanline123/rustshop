@@ -721,3 +721,23 @@ Authorization: Bearer profitSharingFinishKey
 ```
 
 渠道成功后再落本地完结状态；未配置地址时保持现有本地完结行为。
+
+## 2026-10-31 补充：微信直播回调自动建单
+
+`handle_inbound_callback` 在无本地订单且 payload 含商品明细时不再报未迁移，改为：
+
+```text
+openId -> user_authorize.user_id
+items / orderItems / goodsList / products / productId
+product / product_sku 取名称、编码、图、店铺、价格、sku
+shippingFee + 商品金额 = 总金额
+写 order（order_source=miniProgram，订单扩展记录回调）
+写 order_item
+已支付回调写 paylog
+```
+
+当前简化项：
+
+```text
+库存扣减、销量、订单关联表、促销快照、优惠券/积分待后续
+```

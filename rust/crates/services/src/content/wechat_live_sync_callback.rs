@@ -48,7 +48,9 @@
 
 use std::sync::Arc;
 
-use tigshop_core::models::content::wechat_live_sync_callback::{WechatLiveSyncCallbackDTO, AUTO_CREATE_UNMIGRATED_MSG, SERVICE_DATA_ERROR};
+use serde_json::Value;
+use tigshop_common::utils::now_seconds;
+use tigshop_core::models::content::wechat_live_sync_callback::{WechatLiveSyncCallbackDTO, SERVICE_DATA_ERROR};
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::content::wechat_live_sync_callback::InboundLogWrite;
 use tigshop_infrastructure::db::Repositories;
@@ -68,6 +70,152 @@ impl WechatLiveSyncCallbackService {
     #[must_use]
     pub fn repo(&self) -> &tigshop_infrastructure::db::repo::content::wechat_live_sync_callback::WechatLiveSyncCallbackRepository {
         &self.repos.content.wechat_live_sync_callback
+    }
+
+    /// 微信直播回调自动建单（简化版：订单/明细/已支付流水；库存与促销快照待后续）。
+    async fn auto_create_order(
+        &self,
+        dto: &WechatLiveSyncCallbackDTO,
+    ) -> Result<i32> {
+        use tigshop_core::models::content::wechat_live_sync_callback::{
+            extract_order_item_payload, to_int,
+        };
+        if let Some(sn) = dto.effective_order_sn() {
+            if let Some(id) = self.repo().find_order_id_by_sn(sn).await? {
+                return Ok(id);
+            }
+        }
+        let payload = dto.payload.as_ref().cloned().unwrap_or_default();
+        let open_id = ["viewerOpenId", "openId", "userOpenId"]
+            .iter()
+            .find_map(|k| payload.get(*k).and_then(Value::as_str))
+            .unwrap_or("");
+        if open_id.is_empty() {
+            return Err(Error::biz(1001, "微信回调缺少用户openId，无法自动建单"));
+        }
+        let user_id: Option<i32> = sqlx::query_scalar(
+            "SELECT user_id FROM user_authorize WHERE open_id=? LIMIT 1",
+        )
+        .bind(open_id)
+        .fetch_optional(&self.repos.pool)
+        .await
+        .map_err(|e| Error::Database(e.to_string()))?;
+        let Some(user_id) = user_id else {
+            return Err(Error::biz(1001, "未找到openId对应用户，无法自动建单"));
+        };
+        let items = extract_order_item_payload(&payload);
+        if items.is_empty() {
+            return Err(Error::biz(1001, "微信回调缺少商品明细，无法自动建单"));
+        }
+        let mut product_amount = rust_decimal::Decimal::ZERO;
+        let mut prepared = Vec::new();
+        for item in &items {
+            let product_id = item.get("productId").and_then(|v| to_int(Some(v)))
+                .ok_or_else(|| Error::biz(1001, "微信回调商品未匹配到系统商品"))?;
+            let (name, sn, pic, shop_id, product_price, product_type): (String, String, String, i32, rust_decimal::Decimal, i32) = sqlx::query_as(
+                "SELECT product_name,product_sn,pic_thumb,shop_id,product_price,product_type FROM product WHERE product_id=? AND is_delete=0 LIMIT 1",
+            ).bind(product_id).fetch_optional(&self.repos.pool).await
+                .map_err(|e| Error::Database(e.to_string()))?
+                .ok_or_else(|| Error::biz(1001, format!("商品不存在，productId={product_id}")))?;
+            let sku_id = item.get("skuId").and_then(|v| to_int(Some(v)));
+            let (sku_data, sku_price): (String, Option<rust_decimal::Decimal>) = if let Some(sku_id) = sku_id {
+                sqlx::query_as("SELECT sku_data, sku_price FROM product_sku WHERE sku_id=? LIMIT 1")
+                    .bind(sku_id).fetch_optional(&self.repos.pool).await
+                    .map_err(|e| Error::Database(e.to_string()))?
+                    .unwrap_or_default()
+            } else {
+                (String::new(), None)
+            };
+            let quantity = item.get("quantity").and_then(|v| to_int(Some(v))).unwrap_or(1).max(1);
+            let price = item.get("price").and_then(|v| v.as_str()).and_then(|s| s.parse().ok())
+                .or_else(|| item.get("price").and_then(|v| v.as_f64()).map(|f| rust_decimal::Decimal::try_from(f).unwrap_or_default()))
+                .or(sku_price)
+                .unwrap_or(product_price);
+            product_amount += price * rust_decimal::Decimal::from(quantity);
+            prepared.push((product_id, name, sn, pic, shop_id, sku_id, sku_data, price, quantity, product_type));
+        }
+        let shipping_fee = payload.get("shippingFee")
+            .and_then(|v| v.as_str()).and_then(|s| s.parse().ok())
+            .unwrap_or(rust_decimal::Decimal::ZERO);
+        let total = product_amount + shipping_fee;
+        let paid = dto.status.as_deref()
+            .map(|s| s.to_ascii_uppercase().contains("PAID") || s.to_ascii_uppercase().contains("SUCCESS"))
+            .or_else(|| payload.get("payStatus").and_then(|v| to_int(Some(v))).map(|v| v > 0))
+            .unwrap_or(true);
+        let now = i32::try_from(now_seconds()).unwrap_or(0);
+        let preferred = dto.effective_order_sn().unwrap_or("");
+        let order_sn = if !preferred.is_empty() && self.repo().find_order_id_by_sn(preferred).await?.is_none() {
+            preferred.to_string()
+        } else {
+            format!("WX{}{:08}", now, chrono::Utc::now().timestamp_subsec_nanos() % 100_000_000)
+        };
+        let consignee = payload.get("consignee").or_else(|| payload.get("receiverName")).and_then(Value::as_str).unwrap_or("");
+        let mobile = payload.get("mobile").or_else(|| payload.get("receiverMobile")).and_then(Value::as_str).unwrap_or("");
+        let address = payload.get("address").or_else(|| payload.get("receiverAddress")).and_then(Value::as_str).unwrap_or("");
+        let region_ids = payload.get("regionIds").and_then(Value::as_str).unwrap_or("");
+        let region_names = payload.get("regionNames").and_then(Value::as_str).unwrap_or("");
+        let address_data = serde_json::json!({"consignee": consignee, "mobile": mobile, "address": address}).to_string();
+        let shop_id = prepared.first().map(|p| p.4).unwrap_or(0);
+        let extension = serde_json::json!({
+            "wechatLiveInbound": true,
+            "wechatLiveInboundEventType": dto.event_type,
+            "wechatOrderSn": dto.order_sn,
+            "wechatLiveInboundPayload": payload
+        }).to_string();
+        let r = sqlx::query(
+            "INSERT INTO `order`(order_sn,user_id,shop_id,order_type,order_status,shipping_status,pay_status,add_time,pay_time,pay_type_id,shipping_method,shipping_type_id,shipping_type_name,logistics_id,logistics_name,consignee,mobile,address,address_data,region_ids,region_names,buyer_note,order_source,product_amount,shipping_fee,total_amount,coupon_amount,discount_amount,balance,use_points,unpaid_amount,paid_amount,online_paid_amount,unrefund_amount,order_extension) VALUES(?,?,?,1,?,0,?,?,?,1,1,1,'物流配送',0,'待发货',?,?,?,?,?,?,'微信直播自动建单','miniProgram',?,?,?,0,0,0,0,?,?,?,?,?)",
+        )
+        .bind(&order_sn).bind(user_id).bind(shop_id)
+        .bind(if paid { 1 } else { 0 }).bind(if paid { 1 } else { 0 })
+        .bind(now).bind(if paid { Some(now) } else { None })
+        .bind(consignee).bind(mobile).bind(address).bind(&address_data)
+        .bind(region_ids).bind(region_names)
+        .bind(product_amount).bind(shipping_fee).bind(total)
+        .bind(if paid { rust_decimal::Decimal::ZERO } else { total })
+        .bind(if paid { total } else { rust_decimal::Decimal::ZERO })
+        .bind(if paid { total } else { rust_decimal::Decimal::ZERO })
+        .bind(total).bind(&extension)
+        .execute(&self.repos.pool).await
+        .map_err(|e| Error::Database(e.to_string()))?;
+        let order_id = i32::try_from(r.last_insert_id()).unwrap_or(0);
+        for (pid, name, sn, pic, shop, sku_id, sku_data, price, qty, ptype) in prepared {
+            sqlx::query(
+                "INSERT INTO order_item(order_id,order_sn,user_id,product_id,product_name,product_sn,pic_thumb,shop_id,sku_id,sku_data,price,origin_price,quantity,delivery_quantity,product_type,promotion_data) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,0,?, '')",
+            )
+            .bind(order_id).bind(&order_sn).bind(user_id).bind(pid).bind(&name).bind(&sn).bind(&pic)
+            .bind(shop).bind(sku_id).bind(&sku_data).bind(price).bind(price).bind(qty).bind(ptype)
+            .execute(&self.repos.pool).await
+            .map_err(|e| Error::Database(e.to_string()))?;
+        }
+        if paid {
+            use tigshop_core::models::payment::paylog::{generate_pay_sn, PayOrderType};
+            use tigshop_infrastructure::db::repo::payment::paylog::PAYLOG_STATUS_PAID;
+            let pay_sn = payload.get("paySn").or_else(|| payload.get("outTradeNo"))
+                .and_then(Value::as_str).unwrap_or("").to_string();
+            let pay_sn = if pay_sn.is_empty() { generate_pay_sn() } else { pay_sn };
+            let paylog = tigshop_core::entities::Paylog {
+                paylog_id: 0,
+                pay_sn: pay_sn.clone(),
+                pay_name: "微信支付-直播".into(),
+                order_id,
+                order_sn: order_sn.clone(),
+                order_amount: total,
+                order_type: PayOrderType::Product as i32,
+                pay_amount: total,
+                pay_status: PAYLOG_STATUS_PAID,
+                pay_code: "wechat".into(),
+                profit_sharing_channel: None,
+                add_time: Some(now),
+                transaction_id: payload.get("transactionId").and_then(Value::as_str).unwrap_or(&pay_sn).to_string(),
+                notify_data: serde_json::to_string(&payload).unwrap_or_default(),
+                refund_amount: rust_decimal::Decimal::ZERO,
+                token_code: String::new(),
+                appid: None,
+            };
+            self.repos.payment.paylog.insert(&paylog).await?;
+        }
+        tracing::info!(order_id, order_sn = %order_sn, "微信直播回调自动建单完成");
+        Ok(order_id)
     }
 
     /// 处理入站回调（对应 Java `handleInboundCallback`）。
@@ -92,12 +240,7 @@ impl WechatLiveSyncCallbackService {
 
         // 3. Java `if (orderId == null && shouldAutoCreateOrder(...)) createOrder...`
         if order_id.is_none() && dto.should_auto_create_order() {
-            tracing::warn!(
-                event_type = %dto.event_type.as_deref().unwrap_or(""),
-                idempotent_key = %dto.idempotent_key.as_deref().unwrap_or(""),
-                "微信直播回调要求自动建单，但该链路未迁移，返回业务错误（未写任何数据）"
-            );
-            return Err(Error::biz(SERVICE_DATA_ERROR, AUTO_CREATE_UNMIGRATED_MSG));
+            order_id = Some(self.auto_create_order(dto).await?);
         }
 
         // 4. Java roomId 兜底：dto.roomId ?? rel 表最新一条非空 room_id
