@@ -771,3 +771,16 @@ Authorization: Bearer merchantApplyNotifyKey
 ```
 
 发送失败只写日志，不阻塞审核主流程；未配置 webhook 时记录 info 日志。
+
+## 2026-10-31 补充：分账批量提交适配器
+
+`submitBatch` 不再直接报未迁移：
+
+```text
+读取 profitSharingSubmitUrl / profitSharingSubmitKey
+按 order_id 查 status IN (0,3) 的分账单
+逐笔 POST outOrderNo/transactionId/subMchId/channel/amount/orderId
+成功 -> status=1（处理中）或 2（渠道返回 SUCCESS）
+失败 -> status=3 + result_desc
+无记录 -> 「没有可提交的分账记录」
+```

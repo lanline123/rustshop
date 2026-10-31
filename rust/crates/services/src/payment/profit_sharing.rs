@@ -113,8 +113,84 @@ impl ProfitSharingService {
                 return Err(Error::biz(500, format!("订单不存在: {order_id}")));
             }
         }
-        let _ = trigger_desc(1);
-        Err(Error::biz(1001, MSG_CHANNEL_UNMIGRATED))
+        let url: Option<String> = sqlx::query_scalar::<_, String>(
+            "SELECT biz_val FROM config WHERE biz_code=? LIMIT 1",
+        )
+        .bind("profitSharingSubmitUrl")
+        .fetch_optional(&self.repos.pool)
+        .await
+        .map_err(|e| Error::Database(e.to_string()))?;
+        let url = url
+            .filter(|v| !v.trim().is_empty())
+            .ok_or_else(|| Error::biz(1001, "分账渠道未配置：profitSharingSubmitUrl"))?;
+        let key: Option<String> = sqlx::query_scalar(
+            "SELECT biz_val FROM config WHERE biz_code=? LIMIT 1",
+        )
+        .bind("profitSharingSubmitKey")
+        .fetch_optional(&self.repos.pool)
+        .await
+        .ok()
+        .flatten();
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(25))
+            .build()
+            .map_err(|e| Error::Internal(e.to_string()))?;
+        let now = now_datetime();
+        let mut submitted = 0;
+        for order_id in &ids {
+            let rows: Vec<(i64, String, String, String, String, rust_decimal::Decimal)> = sqlx::query_as(
+                "SELECT id,out_order_no,transaction_id,sub_mch_id,pay_channel,split_amount FROM profit_sharing_order WHERE order_id=? AND status IN (0,3) AND is_del=0",
+            )
+            .bind(order_id)
+            .fetch_all(&self.repos.pool)
+            .await
+            .map_err(|e| Error::Database(e.to_string()))?;
+            for (id, out_order_no, transaction_id, sub_mch_id, pay_channel, amount) in rows {
+                let mut req = client
+                    .post(url.trim())
+                    .header("Content-Type", "application/json")
+                    .body(serde_json::json!({
+                        "outOrderNo": out_order_no,
+                        "transactionId": transaction_id,
+                        "subMchId": sub_mch_id,
+                        "channel": pay_channel,
+                        "amount": amount.to_string(),
+                        "orderId": order_id
+                    }).to_string());
+                if let Some(k) = key.as_ref().filter(|v| !v.trim().is_empty()) {
+                    req = req.header("Authorization", format!("Bearer {}", k.trim()));
+                }
+                let resp = req.send().await
+                    .map_err(|e| Error::biz(1001, format!("分账提交渠道异常: {e}")))?;
+                let status = resp.status();
+                let text = resp.text().await.unwrap_or_default();
+                let json: serde_json::Value = serde_json::from_str(&text).unwrap_or(serde_json::Value::Null);
+                let ok = status.is_success()
+                    && json.get("success").and_then(serde_json::Value::as_bool).unwrap_or(true);
+                let channel_id = json.get("channelOrderId").and_then(serde_json::Value::as_str).unwrap_or("");
+                let new_status = if ok {
+                    if json.get("status").and_then(serde_json::Value::as_str)
+                        .is_some_and(|s| s.eq_ignore_ascii_case("SUCCESS")) { 2 } else { 1 }
+                } else { 3 };
+                sqlx::query(
+                    "UPDATE profit_sharing_order SET status=?,channel_order_id=?,result_desc=?,modify_time=? WHERE id=?",
+                )
+                .bind(new_status)
+                .bind(channel_id)
+                .bind(if ok { "" } else { text.as_str() })
+                .bind(&now)
+                .bind(id)
+                .execute(&self.repos.pool)
+                .await
+                .map_err(|e| Error::Database(e.to_string()))?;
+                submitted += 1;
+            }
+        }
+        if submitted == 0 {
+            return Err(Error::biz(500, "没有可提交的分账记录"));
+        }
+        tracing::info!("分账批量提交完成: {}", submitted);
+        Ok(())
     }
 
     /// 手动完结分账单（Java `manualFinishProfitSharing`）。
