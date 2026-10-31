@@ -36,6 +36,7 @@
 | PayPal OAuth2 下单 | 完成 |
 | Stripe Checkout 下单 | 完成 |
 | Xendit Invoice 下单 | 完成 |
+| Antom Hosted Checkout 下单 | 完成 |
 | Stripe/Xendit 回调 | 完成 |
 | Antom 回调 RSA 验签 | 完成 |
 | 商户本地媒体签名访问 | 待补 |
