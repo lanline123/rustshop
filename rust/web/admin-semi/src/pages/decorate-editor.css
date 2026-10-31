@@ -396,9 +396,9 @@
   user-select: none;
 }
 .pc-decorate-lib__item {
-  width: 50%;
+  width: 33.333%;
   box-sizing: border-box;
-  padding: 10px 5px;
+  padding: 15px 5px;
   text-align: center;
   cursor: pointer;
   position: relative;
