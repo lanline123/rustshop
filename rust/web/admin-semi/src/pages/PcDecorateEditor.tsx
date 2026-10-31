@@ -2083,74 +2083,150 @@ const PC_HEADER_DEFAULTS: Record<string, any> = {
   benefitNoticeGroups: [],
 };
 
-/** 画布顶部：头部实时预览（简约风简化渲染，点击进入设置） */
+/** 画布顶部：头部实时预览（对齐原版 PcHeaderPreview + SimplePreviewBody，点击进设置） */
+
+function useHeaderNavTitles() {
+  const [navItems, setNavItems] = useState<string[]>([]);
+  useEffect(() => {
+    let alive = true;
+    apiGet<{ records?: Array<Record<string, any>> }>('/decorate/pcNavigation/list', { page: 1, size: 10 })
+      .then((res) => {
+        if (!alive) return;
+        const titles = (res.records || [])
+          .filter((item: any) => item.isShow !== false && item.title)
+          .map((item: any) => String(item.title));
+        if (titles.length) setNavItems(titles.slice(0, 8));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return navItems;
+}
+
 function PcHeaderPreviewStrip({ header, onOpen }: { header: Record<string, any>; onOpen: () => void }) {
   const h = { ...PC_HEADER_DEFAULTS, ...header };
-  const simple = Number(h.styleType ?? 1) === 1;
-  const divider = Number(h.bottomDividerType ?? 1);
-  const notices = (h.benefitNoticeGroups || []).flatMap((g: any) => g.notices || []);
+  const styleType = Number(h.styleType ?? 1) === 2 ? 2 : 1;
+  const simple = styleType === 1;
+  const showBenefitBar = Number(h.showBenefitBar ?? 1) !== 0;
+  const showTopMenuBar = Number(h.showTopMenuBar ?? 1) !== 0;
+  const showTopRegion = Number(h.showTopRegion ?? 1) !== 0;
+  const showTopUserMenu = Number(h.showTopUserMenu ?? 1) !== 0;
+  const showTopMemberCenter = Number(h.showTopMemberCenter ?? 1) !== 0;
+  const showTopMemberName = Number(h.showTopMemberName ?? 1) !== 0;
+  const showTopMessage = Number(h.showTopMessage ?? 1) !== 0;
+  const showTopOrders = Number(h.showTopOrders ?? 1) !== 0;
+  const showTopSiteNav = Number(h.showTopSiteNav ?? 1) !== 0;
+  const showRightCart = Number(h.rightCartShow ?? 1) !== 0;
+  const cartStyle = Number(h.cartStyle ?? 1);
+  const showCategory = Number(h.showCategory ?? 1) !== 0 && Number(h.showHomeCategory ?? 1) !== 0;
+  const showMainNav = Number(h.showMainNav ?? 1) !== 0;
+  const showTopMenuCart = Number(h.topMenuCartShow ?? 1) !== 0;
+  const divider = [1, 2].includes(Number(h.bottomDividerType)) ? Number(h.bottomDividerType) : simple ? 2 : 1;
+  const navTitles = useHeaderNavTitles();
+  const navItems = navTitles.length ? navTitles : ['首页', '导航1', '导航2'];
+
+  const topMenuTextStyle: Record<string, any> = {};
+  if (h.topMenuTextColor) topMenuTextStyle.color = h.topMenuTextColor;
+  if (h.topMenuTextHoverColor) (topMenuTextStyle as any)['--hover-color'] = h.topMenuTextHoverColor;
+
+  const stripLeft = simple && (showTopRegion || showTopMemberName);
+  const stripRight = showTopSiteNav || showTopMenuCart || (simple && showTopMenuBar && showTopUserMenu);
+
+  const logoStyle: Record<string, any> = {
+    width: Math.min(Number(h.logoWidth) || 100, 160),
+    height: Math.min(Number(h.logoHeight) || 25, 60),
+    objectFit: 'contain',
+  };
+  const logoAlign = Number(h.logoAlign ?? 1);
+  const searchAccent = Number(h.searchColorType ?? 1) === 2 && h.searchColor ? h.searchColor : '#1a1a1a';
+
   return (
-    <div
-      className="pc-header-preview"
-      onClick={onOpen}
-      title="点击配置 PC 头部装修"
-      style={{ boxShadow: divider === 1 ? '0 2px 6px rgba(0,0,0,0.08)' : 'none', borderBottom: divider === 2 ? '1px solid #e5e9f0' : 'none' }}
-    >
-      {simple && Number(h.showTopMenuBar ?? 1) === 1 && (
-        <div className="pc-header-preview__topbar" style={{ color: h.topMenuTextColor || '#ffffff' }}>
-          <span>{Number(h.showTopRegion) === 1 ? h.topRegionText || '' : ''}</span>
-          <span style={{ display: 'flex', gap: 12 }}>
-            {Number(h.showTopMemberName ?? 1) === 1 && <span>会员信息</span>}
-            {Number(h.showTopSiteNav ?? 1) === 1 && <span>站点导航</span>}
-            {Number(h.showTopUserMenu ?? 1) === 1 && Number(h.showTopMessage ?? 1) === 1 && <span>站内消息</span>}
-            {Number(h.showTopUserMenu ?? 1) === 1 && Number(h.showTopOrders ?? 1) === 1 && <span>我的订单</span>}
-            {Number(h.showTopUserMenu ?? 1) === 1 && Number(h.showTopMemberCenter ?? 1) === 1 && <span>会员中心</span>}
-          </span>
+    <div className="dec-pc-header-preview" onClick={onOpen} title="点击配置 PC 头部装修">
+      {/* 顶部提示条（showBenefitBar 总开关，两种风格共用） */}
+      {showBenefitBar && (
+        <div className="dec-pc-header-preview__strip" style={h.benefitBarBackgroundColor ? { background: h.benefitBarBackgroundColor } : undefined}>
+          <div className="dec-pc-header-preview__strip-inner">
+            <div className="pchead-strip">
+              <div className="pchead-strip__left" style={topMenuTextStyle}>
+                {simple && showTopRegion && <span className="pchead-strip__region">{h.topRegionText || '北京市'}</span>}
+                {simple && showTopMemberName && <a className="pchead-strip__link">会员信息</a>}
+              </div>
+              <div className="pchead-strip__right" style={topMenuTextStyle}>
+                {showTopMenuCart && <a className="pchead-strip__link">🛒 购物车</a>}
+                {simple && showTopMenuBar && showTopUserMenu && (
+                  <span className="pchead-strip__menus">
+                    {showTopMemberCenter && <a className="pchead-strip__link">会员中心 ▾</a>}
+                    {showTopMessage && <a className="pchead-strip__link">站内消息</a>}
+                    {showTopOrders && <a className="pchead-strip__link">我的订单</a>}
+                  </span>
+                )}
+                {showTopSiteNav && <a className="pchead-strip__link">站点导航 ▾</a>}
+              </div>
+            </div>
+          </div>
         </div>
       )}
-      <div className="pc-header-preview__main">
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          {h.logoPic?.picUrl
-            ? <img src={h.logoPic.picUrl} alt="logo" style={{ width: Number(h.logoWidth) || 100, height: Number(h.logoHeight) || 25, objectFit: 'contain' }} />
-            : <span style={{ fontWeight: 800, fontSize: 20, color: '#1a1a1a' }}>LOGO</span>}
-        </div>
-        <div
-          className="pc-header-preview__search"
-          style={Number(h.searchColorType ?? 1) === 2 && h.searchColor ? { background: h.searchColor } : undefined}
-        >
-          <span>搜索商品</span>
-          <span style={{ marginLeft: 'auto' }}>搜索</span>
-        </div>
-        {Number(h.rightCartShow ?? 1) === 1 && (
-          Number(h.cartStyle ?? 1) === 2 && h.cartPic?.picUrl
-            ? <img src={h.cartPic.picUrl} alt="cart" style={{ height: 32 }} />
-            : <span style={{ fontSize: 13 }}>🛒 购物车</span>
-        )}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-        {Number(h.showCategory ?? 1) === 1 && <span className="pc-header-preview__cat">全部分类</span>}
-        {Number(h.showHomeCategory ?? 1) === 1 && <span className="pc-header-preview__cat">首页</span>}
-      </div>
-      {Number(h.showMainNav ?? 1) === 1 && (
-        <div style={{ paddingTop: Number(h.mainNavPaddingTop) || 0, paddingBottom: Number(h.mainNavPaddingBottom) || 0, display: 'flex', gap: 18, justifyContent: 'center', fontSize: 13, color: '#333' }}>
-          <span>首页</span><span>新品上市</span><span>热卖推荐</span><span>关于我们</span>
+      {/* 头部主体（简约风） */}
+      {simple && (
+        <div className={`dec-pchead-body${Number(h.isWhite ?? 1) !== 0 ? ' dec-pchead-body--white' : ''} dec-pchead-body--divider-${divider}`}>
+          <div className="dec-pchead-body__grid">
+            <div className="dec-pchead-body__left">
+              <div className={`dec-pchead-logo dec-pchead-logo--${logoAlign === 2 ? 'center' : logoAlign === 3 ? 'right' : 'left'}`}>
+                {h.logoPic?.picUrl
+                  ? <img src={h.logoPic.picUrl} alt="logo" style={logoStyle} />
+                  : <span style={{ fontWeight: 800, fontSize: 20, color: '#1a1a1a' }}>LOGO</span>}
+              </div>
+              {showCategory && (
+                <div className="dec-pchead-cate" style={{ marginTop: Number(h.categoryMarginTop) || 0 }}>
+                  <span className="dec-pchead-cate__icon">☰</span>
+                  <span className="dec-pchead-cate__txt">分类</span>
+                  <span className="dec-pchead-cate__arrow">▾</span>
+                </div>
+              )}
+            </div>
+            <div className="dec-pchead-body__center">
+              <div className="dec-pchead-search">
+                <div className="dec-pchead-search__box" style={{ borderColor: searchAccent }}>
+                  <span className="dec-pchead-search__type">商品 <i>▾</i></span>
+                  <input className="dec-pchead-search__input" placeholder="请输入关键词" disabled />
+                  <span className="dec-pchead-search__submit" style={{ background: searchAccent }}>搜索</span>
+                </div>
+                {showMainNav && (
+                  <ul className="dec-pchead-nav" style={{ marginTop: Number(h.mainNavPaddingTop) || 0, marginBottom: Number(h.mainNavPaddingBottom) || 0 }}>
+                    {navItems.map((t, i) => <li key={i}>{t}</li>)}
+                  </ul>
+                )}
+              </div>
+            </div>
+            <div className="dec-pchead-body__right">
+              {showRightCart && (
+                cartStyle === 2 ? (
+                  <div className={`dec-pchead-cartpic${h.cartPic?.picUrl ? '' : ' dec-pchead-cartpic--empty'}`}>
+                    {h.cartPic?.picUrl ? <img src={h.cartPic.picUrl} alt="" /> : <span>购物车图</span>}
+                  </div>
+                ) : (
+                  <div className="dec-pchead-cart">
+                    <span className="dec-pchead-cart__icon">🛒</span>
+                    <span className="dec-pchead-cart__count">18</span>
+                    <span className="dec-pchead-cart__text">购物车</span>
+                  </div>
+                )
+              )}
+            </div>
+          </div>
         </div>
       )}
-      {Number(h.showBenefitBar ?? 1) === 1 && (
-        <div style={{ background: h.benefitBarBackgroundColor || '#222222', color: h.benefitTitleColor || '#ffffff', fontSize: 12, textAlign: 'center', padding: '4px 0', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-          {notices.length === 0
-            ? '免运费 · 前三单购物均可免运费！'
-            : notices.slice(0, 4).map((n: any, i: number) => (
-                <span key={i} style={{ margin: '0 10px' }}>
-                  {n.picTitle}
-                  {n.picDesc ? <span style={{ color: h.benefitDescColor || h.benefitTitleColor || '#ffffff', opacity: 0.85 }}>{` ${n.picDesc}`}</span> : null}
-                </span>
-              ))}
+      {!simple && (
+        <div className="dec-pchead-body dec-pchead-body--white dec-pchead-body--divider-0" style={{ padding: '20px 24px', fontSize: 13, color: '#999' }}>
+          跨境风头部（由跨境风专属字段驱动，画布预览以简约风结构为准）
         </div>
       )}
     </div>
   );
 }
+
 
 function PcHeaderPanel({
   header,
