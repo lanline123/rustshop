@@ -270,3 +270,35 @@ pcDomain 回调地址
 ```
 
 依赖真实商户凭据与证书。
+
+## 2026-10-31 补充：支付宝下单
+
+`GET /api/order/pay/create` 的 `alipay/ali` 分支已实现：
+
+```text
+pc  -> alipay.trade.page.pay  HTML 自动提交
+h5  -> alipay.trade.wap.pay   HTML 自动提交
+app -> alipay.trade.app.pay   orderInfo 签名串
+```
+
+参数：
+
+```text
+app_id / method / format / charset / sign_type=RSA2
+timestamp / version / notify_url / biz_content
+```
+
+签名：
+
+```text
+key 升序 k=v&...
+SHA256withRSA
+```
+
+前置：
+
+```text
+创建待支付 paylog
+pcDomain 生成 notify_url
+支付宝配置：alipayAppid / alipayRsaPrivateKey / alipayRsaPublicKey
+```

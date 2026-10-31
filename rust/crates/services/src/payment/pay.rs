@@ -381,10 +381,23 @@ impl PayService {
                         ),
                     ));
                 }
-                Err(Error::biz(
-                    1001,
-                    "支付宝协议骨架已就绪（RSA2 签名 / 异步通知验签），下单接口待沙箱联调",
-                ))
+                let order_id = q.id.unwrap_or(0);
+                let order = self.repo().find_order_by_id(order_id).await?
+                    .ok_or_else(|| Error::biz(500, MSG_ORDER_NOT_FOUND))?;
+                let client_type = q.code.as_deref().unwrap_or("pc");
+                let pay_sn = self.create_pending_paylog(
+                    &order,
+                    "alipay",
+                    &format!("支付宝-订单{}", order.order_sn),
+                ).await?;
+                let pay_info = self.alipay_create(&order, &configs.alipay, client_type, &pay_sn).await?;
+                return Ok(PayCreateVO {
+                    order_id: Some(order.order_id),
+                    order_sn: Some(order.order_sn.clone()),
+                    order_amount: Some(order.unpaid_amount),
+                    pay_info: Some(pay_info),
+                    code: None,
+                });
             }
             "paypal" => {
                 if !configs.paypal.is_configured() {
@@ -586,6 +599,74 @@ impl PayService {
         }
     }
 
+    /// 支付宝下单（page/wap/app）。
+    async fn alipay_create(
+        &self,
+        order: &PayOrderRow,
+        cfg: &crate::payment::channels::AlipayConfig,
+        client_type: &str,
+        pay_sn: &str,
+    ) -> Result<serde_json::Value> {
+        use crate::payment::channels::{alipay_rsa2_sign, alipay_sign_content};
+        use std::collections::BTreeMap;
+        let pc_domain = self.config_value("pcDomain").await?.unwrap_or_default();
+        if pc_domain.trim().is_empty() {
+            return Err(Error::biz(1001, "pcDomain 未配置，无法生成支付宝回调地址"));
+        }
+        let pc = pc_domain.trim_end_matches('/');
+        let (method, product_code) = match client_type {
+            "h5" => ("alipay.trade.wap.pay", "QUICK_WAP_WAY"),
+            "app" | "android" | "ios" => ("alipay.trade.app.pay", "QUICK_MSECURITY_PAY"),
+            _ => ("alipay.trade.page.pay", "FAST_INSTANT_TRADE_PAY"),
+        };
+        let biz = serde_json::json!({
+            "out_trade_no": pay_sn,
+            "total_amount": order.unpaid_amount.to_string(),
+            "subject": format!("订单{}", order.order_sn),
+            "product_code": product_code
+        });
+        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let mut params: BTreeMap<String, String> = BTreeMap::new();
+        params.insert("app_id".into(), cfg.app_id.clone());
+        params.insert("method".into(), method.into());
+        params.insert("format".into(), "JSON".into());
+        params.insert("charset".into(), "utf-8".into());
+        params.insert("sign_type".into(), "RSA2".into());
+        params.insert("timestamp".into(), timestamp);
+        params.insert("version".into(), "1.0".into());
+        params.insert("notify_url".into(), format!("{pc}/api/order/pay/notify/ali"));
+        params.insert("biz_content".into(), biz.to_string());
+        if client_type == "h5" {
+            params.insert("return_url".into(), format!("{pc}/member/order/info?id={}", order.order_id));
+        }
+        let content = alipay_sign_content(&params);
+        let private_key = cfg.private_key_pem.as_deref().unwrap_or_default();
+        let sign = alipay_rsa2_sign(private_key, &content)?;
+        let mut pairs: Vec<String> = params
+            .iter()
+            .filter(|(_, v)| !v.trim().is_empty())
+            .map(|(k, v)| format!("{}={}", url_encode(k), url_encode(v)))
+            .collect();
+        pairs.push(format!("sign={}", url_encode(&sign)));
+        let query = pairs.join("&");
+        if matches!(client_type, "app" | "android" | "ios") {
+            return Ok(serde_json::json!({
+                "provider": "alipay",
+                "codeUrl": "",
+                "orderInfo": query
+            }));
+        }
+        let action = format!("https://openapi.alipay.com/gateway.do?{query}");
+        let html = format!(
+            "<form name=\"punchout_form\" method=\"get\" action=\"{action}\"><input type=\"submit\" value=\"立即支付\" style=\"display:none\"></form><script>document.forms[0].submit();</script>"
+        );
+        Ok(serde_json::json!({
+            "provider": "alipay",
+            "codeUrl": "",
+            "html": html
+        }))
+    }
+
     /// 创建通用待支付 paylog（渠道下单前落库）。
     async fn create_pending_paylog(
         &self,
@@ -653,6 +734,20 @@ impl PayService {
         let _ = (&q.r#type, &q.code);
         Ok(())
     }
+}
+
+/// URL 编码（支付宝网关 query 参数）。
+fn url_encode(input: &str) -> String {
+    let mut out = String::new();
+    for b in input.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char);
+            }
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
 }
 
 /// 登录态校验（Java `requireUserId`）。
