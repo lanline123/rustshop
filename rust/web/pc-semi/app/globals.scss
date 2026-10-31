@@ -3970,3 +3970,24 @@ img {
   border-color: #111827;
   color: #111827;
 }
+.pc-cs { position: fixed; right: 24px; bottom: 28px; z-index: 9999; }
+.pc-cs__fab {
+  width: 54px; height: 54px; border-radius: 50%; border: 0; cursor: pointer;
+  background: #111827; color: #fff; font-size: 14px; box-shadow: 0 8px 24px rgba(0,0,0,.18);
+}
+.pc-cs__panel {
+  width: 340px; height: 460px; background: #fff; border-radius: 14px;
+  box-shadow: 0 16px 48px rgba(15,23,42,.2); display: flex; flex-direction: column;
+  margin-bottom: 14px; overflow: hidden; border: 1px solid #eef1f5;
+}
+.pc-cs__head { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; background: #111827; color: #fff; }
+.pc-cs__head button { background: transparent; border: 0; color: #fff; font-size: 20px; cursor: pointer; }
+.pc-cs__body { flex: 1; overflow-y: auto; padding: 14px; background: #f8fafc; }
+.pc-cs__tip { color: #94a3b8; font-size: 13px; text-align: center; margin: 18px 0; }
+.pc-cs__msg { max-width: 78%; margin: 0 0 10px; padding: 9px 12px; border-radius: 10px; background: #fff; color: #1f2937; font-size: 14px; line-height: 1.6; word-break: break-word; }
+.pc-cs__msg.is-mine { margin-left: auto; background: #111827; color: #fff; }
+.pc-cs__error { color: #dc2626; font-size: 12px; padding: 6px 14px; }
+.pc-cs__input { display: flex; border-top: 1px solid #eef1f5; }
+.pc-cs__input input { flex: 1; border: 0; padding: 12px 14px; outline: none; font-size: 14px; }
+.pc-cs__input button { border: 0; background: #111827; color: #fff; padding: 0 18px; cursor: pointer; }
+@media (max-width: 600px) { .pc-cs { right: 12px; bottom: 16px; } .pc-cs__panel { width: calc(100vw - 24px); height: 60vh; } }

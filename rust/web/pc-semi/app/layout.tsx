@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './semi.css';
 import './globals.scss';
+import CustomerServiceWidget from '@/components/CustomerServiceWidget';
 
 export const metadata: Metadata = {
   title: '万物新生 · 退役动力电池循环利用产业服务平台',
@@ -11,7 +12,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-CN">
-      <body>{children}</body>
+      <body>
+        {children}
+        <CustomerServiceWidget />
+      </body>
     </html>
   );
 }
