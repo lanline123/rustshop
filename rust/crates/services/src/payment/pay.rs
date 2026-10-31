@@ -1686,7 +1686,7 @@ impl PayService {
         Ok(pay_sn)
     }
 
-    /// 预售定金支付创建（Java `createDepositPayment`）：本地校验后返回未迁移错误。
+    /// 预售定金支付创建（Java `createDepositPayment`）。
     pub async fn create_deposit_payment(
         &self,
         q: &PayCreateQuery,
@@ -1704,9 +1704,7 @@ impl PayService {
         ).bind(order_id).fetch_optional(&self.repos.pool).await
             .map_err(|e| Error::Database(e.to_string()))?;
         let (deposit, status) = presale.ok_or_else(|| Error::biz(1001, "预售订单信息不存在"))?;
-        if status != 0 {
-            return Err(Error::biz(1001, "定金已支付或预售已失效"));
-        }
+        if status != 0 { return Err(Error::biz(1001, "定金已支付或预售已失效")); }
         let deposit = deposit.filter(|d| *d > rust_decimal::Decimal::ZERO)
             .ok_or_else(|| Error::biz(1001, "定金金额配置错误"))?;
         let pay_type = q.r#type.as_deref().unwrap_or("");
@@ -1721,33 +1719,16 @@ impl PayService {
         let configs = crate::payment::channels::load_channel_configs(&self.repos).await?;
         let uid = user_id.unwrap_or(order.user_id);
         let pay_info = match pay_type {
-            "wechat" => {
-                if !configs.wechat.is_configured() { return Err(Error::biz(1001, "微信支付未配置")); }
-                self.wechat_create(&pseudo, &configs.wechat, client_type, uid, &pay_sn).await?
-            }
-            "alipay" | "ali" => {
-                if !configs.alipay.is_configured() { return Err(Error::biz(1001, "支付宝未配置")); }
-                self.alipay_create(&pseudo, &configs.alipay, client_type, &pay_sn).await?
-            }
-            "paypal" => {
-                if !configs.paypal.is_configured() { return Err(Error::biz(1001, "PayPal 未配置")); }
-                self.paypal_create(&pseudo, &configs.paypal, client_type, &pay_sn).await?
-            }
+            "wechat" => { if !configs.wechat.is_configured() { return Err(Error::biz(1001, "微信支付未配置")); } self.wechat_create(&pseudo, &configs.wechat, client_type, uid, &pay_sn).await? }
+            "alipay" | "ali" => { if !configs.alipay.is_configured() { return Err(Error::biz(1001, "支付宝未配置")); } self.alipay_create(&pseudo, &configs.alipay, client_type, &pay_sn).await? }
+            "paypal" => { if !configs.paypal.is_configured() { return Err(Error::biz(1001, "PayPal 未配置")); } self.paypal_create(&pseudo, &configs.paypal, client_type, &pay_sn).await? }
             "stripe" => self.stripe_create(&pseudo, client_type, &pay_sn).await?,
             "xendit" => self.xendit_create(&pseudo, client_type, &pay_sn).await?,
             "antom" => self.antom_create(&pseudo, uid, client_type, &pay_sn).await?,
-            other if matches!(other, "huifu" | "lakala" | "yeepay" | "yabandpay" | "yunpay") => {
-                self.generic_channel_create(&pseudo, other, client_type, &pay_sn).await?
-            }
+            other if matches!(other, "huifu" | "lakala" | "yeepay" | "yabandpay" | "yunpay") => self.generic_channel_create(&pseudo, other, client_type, &pay_sn).await?,
             _ => return Err(Error::biz(1001, "该支付方式暂不支持定金支付")),
         };
-        Ok(PayCreateVO {
-            order_id: Some(order.order_id),
-            order_sn: Some(order.order_sn.clone()),
-            order_amount: Some(deposit),
-            pay_info: Some(pay_info),
-            code: None,
-        })
+        Ok(PayCreateVO { order_id: Some(order.order_id), order_sn: Some(order.order_sn.clone()), order_amount: Some(deposit), pay_info: Some(pay_info), code: None })
     }
 
     /// 两条创建端点的共同本地校验：登录 + id + 订单归属 + 未支付。

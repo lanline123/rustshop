@@ -29,7 +29,7 @@ use tigshop_core::entities::MerchantApplication;
 use tigshop_core::models::payment::merchant_application::{
     is_personal, reason_label, resolve_channel, status_desc,
     MerchantApplicationAuditParam, MerchantApplicationPageQuery, MerchantApplicationSubmitParam,
-    MerchantApplicationVO, APPLICANT_SHOP, CHANNEL_ALIPAY, CHANNEL_HUIFU, CHANNEL_WECHAT,
+    MerchantApplicationVO, UploadMediaVO, APPLICANT_SHOP, CHANNEL_ALIPAY, CHANNEL_HUIFU, CHANNEL_WECHAT,
     MSG_APPLYMENT_ID_MISSING, MSG_BANK_ACCOUNT_TYPE_INVALID,
     MSG_BANK_NAME_MISMATCH_PRIVATE, MSG_BANK_NAME_MISMATCH_PUBLIC, MSG_BANK_REQUIRED,
     MSG_CHANNEL_UNMIGRATED, MSG_COMPANY_BANK_ONLY_PUBLIC, MSG_CONTACT_MISMATCH,
@@ -387,18 +387,35 @@ impl MerchantApplicationService {
     // ————————————————————— 媒体（未迁移，校验复刻） —————————————————————
 
     /// 证件原图预览（Java `media`）：字节流依赖渠道媒体服务，未迁移。
-    pub fn media(&self, _id: i64, role: i32) -> Result<()> {
+    pub async fn media(&self, id: i64, role: i32) -> Result<Vec<u8>> {
         debug_assert!((1..=3).contains(&role), "证件角色应为 1/2/3");
-        Err(Error::biz_msg(MSG_MEDIA_UNMIGRATED))
+        let url = self.config_value("merchantApplicationMediaUrl").await?
+            .ok_or_else(|| Error::biz(1001, "进件渠道未配置：merchantApplicationMediaUrl"))?;
+        let key = self.config_value("merchantApplicationKey").await?.unwrap_or_default();
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(25))
+            .build()
+            .map_err(|e| Error::Internal(e.to_string()))?;
+        let mut req = client.get(format!("{url}?id={id}&role={role}"));
+        if !key.trim().is_empty() {
+            req = req.header("Authorization", format!("Bearer {}", key.trim()));
+        }
+        let resp = req.send().await
+            .map_err(|e| Error::biz(1001, format!("进件媒体下载异常: {e}")))?;
+        if !resp.status().is_success() {
+            return Err(Error::biz(1001, "进件媒体下载失败"));
+        }
+        Ok(resp.bytes().await.map_err(|e| Error::Internal(e.to_string()))?.to_vec())
     }
 
     /// 上传进件媒体（Java `uploadMedia`）：本地校验复刻后明确报错。
-    pub fn upload_media(
+    pub async fn upload_media(
         &self,
         file_name: Option<&str>,
         content_type: Option<&str>,
-        size: usize,
-    ) -> Result<()> {
+        bytes: &[u8],
+    ) -> Result<UploadMediaVO> {
+        let size = bytes.len();
         if size == 0 {
             return Err(Error::biz(500, MSG_UPLOAD_EMPTY));
         }
@@ -416,7 +433,11 @@ impl MerchantApplicationService {
         if size > 5 * 1024 * 1024 {
             return Err(Error::biz(500, MSG_UPLOAD_TOO_LARGE));
         }
-        Err(Error::biz_msg(MSG_MEDIA_UNMIGRATED))
+        let name = file_name.unwrap_or("media.jpg");
+        let url = tigshop_infrastructure::storage::save_local_upload_blocking(
+            "merchant-application", name, bytes,
+        )?;
+        Ok(UploadMediaVO { media_id: url })
     }
 
     // ————————————————————— 内部 —————————————————————

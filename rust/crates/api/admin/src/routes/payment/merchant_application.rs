@@ -36,7 +36,8 @@ use tigshop_core::models::payment::merchant_application::{
 };
 use tigshop_core::types::PageResult;
 use tigshop_core::Error;
-use tigshop_security::web::{ok, ApiResult, AuthUser};
+use axum::response::IntoResponse;
+use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 use tigshop_services::payment::merchant_application::MerchantApplicationViewer;
 
 use crate::AdminState;
@@ -256,9 +257,9 @@ struct MediaQuery {
 async fn media(
     State(state): State<AdminState>,
     Query(q): Query<MediaQuery>,
-) -> ApiResult<()> {
-    state.payment.merchant_application.media(q.id, q.role)?;
-    ok(())
+) -> Result<axum::response::Response, AppError> {
+    let bytes = state.payment.merchant_application.media(q.id, q.role).await?;
+    Ok(([(axum::http::header::CONTENT_TYPE, "image/jpeg")], bytes).into_response())
 }
 
 async fn approve(
@@ -321,6 +322,7 @@ async fn upload_media(
     let mut file_name: Option<String> = None;
     let mut content_type: Option<String> = None;
     let mut size = 0_usize;
+    let mut bytes: Vec<u8> = Vec::new();
     while let Some(field) = multipart
         .next_field()
         .await
@@ -329,19 +331,21 @@ async fn upload_media(
         if field.name().unwrap_or_default() == "file" {
             file_name = field.file_name().map(str::to_string);
             content_type = field.content_type().map(str::to_string);
-            size = field
+            bytes = field
                 .bytes()
                 .await
                 .map_err(|e| Error::Validation(format!("读取上传文件失败: {e}")))?
-                .len();
+                .to_vec();
+            size = bytes.len();
             break;
         }
     }
-    state
+    let vo = state
         .payment
         .merchant_application
-        .upload_media(file_name.as_deref(), content_type.as_deref(), size)?;
-    ok(UploadMediaVO::default())
+        .upload_media(file_name.as_deref(), content_type.as_deref(), &bytes)
+        .await?;
+    ok(vo)
 }
 
 #[cfg(test)]
