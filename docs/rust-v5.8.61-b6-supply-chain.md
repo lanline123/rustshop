@@ -277,3 +277,25 @@ purchaseReceipt/detail   返回 items 明细
 purchaseReconciliation/detail 返回 sources + items + 来源确认时间
 purchaseReconciliation/export 返回对账单记录（最多 5000）
 ```
+
+## 2026-10-31 补充 7：供应商资质上传
+
+```text
+POST /adminapi/supplyChain/supplier/qualification/upload
+```
+
+校验：
+
+```text
+multipart file 必填
+≤10MB
+png/jpeg/jpg
+```
+
+复用 `gallery_pic.upload_img`：
+
+```text
+本地/OSS 存储
+写 gallery_pic 表
+返回图片 URL
+```

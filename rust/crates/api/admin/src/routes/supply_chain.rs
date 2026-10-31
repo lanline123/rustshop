@@ -4,7 +4,7 @@
 //! 列表/详情/状态/删除使用通用表读取；复杂保存动作先返回明确未迁移错误。
 
 use axum::{
-    extract::{Query, State},
+    extract::{Extension, Multipart, Query, State},
     routing::{get, post},
     Json, Router,
 };
@@ -14,7 +14,8 @@ use serde_json::{json, Map, Value};
 use sqlx::mysql::MySqlRow;
 use sqlx::{Column, MySql, QueryBuilder, Row, TypeInfo};
 use tigshop_core::Error;
-use tigshop_security::web::{ok, ApiResult, AppError};
+use tigshop_infrastructure::db::repo::marketing::tenant::TenantScope;
+use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 
 use crate::AdminState;
 
@@ -292,8 +293,47 @@ async fn supplier_delete(State(state): State<AdminState>, Json(body): Json<Value
     soft_delete(&state, "vendor", body.get("id").and_then(Value::as_i64).unwrap_or(0)).await?;
     ok(())
 }
-async fn qualification_upload() -> ApiResult<String> {
-    Err(AppError(Error::biz(400, "资质上传未迁移")))
+async fn qualification_upload(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    mut multipart: Multipart,
+) -> ApiResult<String> {
+    let mut payload: Option<(Option<String>, Option<String>, Vec<u8>)> = None;
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError(Error::Validation(format!("文件不能为空: {e}"))))?
+    {
+        if field.name() != Some("file") {
+            continue;
+        }
+        let content_type = field.content_type().map(ToString::to_string);
+        let file_name = field.file_name().map(ToString::to_string);
+        let bytes = field
+            .bytes()
+            .await
+            .map_err(|e| AppError(Error::Validation(format!("文件不能为空: {e}"))))?
+            .to_vec();
+        payload = Some((content_type, file_name, bytes));
+        break;
+    }
+    let Some((content_type, file_name, bytes)) = payload else {
+        return Err(AppError(Error::Validation("资质图片不能为空".into())));
+    };
+    if bytes.len() > 10 * 1024 * 1024 {
+        return Err(AppError(Error::Validation("单张资质图片不能超过10MB".into())));
+    }
+    if !matches!(content_type.as_deref(), Some("image/png" | "image/jpeg" | "image/jpg")) {
+        return Err(AppError(Error::Validation("资质图片仅支持png、jpg、jpeg格式".into())));
+    }
+    let size = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+    let shop_id = TenantScope::current().write_shop_id(None)?;
+    let vo = state
+        .content
+        .gallery_pic
+        .upload_img(None, content_type.as_deref(), size, file_name.as_deref(), &bytes, shop_id, auth.id)
+        .await?;
+    ok(serde_json::to_value(vo).ok().and_then(|v| v.get("url").and_then(Value::as_str).map(ToString::to_string)).unwrap_or_default())
 }
 
 // ————————————————— category —————————————————
