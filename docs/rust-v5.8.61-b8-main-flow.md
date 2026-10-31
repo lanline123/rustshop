@@ -433,3 +433,21 @@ paylog.transaction_id（Stripe payment_intent / PayPal captureId / Xendit invoic
 ```
 
 说明：退款审核流程的最终调用点尚未接入，本轮先落渠道方法。
+
+## 2026-10-31 补充：退款审核接入渠道
+
+`RefundApplyService::audit(Processing)` 现在：
+
+```text
+校验可退额度
+状态改为处理中
+查找订单最后一笔成功 paylog
+仅 stripe / paypal / xendit 走自动退款
+创建 paylog_refund
+写 refund_apply_paylog_refund 关联
+回写 refund_apply.paylog_refund_id
+调用 refund_via_channel
+同步成功（SUCCESS/COMPLETED）则 mark_processed
+```
+
+其它渠道保持处理中，等待人工或后续补渠道方法。

@@ -342,6 +342,61 @@ impl RefundApplyService {
                 )
                 .await?;
                 tracing::info!("退款申请进入处理中: id={}", dto.refund_id);
+                // 线上金额走渠道退款：仅支持已实现退款方法的渠道，其余保持处理中人工处理。
+                if existing.online_balance > rust_decimal::Decimal::ZERO {
+                    if let Some(paylog) = self
+                        .repos
+                        .payment
+                        .pay
+                        .find_last_success_paylog(existing.order_id, 0)
+                        .await?
+                    {
+                        let code = paylog.pay_code.as_str();
+                        if matches!(code, "stripe" | "paypal" | "xendit") {
+                            let refund_sn = format!("RF{}{}", tigshop_common::utils::now_seconds(), dto.refund_id);
+                            let paylog_service = crate::payment::paylog::PaylogService::new(self.repos.clone());
+                            let refund_id = paylog_service
+                                .record_refund(
+                                    paylog.paylog_id,
+                                    existing.order_id,
+                                    &refund_sn,
+                                    existing.online_balance,
+                                    "退款审核通过",
+                                    0,
+                                    Some(code),
+                                )
+                                .await?;
+                            self.repos
+                                .payment
+                                .refund_apply
+                                .link_paylog_refund(dto.refund_id, refund_id)
+                                .await?;
+                            let _ = sqlx::query("UPDATE refund_apply SET paylog_refund_id=? WHERE refund_id=?")
+                                .bind(refund_id)
+                                .bind(dto.refund_id)
+                                .execute(&self.repos.pool)
+                                .await;
+                            let pay = crate::payment::pay::PayService::new(self.repos.clone());
+                            match pay
+                                .refund_via_channel(code, &paylog.pay_sn, &refund_sn, existing.online_balance)
+                                .await
+                            {
+                                Ok(status) => {
+                                    let upper = status.to_ascii_uppercase();
+                                    if upper.contains("SUCCESS") || upper.contains("COMPLETED") {
+                                        self.mark_processed(dto.refund_id, &refund_sn).await?;
+                                    }
+                                    tracing::info!("渠道退款已受理: refund_id={} status={status}", dto.refund_id);
+                                }
+                                Err(e) => {
+                                    tracing::warn!("渠道退款失败: refund_id={} error={e}", dto.refund_id);
+                                    return Err(e);
+                                }
+                            }
+                        }
+                    }
+                }
+
             }
             // 其余状态不可作为审核目标
             _ => return Err(Error::biz(400, "审核状态值错误")),
