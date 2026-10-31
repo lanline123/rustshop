@@ -325,6 +325,12 @@ pub async fn require_auth(
         _ => cookie_bearer.as_deref(),
     };
 
+    if let Some(raw) = token {
+        let bare = raw.trim().strip_prefix("Bearer ").unwrap_or(raw.trim());
+        if crate::token_revocation::is_revoked(bare) {
+            return Err(AppError(Error::Unauthorized("登录已失效，请重新登录".into())));
+        }
+    }
     let claims = jwt.from_authorization(token)?;
     let id = claims
         .sub

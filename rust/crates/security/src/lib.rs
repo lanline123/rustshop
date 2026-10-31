@@ -7,6 +7,7 @@
 pub mod audit;
 pub mod jwt;
 pub mod password;
+pub mod token_revocation;
 pub mod web;
 pub mod ws;
 pub mod ws_registry;

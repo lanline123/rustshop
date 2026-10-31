@@ -378,3 +378,25 @@ header: algorithm=RSA256,keyVersion=1,signature=...
 ```
 
 返回 normalUrl，并回写 paylog.transaction_id。
+
+## 2026-10-31 补充：用户登出令牌吊销
+
+```text
+POST /api/user/user/logout
+```
+
+实现：
+
+```text
+读取 Authorization Bearer
+解析 JWT exp
+写入进程内吊销表
+require_auth 每次校验吊销表
+过期项自动清理
+```
+
+说明：
+
+```text
+单实例部署可用；多实例需换 Redis 黑名单
+```
