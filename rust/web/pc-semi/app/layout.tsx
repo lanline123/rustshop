@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './semi.css';
 import './globals.scss';
 import CustomerServiceWidget from '@/components/CustomerServiceWidget';
+import I18nTranslator from '@/components/I18nTranslator';
 
 export const metadata: Metadata = {
   title: '万物新生 · 退役动力电池循环利用产业服务平台',
@@ -15,6 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         {children}
         <CustomerServiceWidget />
+        <I18nTranslator />
       </body>
     </html>
   );
