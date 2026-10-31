@@ -400,3 +400,17 @@ require_auth 每次校验吊销表
 ```text
 单实例部署可用；多实例需换 Redis 黑名单
 ```
+
+## 2026-10-31 补充：会员消费排行导出
+
+```text
+GET /adminapi/panel/statisticsUser/userConsumptionRanking?isExport=1
+```
+
+返回 xlsx：
+
+```text
+会员名称 / 手机号 / 订单数 / 消费总额
+```
+
+非导出仍返回 JSON 分页。

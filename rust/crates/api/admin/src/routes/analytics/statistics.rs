@@ -64,7 +64,7 @@ use tigshop_core::models::analytics::statistics::{
     UserStatisticsPanelDTO, UserStatisticsPanelVO, UserTrendsQuery,
 };
 use tigshop_core::types::PageResult;
-use tigshop_security::web::{ok, ApiResult, AuthUser};
+use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 
 use crate::AdminState;
 
@@ -184,9 +184,31 @@ async fn user_consumption_ranking(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
     Query(mut q): Query<UserConsumptionRankingDTO>,
-) -> ApiResult<PageResult<UserConsumptionRankingVO>> {
+) -> std::result::Result<axum::response::Response, AppError> {
     q.shop_id = auth.resolve_shop_scope(q.shop_id)?;
-    ok(state.analytics.statistics.user_consumption_ranking(&q).await?)
+    if q.is_export.unwrap_or(0) == 1 {
+        q.page = Some(1);
+        q.size = Some(10_000);
+        let page = state.analytics.statistics.user_consumption_ranking(&q).await?;
+        let rows: Vec<Vec<String>> = page
+            .list
+            .iter()
+            .map(|r| vec![
+                r.username.clone().unwrap_or_default(),
+                r.mobile.clone().unwrap_or_default(),
+                r.order_num.to_string(),
+                r.order_amount.to_string(),
+            ])
+            .collect();
+        let bytes = tigshop_services::system::excel::build_xlsx(
+            &["会员名称", "手机号", "订单数", "消费总额"],
+            &rows,
+            "会员消费排行",
+        )?;
+        return Ok(crate::support::excel_response::xlsx_response(bytes, "user_consumption_ranking.xlsx"));
+    }
+    let page = state.analytics.statistics.user_consumption_ranking(&q).await?;
+    Ok(axum::response::IntoResponse::into_response(ok(page)?))
 }
 
 /// `GET /adminapi/panel/statisticsUser/userStatisticsPanel`：用户统计面板。
