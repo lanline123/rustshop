@@ -1,7 +1,7 @@
 //! AI 图片与地图设置（v5.8.61 `/adminapi/file/aiImage/*`、`/setting/config/*`）。
 
 use axum::{
-    extract::State,
+    extract::{Query, State},
     routing::{get, post},
     Json, Router,
 };
@@ -141,6 +141,32 @@ async fn inpaint(Json(_body): Json<Value>) -> ApiResult<Value> {
     Err(AppError(Error::biz(400, "AI 图片修复服务未配置")))
 }
 
-async fn locales_list() -> ApiResult<Value> {
-    ok(json!([]))
+async fn locales_list(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<Value> {
+    use sqlx::Row;
+    let mut qb: sqlx::QueryBuilder<sqlx::MySql> = sqlx::QueryBuilder::new(
+        "SELECT l.id,l.locale_code,l.language,l.flag_picture,l.is_enabled,l.is_default,l.currency_id,l.sort,l.last_updated,c.name AS currency_name,c.symbol AS currency_symbol FROM locales l LEFT JOIN currency c ON c.id=l.currency_id WHERE 1=1",
+    );
+    if let Some(v) = body.get("isEnabled").and_then(Value::as_i64) {
+        qb.push(" AND l.is_enabled=").push_bind(v as i32);
+    }
+    if let Some(k) = body.get("keyword").and_then(Value::as_str).map(str::trim).filter(|s| !s.is_empty()) {
+        let like = format!("%{k}%");
+        qb.push(" AND (l.locale_code LIKE ").push_bind(like.clone()).push(" OR l.language LIKE ").push_bind(like).push(")");
+    }
+    qb.push(" ORDER BY l.sort,l.id");
+    let rows = qb.build().fetch_all(&state.repos.pool).await.map_err(|e| AppError(Error::Database(e.to_string())))?;
+    let list: Vec<Value> = rows.into_iter().map(|r| json!({
+        "id": r.try_get::<i32,_>("id").unwrap_or(0),
+        "localeCode": r.try_get::<Option<String>,_>("locale_code").unwrap_or_default(),
+        "language": r.try_get::<Option<String>,_>("language").unwrap_or_default(),
+        "flagPicture": r.try_get::<Option<String>,_>("flag_picture").unwrap_or_default(),
+        "isEnabled": r.try_get::<Option<i32>,_>("is_enabled").unwrap_or(Some(0)),
+        "isDefault": r.try_get::<Option<i32>,_>("is_default").unwrap_or(Some(0)),
+        "currencyId": r.try_get::<Option<i32>,_>("currency_id").unwrap_or(Some(0)),
+        "sort": r.try_get::<Option<i32>,_>("sort").unwrap_or(None),
+        "lastUpdated": r.try_get::<Option<i32>,_>("last_updated").unwrap_or(Some(0)),
+        "currencyName": r.try_get::<Option<String>,_>("currency_name").unwrap_or_default(),
+        "currencySymbol": r.try_get::<Option<String>,_>("currency_symbol").unwrap_or_default(),
+    })).collect();
+    ok(Value::Array(list))
 }

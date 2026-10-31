@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { DecorateModule, PageModule } from '../types';
 import { Frame, imageUrl, linkUrl, ModuleHeading, ModuleTitle, SafeImage } from './common';
+import { CONTRACT_ADAPTERS, FLAT_FRAME, linkHref, type ContractRenderPlan } from './contract';
 
 type ModuleProps<T = Record<string, any>> = { module: T };
 
@@ -700,6 +701,210 @@ function Fallback({ module }: ModuleProps) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// 原版契约（camelCase type）专用渲染组件：数据由 contract.ts 适配函数产出，
+// 内部尽量复用上方现有渲染器；原版专属视觉字段降级省略。
+// ---------------------------------------------------------------------------
+
+/** pcBanner bannerStyle=1：picList 首图主图 + picList2 小图列 + picList3 图标行（原版轮播降级为静态图）。 */
+function ContractBanner({ module }: ModuleProps) {
+  const main: any[] = module.main || [];
+  const recommend: any[] = module.recommend || [];
+  const icons: any[] = module.icons || [];
+  const hero = main[0];
+  if (!hero && !recommend.length && !icons.length) return null;
+  return (
+    <Frame frame={module.frame} className="dec-hero-frame">
+      <div style={{ display: 'flex', gap: 16, alignItems: 'stretch' }}>
+        <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+          {hero ? (
+            <a href={linkUrl(hero.picLink)}>
+              <SafeImage
+                src={imageUrl(hero)}
+                alt={hero.picTitle || ''}
+                style={{ width: '100%', display: 'block', borderRadius: 8 }}
+              />
+            </a>
+          ) : (
+            <div style={{ height: 280, background: '#fff', borderRadius: 8 }} aria-hidden />
+          )}
+        </div>
+        {recommend.length ? (
+          <div style={{ width: 252, flexShrink: 0, display: 'grid', gap: 8, alignContent: 'start' }}>
+            {recommend.slice(0, 4).map((pic: any, index: number) => (
+              <a key={index} href={linkUrl(pic.picLink)}>
+                <SafeImage
+                  src={imageUrl(pic)}
+                  alt={pic.picTitle || ''}
+                  style={{ width: '100%', display: 'block', borderRadius: 8 }}
+                />
+              </a>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      {icons.length ? (
+        <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
+          {icons.map((pic: any, index: number) => (
+            <a key={index} href={linkUrl(pic.picLink)} style={{ flex: 1 }}>
+              <SafeImage src={imageUrl(pic)} alt={pic.picTitle || ''} style={{ width: '100%', display: 'block' }} />
+            </a>
+          ))}
+        </div>
+      ) : null}
+    </Frame>
+  );
+}
+
+/** pcCatProductNormal / pcCatProductWide / pcCatProductSimple 共用：标题 + 关键词链接行 + 可选图片条 + 商品网格。 */
+function ContractCatProduct({ module }: ModuleProps) {
+  const links: Array<{ link: string; text: string }> = module.links || [];
+  const moreHref = linkHref(module.moreLink);
+  const bannerPics: any[] = module.banner?.picList || [];
+  return (
+    <Frame frame={module.frame}>
+      <ModuleHeading title={module.title?.titleText} subTitle={module.title?.descText} />
+      {links.length || moreHref ? (
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: 12,
+            margin: '4px 0 10px',
+            fontSize: 13,
+            color: '#666',
+          }}
+        >
+          {links.map((item, index) => (
+            <a key={index} href={item.link || '#'}>
+              {item.text}
+            </a>
+          ))}
+          {moreHref ? (
+            <a href={moreHref} style={{ marginLeft: 'auto', color: '#ff4e4e' }}>
+              查看更多 ›
+            </a>
+          ) : null}
+        </div>
+      ) : null}
+      {bannerPics.length ? <ImageAd module={{ picList: bannerPics, frame: FLAT_FRAME }} /> : null}
+      <Product module={{ products: module.product || {}, frame: FLAT_FRAME }} />
+    </Frame>
+  );
+}
+
+/** pcCategoryNav / pcCategoryNav3 / pcCatWide 共用：热门分类卡片（category/category/hot），可按 catIds 过滤。 */
+function ContractCategoryHot({ module }: ModuleProps) {
+  const [categories, setCategories] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const catIds: number[] = module.catIds || [];
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/category/category/hot')
+      .then((response) => response.json())
+      .then((json) => {
+        if (cancelled) return;
+        const list = json?.data?.records || json?.data || json?.records || [];
+        setCategories(Array.isArray(list) ? list : []);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (loading) return null;
+  // pcCatWide 只展示 catIds 命中的分类；pcCategoryNav / pcCategoryNav3 展示全部热门分类
+  const filtered = catIds.length
+    ? categories.filter((category) => catIds.includes(Number(category.categoryId)))
+    : categories;
+  if (!filtered.length) return null;
+  const rowNum = Math.min(10, Math.max(1, Number(module.rowNum) || 6));
+  const moreHref = module.showMore ? linkHref(module.moreLink) : '';
+
+  return (
+    <Frame frame={module.frame}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <ModuleHeading title={module.title?.titleText || '热门分类'} subTitle={module.title?.descText} />
+        {moreHref ? (
+          <a href={moreHref} style={{ fontSize: 13, color: '#666', whiteSpace: 'nowrap' }}>
+            {module.moreText || '查看更多'} ›
+          </a>
+        ) : null}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${rowNum}, minmax(0, 1fr))`, gap: 12 }}>
+        {filtered.map((category: any, index: number) => (
+          <a
+            key={category.categoryId || index}
+            href={`/search?categoryId=${category.categoryId || ''}`}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 8,
+              padding: '8px 4px',
+              textAlign: 'center',
+            }}
+          >
+            <SafeImage
+              src={category.categoryPic || category.picUrl || category.picThumb}
+              alt={category.categoryName || ''}
+              style={{ width: 48, height: 48, objectFit: 'contain', background: module.imageBackgroundColor || 'transparent', borderRadius: 8 }}
+            />
+            <span style={{ fontSize: 14, color: '#333' }}>{category.categoryName || '分类'}</span>
+          </a>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
+/** pcCustomAd1 / pcCustomAd2 共用：可选链接行 + 三组图片顺次平铺（原版固定编辑版式降级）。 */
+function ContractCustomAd({ module }: ModuleProps) {
+  const groups: any[][] = module.groups || [];
+  const links: Array<{ link: string; text: string }> = module.links || [];
+  const hasPics = groups.some((group) => group.length);
+  if (!hasPics && !links.length) return null;
+  return (
+    <Frame frame={module.frame}>
+      {links.length ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, margin: '0 0 10px', fontSize: 13, color: '#666' }}>
+          {links.map((item, index) => (
+            <a key={index} href={item.link || '#'}>
+              {item.text}
+            </a>
+          ))}
+        </div>
+      ) : null}
+      {groups.map((group, index) =>
+        group.length ? <ImageAd key={index} module={{ picList: group, frame: FLAT_FRAME }} /> : null
+      )}
+    </Frame>
+  );
+}
+
+/** 契约渲染计划的目标组件表：键与 contract.ts 的 ContractRenderPlan.component 对应。 */
+const CONTRACT_COMPONENTS: Record<string, (props: ModuleProps) => JSX.Element | null> = {
+  // 复用的现有渲染器
+  GroupBanner,
+  Product,
+  RecommendProduct,
+  Coupon,
+  Seckill,
+  Groupon,
+  ImageAd,
+  // 契约专用组合渲染器
+  ContractBanner,
+  ContractCatProduct,
+  ContractCategoryHot,
+  ContractCustomAd,
+};
+
 export const PC_MODULE_REGISTRY: Record<string, (props: ModuleProps) => JSX.Element | null> = {
   'pc-image-ad': ImageAd,
   'pc-image-nav': ImageNav,
@@ -722,15 +927,33 @@ export const PC_MODULE_REGISTRY: Record<string, (props: ModuleProps) => JSX.Elem
 };
 
 export function DecorateRenderer({ modules }: { modules: DecorateModule[] }) {
+  type ModuleComponent = (props: ModuleProps) => JSX.Element | null;
   return (
     <div className="decorate-renderer">
       {modules
         .filter((item) => item.isShow !== false)
         .map((item, index) => {
-          const Component = PC_MODULE_REGISTRY[item.type] || Fallback;
+          // 1) 先查原 kebab-case 注册表（保持原行为不变）
+          let Component: ModuleComponent | undefined = PC_MODULE_REGISTRY[item.type];
+          let moduleProps: { module: Record<string, any> } = {
+            module: { ...item.module, label: item.label, frame: item.module?.frame },
+          };
+          // 2) 再查原版契约（camelCase type）注册表：经适配函数转换后再交给渲染器
+          if (!Component) {
+            const adapter = CONTRACT_ADAPTERS[item.type];
+            if (adapter) {
+              const plan: ContractRenderPlan = adapter(item);
+              const contractComponent: ModuleComponent | undefined = CONTRACT_COMPONENTS[plan.component];
+              if (contractComponent) {
+                Component = contractComponent;
+                moduleProps = { module: plan.module };
+              }
+            }
+          }
+          if (!Component) Component = Fallback;
           return (
             <div className="decorate-renderer__module" key={item.moduleIndex ?? `${item.type}-${index}`}>
-              <Component module={{ ...item.module, label: item.label, frame: item.module?.frame }} />
+              <Component module={moduleProps.module} />
             </div>
           );
         })}

@@ -500,9 +500,6 @@ export function PcDecorateHome() {
   // 推广弹窗
   const [promoteRow, setPromoteRow] = useState<DecorateRow | null>(null);
 
-  // 编辑器
-  const [editing, setEditing] = useState<{ id: number; title: string } | null>(null);
-
   const loadList = async () => {
     if (isDemo()) return;
     setLoading(true);
@@ -691,11 +688,6 @@ export function PcDecorateHome() {
     }
   };
 
-  // 编辑器模式（原版为新窗口 /decorate/pc?id=，此处内嵌工作台）
-  if (editing) {
-    return <PcVisualStudio pageTitle={editing.title} onBack={() => setEditing(null)} />;
-  }
-
   const canPromote = (row: DecorateRow) =>
     Number(row.status) === 1 && [1, 3].includes(row.pageType ?? 1);
 
@@ -775,7 +767,12 @@ export function PcDecorateHome() {
           <Button
             theme="borderless"
             size="small"
-            onClick={() => setEditing({ id: row.decorateId, title: row.decorateTitle || '' })}
+            onClick={() =>
+              window.open(
+                `${window.location.origin}/?page=pcDecorateEditor&id=${row.decorateId}`,
+                '_blank',
+              )
+            }
           >
             编辑
           </Button>

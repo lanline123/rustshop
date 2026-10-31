@@ -147,11 +147,30 @@ fn optional_user_id(auth: &Option<Extension<AuthUser>>) -> Option<i32> {
 /// 字段名缺失时按「空图片」处理（服务层返回「营业执照图片不能为空」）。
 async fn upload_license(
     State(state): State<PublicState>,
-    _auth: Option<Extension<AuthUser>>,
+    auth: Option<Extension<AuthUser>>,
     mut multipart: Multipart,
 ) -> ApiResult<String> {
-    let (byte_len, content_type) = read_license_file(&mut multipart).await?;
-    ok(state.merchant.merchant_client.upload_license(byte_len, content_type.as_deref())?)
+    let user_id = auth.as_ref().map(|Extension(a)| a.id).unwrap_or(0);
+    if user_id <= 0 {
+        return Err(AppError(Error::biz(401, "请先登录")));
+    }
+    let (bytes, content_type, file_name) = read_license_file(&mut multipart).await?;
+    if bytes.is_empty() {
+        return Err(AppError(Error::Validation("营业执照图片不能为空".into())));
+    }
+    let size = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+    let vo = state
+        .content
+        .gallery_pic
+        .upload_img(None, content_type.as_deref(), size, file_name.as_deref(), &bytes, 0, user_id)
+        .await?;
+    let url = serde_json::to_value(vo).ok()
+        .and_then(|v| v.get("url").and_then(serde_json::Value::as_str).map(ToString::to_string))
+        .unwrap_or_default();
+    if url.is_empty() {
+        return Err(AppError(Error::Internal("营业执照上传失败".into())));
+    }
+    ok(url)
 }
 
 /// 读取营业执照上传字段（`file` 或 `license`），返回 `(字节长度, MIME)`。
@@ -161,20 +180,21 @@ async fn upload_license(
 /// 交由服务层「营业执照图片不能为空」校验拦截。
 async fn read_license_file(
     multipart: &mut Multipart,
-) -> Result<(usize, Option<String>), AppError> {
+) -> Result<(Vec<u8>, Option<String>, Option<String>), AppError> {
     while let Some(field) = multipart.next_field().await.map_err(|e| {
         AppError(Error::Validation(format!("解析上传表单失败: {e}")))
     })? {
         let name = field.name().unwrap_or_default();
         if name == "file" || name == "license" {
             let content_type = field.content_type().map(str::to_string);
+            let file_name = field.file_name().map(str::to_string);
             let bytes = field.bytes().await.map_err(|e| {
                 AppError(Error::Validation(format!("读取上传文件失败: {e}")))
             })?;
-            return Ok((bytes.len(), content_type));
+            return Ok((bytes.to_vec(), content_type, file_name));
         }
     }
-    Ok((0, None))
+    Ok((Vec::new(), None, None))
 }
 
 /// `GET /api/merchant/merchant/applyShopAgreement`：申请入驻协议。

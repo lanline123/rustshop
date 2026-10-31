@@ -1,0 +1,404 @@
+/**
+ * 原版 TigShop 装修 JSON 契约（camelCase type、url='pc'）→ C 端现有渲染器 props 的纯适配层。
+ *
+ * 背景：admin-semi 编辑器按原版 Java 契约产出模块（{moduleIndex, type, url:'pc', label, isShow, module}），
+ * C 端 PC_MODULE_REGISTRY 只注册了自制 kebab-case 类型；本文件把 16 个旧套 camelCase type
+ * 转换为「目标渲染器键名 + 已转换的 module props」，渲染组件见 modules.tsx 的 CONTRACT_COMPONENTS。
+ *
+ * 约定：
+ * - 本文件只做字段名/结构转换（纯函数，无副作用、无 JSX）；
+ * - 契约里无法映射到 C 端现有渲染器的字段直接丢弃（降级渲染，缺什么渲染什么）；
+ * - 契约 picLink 可能是 {link,title,id,sn,path} 对象或字符串，统一经 linkHref 归一。
+ */
+import type { DecorateModule, ModuleFrameLike } from '../types';
+
+type AnyRecord = Record<string, any>;
+
+export interface ContractRenderPlan {
+  /** CONTRACT_COMPONENTS（modules.tsx）中的渲染器键名 */
+  component: string;
+  /** 传给渲染器的 module props，frame 已按原契约模块处理 */
+  module: AnyRecord;
+}
+
+export type ContractAdapter = (item: DecorateModule) => ContractRenderPlan;
+
+// ---------------------------------------------------------------------------
+// 通用工具
+// ---------------------------------------------------------------------------
+
+function asArray(value: any): any[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function toNumber(value: any, fallback = 0): number {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+/** 内嵌复用现有渲染器时，抵消其自带 Frame 的默认内边距/背景。 */
+export const FLAT_FRAME: ModuleFrameLike = {
+  boxPadding: 0,
+  boxPaddingTop: 0,
+  boxPaddingBottom: 0,
+  boxRadius: 0,
+  backgroundColor: 'transparent',
+};
+
+/** 契约链接归一：字符串 / {link,title} / {data}（原版 CustomAd2 用 picLink.data）→ url 字符串，空返回 ''。 */
+export function linkHref(link: any): string {
+  if (!link) return '';
+  if (typeof link === 'string') return link;
+  if (typeof link === 'object') return String(link.link || link.data || '');
+  return '';
+}
+
+/**
+ * 原版标题归一：旧装修是 string；新契约是 defaultTitle 对象（{showTitle,titleText,descText,...}）。
+ * 统一为 C 端渲染器消费的 {titleText, descText}；showTitle===0 时视为不显示标题（返回空对象）。
+ */
+export function toTitle(value: any): { titleText?: string; descText?: string } {
+  if (typeof value === 'string') {
+    return value ? { titleText: value } : {};
+  }
+  if (value && typeof value === 'object') {
+    if (Number(value.showTitle ?? 1) === 0) return {};
+    return {
+      titleText: value.titleText || value.title || '',
+      descText: value.descText || value.subTitle || '',
+    };
+  }
+  return {};
+}
+
+/** 契约 ModulePic 列表兜底。 */
+function picList(module: AnyRecord, key: string): any[] {
+  return asArray(module?.[key]);
+}
+
+/** 契约商品 productIds 兜底为正整数数组。 */
+function idList(value: any): number[] {
+  return asArray(value)
+    .map((item) => toNumber(typeof item === 'object' ? item?.productId ?? item?.id : item))
+    .filter((id) => id > 0);
+}
+
+/** linkList（{link:{link,title}, linkTitle}）→ {link, text} 简单链接行。 */
+function toLinks(value: any): Array<{ link: string; text: string }> {
+  return asArray(value)
+    .map((item: any) => ({
+      link: linkHref(item?.link),
+      text: String(item?.linkTitle || item?.link?.title || item?.title || ''),
+    }))
+    .filter((item) => item.text || item.link);
+}
+
+/** 后端富化的子分类（{categoryId, categoryName, seoLink}）→ 分类搜索链接行。 */
+function toCategoryLinks(value: any): Array<{ link: string; text: string }> {
+  return asArray(value)
+    .map((item: any) => ({
+      link: toNumber(item?.categoryId, 0) > 0 ? `/search?categoryId=${toNumber(item?.categoryId, 0)}` : linkHref(item?.seoLink),
+      text: String(item?.categoryName || ''),
+    }))
+    .filter((item) => item.text);
+}
+
+/** 契约 frame：模块自带 frame 直接透传（如 pcGroupon defaultFrame）。 */
+function frameOf(module: AnyRecord): ModuleFrameLike | undefined {
+  return module?.frame || undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Banner 系（pcBanner / pcBanner2 / pcGroupBanner）
+// ---------------------------------------------------------------------------
+
+/**
+ * pcBanner：bannerStyle 1=默认（原版左分类菜单 + picList 轮播 + picList2 小图 + picList3 图标 + 右用户中心），
+ * 2=简约（全宽轮播）。
+ * - bannerStyle 2 → GroupBanner 平铺 picList；
+ * - bannerStyle 1 → ContractBanner（picList 首图为主图 + picList2 小图列 + picList3 图标行）；
+ * - showCat/logo 与原版 CommonAllCate/CommonSmallPersonalCenter 全局组件相关，C 端头部已承载，降级省略。
+ */
+function adaptPcBanner(item: DecorateModule): ContractRenderPlan {
+  const m = (item.module || {}) as AnyRecord;
+  const banners = picList(m, 'picList');
+  if (toNumber(m.bannerStyle, 1) === 2) {
+    return { component: 'GroupBanner', module: { banners, frame: frameOf(m) } };
+  }
+  return {
+    component: 'ContractBanner',
+    module: {
+      main: banners,
+      recommend: picList(m, 'picList2'),
+      icons: picList(m, 'picList3'),
+      frame: frameOf(m),
+    },
+  };
+}
+
+/** pcBanner2：同 pcBanner 字段，仅消费 picList（1264x280 全宽轮播）→ GroupBanner 平铺。 */
+function adaptPcBanner2(item: DecorateModule): ContractRenderPlan {
+  const m = (item.module || {}) as AnyRecord;
+  return { component: 'GroupBanner', module: { banners: picList(m, 'picList'), frame: frameOf(m) } };
+}
+
+/** pcGroupBanner：pcBanner 字段 + number（一组显示数量≤3）→ GroupBanner，按 number 截取 picList。 */
+function adaptPcGroupBanner(item: DecorateModule): ContractRenderPlan {
+  const m = (item.module || {}) as AnyRecord;
+  const banners = picList(m, 'picList');
+  const number = toNumber(m.number, 0);
+  return {
+    component: 'GroupBanner',
+    module: { banners: number > 0 ? banners.slice(0, number) : banners, frame: frameOf(m) },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 营销系（pcSeckill / pcCoupon / pcGroupon）
+// ---------------------------------------------------------------------------
+
+/** pcSeckill：{seckillTitle}；商品列表由营销数据决定，C 端 Seckill 自行请求 /api/home/home/getSeckill。 */
+function adaptPcSeckill(item: DecorateModule): ContractRenderPlan {
+  const m = (item.module || {}) as AnyRecord;
+  return {
+    component: 'Seckill',
+    module: { title: toTitle(m.seckillTitle ?? m.title), frame: frameOf(m) },
+  };
+}
+
+/** pcCoupon：{} 空配置；内容由营销「首页显示」优惠券决定，C 端 Coupon 自行请求 /api/home/home/getCoupon。
+ *  注意：C 端 Coupon 的 title 消费 string，这里必须转成字符串而不是 title 对象（否则 React 渲染对象会崩）。 */
+function adaptPcCoupon(item: DecorateModule): ContractRenderPlan {
+  const m = (item.module || {}) as AnyRecord;
+  return { component: 'Coupon', module: { title: toTitle(m.title).titleText || '', frame: frameOf(m) } };
+}
+
+/**
+ * pcGroupon：{style, goodsStyle, ..., title, groupType, grouponActivityItem, ...} → C 端 Groupon
+ * （自行请求 /api/promotion/groupon/itemList）。
+ * - style/goodsStyle/showName/showPrice/cardStyle 等卡片视觉字段 C 端暂无对应样式，降级省略；
+ * - grouponActivityItem（指定拼团活动）依赖接口按活动过滤，C 端现有接口不支持，降级为通用拼团列表。
+ */
+function adaptPcGroupon(item: DecorateModule): ContractRenderPlan {
+  const m = (item.module || {}) as AnyRecord;
+  return { component: 'Groupon', module: { title: toTitle(m.title), frame: frameOf(m) } };
+}
+
+// ---------------------------------------------------------------------------
+// 商品楼层系（pcCatProductNormal / Wide / Simple / pcRecommendProduct）
+// ---------------------------------------------------------------------------
+
+/** pcCatProductNormal：{categoryId, title, color, color2, logo, picList, picList2} → 按 categoryId 拉商品。 */
+function adaptPcCatProductNormal(item: DecorateModule): ContractRenderPlan {
+  const m = (item.module || {}) as AnyRecord;
+  return {
+    component: 'ContractCatProduct',
+    module: {
+      title: toTitle(m.title),
+      product: { productSelectType: 2, productCategoryId: toNumber(m.categoryId, 0), productNumber: 8 },
+      banner: { picList: picList(m, 'picList') },
+      links: toCategoryLinks(m.childCategoryList),
+      frame: frameOf(m),
+      // color/color2/logo/enTitle/shortTitle/picList2 为原版专属视觉字段，降级省略
+    },
+  };
+}
+
+/**
+ * pcCatProductWide：{categoryId(可数组), title, productIds, linkList, picList, picList2, ...}。
+ * productIds 优先按 ids 拉取，否则按 categoryId；linkList 渲染为关键词链接行。
+ */
+function adaptPcCatProductWide(item: DecorateModule): ContractRenderPlan {
+  const m = (item.module || {}) as AnyRecord;
+  const productIds = idList(m.productIds);
+  const categoryId = toNumber(Array.isArray(m.categoryId) ? m.categoryId[0] : m.categoryId, 0);
+  return {
+    component: 'ContractCatProduct',
+    module: {
+      title: toTitle(m.title),
+      product: productIds.length
+        ? { productSelectType: 1, productIds, productNumber: productIds.length }
+        : { productSelectType: 2, productCategoryId: categoryId, productNumber: 8 },
+      banner: { picList: picList(m, 'picList') },
+      links: [...toLinks(m.linkList), ...toCategoryLinks(m.childCategoryList)],
+      frame: frameOf(m),
+      // color/color2/logo/enTitle/shortTitle/picList2（原版右侧促销卡）降级省略
+    },
+  };
+}
+
+/** pcCatProductSimple：products 已是 C 端 Product 的取数配置（productSelectType/productCategoryId/productNumber/productIds/productTag）。 */
+function adaptPcCatProductSimple(item: DecorateModule): ContractRenderPlan {
+  const m = (item.module || {}) as AnyRecord;
+  const p = (m.products || {}) as AnyRecord;
+  return {
+    component: 'ContractCatProduct',
+    module: {
+      title: toTitle(m.title),
+      moreLink: m.moreLink,
+      product: {
+        productSelectType: toNumber(p.productSelectType, 1),
+        productCategoryId: toNumber(p.productCategoryId, 0),
+        productNumber: toNumber(p.productNumber, 8),
+        productIds: idList(p.productIds),
+        productTag: p.productTag,
+      },
+      banner: { picList: picList(m, 'picList') },
+      frame: frameOf(m),
+      // baseStyle（左图右商品布局）降级为上下结构；moreLink 由 ContractCatProduct 渲染为“查看更多”
+    },
+  };
+}
+
+/**
+ * pcRecommendProduct：{titleName, products:{productNumber, productIds}}。
+ * 指定了商品 → Product 按 ids 拉取；未指定 → C 端 RecommendProduct（按 productNumber 拉推荐流）。
+ */
+function adaptPcRecommendProduct(item: DecorateModule): ContractRenderPlan {
+  const m = (item.module || {}) as AnyRecord;
+  const p = (m.products || {}) as AnyRecord;
+  const productIds = idList(p.productIds);
+  const title = toTitle(m.titleName ?? m.title);
+  if (productIds.length) {
+    return {
+      component: 'Product',
+      module: {
+        title,
+        products: { productSelectType: 1, productIds, productNumber: productIds.length },
+        frame: frameOf(m),
+      },
+    };
+  }
+  return {
+    component: 'RecommendProduct',
+    module: { title, products: { productNumber: toNumber(p.productNumber, 50) }, frame: frameOf(m) },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 图片广告系（pcImageAd / pcCustomAd1 / pcCustomAd2）
+// ---------------------------------------------------------------------------
+
+/** pcImageAd：{picList, boxPaddingTop, boxPaddingBottom, picType?} → ImageAd，padding 字段并入 frame。 */
+function adaptPcImageAd(item: DecorateModule): ContractRenderPlan {
+  const m = (item.module || {}) as AnyRecord;
+  return {
+    component: 'ImageAd',
+    module: {
+      picList: picList(m, 'picList'),
+      picType: m.picType,
+      frame: m.frame || { boxPaddingTop: m.boxPaddingTop, boxPaddingBottom: m.boxPaddingBottom },
+    },
+  };
+}
+
+/** pcCustomAd1：{picList, picList2, picList3} → ContractCustomAd 三组图顺次平铺（原版为固定编辑版式，降级）。 */
+function adaptPcCustomAd1(item: DecorateModule): ContractRenderPlan {
+  const m = (item.module || {}) as AnyRecord;
+  return {
+    component: 'ContractCustomAd',
+    module: {
+      groups: [picList(m, 'picList'), picList(m, 'picList2'), picList(m, 'picList3')],
+      frame: frameOf(m),
+    },
+  };
+}
+
+/** pcCustomAd2：{linkList, picList, picList2, picList3} → ContractCustomAd（链接行 + 三组图）。 */
+function adaptPcCustomAd2(item: DecorateModule): ContractRenderPlan {
+  const m = (item.module || {}) as AnyRecord;
+  return {
+    component: 'ContractCustomAd',
+    module: {
+      groups: [picList(m, 'picList'), picList(m, 'picList2'), picList(m, 'picList3')],
+      links: toLinks(m.linkList),
+      frame: frameOf(m),
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 分类导航系（pcCategoryNav / pcCategoryNav3 / pcCatWide）
+// ---------------------------------------------------------------------------
+
+/**
+ * pcCategoryNav：原版 CategoryNew 调 category/category/hot 渲染热门分类卡片（titleName、rowNum 一屏数量）。
+ * C 端复用同一接口（ContractCategoryHot），rowNum 作为每行列数。
+ */
+function adaptPcCategoryNav(item: DecorateModule): ContractRenderPlan {
+  const m = (item.module || {}) as AnyRecord;
+  return {
+    component: 'ContractCategoryHot',
+    module: {
+      title: toTitle(m.titleName ?? m.title),
+      rowNum: clamp(toNumber(m.rowNum ?? m.displayNum, 6), 1, 10),
+      catIds: [],
+      frame: frameOf(m),
+    },
+  };
+}
+
+/**
+ * pcCategoryNav3：pcBanner 字段 + imageBackgroundColor/titleText/showMore/showMoreText/moreLink。
+ * 与 pcCategoryNav 同源（热门分类接口），额外支持标题/更多链接/图片底色；
+ * 契约中的 picList/picList2/picList3 为原版轮播字段，降级省略。
+ */
+function adaptPcCategoryNav3(item: DecorateModule): ContractRenderPlan {
+  const m = (item.module || {}) as AnyRecord;
+  return {
+    component: 'ContractCategoryHot',
+    module: {
+      title: toTitle(m.titleText ?? m.titleName ?? m.title),
+      rowNum: clamp(toNumber(m.rowNum ?? m.displayNum, 6), 1, 10),
+      showMore: toNumber(m.showMore, 0) === 1,
+      moreText: m.showMoreText || '查看更多',
+      moreLink: m.moreLink,
+      imageBackgroundColor: m.imageBackgroundColor,
+      catIds: [],
+      frame: frameOf(m),
+    },
+  };
+}
+
+/**
+ * pcCatWide：{catIds}。原版由后端按 decorateId+moduleIndex 富化分类列表（home/home/getRecommend），
+ * C 端暂未接入该富化接口，降级为：取热门分类并按 catIds 过滤（命中才渲染，未命中整块隐藏）。
+ */
+function adaptPcCatWide(item: DecorateModule): ContractRenderPlan {
+  const m = (item.module || {}) as AnyRecord;
+  return {
+    component: 'ContractCategoryHot',
+    module: {
+      catIds: idList(m.catIds),
+      rowNum: 6,
+      frame: frameOf(m),
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 注册表：camelCase type → 适配器（DecorateRenderer 先查 PC_MODULE_REGISTRY，再查这里）
+// ---------------------------------------------------------------------------
+
+export const CONTRACT_ADAPTERS: Record<string, ContractAdapter> = {
+  pcBanner: adaptPcBanner,
+  pcBanner2: adaptPcBanner2,
+  pcGroupBanner: adaptPcGroupBanner,
+  pcSeckill: adaptPcSeckill,
+  pcCoupon: adaptPcCoupon,
+  pcCatProductNormal: adaptPcCatProductNormal,
+  pcCatProductWide: adaptPcCatProductWide,
+  pcCatProductSimple: adaptPcCatProductSimple,
+  pcRecommendProduct: adaptPcRecommendProduct,
+  pcImageAd: adaptPcImageAd,
+  pcCustomAd1: adaptPcCustomAd1,
+  pcCustomAd2: adaptPcCustomAd2,
+  pcCategoryNav: adaptPcCategoryNav,
+  pcCategoryNav3: adaptPcCategoryNav3,
+  pcCatWide: adaptPcCatWide,
+  pcGroupon: adaptPcGroupon,
+};
