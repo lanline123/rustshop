@@ -741,3 +741,18 @@ shippingFee + 商品金额 = 总金额
 ```text
 库存扣减、销量、订单关联表、促销快照、优惠券/积分待后续
 ```
+
+## 2026-10-31 补充：微信直播建单关联与出站日志
+
+补齐：
+
+```text
+wechat_live_order_rel
+  order_id / order_item_id / room_id / wechat_goods_id
+  product_id / share_open_id / viewer_open_id / scene / custom_params
+  sub_source=wechatLive / sync_status=0
+
+wechat_live_sync_log
+  建单 -> ORDER_CREATED / OUTBOUND
+  支付 -> ORDER_PAID / OUTBOUND
+```

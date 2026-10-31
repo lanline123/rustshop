@@ -132,7 +132,13 @@ impl WechatLiveSyncCallbackService {
                 .or(sku_price)
                 .unwrap_or(product_price);
             product_amount += price * rust_decimal::Decimal::from(quantity);
-            prepared.push((product_id, name, sn, pic, shop_id, sku_id, sku_data, price, quantity, product_type));
+            let room_id = dto.room_id.or_else(|| payload.get("roomId").and_then(|v| to_int(Some(v))));
+            let wechat_goods_id = item.get("wechatGoodsId").and_then(|v| to_int(Some(v)));
+            let share_open_id = item.get("shareOpenId").or_else(|| payload.get("shareOpenId")).and_then(Value::as_str).unwrap_or("").to_string();
+            let viewer_open_id = item.get("viewerOpenId").or_else(|| payload.get("viewerOpenId")).and_then(Value::as_str).unwrap_or(open_id).to_string();
+            let scene = item.get("scene").or_else(|| payload.get("scene")).and_then(Value::as_str).unwrap_or("").to_string();
+            let custom_params = item.get("customParams").or_else(|| payload.get("customParams")).and_then(Value::as_str).unwrap_or("").to_string();
+            prepared.push((product_id, name, sn, pic, shop_id, sku_id, sku_data, price, quantity, product_type, room_id, wechat_goods_id, share_open_id, viewer_open_id, scene, custom_params));
         }
         let shipping_fee = payload.get("shippingFee")
             .and_then(|v| v.as_str()).and_then(|s| s.parse().ok())
@@ -178,15 +184,28 @@ impl WechatLiveSyncCallbackService {
         .execute(&self.repos.pool).await
         .map_err(|e| Error::Database(e.to_string()))?;
         let order_id = i32::try_from(r.last_insert_id()).unwrap_or(0);
-        for (pid, name, sn, pic, shop, sku_id, sku_data, price, qty, ptype) in prepared {
-            sqlx::query(
+        for (pid, name, sn, pic, shop, sku_id, sku_data, price, qty, ptype, room_id, wechat_goods_id, share_open_id, viewer_open_id, scene, custom_params) in prepared {
+            let item_res = sqlx::query(
                 "INSERT INTO order_item(order_id,order_sn,user_id,product_id,product_name,product_sn,pic_thumb,shop_id,sku_id,sku_data,price,origin_price,quantity,delivery_quantity,product_type,promotion_data) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,0,?, '')",
             )
             .bind(order_id).bind(&order_sn).bind(user_id).bind(pid).bind(&name).bind(&sn).bind(&pic)
             .bind(shop).bind(sku_id).bind(&sku_data).bind(price).bind(price).bind(qty).bind(ptype)
             .execute(&self.repos.pool).await
             .map_err(|e| Error::Database(e.to_string()))?;
+            let item_id = i32::try_from(item_res.last_insert_id()).unwrap_or(0);
+            sqlx::query(
+                "INSERT INTO wechat_live_order_rel(order_id,order_item_id,wechat_live_id,room_id,wechat_goods_id,product_id,share_open_id,viewer_open_id,scene,custom_params,sub_source,sync_status,shop_id,add_time,update_time) VALUES(?,?,NULL,?,?,?,?,?,?,?,?,0,?,?,?)",
+            )
+            .bind(order_id).bind(item_id).bind(room_id).bind(wechat_goods_id).bind(pid)
+            .bind(&share_open_id).bind(&viewer_open_id).bind(&scene).bind(&custom_params)
+            .bind("wechatLive").bind(shop).bind(i64::from(now)).bind(i64::from(now))
+            .execute(&self.repos.pool).await
+            .map_err(|e| Error::Database(e.to_string()))?;
         }
+        let _ = sqlx::query(
+            "INSERT INTO wechat_live_sync_log(order_id,event_type,direction,sync_status,request_data,shop_id,add_time,update_time) VALUES(?,?,?,0,?,?,?,?)",
+        ).bind(order_id).bind("ORDER_CREATED").bind("OUTBOUND").bind(&extension).bind(shop_id)
+         .bind(i64::from(now)).bind(i64::from(now)).execute(&self.repos.pool).await;
         if paid {
             use tigshop_core::models::payment::paylog::{generate_pay_sn, PayOrderType};
             use tigshop_infrastructure::db::repo::payment::paylog::PAYLOG_STATUS_PAID;
@@ -213,6 +232,10 @@ impl WechatLiveSyncCallbackService {
                 appid: None,
             };
             self.repos.payment.paylog.insert(&paylog).await?;
+            let _ = sqlx::query(
+                "INSERT INTO wechat_live_sync_log(order_id,event_type,direction,sync_status,request_data,shop_id,add_time,update_time) VALUES(?,?,?,0,?,?,?,?)",
+            ).bind(order_id).bind("ORDER_PAID").bind("OUTBOUND").bind(serde_json::to_string(&payload).unwrap_or_default()).bind(shop_id)
+             .bind(i64::from(now)).bind(i64::from(now)).execute(&self.repos.pool).await;
         }
         tracing::info!(order_id, order_sn = %order_sn, "微信直播回调自动建单完成");
         Ok(order_id)
