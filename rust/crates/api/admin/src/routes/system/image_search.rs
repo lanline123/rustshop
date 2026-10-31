@@ -296,6 +296,27 @@ fn spawn_build(state: AdminState, job_id: i64, product_id: i32) {
     });
 }
 
+/// 商品变更后入队增量同步（Java ProductEsSyncEvent 等价入口）。
+pub(crate) async fn enqueue_product_sync(state: &AdminState, product_id: i32) {
+    if product_id <= 0 {
+        return;
+    }
+    let Ok(rows) = load_config(state).await else { return; };
+    if cfg_get(&rows, "imageSearchEnabled") != "1" {
+        return;
+    }
+    if cfg_get(&rows, "imageSearchIndexName").is_empty()
+        || cfg_get(&rows, "imageSearchAliyunAccessKeyId").is_empty()
+        || cfg_get(&rows, "imageSearchAliyunAccessKeySecret").is_empty()
+    {
+        return;
+    }
+    let job_key = format!("{}:product:{}", cfg_get(&rows, "imageSearchIndexName"), product_id);
+    if let Ok(id) = insert_job(state, &job_key, product_id, &rows).await {
+        spawn_build(state.clone(), id, product_id);
+    }
+}
+
 async fn insert_job(
     state: &AdminState,
     job_key: &str,
@@ -392,9 +413,9 @@ async fn run_build(state: AdminState, job_id: i64, product_id: i32) -> Result<()
         .map_err(|e| e.to_string())?;
     set_job_state(&state, job_id, "RUNNING", 0).await;
     let sql = if product_id > 0 {
-        "SELECT product_id,pic_url,pic_original,pic_large,pic_thumb FROM product WHERE product_id=? AND is_delete=0 AND product_status=1 LIMIT 1"
+        "SELECT product_id,product_status,is_delete,pic_url,pic_original,pic_large,pic_thumb FROM product WHERE product_id=? LIMIT 1"
     } else {
-        "SELECT product_id,pic_url,pic_original,pic_large,pic_thumb FROM product WHERE is_delete=0 AND product_status=1 ORDER BY product_id"
+        "SELECT product_id,product_status,is_delete,pic_url,pic_original,pic_large,pic_thumb FROM product WHERE is_delete=0 AND product_status=1 ORDER BY product_id"
     };
     let mut q = sqlx::query(sql);
     if product_id > 0 {
@@ -406,6 +427,14 @@ async fn run_build(state: AdminState, job_id: i64, product_id: i32) -> Result<()
     let mut skipped = 0i64;
     for product in products {
         let pid: i32 = product.try_get("product_id").unwrap_or(0);
+        let active = product.try_get::<i32, _>("is_delete").unwrap_or(1) == 0
+            && product.try_get::<i32, _>("product_status").unwrap_or(0) == 1;
+        if product_id > 0 && !active {
+            let pic_name = format!("product-{pid}.jpg");
+            let _ = delete_image(&client, &region, &key, &secret, &index, pid, &pic_name).await;
+            scanned += 1;
+            continue;
+        }
         let url = ["pic_url", "pic_original", "pic_large", "pic_thumb"]
             .iter()
             .find_map(|c| product.try_get::<Option<String>, _>(*c).ok().flatten())
@@ -488,6 +517,34 @@ async fn download_upload_add(
     let v: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
     if v.get("Success").and_then(Value::as_bool) == Some(false) || v.get("Code").and_then(Value::as_i64).unwrap_or(1) != 0 {
         return Err(v.get("Message").and_then(Value::as_str).unwrap_or("AddImage 失败").to_string());
+    }
+    Ok(())
+}
+
+async fn delete_image(
+    client: &reqwest::Client,
+    region: &str,
+    key: &str,
+    secret: &str,
+    index: &str,
+    product_id: i32,
+    pic_name: &str,
+) -> Result<(), String> {
+    let params = vec![
+        ("Action".to_string(), "DeleteImage".to_string()),
+        ("InstanceName".to_string(), index.to_string()),
+        ("PicName".to_string(), pic_name.to_string()),
+        ("ProductId".to_string(), product_id.to_string()),
+        ("SignatureNonce".to_string(), uuid::Uuid::new_v4().to_string()),
+        ("Timestamp".to_string(), chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()),
+    ];
+    let body = sign_version("POST", key, secret, region, "2020-12-14", &params);
+    let resp = client.post(format!("https://imagesearch.{region}.aliyuncs.com/"))
+        .header(reqwest::header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(body).send().await.map_err(|e| e.to_string())?;
+    let v: Value = resp.json().await.unwrap_or(Value::Null);
+    if v.get("Success").and_then(Value::as_bool) == Some(false) {
+        return Err(v.get("Message").and_then(Value::as_str).unwrap_or("DeleteImage 失败").to_string());
     }
     Ok(())
 }

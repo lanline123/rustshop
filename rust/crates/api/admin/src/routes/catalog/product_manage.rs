@@ -60,6 +60,7 @@ use tigshop_core::types::PageResult;
 use tigshop_security::web::{ok, ApiResult, AppError, AuthUser};
 
 use crate::AdminState;
+use crate::routes::system::image_search::enqueue_product_sync;
 
 /// 商品域管理端路由（挂载于 `/adminapi` 下）。
 pub fn routes(state: &AdminState) -> Router<AdminState> {
@@ -243,7 +244,11 @@ async fn product_create(
     if let Some(shop_id) = auth.scoped_shop_id() {
         dto.shop_id = Some(shop_id);
     }
-    ok(state.catalog.product_manage.create(&dto).await?)
+    let id = state.catalog.product_manage.create(&dto).await?;
+    if let Ok(pid) = id.parse::<i32>() {
+        enqueue_product_sync(&state, pid).await;
+    }
+    ok(id)
 }
 
 /// `POST /adminapi/product/product/update`：更新商品。
@@ -258,7 +263,11 @@ async fn product_update(
     if let Some(shop_id) = auth.scoped_shop_id() {
         dto.shop_id = Some(shop_id);
     }
-    ok(state.catalog.product_manage.update(&dto).await?)
+    let id = state.catalog.product_manage.update(&dto).await?;
+    if let Ok(pid) = id.parse::<i32>() {
+        enqueue_product_sync(&state, pid).await;
+    }
+    ok(id)
 }
 
 /// `POST /adminapi/product/product/del`：删除商品（软删除）。
@@ -271,11 +280,15 @@ async fn product_del(
     Json(dto): Json<ProductDelDTO>,
 ) -> ApiResult<u64> {
     let ids = dto.target_ids();
-    ok(state
+    let deleted = state
         .catalog
         .product_manage
         .delete_scoped(&ids, auth.scoped_shop_id())
-        .await?)
+        .await?;
+    for id in &ids {
+        enqueue_product_sync(&state, *id as i32).await;
+    }
+    ok(deleted)
 }
 
 /// `GET /adminapi/product/productBatch/downloadTemplate`：下载导入模板。
