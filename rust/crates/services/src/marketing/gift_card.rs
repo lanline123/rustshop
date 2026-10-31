@@ -221,25 +221,71 @@ impl GiftCardService {
             .collect())
     }
 
-    /// 导入（Java 解析 xlsx）→ Rust 侧仅做「文件非空」校验并返回未迁移错误。
+    /// 导入礼品卡（Java `GiftCardsServiceImpl#importList`）。
     ///
-    /// # Errors
-    /// 无文件 ⇒「请上传文件」；有文件 ⇒「Excel 批量导入功能尚未迁移」。
+    /// 行格式：`(卡号, 密码)`，逐条校验后插入，失败行返回原因。
     pub async fn import_list(
         &self,
         card_groups_id: Option<i32>,
-        file_present: bool,
+        rows: &[(String, String)],
     ) -> Result<GiftCardsImportVO> {
-        if !file_present {
+        if rows.is_empty() {
             return Err(Error::biz(500, MSG_UPLOAD_FILE_REQUIRED));
         }
         let group_id = card_groups_id.ok_or_else(|| Error::biz(500, MSG_CARD_GROUP_INVALID))?;
-        // 多租户：导入前校验卡组归属
         ensure_group_access(self.repo(), group_id).await?;
-        if self.repo().find_group(group_id).await?.is_none() {
-            return Err(Error::biz(500, MSG_CARD_GROUP_INVALID));
+        let group = self
+            .repo()
+            .find_group(group_id)
+            .await?
+            .ok_or_else(|| Error::biz(500, MSG_CARD_GROUP_INVALID))?;
+        let now = i32::try_from(now_seconds()).unwrap_or(i32::MAX);
+        let expired = if group.card_type == CARD_TYPE_PHYSICAL {
+            group.expire_time.unwrap_or(0)
+        } else {
+            0
+        };
+        let mut success = 0;
+        let mut fail_list = Vec::new();
+        for (number, password) in rows {
+            let number = number.trim();
+            let password = password.trim();
+            if number.len() < 8 {
+                fail_list.push(format!("{number}（卡号长度不能小于8位）"));
+                continue;
+            }
+            if !(6..=16).contains(&password.len()) {
+                fail_list.push(format!("{number}（密码长度不能小于6位或者大于16位）"));
+                continue;
+            }
+            let card = GiftCards {
+                gift_cards_id: 0,
+                card_groups_id: group_id,
+                card_number: number.to_string(),
+                card_password: password.to_string(),
+                gift_card_sn: Some(uuid::Uuid::new_v4().simple().to_string()),
+                is_available: Some(1),
+                status: Some(0),
+                used_time: None,
+                user_id: None,
+                add_time: Some(now),
+                expired_time: expired,
+                claimed_user_id: None,
+                claimed_status: None,
+                order_time: None,
+            };
+            match self.repo().insert_many(&[card]).await {
+                Ok(_) => success += 1,
+                Err(_) => fail_list.push(number.to_string()),
+            }
         }
-        Err(Error::biz(500, MSG_EXCEL_IMPORT_UNMIGRATED))
+        let stock = group.availability_stock.unwrap_or(0).saturating_add(success);
+        self.repo().update_group_stock(group_id, stock).await?;
+        Ok(GiftCardsImportVO {
+            success_count: success,
+            fail_count: i32::try_from(fail_list.len()).unwrap_or(i32::MAX),
+            fail_list,
+        })
     }
 
     // ————————————————————— admin：删除 / 状态 / 兑换详情 —————————————————————

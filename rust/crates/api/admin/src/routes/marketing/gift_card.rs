@@ -30,8 +30,8 @@ use axum::{
 };
 use serde::Deserialize;
 use tigshop_core::models::marketing::gift_card::{
-    GiftCardIdParam, GiftCardUpdateStatusDTO, GiftCardsExportVO, GiftCardsListQuery,
-    GiftCardsTemplateVO, GiftCardsVO,
+    GiftCardIdParam, GiftCardUpdateStatusDTO, GiftCardsExportVO, GiftCardsImportVO,
+    GiftCardsListQuery, GiftCardsTemplateVO, GiftCardsVO,
 };
 use tigshop_core::types::PageResult;
 use tigshop_core::Error;
@@ -146,20 +146,36 @@ async fn detail(
     ok(state.marketing.gift_card.admin_detail(q.gift_cards_id).await?)
 }
 
-/// `GET /promotion/giftCards/importTemplate`：导入模板（JSON 降级）。
-async fn import_template(State(state): State<AdminState>) -> ApiResult<Vec<GiftCardsTemplateVO>> {
-    ok(state.marketing.gift_card.import_template())
+/// `GET /promotion/giftCards/importTemplate`：导入模板（xlsx）。
+async fn import_template(State(state): State<AdminState>) -> Result<axum::response::Response, AppError> {
+    let template = state.marketing.gift_card.import_template();
+    let rows: Vec<Vec<String>> = template
+        .into_iter()
+        .map(|r| vec![r.card_number, r.card_password])
+        .collect();
+    let bytes = tigshop_services::system::excel::build_xlsx(&["卡号", "密码"], &rows, "礼品卡导入模板")?;
+    Ok(crate::support::excel_response::xlsx_response(bytes, "gift_card_template.xlsx"))
 }
 
-/// `GET /promotion/giftCards/exportList`：导出列表（JSON 降级，Java 为 xlsx）。
+/// `GET /promotion/giftCards/exportList`：导出列表（xlsx）。
 async fn export_list(
     State(state): State<AdminState>,
     Query(q): Query<CardGroupsIdQuery>,
-) -> ApiResult<Vec<GiftCardsExportVO>> {
+) -> Result<axum::response::Response, AppError> {
     let card_groups_id = q.card_groups_id.ok_or_else(|| {
         AppError(Error::Validation("cardGroupsId不能为空".into()))
     })?;
-    ok(state.marketing.gift_card.export_list(card_groups_id).await?)
+    let list = state.marketing.gift_card.export_list(card_groups_id).await?;
+    let rows: Vec<Vec<String>> = list
+        .into_iter()
+        .map(|r| vec![r.card_number, r.card_password, r.gift_card_sn.unwrap_or_default(), r.is_sold, r.is_exchange, r.add_time])
+        .collect();
+    let bytes = tigshop_services::system::excel::build_xlsx(
+        &["卡号", "密码", "卡序列号", "是否售出", "是否兑换", "添加时间"],
+        &rows,
+        "礼品卡列表",
+    )?;
+    Ok(crate::support::excel_response::xlsx_response(bytes, "gift_cards.xlsx"))
 }
 
 /// `POST /promotion/giftCards/importList`：Excel 批量导入（**未迁移**）。
@@ -167,18 +183,27 @@ async fn import_list(
     State(state): State<AdminState>,
     Query(q): Query<CardGroupsIdQuery>,
     mut multipart: Multipart,
-) -> ApiResult<()> {
-    let (form_group_id, file_present) = read_import_form(&mut multipart).await?;
-    let _ = state
+) -> ApiResult<GiftCardsImportVO> {
+    let (form_group_id, bytes) = read_import_file(&mut multipart).await?;
+    let rows = tigshop_services::system::excel::read_xlsx(&bytes)?;
+    let cards: Vec<(String, String)> = rows
+        .into_iter()
+        .skip(1)
+        .filter_map(|row| {
+            let number = row.first()?.trim().to_string();
+            let password = row.get(1).map(|s| s.trim().to_string()).unwrap_or_default();
+            if number.is_empty() && password.is_empty() { None } else { Some((number, password)) }
+        })
+        .collect();
+    ok(state
         .marketing
         .gift_card
-        .import_list(q.card_groups_id.or(form_group_id), file_present)
-        .await?;
-    ok(())
+        .import_list(q.card_groups_id.or(form_group_id), &cards)
+        .await?)
 }
 
-/// 读取 multipart 表单：`cardGroupsId` 文本字段 + `file` 是否存在（不读文件内容）。
-async fn read_import_form(multipart: &mut Multipart) -> Result<(Option<i32>, bool), Error> {
+/// 读取 multipart 表单：`cardGroupsId` 文本字段 + `file` 内容。
+async fn read_import_file(multipart: &mut Multipart) -> Result<(Option<i32>, Vec<u8>), Error> {
     let mut group_id: Option<i32> = None;
     while let Some(field) = multipart
         .next_field()
@@ -187,7 +212,12 @@ async fn read_import_form(multipart: &mut Multipart) -> Result<(Option<i32>, boo
     {
         let name = field.name().unwrap_or_default().to_string();
         if name == "file" {
-            return Ok((group_id, true));
+            let bytes = field
+                .bytes()
+                .await
+                .map_err(|e| Error::Validation(format!("读取文件失败: {e}")))?
+                .to_vec();
+            return Ok((group_id, bytes));
         }
         let text = field
             .text()
@@ -197,7 +227,7 @@ async fn read_import_form(multipart: &mut Multipart) -> Result<(Option<i32>, boo
             group_id = text.trim().parse::<i32>().ok();
         }
     }
-    Ok((group_id, false))
+    Err(Error::Validation("请上传文件".into()))
 }
 
 async fn delete(

@@ -140,3 +140,24 @@ cargo check -p tigshop-api
 cargo test -p tigshop-api --lib
 131 passed
 ```
+
+## 2026-10-31 补充：礼品卡 Excel
+
+已实现：
+
+```text
+GET  /promotion/giftCards/importTemplate   xlsx 模板
+GET  /promotion/giftCards/exportList       xlsx 导出
+POST /promotion/giftCards/importList       xlsx 导入
+```
+
+导入规则：
+
+```text
+表头：卡号 / 密码
+卡号长度 <8 失败
+密码长度 6-16 失败
+重复卡号失败
+成功数累加 availability_stock
+返回 successCount / failCount / failList
+```
