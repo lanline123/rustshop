@@ -343,8 +343,7 @@ impl PayService {
         // —— 在线渠道：协议骨架已就绪，配置缺失时给出可操作错误 ——
         let configs = crate::payment::channels::load_channel_configs(&self.repos).await?;
         match pay_type {
-            "wechat" | "wechatH5" | "wechatApp" | "wechatMini" | "wechatPartner"
-            | "wechatCombine" => {
+            "wechat" | "wechatH5" | "wechatApp" | "wechatMini" => {
                 if !configs.wechat.is_configured() {
                     return Err(Error::biz(
                         1001,
@@ -354,11 +353,23 @@ impl PayService {
                         ),
                     ));
                 }
-                // 签名/验签/回调解密已实现（channels::wechat_*），下单接口待沙箱联调
-                Err(Error::biz(
-                    1001,
-                    "微信支付协议骨架已就绪（RSA 签名 / 回调验签 / AES-GCM 解密），下单接口待商户凭据沙箱联调",
-                ))
+                let order_id = q.id.unwrap_or(0);
+                let order = self.repo().find_order_by_id(order_id).await?
+                    .ok_or_else(|| Error::biz(500, MSG_ORDER_NOT_FOUND))?;
+                let client_type = q.code.as_deref().unwrap_or("pc");
+                let pay_sn = self.create_pending_paylog(
+                    &order,
+                    "wechat",
+                    &format!("微信支付-订单{}", order.order_sn),
+                ).await?;
+                let pay_info = self.wechat_create(&order, &configs.wechat, client_type, user_id, &pay_sn).await?;
+                return Ok(PayCreateVO {
+                    order_id: Some(order.order_id),
+                    order_sn: Some(order.order_sn.clone()),
+                    order_amount: Some(order.unpaid_amount),
+                    pay_info: Some(pay_info),
+                    code: None,
+                });
             }
             "alipay" | "ali" => {
                 if !configs.alipay.is_configured() {
@@ -426,6 +437,176 @@ impl PayService {
             pay_amount: order.unpaid_amount,
             pay_status: PAYLOG_STATUS_UNPAID,
             pay_code: "offline".to_string(),
+            profit_sharing_channel: None,
+            add_time: Some(tigshop_common::utils::now_seconds() as i32),
+            transaction_id: String::new(),
+            notify_data: String::new(),
+            refund_amount: rust_decimal::Decimal::ZERO,
+            token_code: String::new(),
+            appid: None,
+        };
+        self.repos.payment.paylog.insert(&paylog).await?;
+        Ok(pay_sn)
+    }
+
+    /// 微信支付 v3 直连下单（native/h5/jsapi/app）。
+    async fn wechat_create(
+        &self,
+        order: &PayOrderRow,
+        cfg: &crate::payment::channels::WechatPayV3Config,
+        client_type: &str,
+        user_id: i32,
+        pay_sn: &str,
+    ) -> Result<serde_json::Value> {
+        use crate::payment::channels::{wechat_authorization, wechat_sign, wechat_sign_message};
+        let pc_domain = self.config_value("pcDomain").await?.unwrap_or_default();
+        if pc_domain.trim().is_empty() {
+            return Err(Error::biz(1001, "pcDomain 未配置，无法生成微信支付回调地址"));
+        }
+        let notify_url = format!("{}/api/order/pay/notify/wechat", pc_domain.trim_end_matches('/'));
+        let amount = (order.unpaid_amount * rust_decimal::Decimal::from(100)).round().to_string();
+        let (path, body) = match client_type {
+            "h5" => ("/v3/pay/transactions/h5", serde_json::json!({
+                "appid": cfg.app_id,
+                "mchid": cfg.mchid,
+                "description": "订单支付",
+                "out_trade_no": pay_sn,
+                "notify_url": notify_url,
+                "amount": {"total": amount, "currency": "CNY"},
+                "scene_info": {"payer_client_ip": "127.0.0.1", "h5_info": {"type": "Wap"}}
+            })),
+            "wechat" | "wechatMini" | "miniProgram" => {
+                use sqlx::Row;
+                let auth_type = if matches!(client_type, "wechatMini" | "miniProgram") { 2 } else { 1 };
+                let row = sqlx::query("SELECT open_id FROM user_authorize WHERE user_id=? AND authorize_type=? ORDER BY authorize_id DESC LIMIT 1")
+                    .bind(user_id).bind(auth_type)
+                    .fetch_optional(&self.repos.pool).await.map_err(|e| Error::Database(e.to_string()))?;
+                let openid = row.and_then(|r| r.try_get::<String, _>("open_id").ok()).unwrap_or_default();
+                if openid.is_empty() {
+                    return Err(Error::biz(1001, "微信支付需要用户 openid，请先授权登录"));
+                }
+                ("/v3/pay/transactions/jsapi", serde_json::json!({
+                    "appid": cfg.app_id,
+                    "mchid": cfg.mchid,
+                    "description": "订单支付",
+                    "out_trade_no": pay_sn,
+                    "notify_url": notify_url,
+                    "amount": {"total": amount, "currency": "CNY"},
+                    "payer": {"openid": openid}
+                }))
+            }
+            "app" | "wechatApp" => ("/v3/pay/transactions/app", serde_json::json!({
+                "appid": cfg.app_id,
+                "mchid": cfg.mchid,
+                "description": "订单支付",
+                "out_trade_no": pay_sn,
+                "notify_url": notify_url,
+                "amount": {"total": amount, "currency": "CNY"}
+            })),
+            _ => ("/v3/pay/transactions/native", serde_json::json!({
+                "appid": cfg.app_id,
+                "mchid": cfg.mchid,
+                "description": "订单支付",
+                "out_trade_no": pay_sn,
+                "notify_url": notify_url,
+                "amount": {"total": amount, "currency": "CNY"}
+            })),
+        };
+        let body_text = body.to_string();
+        let timestamp = tigshop_common::utils::now_seconds().to_string();
+        let nonce = uuid::Uuid::new_v4().simple().to_string();
+        let message = wechat_sign_message("POST", path, &timestamp, &nonce, &body_text);
+        let private_key = cfg.private_key_pem.as_deref().unwrap_or_default();
+        let signature = wechat_sign(private_key, &message)?;
+        let auth = wechat_authorization(&cfg.mchid, &cfg.serial_no, &nonce, &timestamp, &signature);
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(20))
+            .build()
+            .map_err(|e| Error::Internal(e.to_string()))?;
+        let resp = client.post(format!("https://api.mch.weixin.qq.com{path}"))
+            .header("Authorization", auth)
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json")
+            .body(body_text)
+            .send().await
+            .map_err(|e| Error::biz(1001, format!("微信支付下单网络异常: {e}")))?;
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        let v: serde_json::Value = serde_json::from_str(&text).unwrap_or(serde_json::Value::Null);
+        if !status.is_success() {
+            let msg = v.get("message").and_then(|m| m.as_str()).unwrap_or("微信支付下单失败");
+            return Err(Error::biz(1001, format!("微信支付下单失败: {msg}")));
+        }
+        match client_type {
+            "h5" => {
+                let url = v.get("h5_url").and_then(|x| x.as_str()).unwrap_or_default();
+                if url.is_empty() {
+                    return Err(Error::biz(1001, "微信支付响应缺少 h5_url"));
+                }
+                Ok(serde_json::json!({"paySn": pay_sn, "payType": "wechat", "h5Url": url}))
+            }
+            "wechat" | "wechatMini" | "miniProgram" => {
+                let prepay = v.get("prepay_id").and_then(|x| x.as_str()).unwrap_or_default();
+                if prepay.is_empty() {
+                    return Err(Error::biz(1001, "微信支付响应缺少 prepay_id"));
+                }
+                let ts = tigshop_common::utils::now_seconds().to_string();
+                let n = uuid::Uuid::new_v4().simple().to_string();
+                let package = format!("prepay_id={prepay}");
+                let sign_msg = format!("{}\n{}\n{}\n{}\n", cfg.app_id, ts, n, package);
+                let pay_sign = wechat_sign(private_key, &sign_msg)?;
+                Ok(serde_json::json!({
+                    "paySn": pay_sn, "payType": "wechat", "appId": cfg.app_id,
+                    "timeStamp": ts, "nonceStr": n, "package": package,
+                    "signType": "RSA", "paySign": pay_sign
+                }))
+            }
+            "app" | "wechatApp" => {
+                let prepay = v.get("prepay_id").and_then(|x| x.as_str()).unwrap_or_default();
+                if prepay.is_empty() {
+                    return Err(Error::biz(1001, "微信支付响应缺少 prepay_id"));
+                }
+                let ts = tigshop_common::utils::now_seconds().to_string();
+                let n = uuid::Uuid::new_v4().simple().to_string();
+                let sign_msg = format!("{}\n{}\n{}\n{}\n", cfg.app_id, ts, n, prepay);
+                let pay_sign = wechat_sign(private_key, &sign_msg)?;
+                Ok(serde_json::json!({
+                    "paySn": pay_sn, "payType": "wechat", "appId": cfg.app_id,
+                    "partnerId": cfg.mchid, "prepayId": prepay, "packageValue": "Sign=WXPay",
+                    "nonceStr": n, "timeStamp": ts, "sign": pay_sign
+                }))
+            }
+            _ => {
+                let url = v.get("code_url").and_then(|x| x.as_str()).unwrap_or_default();
+                if url.is_empty() {
+                    return Err(Error::biz(1001, "微信支付响应缺少 code_url"));
+                }
+                Ok(serde_json::json!({"paySn": pay_sn, "payType": "wechat", "codeUrl": url}))
+            }
+        }
+    }
+
+    /// 创建通用待支付 paylog（渠道下单前落库）。
+    async fn create_pending_paylog(
+        &self,
+        order: &PayOrderRow,
+        pay_code: &str,
+        pay_name: &str,
+    ) -> Result<String> {
+        use tigshop_core::models::payment::paylog::{generate_pay_sn, PayOrderType};
+        use tigshop_infrastructure::db::repo::payment::paylog::PAYLOG_STATUS_UNPAID;
+        let pay_sn = generate_pay_sn();
+        let paylog = Paylog {
+            paylog_id: 0,
+            pay_sn: pay_sn.clone(),
+            pay_name: pay_name.to_string(),
+            order_id: order.order_id,
+            order_sn: order.order_sn.clone(),
+            order_amount: order.total_amount,
+            order_type: PayOrderType::Product as i32,
+            pay_amount: order.unpaid_amount,
+            pay_status: PAYLOG_STATUS_UNPAID,
+            pay_code: pay_code.to_string(),
             profit_sharing_channel: None,
             add_time: Some(tigshop_common::utils::now_seconds() as i32),
             transaction_id: String::new(),

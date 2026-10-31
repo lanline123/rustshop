@@ -241,3 +241,32 @@ PAYMENT_RESULT + resultStatus=S -> paymentRequestId 截取 paySn -> mark_paid
 GET /product/eCardGroup/list?isDownload>0
 返回 xlsx：卡券名称 / 卡号密码
 ```
+
+## 2026-10-31 补充：微信支付 v3 直连下单
+
+`GET /api/order/pay/create` 的 `wechat*` 分支已实现：
+
+```text
+pc          -> /v3/pay/transactions/native  code_url
+h5          -> /v3/pay/transactions/h5      h5_url
+wechat      -> /v3/pay/transactions/jsapi   prepay_id + JSAPI 签名
+app         -> /v3/pay/transactions/app     prepay_id + APP 签名
+```
+
+请求：
+
+```text
+V3 待签名串 METHOD\nPATH\nTIMESTAMP\nNONCE\nBODY\n
+Authorization: WECHATPAY2-SHA256-RSA2048
+```
+
+前置：
+
+```text
+订单归属/未支付校验
+创建待支付 paylog
+pcDomain 回调地址
+微信配置：mchid/appId/serial/privateKey/publicKey/apiV3Key
+```
+
+依赖真实商户凭据与证书。
