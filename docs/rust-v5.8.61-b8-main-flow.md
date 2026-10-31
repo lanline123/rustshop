@@ -414,3 +414,22 @@ GET /adminapi/panel/statisticsUser/userConsumptionRanking?isExport=1
 ```
 
 非导出仍返回 JSON 分页。
+
+## 2026-10-31 补充：渠道退款方法
+
+`PayService::refund_via_channel` 按 `pay_code` 分发：
+
+```text
+stripe  -> POST /v1/refunds
+paypal  -> OAuth2 + POST /v2/payments/captures/{captureId}/refund
+xendit  -> POST /refunds（X-IDEMPOTENCY-KEY=refund_sn）
+```
+
+依赖：
+
+```text
+paylog.transaction_id（Stripe payment_intent / PayPal captureId / Xendit invoice_id）
+渠道配置
+```
+
+说明：退款审核流程的最终调用点尚未接入，本轮先落渠道方法。

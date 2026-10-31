@@ -1078,6 +1078,146 @@ impl PayService {
         Ok(serde_json::json!({"paySn": pay_sn, "payType": "antom", "url": url}))
     }
 
+    /// 渠道退款入口（按 pay_code 分发）。
+    pub async fn refund_via_channel(
+        &self,
+        pay_code: &str,
+        pay_sn: &str,
+        refund_sn: &str,
+        refund_amount: rust_decimal::Decimal,
+    ) -> Result<String> {
+        let paylog = self
+            .repos
+            .payment
+            .paylog
+            .find_latest_by_pay_sn(pay_sn)
+            .await?
+            .ok_or_else(|| Error::biz(500, "找不到原支付记录"))?;
+        if paylog.transaction_id.trim().is_empty() {
+            return Err(Error::biz(500, "原支付交易号缺失，无法退款"));
+        }
+        match pay_code {
+            "stripe" => self.stripe_refund(&paylog.transaction_id, refund_sn, refund_amount).await,
+            "paypal" => self.paypal_refund(&paylog.transaction_id, refund_sn, refund_amount).await,
+            "xendit" => self.xendit_refund(&paylog.transaction_id, refund_sn, refund_amount).await,
+            other => Err(Error::biz(500, format!("该支付方式暂不支持退款：{other}"))),
+        }
+    }
+
+    async fn stripe_refund(
+        &self,
+        payment_intent: &str,
+        refund_sn: &str,
+        amount: rust_decimal::Decimal,
+    ) -> Result<String> {
+        let secret = self.config_value("stripeSecretKey").await?.unwrap_or_default();
+        if secret.trim().is_empty() {
+            return Err(Error::biz(1001, "Stripe 未配置：缺少 stripeSecretKey"));
+        }
+        let minor = (amount * rust_decimal::Decimal::from(100)).round().to_string();
+        let body = format!(
+            "payment_intent={}&amount={}&metadata[refund_sn]={}",
+            url_encode(payment_intent), minor, url_encode(refund_sn)
+        );
+        let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(25)).build()
+            .map_err(|e| Error::Internal(e.to_string()))?;
+        let resp = client.post("https://api.stripe.com/v1/refunds")
+            .header("Authorization", format!("Bearer {}", secret.trim()))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(body).send().await
+            .map_err(|e| Error::biz(1001, format!("Stripe 退款网络异常: {e}")))?;
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        if !status.is_success() {
+            return Err(Error::biz(1001, format!("Stripe 退款失败: {text}")));
+        }
+        let v: serde_json::Value = serde_json::from_str(&text).unwrap_or(serde_json::Value::Null);
+        Ok(v.get("status").and_then(|s| s.as_str()).unwrap_or("pending").to_string())
+    }
+
+    async fn paypal_refund(
+        &self,
+        capture_id: &str,
+        refund_sn: &str,
+        amount: rust_decimal::Decimal,
+    ) -> Result<String> {
+        use crate::payment::channels::load_channel_configs;
+        let configs = load_channel_configs(&self.repos).await?;
+        let cfg = &configs.paypal;
+        if !cfg.is_configured() {
+            return Err(Error::biz(1001, "PayPal 未配置"));
+        }
+        let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(25)).build()
+            .map_err(|e| Error::Internal(e.to_string()))?;
+        let token_resp = client.post(cfg.oauth_token_url())
+            .basic_auth(&cfg.client_id, Some(&cfg.client_secret))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body("grant_type=client_credentials").send().await
+            .map_err(|e| Error::biz(1001, format!("PayPal 获取 token 异常: {e}")))?;
+        let token_text = token_resp.text().await.unwrap_or_default();
+        let token_json: serde_json::Value = serde_json::from_str(&token_text).unwrap_or(serde_json::Value::Null);
+        let access = token_json.get("access_token").and_then(|v| v.as_str()).unwrap_or_default();
+        if access.is_empty() {
+            return Err(Error::biz(1001, "PayPal 获取 token 失败"));
+        }
+        let currency = if cfg.currency.trim().is_empty() { "USD" } else { cfg.currency.trim() };
+        let body = serde_json::json!({
+            "amount": {"value": amount.to_string(), "currency_code": currency},
+            "invoice_id": refund_sn
+        });
+        let resp = client.post(format!("{}/v2/payments/captures/{capture_id}/refund", cfg.base_url()))
+            .bearer_auth(access)
+            .header("Content-Type", "application/json")
+            .body(body.to_string()).send().await
+            .map_err(|e| Error::biz(1001, format!("PayPal 退款网络异常: {e}")))?;
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        if !status.is_success() {
+            return Err(Error::biz(1001, format!("PayPal 退款失败: {text}")));
+        }
+        let v: serde_json::Value = serde_json::from_str(&text).unwrap_or(serde_json::Value::Null);
+        Ok(v.get("status").and_then(|s| s.as_str()).unwrap_or("PENDING").to_string())
+    }
+
+    async fn xendit_refund(
+        &self,
+        invoice_id: &str,
+        refund_sn: &str,
+        amount: rust_decimal::Decimal,
+    ) -> Result<String> {
+        let secret = self.config_value("xenditSecretKey").await?.unwrap_or_default();
+        if secret.trim().is_empty() {
+            return Err(Error::biz(1001, "Xendit 未配置：缺少 xenditSecretKey"));
+        }
+        let base = self.config_value("xenditBaseUrl").await?
+            .filter(|v| !v.trim().is_empty())
+            .unwrap_or_else(|| "https://api.xendit.co".into());
+        let currency = self.config_value("xenditCurrency").await?.unwrap_or_else(|| "idr".into());
+        let amount_value: f64 = amount.to_string().parse().unwrap_or(0.0);
+        let body = serde_json::json!({
+            "invoice_id": invoice_id,
+            "amount": amount_value,
+            "currency": currency,
+            "reason": "REQUESTED_BY_CUSTOMER",
+            "reference_id": refund_sn
+        });
+        let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(25)).build()
+            .map_err(|e| Error::Internal(e.to_string()))?;
+        let resp = client.post(format!("{}/refunds", base.trim_end_matches('/')))
+            .basic_auth(secret.trim(), Option::<&str>::None)
+            .header("Content-Type", "application/json")
+            .header("X-IDEMPOTENCY-KEY", refund_sn)
+            .body(body.to_string()).send().await
+            .map_err(|e| Error::biz(1001, format!("Xendit 退款网络异常: {e}")))?;
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        if !status.is_success() {
+            return Err(Error::biz(1001, format!("Xendit 退款失败: {text}")));
+        }
+        let v: serde_json::Value = serde_json::from_str(&text).unwrap_or(serde_json::Value::Null);
+        Ok(v.get("status").and_then(|s| s.as_str()).unwrap_or("PENDING").to_string())
+    }
+
     /// 创建通用待支付 paylog（渠道下单前落库）。
     async fn create_pending_paylog(
         &self,
