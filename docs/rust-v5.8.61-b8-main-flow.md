@@ -538,3 +538,14 @@ admin role 初始化
 保证金账户/规则初始化
 审核通过/失败通知
 ```
+
+## 2026-10-31 补充：商户开店角色初始化
+
+审核通过开店时新增：
+
+```text
+店铺管理员角色 store_admin（authority_list=["all"]）
+店铺员工角色 store_employee（authority_list=[]）
+admin_user.role_id 指向店铺管理员
+admin_user_shop.role_id 指向店铺管理员
+```

@@ -374,6 +374,37 @@ impl MerchantApplyService {
         .execute(&self.repos.pool)
         .await
         .map_err(|e| Error::Database(e.to_string()))?;
+        let store_role_id = sqlx::query(
+            "INSERT INTO admin_role(role_name,role_code,role_desc,authority_list,admin_type,merchant_id,shop_id,vendor_id,is_system) VALUES(?,?,?,?,?,?,?,0,0)",
+        )
+        .bind("店铺管理员")
+        .bind("store_admin")
+        .bind("店铺管理员")
+        .bind("[\"all\"]")
+        .bind("shop")
+        .bind(merchant_id)
+        .bind(shop_id)
+        .execute(&self.repos.pool)
+        .await
+        .map_err(|e| Error::Database(e.to_string()))?
+        .last_insert_id() as i32;
+        let _ = sqlx::query(
+            "INSERT INTO admin_role(role_name,role_code,role_desc,authority_list,admin_type,merchant_id,shop_id,vendor_id,is_system) VALUES(?,?,?,?,?,?,?,0,0)",
+        )
+        .bind("店铺员工")
+        .bind("store_employee")
+        .bind("店铺员工")
+        .bind("[]")
+        .bind("shop")
+        .bind(merchant_id)
+        .bind(shop_id)
+        .execute(&self.repos.pool)
+        .await;
+        let _ = sqlx::query("UPDATE admin_user SET role_id=? WHERE admin_id=?")
+            .bind(store_role_id)
+            .bind(admin_id)
+            .execute(&self.repos.pool)
+            .await;
         let _ = sqlx::query(
             "INSERT INTO merchant_user(merchant_user_id,user_id,admin_user_id,merchant_id,is_admin) \
              SELECT COALESCE(MAX(merchant_user_id),0)+1, ?, ?, ?, 1 FROM merchant_user",
@@ -385,7 +416,7 @@ impl MerchantApplyService {
         .await;
         sqlx::query(
             "INSERT INTO admin_user_shop(admin_id,user_id,shop_id,username,email,avatar,auth_list,is_using,is_admin,add_time,role_id,work_on_time,default_pos_login,last_login_system,device_code) \
-             VALUES(?,?,?,?,?,?,'[\"all\"]',1,1,?,0,0,0,'','')",
+             VALUES(?,?,?,?,?,?,'[\"all\"]',1,1,?,?,0,0,'','')",
         )
         .bind(admin_id)
         .bind(apply.user_id.unwrap_or(0))
@@ -394,6 +425,7 @@ impl MerchantApplyService {
         .bind(&email)
         .bind("")
         .bind(now)
+        .bind(store_role_id)
         .execute(&self.repos.pool)
         .await
         .map_err(|e| Error::Database(e.to_string()))?;
