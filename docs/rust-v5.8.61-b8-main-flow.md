@@ -476,3 +476,19 @@ RSA2 签名 POST gateway
 ```text
 wechat / alipay / stripe / paypal / xendit
 ```
+
+## 2026-10-31 补充：Antom 退款
+
+```text
+POST {antomGatewayUrl}/ams/api/v1/payments/refund
+refundRequestId=refundSn
+paymentId=paylog.transaction_id
+refundAmount.currency/value
+refundNotifyUrl
+```
+
+签名同下单。退款审核自动处理渠道扩展为：
+
+```text
+wechat / alipay / stripe / paypal / xendit / antom
+```

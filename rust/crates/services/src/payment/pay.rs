@@ -1099,6 +1099,7 @@ impl PayService {
         match pay_code {
             "wechat" => self.wechat_refund(pay_sn, refund_sn, refund_amount, paylog.pay_amount).await,
             "alipay" => self.alipay_refund(pay_sn, refund_sn, refund_amount).await,
+            "antom" => self.antom_refund(&paylog.transaction_id, refund_sn, refund_amount).await,
             "stripe" => self.stripe_refund(&paylog.transaction_id, refund_sn, refund_amount).await,
             "paypal" => self.paypal_refund(&paylog.transaction_id, refund_sn, refund_amount).await,
             "xendit" => self.xendit_refund(&paylog.transaction_id, refund_sn, refund_amount).await,
@@ -1325,6 +1326,88 @@ impl PayService {
         let code = result.get("code").and_then(|c| c.as_str()).unwrap_or("");
         if code != "10000" {
             let msg = result.get("sub_msg").or_else(|| result.get("msg")).and_then(|m| m.as_str()).unwrap_or("支付宝退款失败");
+            return Err(Error::biz(1001, msg.to_string()));
+        }
+        Ok("SUCCESS".to_string())
+    }
+
+    /// Antom 退款。
+    async fn antom_refund(
+        &self,
+        payment_id: &str,
+        refund_sn: &str,
+        refund_amount: rust_decimal::Decimal,
+    ) -> Result<String> {
+        use base64::Engine as _;
+        use rsa::pkcs8::DecodePrivateKey;
+        use rsa::pkcs1v15::SigningKey;
+        use rsa::signature::{SignatureEncoding, Signer};
+        use sha2::Sha256;
+        let client_id = self.config_value("antomClientId").await?.unwrap_or_default();
+        let private_key = self.config_value("antomMerchantPrivateKey").await?.unwrap_or_default();
+        if client_id.trim().is_empty() || private_key.trim().is_empty() {
+            return Err(Error::biz(1001, "Antom 未配置：缺少 antomClientId / antomMerchantPrivateKey"));
+        }
+        let gateway = self.config_value("antomGatewayUrl").await?
+            .filter(|v| !v.trim().is_empty())
+            .unwrap_or_else(|| "https://open-sea-global.alipay.com".into());
+        let base = gateway.trim_end_matches('/');
+        let base = if self.config_value("antomSandbox").await?.as_deref() == Some("1") && !base.contains("/ams/sandbox") {
+            format!("{base}/ams/sandbox")
+        } else {
+            base.to_string()
+        };
+        let currency = self.config_value("antomCurrency").await?.unwrap_or_else(|| "usd".into()).to_uppercase();
+        let zero_decimal = ["BIF","CLP","DJF","GNF","JPY","KMF","KRW","MGA","PYG","RWF","UGX","VND","VUV","XAF","XOF","XPF"];
+        let multiplier = if zero_decimal.contains(&currency.as_str()) { 1 } else { 100 };
+        let amount = (refund_amount * rust_decimal::Decimal::from(multiplier)).round().to_string();
+        let pc_domain = self.config_value("pcDomain").await?.unwrap_or_default();
+        let notify = if pc_domain.trim().is_empty() {
+            String::new()
+        } else {
+            format!("{}/api/order/pay/refundNotify/antom", pc_domain.trim_end_matches('/'))
+        };
+        let body = serde_json::json!({
+            "refundRequestId": refund_sn,
+            "paymentId": payment_id,
+            "refundReason": format!("Tigshop refund {refund_sn}"),
+            "refundAmount": {"currency": currency, "value": amount},
+            "refundNotifyUrl": notify
+        });
+        let body_text = body.to_string();
+        let path = "/ams/api/v1/payments/refund";
+        let request_time = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+        let sign_content = format!("POST {path}\n{}.{}.{}", client_id, request_time, body_text);
+        let key = if private_key.contains("BEGIN") {
+            rsa::RsaPrivateKey::from_pkcs8_pem(private_key.trim())
+                .map_err(|e| Error::Validation(format!("Antom 商户私钥解析失败: {e}")))?
+        } else {
+            let der = base64::engine::general_purpose::STANDARD.decode(private_key.trim())
+                .map_err(|e| Error::Validation(format!("Antom 商户私钥解码失败: {e}")))?;
+            rsa::RsaPrivateKey::from_pkcs8_der(&der)
+                .map_err(|e| Error::Validation(format!("Antom 商户私钥解析失败: {e}")))?
+        };
+        let signing_key = SigningKey::<Sha256>::new(key);
+        let signature: rsa::pkcs1v15::Signature = signing_key.sign(sign_content.as_bytes());
+        let signature_b64 = base64::engine::general_purpose::STANDARD.encode(signature.to_bytes());
+        let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(25)).build()
+            .map_err(|e| Error::Internal(e.to_string()))?;
+        let resp = client.post(format!("{base}{path}"))
+            .header("Content-Type", "application/json")
+            .header("client-id", client_id.trim())
+            .header("request-time", request_time)
+            .header("signature", format!("algorithm=RSA256,keyVersion=1,signature={signature_b64}"))
+            .body(body_text).send().await
+            .map_err(|e| Error::biz(1001, format!("Antom 退款网络异常: {e}")))?;
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        if !status.is_success() {
+            return Err(Error::biz(1001, format!("Antom 退款失败: {text}")));
+        }
+        let v: serde_json::Value = serde_json::from_str(&text).unwrap_or(serde_json::Value::Null);
+        let result_status = v.get("result").and_then(|r| r.get("resultStatus")).and_then(|s| s.as_str()).unwrap_or("");
+        if result_status != "S" {
+            let msg = v.get("result").and_then(|r| r.get("resultMessage")).and_then(|s| s.as_str()).unwrap_or("Antom 退款失败");
             return Err(Error::biz(1001, msg.to_string()));
         }
         Ok("SUCCESS".to_string())
