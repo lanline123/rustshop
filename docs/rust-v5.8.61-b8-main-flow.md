@@ -315,3 +315,15 @@ invoice_id=paySn
 application_context.return_url/cancel_url
 返回 links[rel=approve].href
 ```
+
+## 2026-10-31 补充：Apple Pay 支付面板
+
+`GET /api/order/pay/create` 的 `applepay` 分支已实现：
+
+```text
+创建待支付 paylog
+读取 applePayDisplayName / CountryCode / Currency / SupportedNetworks
+返回 applePay:
+  paySn / countryCode / currencyCode / merchantDisplayName
+  supportedNetworks / merchantCapabilities / total
+```

@@ -427,6 +427,36 @@ impl PayService {
                     code: None,
                 });
             }
+            "applepay" | "applePay" => {
+                let order_id = q.id.unwrap_or(0);
+                let order = self.repo().find_order_by_id(order_id).await?.ok_or_else(|| Error::biz(500, MSG_ORDER_NOT_FOUND))?;
+                let pay_sn = self.create_pending_paylog(&order, "applepay", &format!("ApplePay-订单{}", order.order_sn)).await?;
+                let display = self.config_value("applePayDisplayName").await?.unwrap_or_default();
+                let country = self.config_value("applePayCountryCode").await?.unwrap_or_else(|| "CN".into());
+                let currency = self.config_value("applePayCurrency").await?.unwrap_or_else(|| "CNY".into());
+                let networks: Vec<String> = self.config_value("applePaySupportedNetworks").await?
+                    .unwrap_or_default().split(',').map(str::trim).filter(|s| !s.is_empty()).map(ToString::to_string).collect();
+                let caps: Vec<String> = if networks.iter().any(|n| matches!(n.as_str(), "visa" | "masterCard" | "amex" | "discover")) {
+                    vec!["supports3DS".into(), "supportsEMV".into(), "supportsCredit".into(), "supportsDebit".into()]
+                } else {
+                    vec!["supports3DS".into()]
+                };
+                return Ok(PayCreateVO {
+                    order_id: Some(order.order_id),
+                    order_sn: Some(order.order_sn.clone()),
+                    order_amount: Some(order.unpaid_amount),
+                    pay_info: Some(serde_json::json!({"applePay": {
+                        "paySn": pay_sn,
+                        "countryCode": country,
+                        "currencyCode": currency,
+                        "merchantDisplayName": display,
+                        "supportedNetworks": networks,
+                        "merchantCapabilities": caps,
+                        "total": {"label": display, "amount": order.unpaid_amount.to_string()}
+                    }})),
+                    code: None,
+                });
+            }
             _ => Err(Error::biz_msg(MSG_CHANNEL_UNMIGRATED)),
         }
     }
