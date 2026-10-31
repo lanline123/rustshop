@@ -1,9 +1,9 @@
 {
   "java_count": 1743,
-  "rust_count": 2118,
+  "rust_count": 2120,
   "missing_count": 0,
   "missing": [],
-  "extra_count": 380,
+  "extra_count": 381,
   "extra_sample": [
     {
       "method": "GET",
