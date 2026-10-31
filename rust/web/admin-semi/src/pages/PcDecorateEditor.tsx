@@ -803,6 +803,10 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
           style: 0, headerStyle: 1,
           ...source.pageModule,
         };
+        // 原版 commonPage dealDefault 语义：未设置时落到默认值
+        if (pm.backgroundRepeat === undefined || pm.backgroundRepeat === '') pm.backgroundRepeat = 1;
+        if (pm.backgroundSize === undefined || pm.backgroundSize === '') pm.backgroundSize = 1;
+        if (typeof pm.title !== 'string') pm.title = '';
         // 新版头部装修默认值合并（原版 mergePcHeaderDefaults 语义）
         pm.pcHeader = { ...PC_HEADER_DEFAULTS, ...(pm.pcHeader || {}) };
         if (!pm.homeStyleVersion) pm.homeStyleVersion = 'new';
@@ -846,8 +850,8 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
 
   const getSaveData = () => {
     const hasLegacy = moduleList.some((m) => LEGACY_TYPES.has(m.type));
-    const homeStyleVersion = hasLegacy ? 'old' : 'new';
-    const pm: Record<string, any> = { ...pageModule, homeStyleVersion };
+    const homeStyleVersion: 'new' | 'old' = hasLegacy ? 'old' : 'new';
+    const pm: any = { ...pageModule, homeStyleVersion };
     if (homeStyleVersion !== 'new') {
       delete pm.pcHeader; // 原版契约：旧版不携带头部装修
     }
@@ -882,6 +886,36 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
     } catch (e: any) {
       Toast.error(e?.message || '修改失败');
     }
+  };
+
+  /** 切换首页装修版本（原版 onSwitchHomeVersion：清空另一套模块，旧版还会清掉头部装修） */
+  const switchHomeVersion = (target: 'new' | 'old') => {
+    const toNew = target === 'new';
+    const clearCount = toNew
+      ? moduleList.filter((m) => LEGACY_TYPES.has(m.type)).length
+      : moduleList.filter((m) => !LEGACY_TYPES.has(m.type)).length;
+    const clearLabel = toNew ? '旧版' : '新版';
+    const targetLabel = toNew ? '新版' : '旧版';
+    const clearsHeader = !toNew; // 切旧版时 pcHeader 头部装修数据会随保存一并清空
+    const clearParts: string[] = [];
+    if (clearCount > 0) clearParts.push(`${clearCount} 个${clearLabel}模块`);
+    if (clearsHeader) clearParts.push('头部装修数据');
+    Modal.confirm({
+      title: '切换首页装修版本',
+      content: `切换到${targetLabel}后，将清空当前画布上的${clearParts.join('和') || '无关内容'}；一经预览、保存草稿或发布，将无法恢复。确认切换？`,
+      okText: '确认切换',
+      cancelText: '取消',
+      onOk: () => {
+        setModuleList((prev) => prev.filter((m) => (LEGACY_TYPES.has(m.type) ? !toNew : toNew)));
+        setPageModule((prev) => {
+          const next: any = { ...prev, homeStyleVersion: target };
+          if (target === 'old') delete next.pcHeader;
+          return next;
+        });
+        markDirty();
+        Toast.success(`已切换到${targetLabel}首页`);
+      },
+    });
   };
 
   const addModule = (def: ModuleDef) => {
@@ -1072,7 +1106,13 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
         {/* 右侧设置面板 */}
         <div style={{ width: 380, background: '#fff', borderLeft: '1px solid var(--semi-color-border)', overflowY: 'auto', padding: 16, flexShrink: 0 }}>
           {panelTab === 'page' && (
-            <PageSettingsPanel pageModule={pageModule} onChange={(next) => { setPageModule(next); markDirty(); }} />
+            <PageSettingsPanel
+              pageModule={pageModule}
+              legacyCount={moduleList.filter((m) => LEGACY_TYPES.has(m.type)).length}
+              newCount={moduleList.filter((m) => !LEGACY_TYPES.has(m.type)).length}
+              onChange={(next) => { setPageModule(next); markDirty(); }}
+              onSwitchVersion={(target) => switchHomeVersion(target)}
+            />
           )}
           {panelTab === 'pcHeader' && (
             <PcHeaderPanel pageModule={pageModule} onChange={(next) => { setPageModule(next); markDirty(); }} />
@@ -1415,36 +1455,124 @@ function ModulePreview({ type, data }: { type: string; data: Record<string, any>
   }
 }
 
-/* ===================== 页面设置 ===================== */
+/* ===================== 页面设置（对齐原版 commonPage/Edit.vue） ===================== */
 
 function PageSettingsPanel({
   pageModule,
+  legacyCount,
+  newCount,
   onChange,
+  onSwitchVersion,
 }: {
   pageModule: Record<string, any>;
+  legacyCount: number;
+  newCount: number;
   onChange: (next: Record<string, any>) => void;
+  onSwitchVersion: (target: 'new' | 'old') => void;
 }) {
+  const currentVersion = pageModule.homeStyleVersion === 'old' ? 'old' : 'new';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Text strong>页面设置</Text>
+
       <div>
-        <Text type="tertiary" size="small">背景颜色</Text>
-        <input
-          type="color"
-          value={pageModule.backgroundColor || '#ffffff'}
-          onChange={(e) => onChange({ ...pageModule, backgroundColor: e.target.value })}
-          style={{ width: '100%', height: 32, border: '1px solid var(--semi-color-border)', borderRadius: 4, cursor: 'pointer' }}
-        />
+        <Text type="tertiary" size="small">页面标题（可不填，默认为页面名称）</Text>
+        <Input value={pageModule.title || ''} onChange={(v) => onChange({ ...pageModule, title: v })} placeholder="请输入页面标题" />
       </div>
+
+      {/* 头部风格仅服务旧版头部；新版 PC 首页走 pcHeader，故新版时隐藏（原版同逻辑） */}
+      {currentVersion === 'old' && (
+        <div>
+          <Text type="tertiary" size="small">头部风格</Text>
+          <RadioGroup
+            value={Number(pageModule.headerStyle) === 2 ? 2 : 1}
+            onChange={(e: any) => onChange({ ...pageModule, headerStyle: Number(e.target.value) })}
+            type="button"
+          >
+            <Radio value={1}>默认风格</Radio>
+            <Radio value={2}>简约风格</Radio>
+          </RadioGroup>
+        </div>
+      )}
+
       <div>
-        <Text type="tertiary" size="small">背景图片 URL（留空不设置）</Text>
+        <Text type="tertiary" size="small">标题栏背景颜色</Text>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input
+            type="color"
+            value={pageModule.titleBackgroundColor || '#ffffff'}
+            onChange={(e) => onChange({ ...pageModule, titleBackgroundColor: e.target.value })}
+            style={{ width: 46, height: 30, border: '1px solid var(--semi-color-border)', borderRadius: 4, cursor: 'pointer' }}
+          />
+          <Button size="small" onClick={() => onChange({ ...pageModule, titleBackgroundColor: '' })}>重置</Button>
+        </div>
+      </div>
+
+      <div>
+        <Text type="tertiary" size="small">页面背景颜色</Text>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input
+            type="color"
+            value={pageModule.backgroundColor || '#ffffff'}
+            onChange={(e) => onChange({ ...pageModule, backgroundColor: e.target.value })}
+            style={{ width: 46, height: 30, border: '1px solid var(--semi-color-border)', borderRadius: 4, cursor: 'pointer' }}
+          />
+          <Button size="small" onClick={() => onChange({ ...pageModule, backgroundColor: '' })}>重置</Button>
+        </div>
+      </div>
+
+      <div>
+        <Text type="tertiary" size="small">背景图</Text>
         <Input
           value={typeof pageModule.backgroundImage === 'string' ? pageModule.backgroundImage : pageModule.backgroundImage?.picUrl || ''}
           onChange={(v) => onChange({ ...pageModule, backgroundImage: v ? { picUrl: v, picThumb: v } : { picUrl: '', picThumb: '' } })}
           placeholder="https://..."
         />
       </div>
-      <Text type="tertiary" size="small">背景作用于整个首页画布；模块各自的背景在其设置面板内配置。</Text>
+
+      <div>
+        <Text type="tertiary" size="small">背景图显示</Text>
+        <RadioGroup
+          value={Number(pageModule.backgroundRepeat) || 1}
+          onChange={(e: any) => onChange({ ...pageModule, backgroundRepeat: Number(e.target.value) })}
+          type="button"
+        >
+          <Radio value={1}>不平铺</Radio>
+          <Radio value={2}>平铺</Radio>
+          <Radio value={3}>纵向平铺</Radio>
+          <Radio value={4}>横向平铺</Radio>
+        </RadioGroup>
+      </div>
+
+      <div>
+        <Text type="tertiary" size="small">背景图填充大小</Text>
+        <RadioGroup
+          value={Number(pageModule.backgroundSize) || 1}
+          onChange={(e: any) => onChange({ ...pageModule, backgroundSize: Number(e.target.value) })}
+          type="button"
+        >
+          <Radio value={1}>横向100%</Radio>
+          <Radio value={2}>纵向100%</Radio>
+          <Radio value={3}>100%填充</Radio>
+        </RadioGroup>
+      </div>
+
+      <div style={{ borderTop: '1px solid var(--semi-color-border)', paddingTop: 12 }}>
+        <Text type="tertiary" size="small">首页装修版本</Text>
+        <RadioGroup
+          value={currentVersion}
+          onChange={(e: any) => onSwitchVersion(e.target.value as 'new' | 'old')}
+          type="button"
+          style={{ marginTop: 4 }}
+        >
+          <Radio value="new">新版首页</Radio>
+          <Radio value="old">旧版首页</Radio>
+        </RadioGroup>
+        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <Text type="tertiary" size="small"><b>新版首页：</b>支持可视化网格、高级轮播等新模块，顶部带 PC 头部实时预览，排版更现代。当前 {newCount} 个模块。</Text>
+          <Text type="tertiary" size="small"><b>旧版首页：</b>使用传统全宽占位模块，无头部预览，适合维护旧有页面。当前 {legacyCount} 个模块。</Text>
+        </div>
+      </div>
     </div>
   );
 }
