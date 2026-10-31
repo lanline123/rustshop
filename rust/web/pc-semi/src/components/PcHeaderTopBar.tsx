@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 
 type Region = { regionId: number; regionName: string };
+type LocaleItem = { localeCode: string; language: string; isDefault?: number };
 type NavItem = { id?: number; title?: string; link?: any; children?: NavItem[] };
 
 function readNumber(value: unknown, fallback: number): number {
@@ -19,6 +20,8 @@ function navHref(link: any): string {
 
 export default function PcHeaderTopBar({ config }: { config: Record<string, any> }) {
   const [regions, setRegions] = useState<Region[]>([]);
+  const [localeList, setLocaleList] = useState<LocaleItem[]>([]);
+  const [localeCode, setLocaleCode] = useState('');
   const [regionId, setRegionId] = useState<number | null>(null);
   const [regionOpen, setRegionOpen] = useState(false);
   const [user, setUser] = useState<Record<string, any> | null>(null);
@@ -49,6 +52,19 @@ export default function PcHeaderTopBar({ config }: { config: Record<string, any>
       ];
 
   useEffect(() => {
+    fetch('/api/common/i18n/getLocales')
+      .then((response) => response.json())
+      .then((json) => {
+        const list: LocaleItem[] = Array.isArray(json?.data) ? json.data : [];
+        setLocaleList(list);
+        const fromCookie = document.cookie.match(/(?:^|; )locale=([^;]+)/)?.[1] || '';
+        const current = list.find((item) => item.localeCode === fromCookie)
+          || list.find((item) => item.isDefault === 1)
+          || list[0];
+        if (current) setLocaleCode(current.localeCode);
+      })
+      .catch(() => undefined);
+
     fetch('/api/common/pc/getNav')
       .then((response) => response.json())
       .then((json) => setSiteNav(Array.isArray(json?.data?.topBarNav) ? json.data.topBarNav : []))
@@ -103,6 +119,13 @@ export default function PcHeaderTopBar({ config }: { config: Record<string, any>
   if (!showBar) return null;
 
   const regionName = regions.find((item) => item.regionId === regionId)?.regionName || config.topRegionText || '全国';
+
+  const changeLocale = (code: string) => {
+    if (!code || code === localeCode) return;
+    document.cookie = `locale=${encodeURIComponent(code)}; path=/; max-age=31536000; SameSite=Lax`;
+    setLocaleCode(code);
+    window.location.reload();
+  };
   const userDisplayName = String(user?.nickname || user?.dimUsername || '会员');
   const backgroundColor = String(config.benefitBarBackgroundColor || '#1a1a1a');
   const textColor = String(config.topMenuTextColor || '#ffffffd6');
@@ -159,6 +182,18 @@ export default function PcHeaderTopBar({ config }: { config: Record<string, any>
         </div>
 
         <div className="pc-topbar__right">
+          {localeList.length > 1 ? (
+            <select
+              className="pc-topbar__locale"
+              value={localeCode}
+              onChange={(event) => changeLocale(event.target.value)}
+              aria-label="切换语言"
+            >
+              {localeList.map((item) => (
+                <option key={item.localeCode} value={item.localeCode}>{item.language}</option>
+              ))}
+            </select>
+          ) : null}
           {showCart ? (
             <Link href="/cart" className="pc-topbar__link">
               购物车{cartCount > 0 ? ` ${cartCount}` : ''}

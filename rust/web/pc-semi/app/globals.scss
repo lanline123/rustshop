@@ -3991,3 +3991,13 @@ img {
 .pc-cs__input input { flex: 1; border: 0; padding: 12px 14px; outline: none; font-size: 14px; }
 .pc-cs__input button { border: 0; background: #111827; color: #fff; padding: 0 18px; cursor: pointer; }
 @media (max-width: 600px) { .pc-cs { right: 12px; bottom: 16px; } .pc-cs__panel { width: calc(100vw - 24px); height: 60vh; } }
+.pc-topbar__locale {
+  margin-right: 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+}
+.pc-topbar__locale option { color: #111827; }
