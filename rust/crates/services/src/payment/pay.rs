@@ -1693,7 +1693,61 @@ impl PayService {
         user_id: Option<i32>,
     ) -> Result<PayCreateVO> {
         self.validate_create_target(q, user_id).await?;
-        Err(Error::biz_msg(MSG_CHANNEL_UNMIGRATED))
+        let order_id = q.id.unwrap_or(0);
+        let order = self.repo().find_order_by_id(order_id).await?
+            .ok_or_else(|| Error::biz(500, MSG_ORDER_NOT_FOUND))?;
+        if order.is_presale != 1 || order.presale_type != Some(2) {
+            return Err(Error::biz(1001, "订单不是定金预售订单"));
+        }
+        let presale: Option<(Option<rust_decimal::Decimal>, i32)> = sqlx::query_as(
+            "SELECT deposit_amount,presale_status FROM order_presale WHERE order_id=? LIMIT 1",
+        ).bind(order_id).fetch_optional(&self.repos.pool).await
+            .map_err(|e| Error::Database(e.to_string()))?;
+        let (deposit, status) = presale.ok_or_else(|| Error::biz(1001, "预售订单信息不存在"))?;
+        if status != 0 {
+            return Err(Error::biz(1001, "定金已支付或预售已失效"));
+        }
+        let deposit = deposit.filter(|d| *d > rust_decimal::Decimal::ZERO)
+            .ok_or_else(|| Error::biz(1001, "定金金额配置错误"))?;
+        let pay_type = q.r#type.as_deref().unwrap_or("");
+        if pay_type.is_empty() || pay_type == "cash" {
+            return Err(Error::biz(1001, "该支付方式不支持定金支付"));
+        }
+        let client_type = q.code.as_deref().unwrap_or("pc");
+        let mut pseudo = order.clone();
+        pseudo.unpaid_amount = deposit;
+        pseudo.total_amount = deposit;
+        let pay_sn = self.create_pending_paylog(&pseudo, pay_type, &format!("预售定金-订单{}", order.order_sn)).await?;
+        let configs = crate::payment::channels::load_channel_configs(&self.repos).await?;
+        let uid = user_id.unwrap_or(order.user_id);
+        let pay_info = match pay_type {
+            "wechat" => {
+                if !configs.wechat.is_configured() { return Err(Error::biz(1001, "微信支付未配置")); }
+                self.wechat_create(&pseudo, &configs.wechat, client_type, uid, &pay_sn).await?
+            }
+            "alipay" | "ali" => {
+                if !configs.alipay.is_configured() { return Err(Error::biz(1001, "支付宝未配置")); }
+                self.alipay_create(&pseudo, &configs.alipay, client_type, &pay_sn).await?
+            }
+            "paypal" => {
+                if !configs.paypal.is_configured() { return Err(Error::biz(1001, "PayPal 未配置")); }
+                self.paypal_create(&pseudo, &configs.paypal, client_type, &pay_sn).await?
+            }
+            "stripe" => self.stripe_create(&pseudo, client_type, &pay_sn).await?,
+            "xendit" => self.xendit_create(&pseudo, client_type, &pay_sn).await?,
+            "antom" => self.antom_create(&pseudo, uid, client_type, &pay_sn).await?,
+            other if matches!(other, "huifu" | "lakala" | "yeepay" | "yabandpay" | "yunpay") => {
+                self.generic_channel_create(&pseudo, other, client_type, &pay_sn).await?
+            }
+            _ => return Err(Error::biz(1001, "该支付方式暂不支持定金支付")),
+        };
+        Ok(PayCreateVO {
+            order_id: Some(order.order_id),
+            order_sn: Some(order.order_sn.clone()),
+            order_amount: Some(deposit),
+            pay_info: Some(pay_info),
+            code: None,
+        })
     }
 
     /// 两条创建端点的共同本地校验：登录 + id + 订单归属 + 未支付。

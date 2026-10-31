@@ -794,3 +794,37 @@ Authorization: Bearer merchantApplyNotifyKey
 ```
 
 供后续直播订单同步/归因使用。
+
+## 2026-10-31 补充：商户免审核直接开店
+
+`POST /api/merchant/merchant/apply` 在 `merchantApplyNeedCheck != 1` 时不再报未迁移：
+
+```text
+写 merchant_apply + 站内信
+事务提交
+复用 open_shop_for_passed_apply：
+  merchant
+  admin_user
+  shop
+  merchant_user
+  admin_user_shop
+  admin_role / employee role
+  merchant_account
+  shipping_tpl
+  decorate
+```
+
+`open_shop_for_passed_apply` 同时供人工审核通过分支复用。
+
+## 2026-10-31 补充：预售定金支付
+
+`createDepositPayment` 不再报未迁移：
+
+```text
+校验订单 is_presale=1 且 presale_type=2
+查 order_presale.deposit_amount / presale_status
+status 必须为 0
+paylog 使用定金金额
+复用渠道：wechat/alipay/paypal/stripe/xendit/antom/通用网关
+返回 orderAmount=定金金额
+```

@@ -89,7 +89,7 @@ use tigshop_core::models::merchant::merchant_client::{
     MerchantApplyDetailVO, MerchantApplyInitialVO, MerchantMyApplyVO, ADMIN_MSG_TYPE_SHOP_ENTRY,
     APPLY_STATUS_PASS, APPLY_STATUS_PENDING, CFG_MERCHANT_APPLY_NEED_CHECK, CFG_SHOP_AGREEMENT,
     DATA_TYPE_ERROR, MSG_CONFIG_NOT_EXIST, MSG_LICENSE_UPLOAD_UNMIGRATED,
-    MSG_MERCHANT_APPLY_NOT_EXIST, MSG_OPEN_SHOP_UNMIGRATED, SERVICE_DATA_ERROR,
+    MSG_MERCHANT_APPLY_NOT_EXIST, SERVICE_DATA_ERROR,
 };
 use tigshop_core::{Error, Result};
 use tigshop_infrastructure::db::repo::merchant::merchant_client::MerchantClientRepository;
@@ -534,11 +534,6 @@ impl MerchantClientService {
         // 2) 构造待落库实体
         let apply = build_apply_entity(user_id, param, &need_check);
 
-        // 免审核分支未迁移：写入前明确拒绝，避免半成品数据（模块头差异 2）
-        if apply.status == Some(APPLY_STATUS_PASS) {
-            return Err(Error::biz(SERVICE_DATA_ERROR, MSG_OPEN_SHOP_UNMIGRATED));
-        }
-
         // 站内信名称（外层 type 缺失 → 1001，Java 为 NPE 回滚；模块头差异 7）
         let name = notify_name(
             param.r#type,
@@ -565,6 +560,14 @@ impl MerchantClientService {
             )
             .await?;
         tx.commit().await.map_err(|e| Error::Database(e.to_string()))?;
+
+        // 免审核：事务提交后复用审核通过的开店链路（merchant/admin/shop/角色/账户/模板）
+        if apply.status == Some(APPLY_STATUS_PASS) {
+            let mut applied = apply.clone();
+            applied.merchant_apply_id = id;
+            let svc = crate::merchant::merchant_apply::MerchantApplyService::new(self.repos.clone());
+            svc.open_shop_for_passed_apply(&applied, send_time).await?;
+        }
 
         // 4) 回读详情（Java `return this.applyDetail(id)`）
         self.apply_detail(id, user_id).await
