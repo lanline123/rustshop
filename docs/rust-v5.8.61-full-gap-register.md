@@ -32,6 +32,8 @@
 |---|---|
 | 线下认款 | 完成 |
 | 微信支付 v3 下单（native/h5/jsapi/app） | 完成 |
+| 支付宝下单（page/wap/app） | 完成 |
+| PayPal OAuth2 下单 | 完成 |
 | Stripe/Xendit 回调 | 完成 |
 | Antom 回调 RSA 验签 | 完成 |
 | 商户本地媒体签名访问 | 待补 |

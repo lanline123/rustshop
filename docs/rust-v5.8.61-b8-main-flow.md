@@ -302,3 +302,16 @@ SHA256withRSA
 pcDomain 生成 notify_url
 支付宝配置：alipayAppid / alipayRsaPrivateKey / alipayRsaPublicKey
 ```
+
+## 2026-10-31 补充：PayPal 下单
+
+`GET /api/order/pay/create` 的 `paypal` 分支已实现：
+
+```text
+POST /v1/oauth2/token  client_credentials
+POST /v2/checkout/orders intent=CAPTURE
+purchase_units.amount.currency_code/value
+invoice_id=paySn
+application_context.return_url/cancel_url
+返回 links[rel=approve].href
+```

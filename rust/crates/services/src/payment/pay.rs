@@ -409,10 +409,23 @@ impl PayService {
                         ),
                     ));
                 }
-                Err(Error::biz(
-                    1001,
-                    "PayPal 配置与网关已就绪（sandbox/production），OAuth2 下单待沙箱联调",
-                ))
+                let order_id = q.id.unwrap_or(0);
+                let order = self.repo().find_order_by_id(order_id).await?
+                    .ok_or_else(|| Error::biz(500, MSG_ORDER_NOT_FOUND))?;
+                let client_type = q.code.as_deref().unwrap_or("pc");
+                let pay_sn = self.create_pending_paylog(
+                    &order,
+                    "paypal",
+                    &format!("PayPal-订单{}", order.order_sn),
+                ).await?;
+                let pay_info = self.paypal_create(&order, &configs.paypal, client_type, &pay_sn).await?;
+                return Ok(PayCreateVO {
+                    order_id: Some(order.order_id),
+                    order_sn: Some(order.order_sn.clone()),
+                    order_amount: Some(order.unpaid_amount),
+                    pay_info: Some(pay_info),
+                    code: None,
+                });
             }
             _ => Err(Error::biz_msg(MSG_CHANNEL_UNMIGRATED)),
         }
@@ -665,6 +678,90 @@ impl PayService {
             "codeUrl": "",
             "html": html
         }))
+    }
+
+    /// PayPal 下单（OAuth2 + Orders v2）。
+    async fn paypal_create(
+        &self,
+        order: &PayOrderRow,
+        cfg: &crate::payment::channels::PaypalConfig,
+        client_type: &str,
+        pay_sn: &str,
+    ) -> Result<serde_json::Value> {
+        let pc_domain = self.config_value("pcDomain").await?.unwrap_or_default();
+        if pc_domain.trim().is_empty() {
+            return Err(Error::biz(1001, "pcDomain 未配置，无法生成 PayPal 返回地址"));
+        }
+        let pc = pc_domain.trim_end_matches('/');
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(20))
+            .build()
+            .map_err(|e| Error::Internal(e.to_string()))?;
+        let token_resp = client
+            .post(cfg.oauth_token_url())
+            .basic_auth(&cfg.client_id, Some(&cfg.client_secret))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body("grant_type=client_credentials")
+            .send()
+            .await
+            .map_err(|e| Error::biz(1001, format!("PayPal 获取 token 网络异常: {e}")))?;
+        let token_status = token_resp.status();
+        let token_text = token_resp.text().await.unwrap_or_default();
+        if !token_status.is_success() {
+            return Err(Error::biz(1001, format!("PayPal 获取 token 失败: {token_text}")));
+        }
+        let token_json: serde_json::Value = serde_json::from_str(&token_text)
+            .map_err(|e| Error::Internal(format!("PayPal token 响应解析失败: {e}")))?;
+        let access_token = token_json.get("access_token").and_then(|v| v.as_str()).unwrap_or_default();
+        if access_token.is_empty() {
+            return Err(Error::biz(1001, "PayPal token 响应缺少 access_token"));
+        }
+        let currency = if cfg.currency.trim().is_empty() { "USD" } else { cfg.currency.trim() };
+        let return_url = if client_type == "h5" {
+            format!("{pc}/pages/user/order/info?id={}", order.order_id)
+        } else {
+            format!("{pc}/member/order/info?id={}", order.order_id)
+        };
+        let body = serde_json::json!({
+            "intent": "CAPTURE",
+            "purchase_units": [{
+                "amount": {"currency_code": currency, "value": order.unpaid_amount.to_string()},
+                "invoice_id": pay_sn
+            }],
+            "application_context": {
+                "return_url": return_url,
+                "cancel_url": format!("{pc}/member/order/info?id={}", order.order_id)
+            }
+        });
+        let resp = client
+            .post(format!("{}/v2/checkout/orders", cfg.base_url()))
+            .bearer_auth(access_token)
+            .header("Content-Type", "application/json")
+            .body(body.to_string())
+            .send()
+            .await
+            .map_err(|e| Error::biz(1001, format!("PayPal 创建订单网络异常: {e}")))?;
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        if !status.is_success() {
+            return Err(Error::biz(1001, format!("PayPal 创建订单失败: {text}")));
+        }
+        let v: serde_json::Value = serde_json::from_str(&text)
+            .map_err(|e| Error::Internal(format!("PayPal 订单响应解析失败: {e}")))?;
+        let approve = v
+            .get("links")
+            .and_then(|l| l.as_array())
+            .and_then(|links| {
+                links.iter().find_map(|l| {
+                    if l.get("rel").and_then(|r| r.as_str()).is_some_and(|r| r.eq_ignore_ascii_case("approve")) {
+                        l.get("href").and_then(|h| h.as_str()).map(ToString::to_string)
+                    } else {
+                        None
+                    }
+                })
+            })
+            .ok_or_else(|| Error::biz(1001, "PayPal 订单响应缺少 approve 链接"))?;
+        Ok(serde_json::json!({"paySn": pay_sn, "payType": "paypal", "url": approve}))
     }
 
     /// 创建通用待支付 paylog（渠道下单前落库）。
