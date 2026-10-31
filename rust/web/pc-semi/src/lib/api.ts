@@ -195,3 +195,36 @@ export async function getArticleIssueInfo(articleId: number): Promise<Record<str
     return null;
   }
 }
+
+export interface ArticleItem {
+  articleId: number;
+  articleTitle: string;
+  articleCategoryId: number;
+  articleThumb?: string;
+  articleAuthor?: string;
+  description?: string;
+  clickCount?: number;
+  addTime?: number;
+}
+
+export interface ArticleListResponse {
+  records: ArticleItem[];
+  total: number;
+  page?: number;
+  pageSize?: number;
+}
+
+/** 资讯列表：服务端直连后端。 */
+export async function getArticleList(
+  params: { page?: number; pageSize?: number; categoryId?: number; keyword?: string } = {},
+): Promise<ArticleListResponse> {
+  const query = new URLSearchParams();
+  if (params.page) query.set('page', String(params.page));
+  if (params.pageSize) query.set('size', String(params.pageSize));
+  if (params.categoryId) query.set('articleCategoryId', String(params.categoryId));
+  if (params.keyword) query.set('keyword', params.keyword);
+  const response = await fetch(`${SERVER_API_BASE}/api/article/article/list?${query.toString()}`, {
+    cache: 'no-store',
+  });
+  return readData<ArticleListResponse>(response);
+}
