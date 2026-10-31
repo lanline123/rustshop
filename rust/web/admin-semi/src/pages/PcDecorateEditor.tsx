@@ -1,11 +1,12 @@
 /**
- * PC 首页装修编辑器（对齐原版 /decorate/pc 独立编辑器）
+ * PC 首页装修编辑器（对齐原版 5.8.61 新版模块集 modules/pcHome，/decorate/pc 独立编辑器）
  *
  * 数据契约（与原版逐字段一致，透传不裁剪）：
  * - data = { pageModule, moduleList }
  * - pageModule = { type:'page', module:{}, backgroundRepeat:'', backgroundSize:'', style:0,
- *                  headerStyle:1, backgroundColor?, backgroundImage?, homeStyleVersion?, pcHeader? }
+ *                  headerStyle:1, homeStyleVersion:'new'|'old', pcHeader?(仅新版) }
  * - moduleList 项 = { moduleIndex: Date.now(), type, url:'pc', label, isShow, module:{...defaults} }
+ * - 新套 20 模块 kebab-case（pc-home-hero / pc-image-ad / ...），旧套 16 模块 camelCase 仅兼容历史数据
  * - 加载: GET decorate/decorate/detail?id&decorateType=2&localeId=0&parentId=0
  * - 保存: POST decorate/decorate/saveDraft | publish  body {id, decorateType:2, pageType:1, localeId:0, parentId:0, data}
  */
@@ -23,6 +24,7 @@ import {
   Spin,
   Switch,
   Tag,
+  TextArea,
   Toast,
   Tooltip,
   Typography,
@@ -42,56 +44,164 @@ import './decorate-editor.css';
 
 const { Text } = Typography;
 
-/* ===================== 模块契约注册表（原版 defaults 逐字段照抄） ===================== */
+/* ===================== 共享默认值构造（原版 _shared/types.ts 逐字段） ===================== */
 
 interface PicItem {
+  picId?: string;
   picUrl: string;
   picThumb?: string;
+  picName?: string;
   picTitle?: string;
   picDesc?: string;
-  picLink?: { link?: string; title?: string };
+  picLink?: { link?: string; name?: string; title?: string };
 }
 
-const emptyPic = (): PicItem => ({ picUrl: '', picThumb: '', picTitle: '', picDesc: '', picLink: { link: '', title: '' } });
+const DEMO_PIC_1 = 'https://oss.vortmall.com/upload/c4ca4238/img/gallery/202411/1731301937REbUnsSmPehWiBMaFd.webp';
+const DEMO_PIC_2 = 'https://oss.vortmall.com/upload/c4ca4238/img/gallery/202411/1731301941uaSjIShOBNL2VBSr0y.webp';
+const NOTICE_ICON = 'https://oss.vortmall.com/upload/c4ca4238/img/gallery/202508/1754895669bP3iJSUiXSBoRB1VQq.png';
 
-const bannerDefaults = () => ({
-  bannerStyle: 1,
-  showCat: 1,
-  logo: { picUrl: '', picThumb: '' },
-  picList: [] as PicItem[],
-  picList2: [] as PicItem[],
-  picList3: [] as PicItem[],
+const demoPic = (id: string, url: string, name: string, title: string): PicItem => ({
+  picId: id,
+  picUrl: url,
+  picThumb: url,
+  picName: name,
+  picTitle: title,
+  picLink: { link: '', name: '' },
+});
+
+const standardFrame = (extra: Record<string, unknown> = {}) => ({
+  textColor: '',
+  itemBackgroundColor: '',
+  backgroundColor: '#ffffff',
+  innerPadding: 0,
+  itemHeight: 35,
+  itemRadius: 3,
+  boxRadius: 0,
+  boxPadding: 10,
+  leftAndRightPadding: 0,
+  boxPaddingTop: 5,
+  boxPaddingBottom: 5,
+  ...extra,
+});
+
+const standardTitle = (extra: Record<string, unknown> = {}) => ({
+  showTitle: 0,
+  titleStyle: 1,
+  titleAlign: 1,
+  titleBackground: '',
+  titleBackground2: '',
+  titleBackgroundPic: { picUrl: '', picThumb: '' },
+  titleRadius: 0,
+  titlePaddingTop: 0,
+  titlePaddingBottom: 0,
+  titleText: '标题内容',
+  titleColor: '',
+  descText: '',
+  descColor: '#aaaaaa',
+  showMore: 0,
+  moreType: 1,
+  countdownLabel: '',
+  moreLink: { link: '', title: '' },
+  moreColor: '#aaaaaa',
+  ...extra,
 });
 
 const productsDefaults = () => ({
   productSelectType: 1,
-  productCategoryId: 1,
-  productNumber: 8,
   productIds: [] as number[],
+  productCategoryId: undefined as unknown as number,
   productTag: '',
+  productNumber: 10,
 });
 
-const grouponFrameDefaults = () => ({
-  textColor: '', itemBackgroundColor: '', backgroundColor: '#ffffff',
-  innerPadding: 0, itemHeight: 35, itemRadius: 3, boxRadius: 0, boxPadding: 10,
-  leftAndRightPadding: 0, boxPaddingTop: 5, boxPaddingBottom: 5,
-});
+/** 快捷导航演示项（原版 defaultItems 逐字段） */
+const QUICK_NAV_ITEMS: PicItem[] = [
+  ['1377', '1730957947YV2lncqLSOSg8OvpbK', '当日速达'],
+  ['1384', '1730957948LcXRbvCuwlCHyHy7Y0', '休闲零食'],
+  ['1378', '1730957947XV6cPNonZJurGcDfOP', '粮油米面'],
+  ['1385', '17309579481I5gopEn7PkOneF0NU', '乳饮酒水'],
+  ['1382', '1730957948Ouz6wPq8cQkgSjDCkF', '日用百货'],
+  ['1380', '1730957947iOLEngIwvzxZDjhtQ6', '母婴用品'],
+  ['1379', '1730957947lWqY7UySCwQ89qsq7f', '个人洗护'],
+  ['1383', '1730957948vFCfxjt0TIROPOocWI', '纸品家清'],
+  ['1376', '1730957947BswaPOfoOZnn8tDSX6', '护肤美容'],
+  ['1381', '1730957947vIKQibO98m2q9oP8ct', '方便速食'],
+].map(([picId, hash, picTitle]) => ({
+  picId,
+  picThumb: `https://oss.vortmall.com/upload/c4ca4238/img/gallery/202411/${hash}.png?x-oss-process=image/resize,m_pad,h_200,h_200`,
+  picUrl: `https://oss.vortmall.com/upload/c4ca4238/img/gallery/202411/${hash}.png`,
+  picName: picId,
+  picTitle,
+  picLink: { link: '', name: '' },
+}));
 
-const grouponTitleDefaults = () => ({
-  showTitle: 0, titleStyle: 1, titleAlign: 1,
-  titleBackground: '', titleBackground2: '',
-  titleBackgroundPic: { picUrl: '', picThumb: '' },
-  titleRadius: 0, titleText: '标题内容', titleColor: '', titleWeight: 'normal',
-  descText: '', descColor: '#aaaaaa', showMore: 0, moreType: 1,
-  countdownLabel: '', moreLink: [], moreColor: '#aaaaaa',
-  format: { titleBackground: '', titleRadius: '' },
-});
+const HERO_CATEGORIES: PicItem[] = [
+  ['1377', '1730957947YV2lncqLSOSg8OvpbK', '女装 / 男装 / 内衣'],
+  ['1384', '1730957948LcXRbvCuwlCHyHy7Y0', '鞋包 / 女靴 / 男鞋'],
+  ['1378', '1730957947XV6cPNonZJurGcDfOP', '美妆 / 养护 / 美容'],
+  ['1385', '17309579481I5gopEn7PkOneF0NU', '冰洗 / 空调 / 电视 / 厨卫大件'],
+  ['1382', '1730957948Ouz6wPq8cQkgSjDCkF', '电脑 / 办公 / 文具用品'],
+  ['1380', '1730957947iOLEngIwvzxZDjhtQ6', '食品 / 酒类 / 生鲜 / 特产'],
+  ['1379', '1730957947lWqY7UySCwQ89qsq7f', '生活电器 / 厨房小电 / 个护健康'],
+  ['1383', '1730957948vFCfxjt0TIROPOocWI', '医药 / 器械 / 保健品'],
+  ['1376', '1730957947BswaPOfoOZnn8tDSX6', '配饰 / 手表 / 玉石'],
+  ['1381', '1730957947vIKQibO98m2q9oP8ct', '家装 / 厨卫 / 家具'],
+  ['1386', '1730957947YV2lncqLSOSg8OvpbK', '汽车 / 摩托 / 配件'],
+].map(([picId, hash, picTitle]) => ({
+  picId,
+  picThumb: `https://oss.vortmall.com/upload/c4ca4238/img/gallery/202411/${hash}.png?x-oss-process=image/resize,m_pad,h_200,h_200`,
+  picUrl: `https://oss.vortmall.com/upload/c4ca4238/img/gallery/202411/${hash}.png`,
+  picName: picId,
+  picTitle,
+  picDesc: '',
+  picLink: { link: '', name: '' },
+}));
+
+const HERO_DEMO_PRODUCTS = [
+  '1732004872pw39D1oGqdAaZMpvyo',
+  '1732004872f6EcZnbAqdW5kIGzxL',
+  '1732004872o3s8aqPGdICr1DOCdB',
+  '1732004872Mry8L9BWOCiawPhp72',
+  '1732004872yPYr4zSj7AXrfw9oON',
+  '1732004872NlX49KeGeYSN4Tw0wa',
+].map((hash, i) => ({
+  pic: {
+    picUrl: `https://oss.vortmall.com/upload/c4ca4238/img/gallery/202411/${hash}.jpg`,
+    picThumb: `https://oss.vortmall.com/upload/c4ca4238/img/gallery/202411/${hash}.jpg`,
+  },
+  price: ['¥88.8', '¥56.8', '¥48.8', '¥48.8', '¥32.0', '¥32.0'][i],
+}));
+
+const heroDemoModules = (): Array<Record<string, any>> => {
+  const defs: Array<[string, string, string, string]> = [
+    ['限时秒杀', '钜惠开秒', '#FF4E4E', '#E1251B'],
+    ['商家严选', '品质好物', '#FF4E4E', '#E1251B'],
+    ['严选臻品', '优中选优', '#6C8CFF', '#3A5BFF'],
+    ['新品上市', '重磅上新', '#00C176', '#008856'],
+    ['领券中心', '券', '#FF4E4E', '#E1251B'],
+    ['组团拼单', '拼享低价', '#FF9000', '#FF5000'],
+  ];
+  const picks: number[][] = [[2, 3], [4, 5], [0, 1], [2, 3], [4, 5], [0, 1]];
+  return defs.map(([moduleTitle, moduleSubTitle, a, b], i) => ({
+    moduleTitle,
+    moduleSubTitle,
+    moduleSubTitleBgColorA: a,
+    moduleSubTitleBgColorB: b,
+    moduleSubTitleBgType: 'leftRight',
+    showPrice: 1,
+    link: { link: '', name: '' },
+    products: picks[i].map((p) => ({ ...HERO_DEMO_PRODUCTS[p] })),
+  }));
+};
+
+/* ===================== 设置字段定义 ===================== */
 
 interface SettingFieldDef {
   kind:
-    | 'radio' | 'input' | 'textarea' | 'number' | 'slider'
+    | 'radio' | 'switch' | 'select' | 'input' | 'textarea' | 'number' | 'slider'
     | 'color' | 'picList' | 'pic' | 'link' | 'linkList'
-    | 'category' | 'categoryMulti' | 'products' | 'productIds' | 'groupon';
+    | 'category' | 'categoryMulti' | 'products' | 'productIds' | 'groupon'
+    | 'title' | 'container' | 'hotarea' | 'groupList';
   key: string;
   label: string;
   hint?: string;
@@ -99,6 +209,7 @@ interface SettingFieldDef {
   max?: number;
   min?: number;
   numberMin?: number;
+  numberMax?: number;
   numberStep?: number;
   showIf?: (m: Record<string, any>) => boolean;
 }
@@ -108,169 +219,373 @@ interface ModuleDef {
   label: string;
   group: string;
   overseasOnly?: boolean;
+  hiddenInLibrary?: boolean;
+  legacy?: boolean;
   note?: string;
   defaults: () => Record<string, any>;
   settings: SettingFieldDef[];
   summary?: (m: Record<string, any>) => string;
 }
 
-export const PC_MODULE_DEFS: ModuleDef[] = [
+/** 深层取值（'title.titleText' 形式） */
+function getPath(obj: Record<string, any>, path: string): any {
+  return path.split('.').reduce((acc, key) => (acc == null ? undefined : acc[key]), obj);
+}
+
+/** 深层写入（不可变） */
+function setPath(obj: Record<string, any>, path: string, value: unknown): Record<string, any> {
+  const keys = path.split('.');
+  const clone: Record<string, any> = { ...obj };
+  let cur = clone;
+  for (let i = 0; i < keys.length - 1; i++) {
+    const k = keys[i];
+    cur[k] = { ...(cur[k] || {}) };
+    cur = cur[k];
+  }
+  cur[keys[keys.length - 1]] = value;
+  return clone;
+}
+
+const containerFields = (opts: { showInnerPadding?: boolean } = {}): SettingFieldDef[] => [
+  { kind: 'color', key: 'frame.backgroundColor', label: '背景颜色' },
+  { kind: 'slider', key: 'frame.boxRadius', label: '容器圆角', max: 30 },
+  { kind: 'slider', key: 'frame.boxPadding', label: '左右边距', max: 30 },
+  { kind: 'slider', key: 'frame.boxPaddingTop', label: '上边距', max: 30 },
+  { kind: 'slider', key: 'frame.boxPaddingBottom', label: '下边距', max: 30 },
+  ...(opts.showInnerPadding
+    ? [{ kind: 'slider' as const, key: 'frame.leftAndRightPadding', label: '左右内边距', max: 30 }]
+    : []),
+];
+
+const titleFields = (opts: { moreType?: boolean; verticalPadding?: boolean } = {}): SettingFieldDef[] => [
+  { kind: 'switch', key: 'title.showTitle', label: '显示标题' },
+  { kind: 'radio', key: 'title.titleStyle', label: '标题栏风格', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }], showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 },
+  { kind: 'input', key: 'title.titleText', label: '标题内容', showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 },
+  { kind: 'color', key: 'title.titleColor', label: '标题颜色', showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 },
+  { kind: 'color', key: 'title.titleBackground', label: '标题背景色', showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 },
+  { kind: 'input', key: 'title.descText', label: '描述内容', showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 },
+  { kind: 'color', key: 'title.descColor', label: '描述颜色', showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 },
+  ...(opts.moreType
+    ? [
+        { kind: 'radio' as const, key: 'title.moreType', label: '右侧内容', options: [{ label: '更多链接', value: 1 }, { label: '倒计时', value: 2 }], showIf: (m: Record<string, any>) => Number(getPath(m, 'title.showTitle')) === 1 },
+        { kind: 'input' as const, key: 'title.countdownLabel', label: '倒计时前缀文字', showIf: (m: Record<string, any>) => Number(getPath(m, 'title.showTitle')) === 1 && Number(getPath(m, 'title.moreType')) === 2 },
+      ]
+    : []),
+  { kind: 'switch', key: 'title.showMore', label: '显示查看更多', showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 && (!opts.moreType || Number(getPath(m, 'title.moreType')) === 1) },
+  { kind: 'link', key: 'title.moreLink', label: '更多链接', showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 && Number(getPath(m, 'title.showMore')) === 1 && (!opts.moreType || Number(getPath(m, 'title.moreType')) === 1) },
+  ...(opts.verticalPadding
+    ? [
+        { kind: 'slider' as const, key: 'title.titlePaddingTop', label: '标题上内边距', max: 60 },
+        { kind: 'slider' as const, key: 'title.titlePaddingBottom', label: '标题下内边距', max: 60 },
+      ]
+    : []),
+];
+
+/* ===================== 新版模块集（modules/pcHome 20 个，kebab-case） ===================== */
+
+const NEW_MODULE_DEFS: ModuleDef[] = [
   {
-    type: 'pcBanner', label: '轮播Banner', group: '轮播广告',
-    defaults: bannerDefaults,
-    settings: [
-      { kind: 'radio', key: 'bannerStyle', label: '风格', options: [{ label: '默认风格', value: 1 }, { label: '简约风格', value: 2 }] },
-      { kind: 'picList', key: 'picList', label: '轮播大图', hint: '建议 1180*940 / 750*479' },
-      { kind: 'picList', key: 'picList2', label: '右侧轮播小图', hint: '380*300，建议 3-6 个', showIf: (m) => m.bannerStyle === 1 },
-      { kind: 'picList', key: 'picList3', label: '右侧会员栏图标', hint: '60*60，最多 6 个', showIf: (m) => m.bannerStyle === 1 },
-      { kind: 'radio', key: 'showCat', label: '显示分类栏', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }], showIf: (m) => m.bannerStyle === 2 },
-    ],
-    summary: (m) => `风格${m.bannerStyle === 1 ? '默认' : '简约'} · ${((m.picList || []) as PicItem[]).length} 图`,
-  },
-  {
-    type: 'pcBanner2', label: '轮播Banner2', group: '轮播广告', overseasOnly: true,
-    defaults: bannerDefaults,
+    type: 'pc-banner2', label: '轮播Banner2', group: '轮播横幅', overseasOnly: true,
+    defaults: () => ({
+      frame: { boxPadding: 10, boxPaddingTop: 0, boxPaddingBottom: 0, boxRadius: 8, backgroundColor: '#eeeeee' },
+      bannerStyle: 1, showCat: 1, logo: { picUrl: '', picThumb: '' },
+      picList: [demoPic('1', DEMO_PIC_1, '演示图片1', 'Banner1'), demoPic('2', DEMO_PIC_2, '演示图片2', 'Banner2')],
+      picList2: [], picList3: [], number: 1, slideGap: 12,
+    }),
     settings: [
       { kind: 'picList', key: 'picList', label: '轮播图', hint: '建议 1264*280' },
+      ...containerFields(),
     ],
     summary: (m) => `${((m.picList || []) as PicItem[]).length} 图`,
   },
   {
-    type: 'pcGroupBanner', label: '分组轮播Banner', group: '轮播广告', overseasOnly: true,
-    defaults: () => ({ ...bannerDefaults(), number: undefined as unknown as number }),
+    type: 'pc-group-banner', label: '分组轮播Banner', group: '轮播横幅', overseasOnly: true,
+    defaults: () => ({
+      frame: { backgroundColor: '#ffffff', boxPadding: 10, boxPaddingTop: 0, boxPaddingBottom: 0, boxRadius: 8, slideHeight: 195 },
+      bannerStyle: 1, showCat: 1, logo: { picUrl: '', picThumb: '' },
+      picList: [demoPic('1', DEMO_PIC_1, '演示图片1', 'Banner1'), demoPic('2', DEMO_PIC_2, '演示图片2', 'Banner2')],
+      picList2: [], picList3: [], number: 3,
+    }),
     settings: [
       { kind: 'picList', key: 'picList', label: 'Banner图', hint: '1180*940 / 750*479' },
-      { kind: 'number', key: 'number', label: '一组显示数量', min: 1, max: 3, hint: '最多显示 3 个' },
+      { kind: 'number', key: 'number', label: '一组显示的数量', min: 1, max: 3, hint: '最多 3 个' },
+      ...containerFields(),
     ],
-    summary: (m) => `每组 ${m.number || '-'} 个`,
+    summary: (m) => `每组 ${m.number || '-'} 个 · ${((m.picList || []) as PicItem[]).length} 图`,
   },
   {
-    type: 'pcImageAd', label: '通宽广告图', group: '轮播广告',
-    defaults: () => ({ picList: [] as PicItem[], boxPaddingTop: 10, boxPaddingBottom: 10 }),
+    type: 'pc-image-ad', label: '图片广告', group: '轮播横幅',
+    defaults: () => ({
+      picType: 1,
+      picList: [demoPic('1', DEMO_PIC_1, '演示图片1', '广告位1'), demoPic('2', DEMO_PIC_2, '演示图片2', '广告位2')],
+      swiperPreView: 1, swiperPageColor: '#333333', imgPadding: 0, picPageType: 1, picRadioStyle: 1, isFluxWidth: 0,
+      frame: standardFrame(),
+      title: standardTitle(),
+    }),
     settings: [
-      { kind: 'picList', key: 'picList', label: '广告图', hint: '单图占屏宽 100% 建议 750px；多图为轮播' },
+      { kind: 'radio', key: 'picType', label: '选择模板', options: [{ label: '一行一个', value: 1 }, { label: '轮播', value: 2 }, { label: '一行两个', value: 5 }, { label: '一行三个', value: 6 }, { label: '一行四个', value: 7 }] },
+      { kind: 'picList', key: 'picList', label: '广告图' },
+      { kind: 'radio', key: 'picPageType', label: '指示器样式', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }, { label: '样式三', value: 3 }], showIf: (m) => Number(m.picType) === 2 },
+      { kind: 'color', key: 'swiperPageColor', label: '指示器颜色', showIf: (m) => Number(m.picType) === 2 },
+      { kind: 'select', key: 'swiperPreView', label: '轮播一行显示', options: [1, 2, 3, 4].map((n) => ({ label: `${n} 个`, value: n })), showIf: (m) => Number(m.picType) === 2 },
+      { kind: 'slider', key: 'imgPadding', label: '图片边距', max: 30 },
+      { kind: 'radio', key: 'picRadioStyle', label: '图片边角', options: [{ label: '直角', value: 1 }, { label: '圆角', value: 2 }] },
+      { kind: 'title', key: 'title', label: '标题设置' },
+      { kind: 'radio', key: 'isFluxWidth', label: '通宽排版', options: [{ label: '通宽', value: 1 }, { label: '居中', value: 0 }] },
+      ...containerFields(),
+    ],
+    summary: (m) => `模板${m.picType} · ${((m.picList || []) as PicItem[]).length} 图`,
+  },
+  {
+    type: 'pc-image-nav', label: '图文导航', group: '导航分类',
+    defaults: () => ({
+      navType: 1, navStyle: 1, rowNum: 4, colNum: 2, picList: [],
+      backgroundColor: '#ffffff', imgPadding: 8, radioStyle: 1, picPageType: 1, swiperPageColor: '#333333',
+      frame: standardFrame(),
+      title: standardTitle(),
+    }),
+    settings: [
+      { kind: 'radio', key: 'navType', label: '显示模式', options: [{ label: '固定', value: 1 }, { label: '滑动分页', value: 2 }] },
+      { kind: 'radio', key: 'navStyle', label: '样式', options: [{ label: '图文', value: 1 }, { label: '仅图片', value: 2 }, { label: '仅文字', value: 3 }] },
+      { kind: 'select', key: 'rowNum', label: '一行显示', options: [3, 4, 5, 6].map((n) => ({ label: `${n} 个`, value: n })) },
+      { kind: 'select', key: 'colNum', label: '显示行数', options: [1, 2, 3].map((n) => ({ label: `${n} 行`, value: n })) },
+      { kind: 'picList', key: 'picList', label: '导航项' },
+      { kind: 'color', key: 'backgroundColor', label: '背景颜色' },
+      { kind: 'slider', key: 'imgPadding', label: '元素边距', max: 30 },
+      { kind: 'radio', key: 'radioStyle', label: '图片边角', options: [{ label: '直角', value: 1 }, { label: '圆角', value: 2 }], showIf: (m) => Number(m.navStyle) === 2 },
+      { kind: 'title', key: 'title', label: '标题设置' },
+      ...containerFields(),
+    ],
+    summary: (m) => `${m.rowNum}×${m.colNum} · ${((m.picList || []) as PicItem[]).length} 项`,
+  },
+  {
+    type: 'pc-image-square-ad', label: '图片魔方', group: '图片展示',
+    defaults: () => ({
+      picType: 1,
+      picList: [demoPic('1', DEMO_PIC_1, '演示图片1', '魔方图1'), demoPic('2', DEMO_PIC_2, '演示图片2', '魔方图2')],
+      imgPadding: 0,
+      frame: standardFrame(),
+      title: standardTitle(),
+    }),
+    settings: [
+      { kind: 'radio', key: 'picType', label: '选择布局', options: [{ label: '一行两个', value: 1 }, { label: '一行三个', value: 2 }, { label: '一行四个', value: 3 }, { label: '左二右二', value: 4 }, { label: '左一右二', value: 5 }, { label: '左一右三', value: 6 }, { label: '上一下二', value: 7 }] },
+      { kind: 'picList', key: 'picList', label: '魔方图', hint: '槽位数量由布局决定' },
+      { kind: 'slider', key: 'imgPadding', label: '图片边距', max: 30 },
+      { kind: 'title', key: 'title', label: '标题设置' },
+      ...containerFields({ showInnerPadding: true }),
+    ],
+    summary: (m) => `布局${m.picType} · ${((m.picList || []) as PicItem[]).length} 图`,
+  },
+  {
+    type: 'pc-image-hotarea', label: '热图绘制', group: '图片展示',
+    defaults: () => ({
+      picList: [] as PicItem[],
+      imgPadding: 0,
+      frame: standardFrame(),
+      title: standardTitle(),
+    }),
+    settings: [
+      { kind: 'picList', key: 'picList', label: '热图' },
+      { kind: 'hotarea', key: 'hotarea', label: '热区（宽/高/上/左 为像素，基准 500px 宽）' },
+      { kind: 'slider', key: 'imgPadding', label: '图片边距', max: 30 },
+      { kind: 'title', key: 'title', label: '标题设置' },
+      ...containerFields({ showInnerPadding: true }),
+    ],
+    summary: (m) => `${((m.picList || []) as PicItem[]).length} 图`,
+  },
+  {
+    type: 'pc-home-quick-nav', label: '快捷导航', group: '导航分类',
+    defaults: () => ({
+      frame: { boxPadding: 0, boxPaddingTop: 0, boxPaddingBottom: 0, backgroundColor: '' },
+      style: { fontSize: 14, textColor: '#333333', hoverColor: '#e1251b', containerAlign: 2, itemGap: 16, singleLine: 1, fontWeight: 700, lineHeight: 36, iconSize: 18, iconGap: 6 },
+      items: QUICK_NAV_ITEMS,
+    }),
+    settings: [
+      { kind: 'picList', key: 'items', label: '导航项', hint: '图标+文字+链接，可排序' },
+      { kind: 'slider', key: 'style.fontSize', label: '字号', min: 12, max: 24 },
+      { kind: 'radio', key: 'style.fontWeight', label: '文字粗细', options: [{ label: '常规', value: 400 }, { label: '加粗', value: 700 }] },
+      { kind: 'slider', key: 'style.lineHeight', label: '行高', min: 12, max: 40 },
+      { kind: 'color', key: 'style.textColor', label: '文字颜色' },
+      { kind: 'color', key: 'style.hoverColor', label: '悬停颜色' },
+      { kind: 'slider', key: 'style.iconSize', label: '图标尺寸', min: 12, max: 32 },
+      { kind: 'slider', key: 'style.iconGap', label: '图文间距', min: 0, max: 16 },
+      { kind: 'radio', key: 'style.containerAlign', label: '整体排布', options: [{ label: '居左', value: 1 }, { label: '居中', value: 2 }, { label: '居右', value: 3 }] },
+      { kind: 'slider', key: 'style.itemGap', label: '项目间距', min: 8, max: 60 },
+      { kind: 'radio', key: 'style.singleLine', label: '单行模式', options: [{ label: '单行', value: 1 }, { label: '自动换行', value: 0 }] },
+      ...containerFields(),
+    ],
+    summary: (m) => `${((m.items || []) as PicItem[]).length} 项`,
+  },
+  {
+    type: 'pc-category-nav', label: '分类导航', group: '导航分类',
+    defaults: () => ({
+      frame: { boxPadding: 0, boxPaddingTop: 0, boxPaddingBottom: 0, boxRadius: 8, backgroundColor: '#f7f7f7', boxHeight: 328 },
+      titleName: '热门分类', showTitle: 1, displayNum: 6, backgroundColor: '#f7f7f7',
+    }),
+    settings: [
+      { kind: 'switch', key: 'showTitle', label: '显示标题' },
+      { kind: 'input', key: 'titleName', label: '标题', showIf: (m) => Number(m.showTitle) === 1 },
+      { kind: 'slider', key: 'displayNum', label: '一屏显示数量', min: 1, max: 10 },
+      { kind: 'color', key: 'backgroundColor', label: '背景颜色' },
+      ...containerFields(),
+    ],
+    summary: (m) => `${m.titleName || ''} · 每屏 ${m.displayNum}`,
+  },
+  {
+    type: 'pc-category-nav3', label: '分类导航3', group: '导航分类', overseasOnly: true,
+    defaults: () => ({
+      frame: { boxPadding: 0, boxPaddingTop: 0, boxPaddingBottom: 0, boxRadius: 8, backgroundColor: 'rgba(0, 0, 0, 0.02)', boxHeight: 352 },
+      titleText: '热门推荐', showMore: 1, showMoreText: '更多', moreLink: { link: '', name: '' },
+      imageBackgroundColor: '', picList: [], backgroundColor: 'rgba(0, 0, 0, 0.02)',
+    }),
+    settings: [
+      { kind: 'picList', key: 'picList', label: '图片卡片', hint: '建议 180*180' },
+      { kind: 'color', key: 'imageBackgroundColor', label: '图片背景色' },
+      { kind: 'input', key: 'titleText', label: '标题内容' },
+      { kind: 'switch', key: 'showMore', label: '显示查看更多' },
+      { kind: 'input', key: 'showMoreText', label: '更多文字', showIf: (m) => Number(m.showMore) === 1 },
+      { kind: 'link', key: 'moreLink', label: '更多链接', showIf: (m) => Number(m.showMore) === 1 },
+      { kind: 'color', key: 'backgroundColor', label: '模块背景颜色' },
+    ],
+    summary: (m) => `${m.titleText || ''} · ${((m.picList || []) as PicItem[]).length} 卡`,
+  },
+  {
+    type: 'pc-product', label: '商品', group: '商品',
+    defaults: () => ({
+      style: 1, goodsStyle: 1, goodsRadioStyle: 1, textAlign: 1, textWeight: 1, goodsNameRow: 2,
+      goodsNamePadding: 1, showName: 1, showBrief: 1, showPrice: 1, goodsPadding: 5, buyBtnStyle: 1,
+      backgroundColor: '', boxRadius: 0, innerPadding: 0, boxPadding: 10, boxPaddingTop: 5,
+      boxPaddingBottom: 5, imgPadding: 1, waterfall: 0, swiperPageColor: '',
+      frame: standardFrame(),
+      title: standardTitle(),
+      products: productsDefaults(),
+    }),
+    settings: [
+      { kind: 'radio', key: 'style', label: '展示样式', options: [{ label: '一行四个', value: 1 }, { label: '一行五个', value: 2 }] },
+      { kind: 'slider', key: 'goodsPadding', label: '商品边距', max: 30 },
+      { kind: 'products', key: 'products', label: '商品设置' },
+      { kind: 'title', key: 'title', label: '标题设置' },
+      ...containerFields({ showInnerPadding: true }),
+    ],
+    summary: (m) => `样式${Number(m.style) === 2 ? 5 : 4}列 · ${((m.products?.productIds || []) as number[]).length} 商品`,
+  },
+  {
+    type: 'pc-product-group', label: '商品分组', group: '商品',
+    defaults: () => ({
+      productSource: 'products',
+      productGroups: ['为你推荐', '热卖爆款', '折扣专区', '预售专场'].map((title, gi) => ({
+        sourceType: 'products',
+        title,
+        titlePic: gi === 0 ? { picUrl: DEMO_PIC_1, picThumb: DEMO_PIC_1 } : { picUrl: '', picThumb: '' },
+        titleLink: { link: '', name: '' },
+        bannerPic: { picUrl: '', picThumb: '' },
+        bannerLink: { link: '', name: '' },
+        productList: Array.from({ length: 4 }, (_, i) => ({
+          productId: 0,
+          productSn: '',
+          productName: '商品标题（后台自动调用读取）',
+          productDesc: '',
+          productPrice: [88.8, 56.8, 48.8, 32.0][i % 4],
+          marketPrice: [98.8, 68.88, 69.9, 39.0][i % 4],
+          picThumb: HERO_DEMO_PRODUCTS[(gi + i) % 6].pic.picThumb,
+        })),
+      })),
+      groupList: [],
+      productCardStyle: 1, listStyle: 4, cardPadding: 0, cardRadius: 4,
+      showProductName: 1, productNameRow: 1, productNameWeight: 400, productNameSize: 16,
+      showProductPrice: 1, productPriceMarginTop: 10, productPriceWeight: 400, productPriceSize: 28,
+      crossedOutPrice: 1, showSales: 1, showShopTag: 1,
+      buyBtnStyle: { showBtn: 1, btnType: 1, text: '', textColor: '#ffffff', iconColor: '#ffffff', paddingLeftRight: 3 },
+      productColor: { infoLeftRightPadding: 10, backgroundColor: '#ffffff', titleColor: '#19191b', priceColor: '', crossedOutPriceColor: '#999999' },
+      groupTitle: { marginLeftRight: 5, showTitle: 1, bigTitleFontSize: 14, titleColor: '#444444', activeTitleColor: '#FF0F23', activeTitleBgColor: '#ffebf1', titleMinWidth: 80, titlePaddingTopBottom: 8, titlePaddingLeftRight: 12, titleRadius: 4, splitLineColor: 'transparent' },
+      moduleStyle: { boxPaddingTop: 5, boxPaddingBottom: 5, boxPadding: 10, backgroundColor: '' },
+      contentStyle: { paddingTop: 0, paddingBottom: 0, paddingLeftRight: 0, boxRadius: 0, backgroundColor: '', backgroundPic: { picUrl: '', picThumb: '' }, backgroundPicFillType: 'cover', boxShadow: 0 },
+    }),
+    settings: [
+      { kind: 'groupList', key: 'productGroups', label: '分组列表' },
+      { kind: 'radio', key: 'productCardStyle', label: '商品样式', options: [{ label: '扁平', value: 1 }, { label: '卡片', value: 2 }, { label: '描边', value: 3 }] },
+      { kind: 'radio', key: 'listStyle', label: '展示样式', options: [{ label: '一行四个', value: 4 }, { label: '一行五个', value: 6 }, { label: '一行六个', value: 7 }] },
+      { kind: 'slider', key: 'cardPadding', label: '商品内部边距', max: 10 },
+      { kind: 'slider', key: 'cardRadius', label: '商品圆角半径', max: 20 },
+      { kind: 'switch', key: 'showProductName', label: '商品标题' },
+      { kind: 'switch', key: 'showProductPrice', label: '商品价格' },
+      { kind: 'switch', key: 'crossedOutPrice', label: '划线价' },
+      { kind: 'switch', key: 'showSales', label: '已售' },
+      { kind: 'switch', key: 'showShopTag', label: '商品店铺' },
+      { kind: 'slider', key: 'moduleStyle.boxPaddingTop', label: '容器上边距', max: 30 },
+      { kind: 'slider', key: 'moduleStyle.boxPaddingBottom', label: '容器下边距', max: 30 },
+      { kind: 'color', key: 'moduleStyle.backgroundColor', label: '容器背景色' },
+    ],
+    summary: (m) => `${((m.productGroups || []) as Array<Record<string, any>>).length} 组 · 样式${m.listStyle}`,
+  },
+  {
+    type: 'pc-recommend-product', label: '推荐商品', group: '商品', hiddenInLibrary: true,
+    defaults: () => ({
+      frame: { boxPadding: 10, boxPaddingTop: 10, boxPaddingBottom: 50, boxRadius: 0, backgroundColor: 'transparent', itemGap: 16, columns: 5 },
+      titleName: '猜你喜欢',
+      products: { ...productsDefaults(), productNumber: 20 },
+    }),
+    settings: [
+      { kind: 'input', key: 'titleName', label: '标题' },
+      { kind: 'products', key: 'products', label: '商品设置', numberMax: 50 },
+      ...containerFields({ showInnerPadding: true }),
+    ],
+    summary: (m) => `${m.titleName || ''} · ${((m.products?.productIds || []) as number[]).length} 商品`,
+  },
+  {
+    type: 'pc-home-coupon', label: '优惠券', group: '营销活动',
+    note: '优惠券内容由营销-优惠券"首页显示"决定',
+    defaults: () => ({
+      showTitle: 0, title: '每日领券', desc: '天天优惠领不停', colorStyle: 0,
+      itemBackgroundColor: '#ffffff', backgroundColor: '#ffffff',
+      itemPadding: 10, boxRadius: 8, boxPadding: 10, boxPaddingTop: 5, boxPaddingBottom: 5,
+    }),
+    settings: [
+      { kind: 'switch', key: 'showTitle', label: '显示标题栏' },
+      { kind: 'input', key: 'title', label: '标题内容', showIf: (m) => Number(m.showTitle) === 1 },
+      { kind: 'textarea', key: 'desc', label: '描述内容', showIf: (m) => Number(m.showTitle) === 1 },
+      { kind: 'slider', key: 'itemPadding', label: '组件边距', max: 30 },
+      { kind: 'slider', key: 'boxRadius', label: '圆角', max: 30 },
+      { kind: 'slider', key: 'boxPadding', label: '左右边距', max: 30 },
       { kind: 'slider', key: 'boxPaddingTop', label: '上边距', max: 30 },
       { kind: 'slider', key: 'boxPaddingBottom', label: '下边距', max: 30 },
     ],
-    summary: (m) => `${((m.picList || []) as PicItem[]).length} 图 · 边距 ${m.boxPaddingTop}/${m.boxPaddingBottom}`,
-  },
-  {
-    type: 'pcCustomAd1', label: '自定义模块一', group: '轮播广告',
-    defaults: () => ({ picList: [] as PicItem[], picList2: [] as PicItem[], picList3: [] as PicItem[] }),
-    settings: [
-      { kind: 'picList', key: 'picList', label: '左侧大图', hint: '540*800 / 270*400' },
-      { kind: 'picList', key: 'picList2', label: '中间每日推荐', hint: '首张 500*720，其余 180*180' },
-      { kind: 'picList', key: 'picList3', label: '右侧热销精品', hint: '首张 420*420' },
-    ],
-    summary: (m) => `${((m.picList || []) as PicItem[]).length}/${((m.picList2 || []) as PicItem[]).length}/${((m.picList3 || []) as PicItem[]).length} 图`,
-  },
-  {
-    type: 'pcCustomAd2', label: '自定义模块二', group: '轮播广告',
-    defaults: () => ({ linkList: [], picList: [] as PicItem[], picList2: [] as PicItem[], picList3: [] as PicItem[] }),
-    settings: [
-      { kind: 'picList', key: 'picList', label: '左侧大图(单图)', hint: '540*800 / 270*400' },
-      { kind: 'linkList', key: 'linkList', label: '左侧链接', hint: '超过 6 个不显示' },
-      { kind: 'picList', key: 'picList2', label: '中间广告图', hint: '首张 848*460，其余 300*300' },
-      { kind: 'picList', key: 'picList3', label: '右侧广告图', hint: '200*200，最多 6 张' },
-    ],
-    summary: (m) => `${((m.picList || []) as PicItem[]).length} 图 · ${((m.linkList || []) as unknown[]).length} 链接`,
-  },
-  {
-    type: 'pcCatProductNormal', label: '分类商品-窄', group: '商品楼层',
-    defaults: () => ({
-      categoryId: 0, title: '', shortTitle: '', enTitle: '', color: '', color2: '',
-      logo: { picUrl: '', picThumb: '' }, picList: [] as PicItem[], picList2: [] as PicItem[],
-    }),
-    settings: [
-      { kind: 'category', key: 'categoryId', label: '商品分类' },
-      { kind: 'input', key: 'title', label: '标题名称' },
-      { kind: 'input', key: 'shortTitle', label: '短标题' },
-      { kind: 'input', key: 'enTitle', label: '英文标题' },
-      { kind: 'color', key: 'color', label: '主颜色' },
-      { kind: 'color', key: 'color2', label: '副颜色(渐变)' },
-      { kind: 'picList', key: 'picList', label: '左侧轮播图', hint: '492*764，建议 2 张以上' },
-      { kind: 'picList', key: 'picList2', label: '右侧四小图', hint: '492*764，超过 4 张不显示' },
-    ],
-    summary: (m) => `${m.title || '未命名'} · ${((m.picList || []) as PicItem[]).length} 图`,
-  },
-  {
-    type: 'pcCatProductWide', label: '分类商品-宽', group: '商品楼层',
-    defaults: () => ({
-      categoryId: 0, title: '', shortTitle: '', enTitle: '', color: '', color2: '',
-      logo: { picUrl: '', picThumb: '' }, picList: [] as PicItem[], picList2: [] as PicItem[],
-      productIds: [] as number[], linkList: [],
-    }),
-    settings: [
-      { kind: 'categoryMulti', key: 'categoryId', label: '商品分类(多选)' },
-      { kind: 'input', key: 'title', label: '标题名称' },
-      { kind: 'input', key: 'shortTitle', label: '短标题' },
-      { kind: 'input', key: 'enTitle', label: '英文标题' },
-      { kind: 'color', key: 'color', label: '主颜色' },
-      { kind: 'color', key: 'color2', label: '副颜色(渐变)' },
-      { kind: 'picList', key: 'picList', label: '左侧轮播图', hint: '492*764' },
-      { kind: 'linkList', key: 'linkList', label: '轮播下方链接', hint: '默认显示 1 个，超过 2 个不显示' },
-      { kind: 'picList', key: 'picList2', label: '中间广告图', hint: '260*260，超过 6 张不显示' },
-      { kind: 'productIds', key: 'productIds', label: '右侧热门商品' },
-    ],
-    summary: (m) => `${m.title || '未命名'} · 商品 ${((m.productIds || []) as number[]).length}`,
-  },
-  {
-    type: 'pcCatProductSimple', label: '分类商品-简约', group: '商品楼层',
-    defaults: () => ({
-      baseStyle: 1, title: '', products: productsDefaults(), moreLink: '', picList: [] as PicItem[],
-    }),
-    settings: [
-      { kind: 'radio', key: 'baseStyle', label: '风格', options: [{ label: '风格一', value: 1 }, { label: '风格二', value: 2 }] },
-      { kind: 'input', key: 'title', label: '标题' },
-      { kind: 'link', key: 'moreLink', label: '更多链接' },
-      { kind: 'picList', key: 'picList', label: '左侧大图', hint: '540*800 / 270*400', showIf: (m) => m.baseStyle === 2 },
-      { kind: 'products', key: 'products', label: '商品设置' },
-    ],
-    summary: (m) => `${m.title || '未命名'} · 风格${m.baseStyle} · ${((m.products?.productIds || []) as number[]).length} 商品`,
-  },
-  {
-    type: 'pcRecommendProduct', label: '推荐商品-瀑布流', group: '商品楼层',
-    defaults: () => ({ titleName: '', products: { productNumber: 50, productIds: [] as number[] } }),
-    settings: [
-      { kind: 'input', key: 'titleName', label: '标题名称' },
-      { kind: 'products', key: 'products', label: '商品设置', numberMin: 20, numberStep: 10 },
-    ],
-    summary: (m) => `${m.titleName || '未命名'} · ${((m.products?.productIds || []) as number[]).length} 商品`,
-  },
-  {
-    type: 'pcSeckill', label: '秒杀模块', group: '营销活动',
-    defaults: () => ({ seckillTitle: '全场优惠限时9折起' }),
-    settings: [
-      { kind: 'input', key: 'seckillTitle', label: '活动标题', hint: '秒杀商品由营销-秒杀决定' },
-    ],
-    summary: (m) => m.seckillTitle || '未设置标题',
-  },
-  {
-    type: 'pcCoupon', label: '优惠券模块', group: '营销活动',
-    note: '请前往 营销->优惠券->"首页显示"，用于在首页展示所推荐的优惠券',
-    defaults: () => ({}),
-    settings: [],
     summary: () => '展示"首页显示"的优惠券',
   },
   {
-    type: 'pcGroupon', label: '拼团', group: '营销活动',
+    type: 'pc-home-seckill', label: '秒杀', group: '营销活动',
     defaults: () => ({
-      style: 2, goodsStyle: 1, goodsRadioStyle: 1, textAlign: 1, textWeight: 1,
-      goodsNameRow: 2, goodsNamePadding: 1, showName: 1, showBrief: 1, showPrice: 1,
-      goodsPadding: 5, buyBtnStyle: 1, backgroundColor: '',
-      boxRadius: 0, innerPadding: 0, boxPadding: 10, boxPaddingTop: 5, boxPaddingBottom: 5,
-      frame: grouponFrameDefaults(), title: grouponTitleDefaults(),
-      groupType: 1, grouponActivityItem: undefined as unknown as Record<string, any>, cardStyle: 1,
+      frame: { boxPadding: 0, boxPaddingTop: 0, boxPaddingBottom: 0, boxRadius: 0 },
+      seckillTitle: '全场优惠限时9折起',
+      title: standardTitle({ showTitle: 1, titleText: '全场优惠限时9折起', titleColor: '#1a1a1a', moreType: 2, countdownLabel: '倒计时', moreColor: '#1a1a1a' }),
+      goodsGap: 10,
     }),
     settings: [
-      { kind: 'radio', key: 'style', label: '模板', options: [{ label: '一行四个', value: 2 }, { label: '一行五个', value: 3 }, { label: '横向滑动', value: 6 }] },
+      { kind: 'slider', key: 'goodsGap', label: '商品间距', max: 40 },
+      { kind: 'title', key: 'title', label: '标题设置', hint: '秒杀商品由营销-秒杀决定' },
+      ...containerFields({ showInnerPadding: true }),
+    ],
+    summary: (m) => String(getPath(m, 'title.titleText') || m.seckillTitle || ''),
+  },
+  {
+    type: 'pc-home-groupon', label: '拼团', group: '营销活动',
+    defaults: () => ({
+      style: 4, groupType: 1, cardStyle: 1, showName: 1, showPrice: 1, textAlign: 1, goodsPadding: 0,
+      backgroundColor: '#ffffff', boxRadius: 0, innerPadding: 0, boxPadding: 0, boxPaddingTop: 5, boxPaddingBottom: 5,
+      title: standardTitle({ showTitle: 0, titlePaddingTop: 20, titlePaddingBottom: 20, titleText: '拼团', titleColor: '#2a3145', moreType: 2, countdownLabel: '距结束', moreColor: '#1a1a1a' }),
+      buyBtnStyle: 0,
+      grouponActivityItem: null as unknown as Record<string, any>,
+    }),
+    settings: [
+      { kind: 'radio', key: 'style', label: '选择模板', options: [{ label: '一行四个', value: 2 }, { label: '一行五个', value: 3 }, { label: '一行六个', value: 4 }, { label: '横向滑动', value: 6 }] },
+      { kind: 'radio', key: 'groupType', label: '拼团类型', options: [{ label: '普通拼团', value: 1 }, { label: '阶梯拼团', value: 2 }] },
       { kind: 'groupon', key: 'grouponActivityItem', label: '拼团活动' },
-      { kind: 'radio', key: 'cardStyle', label: '卡片样式', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }] },
-      { kind: 'radio', key: 'goodsStyle', label: '商品卡样式', options: [{ label: '标准', value: 1 }, { label: '投影', value: 2 }, { label: '描边', value: 3 }, { label: '透明底', value: 4 }] },
-      { kind: 'radio', key: 'goodsRadioStyle', label: '圆角', options: [{ label: '直角', value: 1 }, { label: '圆角', value: 2 }] },
-      { kind: 'radio', key: 'textAlign', label: '文字对齐', options: [{ label: '左对齐', value: 1 }, { label: '居中对齐', value: 2 }] },
-      { kind: 'radio', key: 'goodsNameRow', label: '名称行数', options: [{ label: '1 行', value: 1 }, { label: '2 行', value: 2 }] },
+      { kind: 'radio', key: 'cardStyle', label: '商品卡片样式', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }] },
+      { kind: 'radio', key: 'textAlign', label: '文本对齐', options: [{ label: '左对齐', value: 1 }, { label: '居中对齐', value: 2 }] },
+      { kind: 'switch', key: 'showName', label: '显示商品名称' },
+      { kind: 'switch', key: 'showPrice', label: '显示商品价格' },
       { kind: 'slider', key: 'goodsPadding', label: '商品边距', max: 50 },
+      { kind: 'title', key: 'title', label: '标题设置' },
       { kind: 'color', key: 'backgroundColor', label: '背景颜色' },
       { kind: 'slider', key: 'boxRadius', label: '圆角', max: 30 },
       { kind: 'slider', key: 'innerPadding', label: '内边距', max: 30 },
@@ -278,54 +593,164 @@ export const PC_MODULE_DEFS: ModuleDef[] = [
       { kind: 'slider', key: 'boxPaddingTop', label: '上边距', max: 30 },
       { kind: 'slider', key: 'boxPaddingBottom', label: '下边距', max: 30 },
     ],
-    summary: (m) => (m.grouponActivityItem ? m.grouponActivityItem.name || `活动#${m.grouponActivityItem.grouponId}` : '未选择活动'),
+    summary: (m) => (m.grouponActivityItem ? m.grouponActivityItem.name : '未选择活动'),
   },
   {
-    type: 'pcCategoryNav', label: '分类导航', group: '分类导航',
-    defaults: bannerDefaults,
-    settings: [
-      { kind: 'radio', key: 'rowNum', label: '每屏显示数量', options: [2, 3, 4, 5, 6].map((n) => ({ label: `${n}个`, value: n })) },
-      { kind: 'picList', key: 'picList', label: '导航图组' },
-    ],
-    summary: (m) => `每屏 ${m.rowNum || '-'} 个`,
-  },
-  {
-    type: 'pcCategoryNav3', label: '分类导航3', group: '分类导航',
+    type: 'pc-home-hero', label: '营销通栏', group: '营销活动',
     defaults: () => ({
-      ...bannerDefaults(),
-      imageBackgroundColor: undefined as unknown as string,
-      titleText: undefined as unknown as string,
-      showMore: undefined as unknown as number,
-      showMoreText: undefined as unknown as string,
-      moreLink: undefined as unknown as Record<string, any>,
+      frame: { boxPadding: 0, boxPaddingTop: 0, boxPaddingBottom: 0, backgroundColor: '' },
+      left: {
+        title: '全部商品分类',
+        showCount: 11,
+        categories: HERO_CATEGORIES,
+        backgroundColor: '#ffffff',
+        textColor: '#333333',
+      },
+      center: {
+        banners: [demoPic('1', DEMO_PIC_1, '演示 Banner 1', '限时直降'), demoPic('2', DEMO_PIC_2, '演示 Banner 2', '新品上新')],
+        modules: heroDemoModules(),
+      },
+      right: {
+        user: { avatar: { picUrl: 'https://oss.vortmall.com/upload/c4ca4238/2026/02/09/9be6e26cd04b449a8e843df6f790d601.png', picThumb: 'https://oss.vortmall.com/upload/c4ca4238/2026/02/09/9be6e26cd04b449a8e843df6f790d601.png', picName: 'avatar' }, nickname: '欢迎来商城', welcomeText: '登录后更多精彩' },
+        userCardBackground: '#ffffff',
+        userCardGradientColorA: '#FFEDE1',
+        userCardGradientColorB: '#FCF9F8',
+        userCardGradientType: 'upDown',
+        premiumMember: { show: false, title: '会员', description: '', link: { path: 'base', label: '权益卡中心', name: '权益卡中心', link: 'member/premiumMember/index' } },
+        stats: [
+          { label: '优惠券', value: '85' },
+          { label: '余额', value: '257.58' },
+          { label: '积分', value: '544' },
+        ],
+        shortcuts: [1, 2, 3, 4].map((n) => ({ picId: `s${n}`, picThumb: '', picUrl: '', picName: `shop_${n}`, picTitle: '进入店铺', picLink: { link: '', name: '' } })),
+        shopsTitle: '店铺街',
+        shopsSubTitle: 'HOT',
+        shopsSubTitleBg: '#FF4E4E',
+        shopsMoreText: '查看全部',
+        shopsMoreLink: { link: '', name: '' },
+        shopsTextColor: '#a06a38',
+      },
+      style: {
+        height: 336, gap: 16, leftWidth: 220, rightWidth: 260,
+        panelBackgroundColor: '#ffffff', panelRadius: 8, panelShadow: 1,
+        titleFontSize: 14, titleColor: '#333333', mutedColor: '#999999',
+        priceColor: '#e1251b', bannerRadius: 12, cardRadius: 12,
+      },
     }),
     settings: [
-      { kind: 'picList', key: 'picList', label: '添加一组' },
-      { kind: 'color', key: 'imageBackgroundColor', label: '图片背景色' },
-      { kind: 'input', key: 'titleText', label: '标题内容' },
-      { kind: 'radio', key: 'showMore', label: '查看更多', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
-      { kind: 'input', key: 'showMoreText', label: '更多文字', showIf: (m) => Number(m.showMore) === 1 },
-      { kind: 'link', key: 'moreLink', label: '更多链接', showIf: (m) => Number(m.showMore) === 1 },
+      { kind: 'color', key: 'left.backgroundColor', label: '左侧分类背景' },
+      { kind: 'color', key: 'left.textColor', label: '左侧分类文字色' },
+      { kind: 'picList', key: 'center.banners', label: '中间轮播图' },
+      { kind: 'input', key: 'right.user.nickname', label: '未登录欢迎语' },
+      { kind: 'switch', key: 'right.premiumMember.show', label: '显示付费会员卡' },
+      { kind: 'input', key: 'right.shopsTitle', label: '店铺街标题' },
+      { kind: 'input', key: 'right.shopsSubTitle', label: '店铺街角标文字' },
+      { kind: 'color', key: 'right.shopsSubTitleBg', label: '角标背景色' },
+      { kind: 'picList', key: 'right.shortcuts', label: '快捷入口(≤4)' },
+      { kind: 'input', key: 'right.shopsMoreText', label: '查看全部文字' },
+      { kind: 'color', key: 'right.shopsTextColor', label: '店铺街文字色' },
+      { kind: 'number', key: 'style.height', label: '整体高度', min: 200, max: 600 },
+      { kind: 'slider', key: 'style.panelRadius', label: '面板圆角', max: 30 },
+      { kind: 'color', key: 'style.panelBackgroundColor', label: '面板背景色' },
+      { kind: 'slider', key: 'style.gap', label: '列间距', max: 30 },
     ],
-    summary: (m) => m.titleText || `${((m.picList || []) as PicItem[]).length} 项`,
+    summary: (m) => `三列通栏 · ${((m.center?.banners || []) as PicItem[]).length} 轮播`,
   },
   {
-    type: 'pcCatWide', label: '分类模块-宽', group: '分类导航',
-    defaults: () => ({ catIds: [] as number[] }),
+    type: 'pc-notice', label: '公告', group: '辅助元素',
+    defaults: () => ({
+      text: '公告内容',
+      icoPic: { picUrl: NOTICE_ICON, picThumb: NOTICE_ICON },
+      frame: standardFrame({ textColor: '#555555', itemBackgroundColor: '#fff8e6', itemRadius: 4 }),
+    }),
     settings: [
-      { kind: 'categoryMulti', key: 'catIds', label: '已选分类' },
+      { kind: 'input', key: 'text', label: '公告内容' },
+      { kind: 'pic', key: 'icoPic', label: '公告图标' },
+      { kind: 'color', key: 'frame.textColor', label: '文字颜色' },
+      { kind: 'color', key: 'frame.itemBackgroundColor', label: '组件背景' },
+      { kind: 'slider', key: 'frame.itemRadius', label: '组件圆角', max: 50 },
+      { kind: 'slider', key: 'frame.itemHeight', label: '组件高度', min: 20, max: 80 },
+      ...containerFields(),
     ],
-    summary: (m) => `${((m.catIds || []) as number[]).length} 个分类`,
+    summary: (m) => String(m.text || '').slice(0, 20),
+  },
+  {
+    type: 'pc-title-ad', label: '文本标题', group: '辅助元素',
+    defaults: () => ({
+      title: standardTitle({ showTitle: 1, titleText: '标题内容', titleColor: '#2a3145', moreColor: '#969799' }),
+      frame: standardFrame(),
+    }),
+    settings: [
+      { kind: 'radio', key: 'title.titleStyle', label: '标题栏风格', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }] },
+      { kind: 'radio', key: 'title.titleAlign', label: '标题位置', options: [{ label: '居左', value: 1 }, { label: '居中', value: 2 }] },
+      { kind: 'color', key: 'title.titleBackground', label: '标题背景色' },
+      { kind: 'slider', key: 'title.titleRadius', label: '标题圆角', max: 30 },
+      { kind: 'input', key: 'title.titleText', label: '标题内容' },
+      { kind: 'color', key: 'title.titleColor', label: '标题颜色' },
+      { kind: 'input', key: 'title.descText', label: '描述内容' },
+      { kind: 'color', key: 'title.descColor', label: '描述颜色' },
+      { kind: 'switch', key: 'title.showMore', label: '显示查看更多' },
+      { kind: 'color', key: 'title.moreColor', label: '更多文字颜色' },
+      { kind: 'link', key: 'title.moreLink', label: '更多链接', showIf: (m) => Number(getPath(m, 'title.showMore')) === 1 },
+      ...containerFields({ showInnerPadding: true }),
+    ],
+    summary: (m) => String(getPath(m, 'title.titleText') || ''),
+  },
+  {
+    type: 'pc-divider', label: '分割线', group: '辅助元素',
+    defaults: () => ({
+      lineType: 2, lineStyle: 1,
+      frame: standardFrame({ itemHeight: 10, itemRadius: 0 }),
+    }),
+    settings: [
+      { kind: 'radio', key: 'lineType', label: '分割类型', options: [{ label: '空白', value: 1 }, { label: '分割线', value: 2 }] },
+      { kind: 'radio', key: 'lineStyle', label: '选择样式', options: [{ label: '实线', value: 1 }, { label: '虚线', value: 2 }, { label: '点状线', value: 3 }], showIf: (m) => Number(m.lineType) === 2 },
+      { kind: 'slider', key: 'frame.itemHeight', label: '组件高度', min: 0, max: 100 },
+      ...containerFields(),
+    ],
+    summary: (m) => (Number(m.lineType) === 1 ? '空白' : '分割线'),
+  },
+  {
+    type: 'pc-spacer', label: '空白辅助', group: '辅助元素',
+    defaults: () => ({
+      frame: { boxPadding: 0, boxPaddingTop: 0, boxPaddingBottom: 0, boxRadius: 0 },
+      backgroundColor: '#ffffff',
+      blankHeight: 30,
+    }),
+    settings: [
+      { kind: 'color', key: 'backgroundColor', label: '背景颜色' },
+      { kind: 'slider', key: 'blankHeight', label: '高度', min: 0, max: 200 },
+    ],
+    summary: (m) => `高 ${m.blankHeight}px`,
   },
 ];
 
-const MODULE_DEF_MAP = new Map(PC_MODULE_DEFS.map((d) => [d.type, d]));
+/* ===================== 旧版模块集（camelCase，仅兼容历史数据编辑） ===================== */
 
-/** 页面级固定模块（原版 ensureFixed：PC 首页固定模块集合） */
-const FIXED_MODULE_TYPES: Array<{ type: string; label: string; defaults: () => Record<string, any> }> = [
-  { type: 'pcHeaderModule', label: '页头(导航+搜索)', defaults: () => ({}) },
-  { type: 'pcFooterModule', label: '页脚', defaults: () => ({}) },
+const LEGACY_MODULE_DEFS: ModuleDef[] = [
+  { type: 'pcBanner', label: '轮播Banner', group: '旧版', legacy: true, defaults: () => ({ bannerStyle: 1, showCat: 1, logo: { picUrl: '', picThumb: '' }, picList: [], picList2: [], picList3: [] }), settings: [{ kind: 'radio', key: 'bannerStyle', label: '风格', options: [{ label: '默认风格', value: 1 }, { label: '简约风格', value: 2 }] }, { kind: 'picList', key: 'picList', label: '轮播大图' }], summary: (m) => `${((m.picList || []) as PicItem[]).length} 图` },
+  { type: 'pcBanner2', label: '轮播Banner2', group: '旧版', legacy: true, defaults: () => ({ bannerStyle: 1, showCat: 1, logo: { picUrl: '', picThumb: '' }, picList: [], picList2: [], picList3: [] }), settings: [{ kind: 'picList', key: 'picList', label: '轮播图' }], summary: (m) => `${((m.picList || []) as PicItem[]).length} 图` },
+  { type: 'pcGroupBanner', label: '分组轮播Banner', group: '旧版', legacy: true, defaults: () => ({ bannerStyle: 1, showCat: 1, logo: { picUrl: '', picThumb: '' }, picList: [], picList2: [], picList3: [], number: undefined as unknown as number }), settings: [{ kind: 'picList', key: 'picList', label: 'Banner图' }, { kind: 'number', key: 'number', label: '一组显示数量', min: 1, max: 3 }], summary: (m) => `每组 ${m.number || '-'}` },
+  { type: 'pcImageAd', label: '通宽广告图', group: '旧版', legacy: true, defaults: () => ({ picList: [], boxPaddingTop: 10, boxPaddingBottom: 10 }), settings: [{ kind: 'picList', key: 'picList', label: '广告图' }, { kind: 'slider', key: 'boxPaddingTop', label: '上边距', max: 30 }, { kind: 'slider', key: 'boxPaddingBottom', label: '下边距', max: 30 }], summary: (m) => `${((m.picList || []) as PicItem[]).length} 图` },
+  { type: 'pcCustomAd1', label: '自定义模块一', group: '旧版', legacy: true, defaults: () => ({ picList: [], picList2: [], picList3: [] }), settings: [{ kind: 'picList', key: 'picList', label: '左侧大图' }, { kind: 'picList', key: 'picList2', label: '中间每日推荐' }, { kind: 'picList', key: 'picList3', label: '右侧热销精品' }], summary: () => '三列自定义' },
+  { type: 'pcCustomAd2', label: '自定义模块二', group: '旧版', legacy: true, defaults: () => ({ linkList: [], picList: [], picList2: [], picList3: [] }), settings: [{ kind: 'picList', key: 'picList', label: '左侧大图' }, { kind: 'linkList', key: 'linkList', label: '左侧链接' }, { kind: 'picList', key: 'picList2', label: '中间广告图' }, { kind: 'picList', key: 'picList3', label: '右侧广告图' }], summary: () => '三列自定义' },
+  { type: 'pcCatProductNormal', label: '分类商品-窄', group: '旧版', legacy: true, defaults: () => ({ categoryId: 0, title: '', shortTitle: '', enTitle: '', color: '', color2: '', logo: { picUrl: '', picThumb: '' }, picList: [], picList2: [] }), settings: [{ kind: 'category', key: 'categoryId', label: '商品分类' }, { kind: 'input', key: 'title', label: '标题' }, { kind: 'picList', key: 'picList', label: '左侧轮播图' }, { kind: 'picList', key: 'picList2', label: '右侧四小图' }], summary: (m) => String(m.title || '') },
+  { type: 'pcCatProductWide', label: '分类商品-宽', group: '旧版', legacy: true, defaults: () => ({ categoryId: 0, title: '', shortTitle: '', enTitle: '', color: '', color2: '', logo: { picUrl: '', picThumb: '' }, picList: [], picList2: [], productIds: [], linkList: [] }), settings: [{ kind: 'categoryMulti', key: 'categoryId', label: '商品分类' }, { kind: 'input', key: 'title', label: '标题' }, { kind: 'productIds', key: 'productIds', label: '热门商品' }, { kind: 'picList', key: 'picList', label: '左侧轮播图' }], summary: (m) => String(m.title || '') },
+  { type: 'pcCatProductSimple', label: '分类商品-简约', group: '旧版', legacy: true, defaults: () => ({ baseStyle: 1, title: '', products: { productSelectType: 1, productCategoryId: 1, productNumber: 8, productIds: [], productTag: '' }, moreLink: '', picList: [] }), settings: [{ kind: 'radio', key: 'baseStyle', label: '风格', options: [{ label: '风格一', value: 1 }, { label: '风格二', value: 2 }] }, { kind: 'input', key: 'title', label: '标题' }, { kind: 'products', key: 'products', label: '商品设置' }], summary: (m) => String(m.title || '') },
+  { type: 'pcRecommendProduct', label: '推荐商品-瀑布流', group: '旧版', legacy: true, defaults: () => ({ titleName: '', products: { productNumber: 50, productIds: [] } }), settings: [{ kind: 'input', key: 'titleName', label: '标题' }, { kind: 'products', key: 'products', label: '商品设置', numberMin: 20, numberStep: 10 }], summary: (m) => String(m.titleName || '') },
+  { type: 'pcSeckill', label: '秒杀模块', group: '旧版', legacy: true, defaults: () => ({ seckillTitle: '全场优惠限时9折起' }), settings: [{ kind: 'input', key: 'seckillTitle', label: '活动标题' }], summary: (m) => String(m.seckillTitle || '') },
+  { type: 'pcCoupon', label: '优惠券模块', group: '旧版', legacy: true, note: '内容由营销-优惠券"首页显示"决定', defaults: () => ({}), settings: [], summary: () => '优惠券' },
+  { type: 'pcGroupon', label: '拼团', group: '旧版', legacy: true, defaults: () => ({ style: 2, goodsStyle: 1, goodsRadioStyle: 1, textAlign: 1, textWeight: 1, goodsNameRow: 2, goodsNamePadding: 1, showName: 1, showBrief: 1, showPrice: 1, goodsPadding: 5, buyBtnStyle: 1, backgroundColor: '', boxRadius: 0, innerPadding: 0, boxPadding: 10, boxPaddingTop: 5, boxPaddingBottom: 5, frame: { textColor: '', itemBackgroundColor: '', backgroundColor: '#ffffff', innerPadding: 0, itemHeight: 35, itemRadius: 3, boxRadius: 0, boxPadding: 10, leftAndRightPadding: 0, boxPaddingTop: 5, boxPaddingBottom: 5 }, title: { showTitle: 0, titleStyle: 1, titleAlign: 1, titleBackground: '', titleBackground2: '', titleBackgroundPic: { picUrl: '', picThumb: '' }, titleRadius: 0, titleText: '标题内容', titleColor: '', titleWeight: 'normal', descText: '', descColor: '#aaaaaa', showMore: 0, moreType: 1, countdownLabel: '', moreLink: [], moreColor: '#aaaaaa', format: { titleBackground: '', titleRadius: '' } }, groupType: 1, grouponActivityItem: undefined as unknown as Record<string, any>, cardStyle: 1 }), settings: [{ kind: 'radio', key: 'style', label: '模板', options: [{ label: '一行四个', value: 2 }, { label: '一行五个', value: 3 }, { label: '横向滑动', value: 6 }] }, { kind: 'groupon', key: 'grouponActivityItem', label: '拼团活动' }, { kind: 'color', key: 'backgroundColor', label: '背景颜色' }], summary: (m) => (m.grouponActivityItem ? m.grouponActivityItem.name : '未选择活动') },
+  { type: 'pcCategoryNav', label: '分类导航', group: '旧版', legacy: true, defaults: () => ({ bannerStyle: 1, showCat: 1, logo: { picUrl: '', picThumb: '' }, picList: [], picList2: [], picList3: [] }), settings: [{ kind: 'radio', key: 'rowNum', label: '每屏显示数量', options: [2, 3, 4, 5, 6].map((n) => ({ label: `${n}个`, value: n })) }, { kind: 'picList', key: 'picList', label: '导航图组' }], summary: (m) => `每屏 ${m.rowNum || '-'}` },
+  { type: 'pcCategoryNav3', label: '分类导航3', group: '旧版', legacy: true, defaults: () => ({ bannerStyle: 1, showCat: 1, logo: { picUrl: '', picThumb: '' }, picList: [], picList2: [], picList3: [], imageBackgroundColor: undefined as unknown as string, titleText: undefined as unknown as string, showMore: undefined as unknown as number, showMoreText: undefined as unknown as string, moreLink: undefined as unknown as Record<string, any> }), settings: [{ kind: 'picList', key: 'picList', label: '图片卡片' }, { kind: 'color', key: 'imageBackgroundColor', label: '图片背景色' }, { kind: 'input', key: 'titleText', label: '标题内容' }, { kind: 'switch', key: 'showMore', label: '查看更多' }], summary: (m) => String(m.titleText || '') },
+  { type: 'pcCatWide', label: '分类模块-宽', group: '旧版', legacy: true, defaults: () => ({ catIds: [] as number[] }), settings: [{ kind: 'categoryMulti', key: 'catIds', label: '已选分类' }], summary: (m) => `${((m.catIds || []) as number[]).length} 分类` },
 ];
+
+const ALL_MODULE_DEFS = [...NEW_MODULE_DEFS, ...LEGACY_MODULE_DEFS];
+const MODULE_DEF_MAP = new Map(ALL_MODULE_DEFS.map((d) => [d.type, d]));
+const LEGACY_TYPES = new Set(LEGACY_MODULE_DEFS.map((d) => d.type));
+
+const LIB_GROUPS = ['轮播横幅', '导航分类', '图片展示', '商品', '营销活动', '辅助元素'];
 
 /* ===================== 编辑器组件 ===================== */
 
@@ -350,7 +775,7 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
   const [title, setTitle] = useState('');
   const [pageModule, setPageModule] = useState<Record<string, any>>({});
   const [moduleList, setModuleList] = useState<EditorModule[]>([]);
-  const [activeIndex, setActiveIndex] = useState<number>(-1); // -2=页面设置 -1=无 0..n=模块
+  const [activeIndex, setActiveIndex] = useState<number>(-1);
   const [panelTab, setPanelTab] = useState<'module' | 'page' | 'pcHeader'>('module');
   const dirtyRef = useRef(false);
   const decorateIdRef = useRef(decorateId);
@@ -359,14 +784,12 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
     dirtyRef.current = true;
   };
 
-  /* ---- 加载 ---- */
   useEffect(() => {
     let alive = true;
     setLoading(true);
     apiGet<{
       decorateId?: number;
       decorateTitle?: string;
-      isHome?: number;
       data?: { pageModule?: Record<string, any>; moduleList?: EditorModule[] } | null;
       draftData?: { pageModule?: Record<string, any>; moduleList?: EditorModule[] } | null;
     }>('/decorate/decorate/detail', { id: decorateId, decorateType: 2, localeId: 0, parentId: 0 })
@@ -375,13 +798,16 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
         if (res?.decorateId) decorateIdRef.current = res.decorateId;
         setTitle(res?.decorateTitle || '');
         const source = res?.data || {};
-        setPageModule({
+        const pm: Record<string, any> = {
           type: 'page', module: {}, backgroundRepeat: '', backgroundSize: '',
           style: 0, headerStyle: 1,
           ...source.pageModule,
-        });
+        };
+        // 新版头部装修默认值合并（原版 mergePcHeaderDefaults 语义）
+        pm.pcHeader = { ...PC_HEADER_DEFAULTS, ...(pm.pcHeader || {}) };
+        if (!pm.homeStyleVersion) pm.homeStyleVersion = 'new';
+        setPageModule(pm);
         const list = Array.isArray(source.moduleList) ? source.moduleList : [];
-        // 兼容旧数据：补齐信封字段
         setModuleList(list.map((item, idx) => ({
           moduleIndex: item.moduleIndex ?? Date.now() + idx,
           type: item.type,
@@ -399,7 +825,6 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
     };
   }, [decorateId]);
 
-  /* ---- 离开提醒 ---- */
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
       if (!dirtyRef.current) return;
@@ -419,10 +844,15 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
     data,
   });
 
-  const getSaveData = () => ({
-    pageModule: { ...pageModule },
-    moduleList: moduleList.map((m) => ({ ...m })),
-  });
+  const getSaveData = () => {
+    const hasLegacy = moduleList.some((m) => LEGACY_TYPES.has(m.type));
+    const homeStyleVersion = hasLegacy ? 'old' : 'new';
+    const pm: Record<string, any> = { ...pageModule, homeStyleVersion };
+    if (homeStyleVersion !== 'new') {
+      delete pm.pcHeader; // 原版契约：旧版不携带头部装修
+    }
+    return { pageModule: pm, moduleList: moduleList.map((m) => ({ ...m })) };
+  };
 
   const handleSave = async (mode: 'draft' | 'publish') => {
     if (!decorateIdRef.current) {
@@ -454,7 +884,6 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
     }
   };
 
-  /* ---- 模块操作 ---- */
   const addModule = (def: ModuleDef) => {
     const item: EditorModule = {
       moduleIndex: Date.now(),
@@ -472,26 +901,13 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
   };
 
   const removeModule = (index: number) => {
-    const item = moduleList[index];
-    if (item?.fixed) {
-      Toast.warning('固定模块不可删除');
-      return;
-    }
     setModuleList((prev) => prev.filter((_, i) => i !== index));
     if (activeIndex === index) setActiveIndex(-1);
     markDirty();
   };
 
   const copyModule = (index: number) => {
-    const item = moduleList[index];
-    if (item?.fixed) {
-      Toast.warning('固定模块不可复制');
-      return;
-    }
-    const clone: EditorModule = {
-      ...JSON.parse(JSON.stringify(item)),
-      moduleIndex: Date.now(),
-    };
+    const clone: EditorModule = { ...JSON.parse(JSON.stringify(moduleList[index])), moduleIndex: Date.now() };
     setModuleList((prev) => [...prev.slice(0, index + 1), clone, ...prev.slice(index + 1)]);
     markDirty();
   };
@@ -542,7 +958,6 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f2f3f5', overflow: 'hidden' }}>
-      {/* 顶部工具栏 */}
       <div
         style={{
           display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px',
@@ -568,6 +983,7 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
             style={{ width: 280 }}
           />
           {dirtyRef.current && <Tag color="orange">未保存</Tag>}
+          {getSaveData().pageModule.homeStyleVersion === 'new' ? <Tag color="green">新版装修</Tag> : <Tag color="grey">旧版兼容</Tag>}
         </Space>
         <div style={{ flex: 1 }} />
         <Button icon={<IconRefresh />} onClick={() => window.open(`${window.location.origin}/?page=home`, '_blank')}>
@@ -582,18 +998,15 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
       </div>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-        {/* 左侧模块库 */}
+        {/* 左侧模块库（新套） */}
         <div style={{ width: 220, background: '#fff', borderRight: '1px solid var(--semi-color-border)', overflowY: 'auto', padding: 12, flexShrink: 0 }}>
-          <Text strong style={{ display: 'block', marginBottom: 10 }}>模块库</Text>
-          {['轮播广告', '商品楼层', '营销活动', '分类导航'].map((group) => (
+          <Text strong style={{ display: 'block', marginBottom: 10 }}>PC首页模块</Text>
+          {LIB_GROUPS.map((group) => (
             <div key={group} style={{ marginBottom: 14 }}>
               <Text type="tertiary" size="small" style={{ display: 'block', margin: '6px 0' }}>{group}</Text>
-              {PC_MODULE_DEFS.filter((d) => d.group === group).map((def) => (
+              {NEW_MODULE_DEFS.filter((d) => d.group === group && !d.hiddenInLibrary).map((def) => (
                 <Tooltip key={def.type} content={def.note || `添加「${def.label}」`} position="right">
-                  <div
-                    className="pc-decorate-lib-item"
-                    onClick={() => addModule(def)}
-                  >
+                  <div className="pc-decorate-lib-item" onClick={() => addModule(def)}>
                     <span>{def.label}</span>
                     {def.overseasOnly && <Tag size="small" color="cyan">跨境</Tag>}
                   </div>
@@ -606,41 +1019,21 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
         {/* 中间画布 */}
         <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
           <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-            {/* 页面设置入口 */}
-            <div
-              className="pc-decorate-canvas-bar"
-              onClick={() => { setPanelTab('page'); setActiveIndex(-1); }}
-            >
+            <div className="pc-decorate-canvas-bar" onClick={() => { setPanelTab('page'); setActiveIndex(-1); }}>
               页面设置（背景颜色 / 背景图片）
             </div>
-            {/* PC头部装修入口 */}
-            <div
-              className="pc-decorate-canvas-bar"
-              onClick={() => { setPanelTab('pcHeader'); setActiveIndex(-1); }}
-            >
+            <div className="pc-decorate-canvas-bar" onClick={() => { setPanelTab('pcHeader'); setActiveIndex(-1); }}>
               PC头部装修（LOGO / 搜索 / 主导航 / 顶部菜单 / 悬浮条）
             </div>
 
-            {/* 固定模块提示 */}
-            {FIXED_MODULE_TYPES.map((f) => (
-              <div key={f.type} className="pc-decorate-module-card" style={{ opacity: 0.65, cursor: 'default' }}>
-                <div className="pc-decorate-module-card__title">
-                  <Text strong>{f.label}</Text>
-                  <Tag size="small" color="grey">固定模块</Tag>
-                </div>
-                <div className="pc-decorate-module-card__preview">由头部装修与系统配置控制</div>
-              </div>
-            ))}
-
-            {/* 动态模块列表 */}
             {moduleList.length === 0 && (
               <div style={{ padding: 60, textAlign: 'center', color: 'var(--semi-color-text-2)' }}>
                 暂无模块，请从左侧模块库添加
               </div>
             )}
             {moduleList.map((item, index) => {
-              const def = MODULE_DEF_MAP.get(item.type);
               const isActive = activeIndex === index;
+              const isLegacy = LEGACY_TYPES.has(item.type);
               return (
                 <div
                   key={item.moduleIndex}
@@ -657,39 +1050,18 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
                 >
                   <div className="pc-decorate-module-card__title">
                     <Text strong>{item.label}</Text>
-                    <Text type="tertiary" size="small">{def?.summary ? def.summary(item.module) : item.type}</Text>
+                    {isLegacy && <Tag size="small" color="grey">旧版模块</Tag>}
+                    {!item.isShow && <Tag size="small" color="amber">已隐藏</Tag>}
                     <div style={{ flex: 1 }} />
                     <div style={{ display: 'flex', gap: 2, alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        size="small" theme="borderless" icon={<IconChevronUp />}
-                        disabled={index === 0}
-                        onClick={() => moveModule(index, -1)}
-                      />
-                      <Button
-                        size="small" theme="borderless" icon={<IconChevronDown />}
-                        disabled={index === moduleList.length - 1}
-                        onClick={() => moveModule(index, 1)}
-                      />
+                      <Button size="small" theme="borderless" icon={<IconChevronUp />} disabled={index === 0} onClick={() => moveModule(index, -1)} />
+                      <Button size="small" theme="borderless" icon={<IconChevronDown />} disabled={index === moduleList.length - 1} onClick={() => moveModule(index, 1)} />
                       <Button size="small" theme="borderless" icon={<IconCopy />} onClick={() => copyModule(index)} />
-                      <Button
-                        size="small" theme="borderless"
-                        type={item.isShow ? 'primary' : 'tertiary'}
-                        onClick={() => toggleShow(index)}
-                      >
-                        {item.isShow ? '显示' : '隐藏'}
-                      </Button>
                       <Button size="small" theme="borderless" type="danger" icon={<IconDelete />} onClick={() => removeModule(index)} />
                     </div>
                   </div>
-                  <div className="pc-decorate-module-card__preview">
-                    {def?.note ? (
-                      <span style={{ color: 'var(--semi-color-warning)' }}>{def.note}</span>
-                    ) : (
-                      <>
-                        {def?.label || item.type}
-                        {def?.summary ? ` —— ${def.summary(item.module)}` : ''}
-                      </>
-                    )}
+                  <div className="pc-decorate-canvas-preview">
+                    <ModulePreview type={item.type} data={item.module} />
                   </div>
                 </div>
               );
@@ -698,18 +1070,12 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
         </div>
 
         {/* 右侧设置面板 */}
-        <div style={{ width: 360, background: '#fff', borderLeft: '1px solid var(--semi-color-border)', overflowY: 'auto', padding: 16, flexShrink: 0 }}>
+        <div style={{ width: 380, background: '#fff', borderLeft: '1px solid var(--semi-color-border)', overflowY: 'auto', padding: 16, flexShrink: 0 }}>
           {panelTab === 'page' && (
-            <PageSettingsPanel
-              pageModule={pageModule}
-              onChange={(next) => { setPageModule(next); markDirty(); }}
-            />
+            <PageSettingsPanel pageModule={pageModule} onChange={(next) => { setPageModule(next); markDirty(); }} />
           )}
           {panelTab === 'pcHeader' && (
-            <PcHeaderPanel
-              pageModule={pageModule}
-              onChange={(next) => { setPageModule(next); markDirty(); }}
-            />
+            <PcHeaderPanel pageModule={pageModule} onChange={(next) => { setPageModule(next); markDirty(); }} />
           )}
           {panelTab === 'module' && (
             activeModule && activeDef ? (
@@ -726,6 +1092,327 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
       </div>
     </div>
   );
+}
+
+/* ===================== 画布预览（轻量真实结构渲染） ===================== */
+
+function PreviewTitle({ title }: { title?: Record<string, any> }) {
+  if (!title || Number(title.showTitle) !== 1) return null;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: Number(title.titleAlign) === 2 ? 'center' : 'space-between', padding: '10px 12px' }}>
+      <div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: title.titleColor || '#333' }}>{title.titleText || ''}</div>
+        {title.descText ? <div style={{ fontSize: 12, color: title.descColor || '#aaa' }}>{title.descText}</div> : null}
+      </div>
+      {Number(title.showMore) === 1 && Number(title.moreType) === 1 && (
+        <span style={{ fontSize: 12, color: title.moreColor || '#999' }}>{getPath(title, 'moreLink.title') || getPath(title, 'moreLink.name') || '查看更多'} ›</span>
+      )}
+      {Number(title.moreType) === 2 && (
+        <span style={{ fontSize: 12, color: title.moreColor || '#999' }}>{title.countdownLabel || '倒计时'} 00:00:00</span>
+      )}
+    </div>
+  );
+}
+
+function PicGrid({ pics, cols, gap = 8, radius = 4, ratio }: { pics: PicItem[]; cols: number; gap?: number; radius?: number; ratio?: string }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap, padding: 8 }}>
+      {pics.map((p, i) => (
+        <div key={i} style={{ aspectRatio: ratio || '3 / 1', borderRadius: radius, overflow: 'hidden', background: '#f2f3f5' }}>
+          {p.picUrl ? <img src={p.picUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ProductPlaceholderGrid({ count, cols }: { count: number; cols: number }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 8, padding: 8 }}>
+      {Array.from({ length: Math.min(count, 20) }, (_, i) => (
+        <div key={i} style={{ background: '#fff', borderRadius: 6, overflow: 'hidden', border: '1px solid #f0f0f0' }}>
+          <div style={{ aspectRatio: '1 / 1', background: '#f7f8fa', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c0c4cc', fontSize: 20 }}>?</div>
+          <div style={{ padding: 6 }}>
+            <div style={{ height: 10, borderRadius: 3, background: '#eef1f6', marginBottom: 4 }} />
+            <div style={{ height: 10, width: '55%', borderRadius: 3, background: '#fdecea' }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ModulePreview({ type, data }: { type: string; data: Record<string, any> }) {
+  const m = data || {};
+  switch (type) {
+    case 'pc-banner2':
+      return <PicGrid pics={(m.picList || []) as PicItem[]} cols={1} ratio="1264 / 280" radius={Number(getPath(m, 'frame.boxRadius')) || 0} />;
+    case 'pc-group-banner':
+      return <PicGrid pics={(m.picList || []).slice(0, Number(m.number) || 3) as PicItem[]} cols={Number(m.number) || 3} ratio="750 / 479" radius={Number(getPath(m, 'frame.boxRadius')) || 0} />;
+    case 'pc-image-ad': {
+      const t = Number(m.picType);
+      if (t === 2) return <PicGrid pics={(m.picList || []) as PicItem[]} cols={1} ratio="1500 / 350" />;
+      const cols = t === 5 ? 2 : t === 6 ? 3 : t === 7 ? 4 : 1;
+      return <PicGrid pics={(m.picList || []) as PicItem[]} cols={cols} ratio={cols === 1 ? '1500 / 350' : '1 / 1'} />;
+    }
+    case 'pc-image-nav': {
+      const pics = (m.picList || []) as PicItem[];
+      const style = Number(m.navStyle);
+      return (
+        <div style={{ padding: 8, background: m.backgroundColor || '#fff' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${m.rowNum || 4}, 1fr)`, gap: m.imgPadding ?? 8 }}>
+            {pics.slice(0, (m.rowNum || 4) * (m.colNum || 2)).map((p, i) => (
+              <div key={i} style={{ textAlign: 'center' }}>
+                {style !== 3 && p.picUrl ? <img src={p.picUrl} alt="" style={{ width: 44, height: 44, borderRadius: Number(m.radioStyle) === 2 ? '50%' : 6, objectFit: 'cover' }} /> : null}
+                {style !== 2 && <div style={{ fontSize: 12, marginTop: 2 }}>{p.picTitle}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+    case 'pc-image-square-ad': {
+      const t = Number(m.picType);
+      const cols = t === 1 ? 2 : t === 2 ? 3 : t === 3 ? 4 : t === 4 ? 2 : t === 5 ? 3 : t === 6 ? 4 : 2;
+      return <PicGrid pics={(m.picList || []) as PicItem[]} cols={cols} ratio="1 / 1" />;
+    }
+    case 'pc-image-hotarea': {
+      const pics = (m.picList || []) as Array<PicItem & { hotarea?: Array<Record<string, any>> }>;
+      const first = pics[0];
+      return (
+        <div style={{ padding: 8 }}>
+          <div style={{ position: 'relative', background: '#f2f3f5', borderRadius: 4, overflow: 'hidden', minHeight: 120 }}>
+            {first?.picUrl ? <img src={first.picUrl} alt="" style={{ width: '100%', display: 'block' }} /> : <div style={{ padding: 40, textAlign: 'center', color: '#c0c4cc' }}>热图未设置</div>}
+            {(first?.hotarea || []).map((h, i) => (
+              <div key={i} style={{ position: 'absolute', border: '1px dashed #e1251b', background: 'rgba(225,37,27,0.12)', left: `${(Number(h.left) / 500) * 100}%`, top: `${(Number(h.top) / 500) * 100}%`, width: `${(Number(h.width) / 500) * 100}%`, height: `${(Number(h.height) / 500) * 100}%` }} />
+            ))}
+          </div>
+        </div>
+      );
+    }
+    case 'pc-home-quick-nav':
+      return (
+        <div style={{ display: 'flex', justifyContent: Number(getPath(m, 'style.containerAlign')) === 1 ? 'flex-start' : Number(getPath(m, 'style.containerAlign')) === 3 ? 'flex-end' : 'center', flexWrap: Number(getPath(m, 'style.singleLine')) === 1 ? 'nowrap' : 'wrap', gap: Number(getPath(m, 'style.itemGap')) ?? 16, padding: 12, overflow: 'hidden' }}>
+          {((m.items || []) as PicItem[]).map((p, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: Number(getPath(m, 'style.iconGap')) ?? 6, fontSize: Number(getPath(m, 'style.fontSize')) || 14, fontWeight: Number(getPath(m, 'style.fontWeight')) === 700 ? 700 : 400, color: getPath(m, 'style.textColor') || '#333', whiteSpace: 'nowrap' }}>
+              {p.picUrl ? <img src={p.picUrl} alt="" style={{ width: Number(getPath(m, 'style.iconSize')) || 18, height: Number(getPath(m, 'style.iconSize')) || 18 }} /> : null}
+              {p.picTitle}
+            </div>
+          ))}
+        </div>
+      );
+    case 'pc-category-nav':
+      return (
+        <div style={{ padding: 12, background: m.backgroundColor || '#f7f7f7', borderRadius: 8 }}>
+          {Number(m.showTitle) === 1 && <div style={{ fontWeight: 700, marginBottom: 8 }}>{m.titleName}</div>}
+          <div style={{ display: 'flex', gap: 12, overflow: 'hidden' }}>
+            {Array.from({ length: Math.min(Number(m.displayNum) || 6, 10) }, (_, i) => (
+              <div key={i} style={{ textAlign: 'center', flexShrink: 0 }}>
+                <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#ececec' }} />
+                <div style={{ fontSize: 12, marginTop: 4, color: '#888' }}>热门分类</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    case 'pc-category-nav3':
+      return (
+        <div style={{ padding: 12, background: m.backgroundColor || 'rgba(0,0,0,0.02)', borderRadius: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+            <b>{m.titleText}</b>
+            {Number(m.showMore) === 1 && <span style={{ fontSize: 12, color: '#999' }}>{m.showMoreText || '更多'} ›</span>}
+          </div>
+          <div style={{ display: 'flex', gap: 10, overflow: 'hidden' }}>
+            {((m.picList || []) as PicItem[]).slice(0, 8).map((p, i) => (
+              <div key={i} style={{ width: 90, flexShrink: 0, textAlign: 'center' }}>
+                <div style={{ aspectRatio: '1/1', borderRadius: 8, overflow: 'hidden', background: m.imageBackgroundColor || '#fff' }}>
+                  {p.picUrl ? <img src={p.picUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
+                </div>
+                {p.picTitle ? <div style={{ fontSize: 12, marginTop: 4 }}>{p.picTitle}</div> : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    case 'pc-product': {
+      const ids = (m.products?.productIds || []) as number[];
+      const count = Number(m.products?.productSelectType) === 1 ? ids.length || Number(m.products?.productNumber) || 10 : Number(m.products?.productNumber) || 10;
+      return (
+        <div style={{ background: m.backgroundColor || '#fff' }}>
+          <PreviewTitle title={m.title} />
+          <ProductPlaceholderGrid count={count} cols={Number(m.style) === 2 ? 5 : 4} />
+        </div>
+      );
+    }
+    case 'pc-product-group': {
+      const groups = (m.productGroups || []) as Array<Record<string, any>>;
+      return (
+        <div style={{ padding: 8 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            {groups.map((g, i) => (
+              <span key={i} style={{ fontSize: 13, padding: '4px 10px', borderRadius: 4, background: i === 0 ? getPath(m, 'groupTitle.activeTitleBgColor') || '#ffebf1' : '#f5f5f5', color: i === 0 ? getPath(m, 'groupTitle.activeTitleColor') || '#FF0F23' : '#444' }}>
+                {g.title}
+              </span>
+            ))}
+          </div>
+          <ProductPlaceholderGrid count={Number(m.listStyle) === 4 ? 4 : Number(m.listStyle) === 6 ? 5 : 6} cols={Number(m.listStyle) === 4 ? 4 : Number(m.listStyle) === 6 ? 5 : 6} />
+        </div>
+      );
+    }
+    case 'pc-recommend-product':
+      return (
+        <div>
+          {m.titleName ? <div style={{ padding: '10px 12px', fontWeight: 700 }}>{m.titleName}</div> : null}
+          <ProductPlaceholderGrid count={Number(m.products?.productNumber) || 20} cols={Number(getPath(m, 'frame.columns')) || 5} />
+        </div>
+      );
+    case 'pc-divider':
+      return Number(m.lineType) === 1 ? (
+        <div style={{ height: Number(getPath(m, 'frame.itemHeight')) || 10 }} />
+      ) : (
+        <div style={{ padding: '5px 10px' }}>
+          <div style={{ borderTopWidth: 1, borderTopStyle: Number(m.lineStyle) === 2 ? 'dashed' : Number(m.lineStyle) === 3 ? 'dotted' : 'solid', borderTopColor: '#e5e9f0' }} />
+        </div>
+      );
+    case 'pc-spacer':
+      return <div style={{ height: Number(m.blankHeight) || 30, background: m.backgroundColor || '#fff' }} />;
+    case 'pc-notice':
+      return (
+        <div style={{ padding: '5px 10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: getPath(m, 'frame.itemBackgroundColor') || '#fff8e6', borderRadius: Number(getPath(m, 'frame.itemRadius')) || 4, height: Number(getPath(m, 'frame.itemHeight')) || 35, padding: '0 10px', color: getPath(m, 'frame.textColor') || '#555' }}>
+            {m.icoPic?.picUrl ? <img src={m.icoPic.picUrl} alt="" style={{ width: 16, height: 16 }} /> : null}
+            <span style={{ fontSize: 13 }}>{m.text || '点击添加通知公告'}</span>
+          </div>
+        </div>
+      );
+    case 'pc-title-ad':
+      return <PreviewTitle title={{ ...(m.title || {}), showTitle: 1 }} />;
+    case 'pc-home-coupon':
+      return (
+        <div style={{ padding: m.boxPadding ?? 10 }}>
+          {Number(m.showTitle) === 1 && (
+            <div style={{ marginBottom: 8 }}>
+              <b>{m.title}</b>
+              <div style={{ fontSize: 12, color: '#999' }}>{m.desc}</div>
+            </div>
+          )}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+            {['5', '8', '5', '8'].map((v, i) => (
+              <div key={i} style={{ background: '#fff1f0', border: '1px solid #ffccc7', borderRadius: m.boxRadius ?? 8, padding: 10, textAlign: 'center' }}>
+                <div style={{ color: '#e1251b', fontWeight: 700 }}>{i % 2 === 0 ? `¥${v}` : `${v}折`}</div>
+                <div style={{ fontSize: 11, color: '#999' }}>满可用</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    case 'pc-home-seckill':
+      return (
+        <div>
+          <PreviewTitle title={m.title} />
+          <div style={{ display: 'flex', gap: Number(m.goodsGap) ?? 10, padding: 8, overflow: 'hidden' }}>
+            {Array.from({ length: 5 }, (_, i) => (
+              <div key={i} style={{ flexShrink: 0, width: 110 }}>
+                <div style={{ aspectRatio: '1/1', background: '#f7f8fa', borderRadius: 6 }} />
+                <div style={{ fontSize: 12, color: '#e1251b', marginTop: 4 }}>¥9.9</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    case 'pc-home-groupon':
+      return (
+        <div style={{ background: m.backgroundColor || '#fff' }}>
+          <PreviewTitle title={m.title} />
+          <div style={{ padding: 8, display: 'grid', gridTemplateColumns: `repeat(${Number(m.style) === 6 ? 4 : Number(m.style) || 4}, 1fr)`, gap: Number(m.goodsPadding) ?? 0 }}>
+            {Array.from({ length: Number(m.style) === 6 ? 4 : 8 }, (_, i) => (
+              <div key={i}>
+                <div style={{ aspectRatio: '1/1', background: '#f7f8fa', borderRadius: 6 }} />
+                <div style={{ fontSize: 12, marginTop: 4 }}>拼团商品</div>
+                <div style={{ fontSize: 12, color: '#e1251b' }}>¥9.9</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    case 'pc-home-hero': {
+      const style = m.style || {};
+      const left = m.left || {};
+      const center = m.center || {};
+      const right = m.right || {};
+      const banners = (center.banners || []) as PicItem[];
+      const cards = (center.modules || []) as Array<Record<string, any>>;
+      return (
+        <div style={{ display: 'flex', gap: style.gap ?? 16, padding: 10, background: style.panelBackgroundColor || '#fff' }}>
+          <div style={{ width: style.leftWidth ?? 220, flexShrink: 0, background: left.backgroundColor || '#fff', borderRadius: style.panelRadius ?? 8, border: '1px solid #f0f0f0', overflow: 'hidden' }}>
+            <div style={{ padding: '10px 12px', fontWeight: 700, fontSize: 14, color: style.titleColor || '#333' }}>{left.title || '全部商品分类'}</div>
+            {(left.categories || []).slice(0, 8).map((c: PicItem, i: number) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', fontSize: 12, color: left.textColor || '#333' }}>
+                {c.picUrl ? <img src={c.picUrl} alt="" style={{ width: 18, height: 18 }} /> : null}
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.picTitle}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ borderRadius: style.bannerRadius ?? 12, overflow: 'hidden', aspectRatio: '1500/350', background: '#f2f3f5' }}>
+              {banners[0]?.picUrl ? <img src={banners[0].picUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 10 }}>
+              {cards.slice(0, 6).map((c, i) => (
+                <div key={i} style={{ border: '1px solid #f0f0f0', borderRadius: style.cardRadius ?? 12, padding: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{c.moduleTitle}</div>
+                  <div style={{ fontSize: 11, color: '#fff', background: `linear-gradient(90deg, ${c.moduleSubTitleBgColorA}, ${c.moduleSubTitleBgColorB})`, display: 'inline-block', borderRadius: 3, padding: '0 4px', marginTop: 2 }}>{c.moduleSubTitle}</div>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                    {(c.products || []).slice(0, 2).map((p: any, j: number) => (
+                      <div key={j} style={{ flex: 1 }}>
+                        <div style={{ aspectRatio: '1/1', background: '#f7f8fa', borderRadius: 6, overflow: 'hidden' }}>
+                          {p.pic?.picUrl ? <img src={p.pic.picUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
+                        </div>
+                        {Number(c.showPrice) === 1 ? <div style={{ fontSize: 11, color: style.priceColor || '#e1251b' }}>{p.price}</div> : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ width: style.rightWidth ?? 260, flexShrink: 0 }}>
+            <div style={{ borderRadius: style.panelRadius ?? 8, border: '1px solid #f0f0f0', padding: 12, background: `linear-gradient(${getPath(m, 'right.userCardGradientType') === 'leftRight' ? '90deg' : '180deg'}, ${getPath(m, 'right.userCardGradientColorA') || '#FFEDE1'}, ${getPath(m, 'right.userCardGradientColorB') || '#FCF9F8'})` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {getPath(m, 'right.user.avatar.picUrl') ? <img src={getPath(m, 'right.user.avatar.picUrl')} alt="" style={{ width: 36, height: 36, borderRadius: '50%' }} /> : null}
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{getPath(m, 'right.user.nickname')}</div>
+                  <div style={{ fontSize: 11, color: style.mutedColor || '#999' }}>{getPath(m, 'right.user.welcomeText')}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                {((m.right?.stats || []) as Array<{ label: string; value: string }>).map((s, i) => (
+                  <div key={i} style={{ fontSize: 11, color: '#666' }}>
+                    <b>{s.value}</b>
+                    <div style={{ color: '#999' }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ marginTop: 10, fontSize: 13, fontWeight: 700 }}>
+              {getPath(m, 'right.shopsTitle')}
+              {getPath(m, 'right.shopsSubTitle') ? <span style={{ fontSize: 10, color: '#fff', background: getPath(m, 'right.shopsSubTitleBg') || '#FF4E4E', borderRadius: 3, padding: '0 4px', marginLeft: 6 }}>{getPath(m, 'right.shopsSubTitle')}</span> : null}
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 6, color: getPath(m, 'right.shopsTextColor') || '#a06a38', fontSize: 12 }}>
+              {((m.right?.shortcuts || []) as PicItem[]).map((s, i) => (
+                <div key={i} style={{ textAlign: 'center' }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 8, background: '#f7f8fa' }} />
+                  <div style={{ marginTop: 2 }}>{s.picTitle}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+    default:
+      return <span>{MODULE_DEF_MAP.get(type)?.summary ? MODULE_DEF_MAP.get(type)!.summary!(data) : type}</span>;
+  }
 }
 
 /* ===================== 页面设置 ===================== */
@@ -757,9 +1444,7 @@ function PageSettingsPanel({
           placeholder="https://..."
         />
       </div>
-      <Text type="tertiary" size="small">
-        背景作用于整个首页画布；模块各自的背景在其设置面板内配置。
-      </Text>
+      <Text type="tertiary" size="small">背景作用于整个首页画布；模块各自的背景在其设置面板内配置。</Text>
     </div>
   );
 }
@@ -824,74 +1509,72 @@ function PcHeaderPanel({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Text strong>PC头部装修</Text>
-      <Row2 label="头部风格">
+      <HeaderRow label="头部风格">
         <RadioGroup value={header.styleType} onChange={(e: any) => set('styleType', Number(e.target.value))}>
           <Radio value={1}>简约风</Radio>
           <Radio value={2}>跨境风</Radio>
         </RadioGroup>
-      </Row2>
-      <Row2 label="LOGO 图片 URL">
+      </HeaderRow>
+      <HeaderRow label="LOGO 图片 URL">
         <Input value={header.logoPic?.picUrl || ''} onChange={(v) => set('logoPic', { ...header.logoPic, picUrl: v, picThumb: v })} placeholder="https://..." />
-      </Row2>
-      <Row2 label="LOGO 宽/高">
+      </HeaderRow>
+      <HeaderRow label="LOGO 宽/高">
         <Space>
           <InputNumber value={header.logoWidth} onChange={(v) => set('logoWidth', v ?? 100)} style={{ width: 90 }} />
           <InputNumber value={header.logoHeight} onChange={(v) => set('logoHeight', v ?? 25)} style={{ width: 90 }} />
         </Space>
-      </Row2>
-      <Row2 label="搜索框样式">
+      </HeaderRow>
+      <HeaderRow label="搜索框样式">
         <RadioGroup value={header.searchStyle} onChange={(e: any) => set('searchStyle', Number(e.target.value))}>
           <Radio value={1}>样式一</Radio>
           <Radio value={2}>样式二</Radio>
           <Radio value={3}>样式三</Radio>
         </RadioGroup>
-      </Row2>
-      <Row2 label="显示商品分类">
+      </HeaderRow>
+      <HeaderRow label="显示商品分类">
         <Switch checked={Number(header.showCategory) === 1} onChange={(v) => set('showCategory', v ? 1 : 0)} />
-      </Row2>
-      <Row2 label="显示首页分类">
+      </HeaderRow>
+      <HeaderRow label="显示首页分类">
         <Switch checked={Number(header.showHomeCategory) === 1} onChange={(v) => set('showHomeCategory', v ? 1 : 0)} />
-      </Row2>
-      <Row2 label="分类距顶部距离">
+      </HeaderRow>
+      <HeaderRow label="分类距顶部距离">
         <InputNumber value={header.categoryMarginTop} onChange={(v) => set('categoryMarginTop', v ?? 0)} style={{ width: 120 }} />
-      </Row2>
-      <Row2 label="显示主导航">
+      </HeaderRow>
+      <HeaderRow label="显示主导航">
         <Switch checked={Number(header.showMainNav) === 1} onChange={(v) => set('showMainNav', v ? 1 : 0)} />
-      </Row2>
-      <Row2 label="主导航上/下内边距">
+      </HeaderRow>
+      <HeaderRow label="主导航上/下内边距">
         <Space>
           <InputNumber value={header.mainNavPaddingTop} onChange={(v) => set('mainNavPaddingTop', v ?? 0)} style={{ width: 90 }} />
           <InputNumber value={header.mainNavPaddingBottom} onChange={(v) => set('mainNavPaddingBottom', v ?? 0)} style={{ width: 90 }} />
         </Space>
-      </Row2>
-      <Row2 label="顶部菜单栏">
+      </HeaderRow>
+      <HeaderRow label="顶部菜单栏">
         <Switch checked={Number(header.showTopMenuBar) === 1} onChange={(v) => set('showTopMenuBar', v ? 1 : 0)} />
-      </Row2>
-      <Row2 label="地区文字" showIf={Number(header.showTopMenuBar) === 1}>
+      </HeaderRow>
+      <HeaderRow label="地区文字" showIf={Number(header.showTopMenuBar) === 1}>
         <Input value={header.topRegionText || ''} onChange={(v) => set('topRegionText', v)} />
-      </Row2>
-      <Row2 label="购物车图标 URL">
+      </HeaderRow>
+      <HeaderRow label="购物车图标 URL">
         <Input value={header.cartPic?.picUrl || ''} onChange={(v) => set('cartPic', { ...header.cartPic, picUrl: v, picThumb: v })} placeholder="https://..." />
-      </Row2>
-      <Row2 label="悬浮优惠条">
+      </HeaderRow>
+      <HeaderRow label="悬浮优惠条">
         <Switch checked={Number(header.showBenefitBar) === 1} onChange={(v) => set('showBenefitBar', v ? 1 : 0)} />
-      </Row2>
-      <Row2 label="优惠条背景色" showIf={Number(header.showBenefitBar) === 1}>
+      </HeaderRow>
+      <HeaderRow label="优惠条背景色" showIf={Number(header.showBenefitBar) === 1}>
         <input
           type="color"
           value={header.benefitBarBackgroundColor || '#ffffff'}
           onChange={(e) => set('benefitBarBackgroundColor', e.target.value)}
           style={{ width: '100%', height: 30, border: '1px solid var(--semi-color-border)', borderRadius: 4 }}
         />
-      </Row2>
-      <Text type="tertiary" size="small">
-        其余细节项（顶部消息/订单/站点导航/会员中心菜单等）按契约原样透传，可由后端或 C 端扩展。
-      </Text>
+      </HeaderRow>
+      <Text type="tertiary" size="small">其余细节项（顶部消息/订单/站点导航/会员中心菜单等）按契约原样透传。</Text>
     </div>
   );
 }
 
-function Row2({ label, children, showIf = true }: { label: string; children: ReactNode; showIf?: boolean }) {
+function HeaderRow({ label, children, showIf = true }: { label: string; children: ReactNode; showIf?: boolean }) {
   if (!showIf) return null;
   return (
     <div>
@@ -919,15 +1602,15 @@ function ModuleSettingsPanel({
       {def.settings.length === 0 && <Text type="tertiary">该模块无可配置项</Text>}
       {def.settings.map((field) => {
         if (field.showIf && !field.showIf(moduleData)) return null;
-        const value = moduleData[field.key];
-        const set = (v: unknown) => onChange({ ...moduleData, [field.key]: v });
         return (
           <div key={field.key}>
-            <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>
-              {field.label}
-              {field.hint ? `（${field.hint}）` : ''}
-            </Text>
-            <FieldControl field={field} value={value} onChange={set} />
+            {field.kind !== 'title' && field.kind !== 'container' && (
+              <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>
+                {field.label}
+                {field.hint ? `（${field.hint}）` : ''}
+              </Text>
+            )}
+            <FieldControl field={field} moduleData={moduleData} onChange={onChange} />
           </div>
         );
       })}
@@ -935,7 +1618,7 @@ function ModuleSettingsPanel({
   );
 }
 
-/* ---- 分类选择（product/category/getAllCategory 扁平化） ---- */
+/* ===================== 字段控件 ===================== */
 
 let categoryCache: Array<{ label: string; value: number }> | null = null;
 
@@ -962,8 +1645,6 @@ function useCategoryOptions() {
   return options;
 }
 
-/* ---- 商品选择弹窗 ---- */
-
 interface ProductRow {
   productId: number;
   productName?: string;
@@ -989,7 +1670,6 @@ function ProductPickerModal({
   const [rows, setRows] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [picked, setPicked] = useState<number[]>(selectedIds);
-  const [pickedRows, setPickedRows] = useState<ProductRow[]>([]);
 
   useEffect(() => {
     if (visible) setPicked(selectedIds);
@@ -1020,12 +1700,6 @@ function ProductPickerModal({
       if (!multiple) return [row.productId];
       return [...prev, row.productId];
     });
-    setPickedRows((prev) => {
-      const exists = prev.find((r) => r.productId === row.productId);
-      if (exists) return prev.filter((r) => r.productId !== row.productId);
-      if (!multiple) return [row];
-      return [...prev, row];
-    });
   };
 
   return (
@@ -1033,21 +1707,13 @@ function ProductPickerModal({
       title="选择商品"
       visible={visible}
       width={720}
-      onOk={() => onOk(picked, pickedRows)}
+      onOk={() => onOk(picked, [])}
       onCancel={onCancel}
       okText="确定"
       cancelText="取消"
     >
       <Space style={{ marginBottom: 12, width: '100%' }}>
-        <Input
-          value={keyword}
-          onChange={setKeyword}
-          onEnterPress={load}
-          placeholder="输入商品名称搜索"
-          style={{ width: 260 }}
-          showClear
-          onClear={() => setKeyword('')}
-        />
+        <Input value={keyword} onChange={setKeyword} onEnterPress={load} placeholder="输入商品名称搜索" style={{ width: 260 }} showClear onClear={() => setKeyword('')} />
         <Button onClick={load}>搜索</Button>
         <Text type="tertiary" size="small">已选 {picked.length} 个</Text>
       </Space>
@@ -1064,9 +1730,7 @@ function ProductPickerModal({
               borderRadius: 6, cursor: 'pointer',
             }}
           >
-            {(row.picThumb || row.picUrl) && (
-              <img src={row.picThumb || row.picUrl} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} />
-            )}
+            {(row.picThumb || row.picUrl) && <img src={row.picThumb || row.picUrl} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} />}
             <div style={{ flex: 1 }}>
               <div>{row.productName || `商品#${row.productId}`}</div>
               <Text type="tertiary" size="small">¥{row.productPrice ?? '-'}</Text>
@@ -1078,8 +1742,6 @@ function ProductPickerModal({
     </Modal>
   );
 }
-
-/* ---- 拼团活动选择 ---- */
 
 function GrouponPickerModal({
   visible,
@@ -1106,34 +1768,25 @@ function GrouponPickerModal({
   }, [visible]);
 
   return (
-    <Modal
-      title="选择拼团活动"
-      visible={visible}
-      width={640}
-      onOk={() => onOk(picked)}
-      onCancel={onCancel}
-      okText="确定"
-      cancelText="取消"
-    >
+    <Modal title="选择拼团活动" visible={visible} width={640} onOk={() => onOk(picked)} onCancel={onCancel} okText="确定" cancelText="取消">
       <div style={{ maxHeight: 380, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {loading && <Spin />}
         {!loading && rows.length === 0 && <Text type="tertiary">暂无拼团活动</Text>}
         {rows.map((row) => {
-          const id = row.grouponId ?? row.id;
+          const id = row.grouponPromotionId ?? row.grouponId ?? row.id;
           const name = row.name || row.title || `活动#${id}`;
-          const groupType = row.groupType;
-          const isPicked = picked && (picked.grouponId ?? picked.id) === id;
+          const isPicked = picked && (picked.grouponPromotionId ?? picked.grouponId ?? picked.id) === id;
           return (
             <div
               key={id}
-              onClick={() => setPicked({ grouponId: id, name, groupType, ...row })}
+              onClick={() => setPicked({ grouponPromotionId: id, name, groupType: row.groupType, startTime: row.startTime, endTime: row.endTime })}
               style={{
                 padding: 10, borderRadius: 6, cursor: 'pointer',
                 border: `1px solid ${isPicked ? 'var(--semi-color-primary)' : 'var(--semi-color-border)'}`,
               }}
             >
               <div>{name}</div>
-              <Text type="tertiary" size="small">{groupType === 2 ? '阶梯拼团' : '普通拼团'}</Text>
+              <Text type="tertiary" size="small">{Number(row.groupType) === 2 ? '阶梯拼团' : '普通拼团'}</Text>
             </div>
           );
         })}
@@ -1142,58 +1795,43 @@ function GrouponPickerModal({
   );
 }
 
-/* ---- 字段控件 ---- */
-
 function PicListEditor({ value, onChange }: { value: PicItem[]; onChange: (next: PicItem[]) => void }) {
   const list = Array.isArray(value) ? value : [];
-  const update = (next: PicItem[]) => onChange(next);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {list.map((item, index) => (
-        <div key={index} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-            {item.picUrl ? (
-              <img src={item.picUrl} alt="" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
-            ) : (
-              <div style={{ width: 48, height: 48, borderRadius: 4, background: 'var(--semi-color-fill-0)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--semi-color-text-2)', fontSize: 16 }}>?</div>
-            )}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <Input
-                value={item.picUrl}
-                onChange={(v) => update(list.map((it, i) => (i === index ? { ...it, picUrl: v, picThumb: v } : it)))}
-                placeholder="图片 URL"
-                size="small"
-              />
-              <Input
-                value={item.picTitle || ''}
-                onChange={(v) => update(list.map((it, i) => (i === index ? { ...it, picTitle: v } : it)))}
-                placeholder="图片标题(可选)"
-                size="small"
-              />
-              <Input
-                value={item.picLink?.link || ''}
-                onChange={(v) => update(list.map((it, i) => (i === index ? { ...it, picLink: { ...it.picLink, link: v, title: it.picLink?.title || '' } } : it)))}
-                placeholder="跳转链接(可选)"
-                size="small"
-              />
-            </div>
-            <Space spacing={0}>
-              <Button size="small" theme="borderless" icon={<IconChevronUp />} disabled={index === 0} onClick={() => {
-                const next = [...list];
-                [next[index - 1], next[index]] = [next[index], next[index - 1]];
-                update(next);
-              }} />
-              <Button size="small" theme="borderless" icon={<IconChevronDown />} disabled={index === list.length - 1} onClick={() => {
-                const next = [...list];
-                [next[index + 1], next[index]] = [next[index], next[index + 1]];
-                update(next);
-              }} />
-              <Button size="small" theme="borderless" type="danger" icon={<IconClose />} onClick={() => update(list.filter((_, i) => i !== index))} />
-            </Space>
+        <div key={index} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 8, display: 'flex', gap: 8 }}>
+          {item.picUrl ? (
+            <img src={item.picUrl} alt="" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
+          ) : (
+            <div style={{ width: 48, height: 48, borderRadius: 4, background: 'var(--semi-color-fill-0)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--semi-color-text-2)', fontSize: 16 }}>?</div>
+          )}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <Input value={item.picUrl} onChange={(v) => onChange(list.map((it, i) => (i === index ? { ...it, picUrl: v, picThumb: v } : it)))} placeholder="图片 URL" size="small" />
+            <Input value={item.picTitle || ''} onChange={(v) => onChange(list.map((it, i) => (i === index ? { ...it, picTitle: v } : it)))} placeholder="文字标题(可选)" size="small" />
+            <Input
+              value={item.picLink?.link || ''}
+              onChange={(v) => onChange(list.map((it, i) => (i === index ? { ...it, picLink: { ...it.picLink, link: v, name: it.picLink?.name || '' } } : it)))}
+              placeholder="跳转链接(可选)"
+              size="small"
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Button size="small" theme="borderless" icon={<IconChevronUp />} disabled={index === 0} onClick={() => {
+              const next = [...list];
+              [next[index - 1], next[index]] = [next[index], next[index - 1]];
+              onChange(next);
+            }} />
+            <Button size="small" theme="borderless" icon={<IconChevronDown />} disabled={index === list.length - 1} onClick={() => {
+              const next = [...list];
+              [next[index + 1], next[index]] = [next[index], next[index + 1]];
+              onChange(next);
+            }} />
+            <Button size="small" theme="borderless" type="danger" icon={<IconClose />} onClick={() => onChange(list.filter((_, i) => i !== index))} />
           </div>
         </div>
       ))}
-      <Button size="small" icon={<IconPlus />} onClick={() => update([...list, emptyPic()])}>
+      <Button size="small" icon={<IconPlus />} onClick={() => onChange([...list, { picUrl: '', picThumb: '', picName: '', picTitle: '', picLink: { link: '', name: '' } }])}>
         添加图片
       </Button>
     </div>
@@ -1202,33 +1840,49 @@ function PicListEditor({ value, onChange }: { value: PicItem[]; onChange: (next:
 
 function FieldControl({
   field,
-  value,
+  moduleData,
   onChange,
 }: {
   field: SettingFieldDef;
-  value: unknown;
-  onChange: (v: unknown) => void;
+  moduleData: Record<string, any>;
+  onChange: (next: Record<string, any>) => void;
 }) {
   const categoryOptions = useCategoryOptions();
   const [pickerVisible, setPickerVisible] = useState(false);
   const [grouponVisible, setGrouponVisible] = useState(false);
+  const value = getPath(moduleData, field.key);
+
+  const set = (v: unknown) => onChange(setPath(moduleData, field.key, v));
 
   switch (field.kind) {
     case 'radio':
       return (
-        <RadioGroup value={(value ?? field.options?.[0]?.value) as string | number | undefined} onChange={(e: any) => onChange(Number(e.target.value))}>
+        <RadioGroup value={(value ?? field.options?.[0]?.value) as string | number | undefined} onChange={(e: any) => set(Number(e.target.value))}>
           {(field.options || []).map((o) => (
             <Radio key={String(o.value)} value={o.value}>{o.label}</Radio>
           ))}
         </RadioGroup>
       );
+    case 'switch':
+      return <Switch checked={Number(value) === 1} onChange={(v) => set(v ? 1 : 0)} />;
+    case 'select':
+      return (
+        <Select
+          value={(value ?? field.options?.[0]?.value) as string | number | undefined}
+          optionList={(field.options || []).map((o) => ({ label: o.label, value: o.value }))}
+          style={{ width: 160 }}
+          onChange={(v) => set(v)}
+        />
+      );
     case 'input':
-      return <Input value={String(value ?? '')} onChange={(v) => onChange(v)} />;
+      return <Input value={String(value ?? '')} onChange={(v) => set(v)} />;
+    case 'textarea':
+      return <TextArea value={String(value ?? '')} onChange={(v: string) => set(v)} rows={2} maxLength={500} />;
     case 'number':
       return (
         <InputNumber
           value={typeof value === 'number' ? value : undefined}
-          onChange={(v) => onChange(v ?? undefined)}
+          onChange={(v) => set(v ?? undefined)}
           min={field.min}
           max={field.max}
           style={{ width: 160 }}
@@ -1238,10 +1892,10 @@ function FieldControl({
       return (
         <Slider
           value={typeof value === 'number' ? value : 0}
-          min={0}
+          min={field.min ?? 0}
           max={field.max ?? 30}
           step={1}
-          onChange={(v) => onChange(typeof v === 'number' ? v : (v as number[])[0])}
+          onChange={(v) => set(typeof v === 'number' ? v : (v as number[])[0])}
         />
       );
     case 'color':
@@ -1250,23 +1904,23 @@ function FieldControl({
           <input
             type="color"
             value={String(value || '#ffffff')}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => set(e.target.value)}
             style={{ width: 46, height: 30, border: '1px solid var(--semi-color-border)', borderRadius: 4, cursor: 'pointer' }}
           />
-          <Button size="small" onClick={() => onChange('')}>重置</Button>
+          <Button size="small" onClick={() => set('')}>重置</Button>
           <Text type="tertiary" size="small">{String(value || '未设置')}</Text>
         </div>
       );
     case 'picList':
-      return <PicListEditor value={(value as PicItem[]) || []} onChange={(v) => onChange(v)} />;
+      return <PicListEditor value={(value as PicItem[]) || []} onChange={(v) => set(v)} />;
     case 'pic':
-      return <PicListEditor value={value ? [value as PicItem] : []} onChange={(v) => onChange(v[0] || emptyPic())} />;
+      return <PicListEditor value={value && (value as PicItem).picUrl ? [value as PicItem] : []} onChange={(v) => set(v[0] || { picUrl: '', picThumb: '' })} />;
     case 'link': {
-      const link = (value && typeof value === 'object' ? value : { link: '', title: '' }) as { link?: string; title?: string };
+      const link = (value && typeof value === 'object' ? value : { link: '', title: '' }) as Record<string, any>;
       return (
         <div style={{ display: 'flex', gap: 6 }}>
-          <Input value={link.link || ''} onChange={(v) => onChange({ ...link, link: v, title: link.title || '' })} placeholder="链接地址" />
-          <Input value={link.title || ''} onChange={(v) => onChange({ ...link, link: link.link || '', title: v })} placeholder="名称" style={{ width: 110 }} />
+          <Input value={link.link || ''} onChange={(v) => set({ ...link, link: v })} placeholder="链接地址" />
+          <Input value={link.title || link.name || ''} onChange={(v) => set({ ...link, title: v, name: v })} placeholder="名称" style={{ width: 110 }} />
         </div>
       );
     }
@@ -1276,21 +1930,12 @@ function FieldControl({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {list.map((item, index) => (
             <div key={index} style={{ display: 'flex', gap: 6 }}>
-              <Input
-                value={item.link?.link || ''}
-                onChange={(v) => onChange(list.map((it, i) => (i === index ? { ...it, link: { ...it.link, link: v, title: it.link?.title || '' } } : it)))}
-                placeholder="链接地址"
-              />
-              <Input
-                value={item.linkTitle || ''}
-                onChange={(v) => onChange(list.map((it, i) => (i === index ? { ...it, linkTitle: v, link: { ...it.link, link: it.link?.link || '' } } : it)))}
-                placeholder="名称"
-                style={{ width: 110 }}
-              />
-              <Button size="small" theme="borderless" type="danger" icon={<IconClose />} onClick={() => onChange(list.filter((_, i) => i !== index))} />
+              <Input value={item.link?.link || ''} onChange={(v) => set(list.map((it, i) => (i === index ? { ...it, link: { ...it.link, link: v } } : it)))} placeholder="链接地址" />
+              <Input value={item.linkTitle || ''} onChange={(v) => set(list.map((it, i) => (i === index ? { ...it, linkTitle: v } : it)))} placeholder="名称" style={{ width: 110 }} />
+              <Button size="small" theme="borderless" type="danger" icon={<IconClose />} onClick={() => set(list.filter((_, i) => i !== index))} />
             </div>
           ))}
-          <Button size="small" icon={<IconPlus />} onClick={() => onChange([...list, { link: { link: '', title: '' }, linkTitle: '' }])}>
+          <Button size="small" icon={<IconPlus />} onClick={() => set([...list, { link: { link: '', title: '' }, linkTitle: '' }])}>
             添加链接
           </Button>
         </div>
@@ -1305,7 +1950,7 @@ function FieldControl({
           filter
           style={{ width: '100%' }}
           placeholder="选择商品分类"
-          onChange={(v) => onChange(v ? Number(v) : 0)}
+          onChange={(v) => set(v ? Number(v) : 0)}
         />
       );
     case 'categoryMulti': {
@@ -1319,7 +1964,7 @@ function FieldControl({
           filter
           style={{ width: '100%' }}
           placeholder="选择商品分类(可多选)"
-          onChange={(v) => onChange(((v as unknown as number[]) || []).map(Number))}
+          onChange={(v) => set(((v as unknown as number[]) || []).map(Number))}
         />
       );
     }
@@ -1327,36 +1972,26 @@ function FieldControl({
       const ids = (Array.isArray(value) ? value : []) as number[];
       return (
         <div>
-          <Button icon={<IconPlus />} onClick={() => setPickerVisible(true)}>
-            选择商品（已选 {ids.length}）
-          </Button>
+          <Button icon={<IconPlus />} onClick={() => setPickerVisible(true)}>选择商品（已选 {ids.length}）</Button>
           {ids.length > 0 && (
             <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
               {ids.map((id) => <Tag key={id} size="small">#{id}</Tag>)}
             </div>
           )}
           {pickerVisible && (
-            <ProductPickerModal
-              visible
-              selectedIds={ids}
-              onOk={(nextIds) => { onChange(nextIds); setPickerVisible(false); }}
-              onCancel={() => setPickerVisible(false)}
-            />
+            <ProductPickerModal visible selectedIds={ids} onOk={(nextIds) => { set(nextIds); setPickerVisible(false); }} onCancel={() => setPickerVisible(false)} />
           )}
         </div>
       );
     }
     case 'products': {
       const products = (value && typeof value === 'object' ? value : productsDefaults()) as Record<string, any>;
-      const setProducts = (next: Record<string, any>) => onChange(next);
+      const setProducts = (next: Record<string, any>) => set(next);
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div>
             <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>选品方式</Text>
-            <RadioGroup
-              value={products.productSelectType ?? 1}
-              onChange={(e: any) => setProducts({ ...products, productSelectType: Number(e.target.value) })}
-            >
+            <RadioGroup value={products.productSelectType ?? 1} onChange={(e: any) => setProducts({ ...products, productSelectType: Number(e.target.value) })}>
               <Radio value={1}>选商品</Radio>
               <Radio value={2}>按分类</Radio>
               <Radio value={3}>按标签</Radio>
@@ -1364,48 +1999,28 @@ function FieldControl({
           </div>
           {Number(products.productSelectType) === 1 && (
             <div>
-              <Button icon={<IconPlus />} onClick={() => setPickerVisible(true)}>
-                选择商品（已选 {((products.productIds || []) as number[]).length}）
-              </Button>
+              <Button icon={<IconPlus />} onClick={() => setPickerVisible(true)}>选择商品（已选 {((products.productIds || []) as number[]).length}）</Button>
               {pickerVisible && (
-                <ProductPickerModal
-                  visible
-                  selectedIds={(products.productIds || []) as number[]}
-                  onOk={(nextIds) => { setProducts({ ...products, productIds: nextIds }); setPickerVisible(false); }}
-                  onCancel={() => setPickerVisible(false)}
-                />
+                <ProductPickerModal visible selectedIds={(products.productIds || []) as number[]} onOk={(nextIds) => { setProducts({ ...products, productIds: nextIds }); setPickerVisible(false); }} onCancel={() => setPickerVisible(false)} />
               )}
             </div>
           )}
           {Number(products.productSelectType) === 2 && (
-            <Select
-              value={products.productCategoryId || undefined}
-              optionList={categoryOptions}
-              showClear
-              filter
-              placeholder="选择分类"
-              onChange={(v) => setProducts({ ...products, productCategoryId: v ? Number(v) : 0 })}
-            />
+            <Select value={products.productCategoryId || undefined} optionList={categoryOptions} showClear filter placeholder="选择分类" onChange={(v) => setProducts({ ...products, productCategoryId: v ? Number(v) : 0 })} />
           )}
           {Number(products.productSelectType) === 3 && (
-            <Input
-              value={products.productTag || ''}
-              onChange={(v) => setProducts({ ...products, productTag: v })}
-              placeholder="商品标签"
+            <Input value={products.productTag || ''} onChange={(v) => setProducts({ ...products, productTag: v })} placeholder="商品标签" />
+          )}
+          <div>
+            <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>商品数量</Text>
+            <InputNumber
+              value={products.productNumber ?? 10}
+              onChange={(v) => setProducts({ ...products, productNumber: v ?? 10 })}
+              min={field.numberMin ?? 1}
+              max={field.numberMax}
+              style={{ width: 140 }}
             />
-          )}
-          {(Number(products.productSelectType) === 2 || Number(products.productSelectType) === 3) && (
-            <div>
-              <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>商品数量</Text>
-              <InputNumber
-                value={products.productNumber ?? 8}
-                onChange={(v) => setProducts({ ...products, productNumber: v ?? 8 })}
-                min={field.numberMin ?? 1}
-                step={field.numberStep ?? 1}
-                style={{ width: 140 }}
-              />
-            </div>
-          )}
+          </div>
         </div>
       );
     }
@@ -1415,26 +2030,104 @@ function FieldControl({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {item ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Tag color="blue">{item.name || `活动#${item.grouponId}`}</Tag>
-              <Button size="small" theme="borderless" type="danger" onClick={() => onChange(null)}>移除</Button>
+              <Tag color="blue">{item.name || `活动#${item.grouponPromotionId}`}</Tag>
+              <Button size="small" theme="borderless" type="danger" onClick={() => set(null)}>移除</Button>
             </div>
           ) : (
-            <Text type="tertiary" size="small">未选择活动（发布前必须选择）</Text>
+            <Text type="tertiary" size="small">未选择活动</Text>
           )}
-          <Button icon={<IconPlus />} onClick={() => setGrouponVisible(true)}>
-            选择拼团活动
-          </Button>
+          <Button icon={<IconPlus />} onClick={() => setGrouponVisible(true)}>选择拼团活动</Button>
           {grouponVisible && (
-            <GrouponPickerModal
-              visible
-              current={item || null}
-              onOk={(next) => {
-                onChange(next);
-                setGrouponVisible(false);
-              }}
-              onCancel={() => setGrouponVisible(false)}
-            />
+            <GrouponPickerModal visible current={item || null} onOk={(next) => { set(next); setGrouponVisible(false); }} onCancel={() => setGrouponVisible(false)} />
           )}
+        </div>
+      );
+    }
+    case 'title': {
+      const titleData = (value && typeof value === 'object' ? value : standardTitle()) as Record<string, any>;
+      return (
+        <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <Text strong size="small">{field.label}</Text>
+          {titleFields({ moreType: true, verticalPadding: Object.prototype.hasOwnProperty.call(titleData, 'titlePaddingTop') }).map((f) => {
+            if (f.showIf && !f.showIf({ title: titleData })) return null;
+            return (
+              <div key={f.key}>
+                <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>{f.label}{f.hint ? `（${f.hint}）` : ''}</Text>
+                <FieldControl field={{ ...f, key: f.key.replace('title.', '') }} moduleData={titleData} onChange={(next) => set(next)} />
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+    case 'container': {
+      const frame = (getPath(moduleData, field.key) && typeof getPath(moduleData, field.key) === 'object' ? getPath(moduleData, field.key) : standardFrame()) as Record<string, any>;
+      return (
+        <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <Text strong size="small">容器设置</Text>
+          {containerFields().map((f) => (
+            <div key={f.key}>
+              <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>{f.label}</Text>
+              <FieldControl field={{ ...f, key: f.key.replace('frame.', '') }} moduleData={frame} onChange={(next) => set(next)} />
+            </div>
+          ))}
+        </div>
+      );
+    }
+    case 'hotarea': {
+      const pics = (getPath(moduleData, 'picList') || []) as Array<PicItem & { hotarea?: Array<Record<string, any>> }>;
+      const hotareas = (pics[0]?.hotarea || []) as Array<Record<string, any>>;
+      const updateHotareas = (next: Array<Record<string, any>>) => {
+        const nextPics = pics.map((p, i) => (i === 0 ? { ...p, hotarea: next } : p));
+        onChange(setPath(moduleData, 'picList', nextPics));
+      };
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {hotareas.map((h, index) => (
+            <div key={index} style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+              <InputNumber value={h.width} onChange={(v) => updateHotareas(hotareas.map((x, i) => (i === index ? { ...x, width: v ?? 0 } : x)))} placeholder="宽" style={{ width: 70 }} />
+              <InputNumber value={h.height} onChange={(v) => updateHotareas(hotareas.map((x, i) => (i === index ? { ...x, height: v ?? 0 } : x)))} placeholder="高" style={{ width: 70 }} />
+              <InputNumber value={h.top} onChange={(v) => updateHotareas(hotareas.map((x, i) => (i === index ? { ...x, top: v ?? 0 } : x)))} placeholder="上" style={{ width: 70 }} />
+              <InputNumber value={h.left} onChange={(v) => updateHotareas(hotareas.map((x, i) => (i === index ? { ...x, left: v ?? 0 } : x)))} placeholder="左" style={{ width: 70 }} />
+              <Input value={h.link?.link || ''} onChange={(v) => updateHotareas(hotareas.map((x, i) => (i === index ? { ...x, link: { ...x.link, link: v } } : x)))} placeholder="链接" style={{ flex: 1, minWidth: 120 }} />
+              <Button size="small" theme="borderless" type="danger" icon={<IconClose />} onClick={() => updateHotareas(hotareas.filter((_, i) => i !== index))} />
+            </div>
+          ))}
+          <Button size="small" icon={<IconPlus />} onClick={() => updateHotareas([...hotareas, { width: 100, height: 60, top: 0, left: 0, link: { link: '', name: '' } }])}>
+            添加热区
+          </Button>
+        </div>
+      );
+    }
+    case 'groupList': {
+      const groups = (Array.isArray(value) ? value : []) as Array<Record<string, any>>;
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {groups.map((g, index) => (
+            <div key={index} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <Input value={g.title || ''} onChange={(v) => set(groups.map((x, i) => (i === index ? { ...x, title: v } : x)))} placeholder="分组标题" />
+                <Button size="small" theme="borderless" type="danger" icon={<IconClose />} onClick={() => set(groups.filter((_, i) => i !== index))} />
+              </div>
+              <RadioGroup value={g.sourceType || 'products'} onChange={(e: any) => set(groups.map((x, i) => (i === index ? { ...x, sourceType: e.target.value } : x)))}>
+                <Radio value="products">选商品</Radio>
+                <Radio value="productGroup">商品分组</Radio>
+              </RadioGroup>
+              {(g.sourceType || 'products') === 'products' ? (
+                <div>
+                  <Button size="small" icon={<IconPlus />} onClick={() => setPickerVisible(true)}>选择商品（已选 {((g.productIds || []) as number[]).length}）</Button>
+                  {pickerVisible && (
+                    <ProductPickerModal visible selectedIds={(g.productIds || []) as number[]} onOk={(nextIds) => { set(groups.map((x, i) => (i === index ? { ...x, productIds: nextIds } : x))); setPickerVisible(false); }} onCancel={() => setPickerVisible(false)} />
+                  )}
+                </div>
+              ) : (
+                <InputNumber value={g.productGroupId} onChange={(v) => set(groups.map((x, i) => (i === index ? { ...x, productGroupId: v ?? undefined } : x)))} placeholder="商品分组 ID" style={{ width: 160 }} />
+              )}
+            </div>
+          ))}
+          <Button size="small" icon={<IconPlus />} onClick={() => set([...groups, { sourceType: 'products', title: `分组${groups.length + 1}`, titlePic: { picUrl: '', picThumb: '' }, titleLink: { link: '', name: '' }, bannerPic: { picUrl: '', picThumb: '' }, bannerLink: { link: '', name: '' }, productIds: [], productList: [] }])}>
+            添加分组
+          </Button>
         </div>
       );
     }
