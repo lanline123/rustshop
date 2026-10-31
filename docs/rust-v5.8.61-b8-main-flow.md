@@ -492,3 +492,11 @@ refundNotifyUrl
 ```text
 wechat / alipay / stripe / paypal / xendit / antom
 ```
+
+## 2026-10-31 补充：管理员登出吊销
+
+```text
+POST /adminapi/user/user/logout
+```
+
+读取 Authorization Bearer，解析 exp 并写入吊销表；require_auth 后续校验。

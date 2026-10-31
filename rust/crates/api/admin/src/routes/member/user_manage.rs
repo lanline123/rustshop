@@ -482,8 +482,15 @@ async fn user_fund_detail(
 async fn user_logout(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
+    headers: axum::http::HeaderMap,
 ) -> ApiResult<&'static str> {
     require_platform(&auth)?;
+    if let Some(raw) = headers.get(axum::http::header::AUTHORIZATION).and_then(|v| v.to_str().ok()) {
+        let bare = raw.trim().strip_prefix("Bearer ").unwrap_or(raw.trim());
+        if let Ok(claims) = state.jwt.decode(bare) {
+            tigshop_security::token_revocation::revoke(bare, claims.exp);
+        }
+    }
     state.member.user_manage.admin_logout().await?;
     ok("退出成功")
 }
