@@ -500,3 +500,19 @@ POST /adminapi/user/user/logout
 ```
 
 读取 Authorization Bearer，解析 exp 并写入吊销表；require_auth 后续校验。
+
+## 2026-10-31 补充：微信退款回调
+
+```text
+POST /api/order/pay/refundNotify/wechat
+```
+
+处理：
+
+```text
+Wechatpay 头验签
+AES-256-GCM 解密 resource
+out_refund_no / refund_status
+SUCCESS -> paylog_refund 成功 + 回写退款金额
+CLOSED/ABNORMAL -> paylog_refund 失败
+```

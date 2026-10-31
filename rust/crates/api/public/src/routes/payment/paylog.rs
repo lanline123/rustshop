@@ -50,6 +50,7 @@ pub fn public_routes() -> Router<PublicState> {
         .route("/order/pay/notify/antom", post(antom_notify))
         .route("/order/pay/notify/lakala", post(notify))
         .route("/order/pay/notify/{payType}", post(notify))
+        .route("/order/pay/refundNotify/wechat", post(wechat_refund_notify))
         .route("/order/pay/refundNotify/{payType}", post(refund_notify))
 }
 
@@ -525,6 +526,64 @@ fn percent_decode(input: &str) -> String {
         }
     }
     String::from_utf8_lossy(&out).to_string()
+}
+
+/// `POST /api/order/pay/refundNotify/wechat`：微信退款回调。
+async fn wechat_refund_notify(
+    State(state): State<PublicState>,
+    axum::extract::OriginalUri(uri): axum::extract::OriginalUri,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Response, AppError> {
+    let configs = state.payment.pay.channel_configs().await?;
+    let public_key = configs.wechat.public_key_pem.clone()
+        .filter(|v| !v.trim().is_empty())
+        .ok_or_else(|| AppError(tigshop_core::Error::biz(1001, "微信支付未配置：缺少 wechatPayPublicKey")))?;
+    let api_v3_key = configs.wechat.api_v3_key.clone()
+        .filter(|v| !v.trim().is_empty())
+        .ok_or_else(|| AppError(tigshop_core::Error::biz(1001, "微信支付未配置：缺少 wechatPayKey")))?;
+    let body_str = String::from_utf8_lossy(&body).to_string();
+    let timestamp = header_str(&headers, "wechatpay-timestamp")
+        .ok_or_else(|| AppError(tigshop_core::Error::biz(1001, "微信退款回调缺少 Wechatpay-Timestamp")))?;
+    let nonce = header_str(&headers, "wechatpay-nonce")
+        .ok_or_else(|| AppError(tigshop_core::Error::biz(1001, "微信退款回调缺少 Wechatpay-Nonce")))?;
+    let signature = header_str(&headers, "wechatpay-signature")
+        .ok_or_else(|| AppError(tigshop_core::Error::biz(1001, "微信退款回调缺少 Wechatpay-Signature")))?;
+    let message = tigshop_services::payment::channels::wechat_sign_message(
+        "POST", uri.path(), &timestamp, &nonce, &body_str,
+    );
+    tigshop_services::payment::channels::wechat_verify(&public_key, &message, &signature)?;
+    let json: serde_json::Value = serde_json::from_str(&body_str)
+        .map_err(|e| AppError(tigshop_core::Error::Validation(format!("微信退款回调报文非法: {e}"))))?;
+    let resource = json.get("resource")
+        .ok_or_else(|| AppError(tigshop_core::Error::Validation("微信退款回调缺少 resource".into())))?;
+    let ciphertext = resource.get("ciphertext").and_then(|v| v.as_str())
+        .ok_or_else(|| AppError(tigshop_core::Error::Validation("微信退款回调缺少 ciphertext".into())))?;
+    let resource_nonce = resource.get("nonce").and_then(|v| v.as_str())
+        .ok_or_else(|| AppError(tigshop_core::Error::Validation("微信退款回调缺少 nonce".into())))?;
+    let associated_data = resource.get("associated_data").and_then(|v| v.as_str()).unwrap_or_default();
+    let plain = tigshop_services::payment::channels::wechat_decrypt_resource(
+        &api_v3_key, associated_data, resource_nonce, ciphertext,
+    )?;
+    let data: serde_json::Value = serde_json::from_str(&plain)
+        .map_err(|e| AppError(tigshop_core::Error::Validation(format!("微信退款回调解密报文非法: {e}"))))?;
+    let refund_sn = data.get("out_refund_no").and_then(|v| v.as_str())
+        .filter(|v| !v.trim().is_empty())
+        .ok_or_else(|| AppError(tigshop_core::Error::Validation("微信退款回调缺少 out_refund_no".into())))?;
+    let refund_status = data.get("refund_status").and_then(|v| v.as_str()).unwrap_or_default();
+    let row: Option<(i32, i32, Decimal)> = sqlx::query_as(
+        "SELECT paylog_refund_id, paylog_id, refund_amount FROM paylog_refund WHERE refund_sn=? LIMIT 1",
+    ).bind(refund_sn).fetch_optional(&state.repos.pool).await
+        .map_err(|e| AppError(tigshop_core::Error::Database(e.to_string())))?;
+    if let Some((refund_id, paylog_id, amount)) = row {
+        if refund_status == "SUCCESS" {
+            state.payment.paylog.update_refund_status(refund_id, RefundStatus::Success).await?;
+            state.repos.payment.paylog.add_refund_amount(paylog_id, amount).await?;
+        } else if matches!(refund_status, "CLOSED" | "ABNORMAL") {
+            state.payment.paylog.update_refund_status(refund_id, RefundStatus::Failed).await?;
+        }
+    }
+    Ok((StatusCode::OK, Json(serde_json::json!({"code": "SUCCESS", "message": "成功"}))).into_response())
 }
 
 /// 退款回调载荷。
