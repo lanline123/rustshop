@@ -320,6 +320,26 @@ async fn stripe_notify(
     let event: serde_json::Value = serde_json::from_str(&body_str)
         .map_err(|e| AppError(tigshop_core::Error::Validation(format!("Stripe 回调报文非法: {e}"))))?;
     let event_type = event.get("type").and_then(serde_json::Value::as_str).unwrap_or_default();
+    if event_type.starts_with("refund.") {
+        let object = event.get("data").and_then(|d| d.get("object")).cloned().unwrap_or(serde_json::Value::Null);
+        let refund_sn = object.get("metadata").and_then(|m| m.get("refund_sn")).and_then(serde_json::Value::as_str).unwrap_or("");
+        let status = object.get("status").and_then(serde_json::Value::as_str).unwrap_or("");
+        if !refund_sn.is_empty() && matches!(status, "succeeded" | "failed" | "canceled") {
+            let row: Option<(i32, i32, Decimal)> = sqlx::query_as(
+                "SELECT paylog_refund_id, paylog_id, refund_amount FROM paylog_refund WHERE refund_sn=? LIMIT 1",
+            ).bind(refund_sn).fetch_optional(&state.repos.pool).await
+                .map_err(|e| AppError(tigshop_core::Error::Database(e.to_string())))?;
+            if let Some((id, paylog_id, amount)) = row {
+                if status == "succeeded" {
+                    state.payment.paylog.update_refund_status(id, RefundStatus::Success).await?;
+                    state.repos.payment.paylog.add_refund_amount(paylog_id, amount).await?;
+                } else {
+                    state.payment.paylog.update_refund_status(id, RefundStatus::Failed).await?;
+                }
+            }
+        }
+        return Ok((StatusCode::OK, "SUCCESS").into_response());
+    }
     if !matches!(event_type, "payment_intent.succeeded" | "checkout.session.completed") {
         return Ok((StatusCode::OK, "SUCCESS").into_response());
     }

@@ -587,3 +587,13 @@ decorate：默认模板，Java InitDecorateDataConstants.DECORATE_DATA
 ```
 
 前端可按返回的 payInfo 拉起支付。
+
+## 2026-10-31 补充：Stripe 退款回调
+
+`stripe_notify` 新增 `refund.*` 事件：
+
+```text
+data.object.metadata.refund_sn
+status=succeeded -> paylog_refund 成功 + 回写退款金额
+status=failed/canceled -> paylog_refund 失败
+```
