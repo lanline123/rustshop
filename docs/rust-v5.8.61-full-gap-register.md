@@ -24,7 +24,7 @@
 | localesList 真实查询 | 完成 |
 | 图片翻译 蜂鸟 API | 完成 |
 | 翻译结果转存 | 完成 |
-| 智能消除 OCR + 遮罩 + eliminate | 待补 |
+| 智能消除 OCR + 遮罩 + eliminate | 完成 |
 
 ## 支付
 
