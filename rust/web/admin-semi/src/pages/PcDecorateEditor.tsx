@@ -1202,6 +1202,10 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
                   }
                 }}
               >
+                <PcHeaderPreviewStrip
+                  header={pageModule.pcHeader || {}}
+                  onOpen={() => { setPanelTab('pcHeader'); setActiveIndex(-1); }}
+                />
                 {moduleList.length === 0 && (
                   <div style={{ padding: 100, textAlign: 'center', color: '#c0c4cc' }}>暂无模块，请从左侧模块库拖入或点击添加</div>
                 )}
@@ -1271,7 +1275,7 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
             />
           )}
           {panelTab === 'pcHeader' && (
-            <PcHeaderPanel pageModule={pageModule} onChange={(next) => { setPageModule(next); markDirty(); }} />
+            <PcHeaderPanel header={pageModule.pcHeader || {}} onChange={(next) => { setPageModule({ ...pageModule, pcHeader: next }); markDirty(); }} />
           )}
           {panelTab === 'module' && (
             activeModule && activeDef ? (
@@ -1996,11 +2000,48 @@ function PageSettingsPanel({
   );
 }
 
-/* ===================== PC 头部装修（pageModule.pcHeader，契约透传） ===================== */
+/* ===================== PC 头部装修（pageModule.pcHeader，对齐原版 PcHeaderSettingsPanel） ===================== */
+
+function HeaderSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div>
+      <div style={{ fontWeight: 700, fontSize: 14, color: '#333', padding: '8px 0', borderTop: '1px solid var(--semi-color-border)', marginTop: 4 }}>{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function HeaderField({ label, value, children, showIf = true }: { label: string; value?: string; children: ReactNode; showIf?: boolean }) {
+  if (!showIf) return null;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 32 }}>
+      <span style={{ fontSize: 13, color: '#333', flexShrink: 0 }}>{label}</span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        {value ? <Text type="tertiary" size="small">{value}</Text> : null}
+        {children}
+      </span>
+    </div>
+  );
+}
+
+function HeaderColorInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+      <a style={{ fontSize: 12, cursor: 'pointer', color: 'var(--semi-color-primary)' }} onClick={() => onChange('')}>重置</a>
+      <input
+        type="color"
+        value={value || '#ffffff'}
+        onChange={(e) => onChange(e.target.value)}
+        style={{ width: 34, height: 26, border: '1px solid var(--semi-color-border)', borderRadius: 4, cursor: 'pointer' }}
+      />
+    </span>
+  );
+}
 
 const PC_HEADER_DEFAULTS: Record<string, any> = {
   styleType: 1,
   isWhite: 1,
+  bottomDividerType: 1,
   showTopMenuBar: 1,
   topMenuTextColor: '',
   topMenuTextHoverColor: '',
@@ -2042,91 +2083,346 @@ const PC_HEADER_DEFAULTS: Record<string, any> = {
   benefitNoticeGroups: [],
 };
 
-function PcHeaderPanel({
-  pageModule,
-  onChange,
-}: {
-  pageModule: Record<string, any>;
-  onChange: (next: Record<string, any>) => void;
-}) {
-  const header: Record<string, any> = { ...PC_HEADER_DEFAULTS, ...(pageModule.pcHeader || {}) };
-  const set = (key: string, value: unknown) => {
-    onChange({ ...pageModule, pcHeader: { ...header, [key]: value } });
-  };
+/** 画布顶部：头部实时预览（简约风简化渲染，点击进入设置） */
+function PcHeaderPreviewStrip({ header, onOpen }: { header: Record<string, any>; onOpen: () => void }) {
+  const h = { ...PC_HEADER_DEFAULTS, ...header };
+  const simple = Number(h.styleType ?? 1) === 1;
+  const divider = Number(h.bottomDividerType ?? 1);
+  const notices = (h.benefitNoticeGroups || []).flatMap((g: any) => g.notices || []);
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <Text strong>PC头部装修</Text>
-      <HeaderRow label="头部风格">
-        <RadioGroup value={header.styleType} onChange={(e: any) => set('styleType', Number(e.target.value))}>
-          <Radio value={1}>简约风</Radio>
-          <Radio value={2}>跨境风</Radio>
-        </RadioGroup>
-      </HeaderRow>
-      <HeaderRow label="LOGO 图片 URL">
-        <Input value={header.logoPic?.picUrl || ''} onChange={(v) => set('logoPic', { ...header.logoPic, picUrl: v, picThumb: v })} placeholder="https://..." />
-      </HeaderRow>
-      <HeaderRow label="LOGO 宽/高">
-        <Space>
-          <InputNumber value={header.logoWidth} onChange={(v) => set('logoWidth', v ?? 100)} style={{ width: 90 }} />
-          <InputNumber value={header.logoHeight} onChange={(v) => set('logoHeight', v ?? 25)} style={{ width: 90 }} />
-        </Space>
-      </HeaderRow>
-      <HeaderRow label="搜索框样式">
-        <RadioGroup value={header.searchStyle} onChange={(e: any) => set('searchStyle', Number(e.target.value))}>
-          <Radio value={1}>样式一</Radio>
-          <Radio value={2}>样式二</Radio>
-          <Radio value={3}>样式三</Radio>
-        </RadioGroup>
-      </HeaderRow>
-      <HeaderRow label="显示商品分类">
-        <Switch checked={Number(header.showCategory) === 1} onChange={(v) => set('showCategory', v ? 1 : 0)} />
-      </HeaderRow>
-      <HeaderRow label="显示首页分类">
-        <Switch checked={Number(header.showHomeCategory) === 1} onChange={(v) => set('showHomeCategory', v ? 1 : 0)} />
-      </HeaderRow>
-      <HeaderRow label="分类距顶部距离">
-        <InputNumber value={header.categoryMarginTop} onChange={(v) => set('categoryMarginTop', v ?? 0)} style={{ width: 120 }} />
-      </HeaderRow>
-      <HeaderRow label="显示主导航">
-        <Switch checked={Number(header.showMainNav) === 1} onChange={(v) => set('showMainNav', v ? 1 : 0)} />
-      </HeaderRow>
-      <HeaderRow label="主导航上/下内边距">
-        <Space>
-          <InputNumber value={header.mainNavPaddingTop} onChange={(v) => set('mainNavPaddingTop', v ?? 0)} style={{ width: 90 }} />
-          <InputNumber value={header.mainNavPaddingBottom} onChange={(v) => set('mainNavPaddingBottom', v ?? 0)} style={{ width: 90 }} />
-        </Space>
-      </HeaderRow>
-      <HeaderRow label="顶部菜单栏">
-        <Switch checked={Number(header.showTopMenuBar) === 1} onChange={(v) => set('showTopMenuBar', v ? 1 : 0)} />
-      </HeaderRow>
-      <HeaderRow label="地区文字" showIf={Number(header.showTopMenuBar) === 1}>
-        <Input value={header.topRegionText || ''} onChange={(v) => set('topRegionText', v)} />
-      </HeaderRow>
-      <HeaderRow label="购物车图标 URL">
-        <Input value={header.cartPic?.picUrl || ''} onChange={(v) => set('cartPic', { ...header.cartPic, picUrl: v, picThumb: v })} placeholder="https://..." />
-      </HeaderRow>
-      <HeaderRow label="悬浮优惠条">
-        <Switch checked={Number(header.showBenefitBar) === 1} onChange={(v) => set('showBenefitBar', v ? 1 : 0)} />
-      </HeaderRow>
-      <HeaderRow label="优惠条背景色" showIf={Number(header.showBenefitBar) === 1}>
-        <input
-          type="color"
-          value={header.benefitBarBackgroundColor || '#ffffff'}
-          onChange={(e) => set('benefitBarBackgroundColor', e.target.value)}
-          style={{ width: '100%', height: 30, border: '1px solid var(--semi-color-border)', borderRadius: 4 }}
-        />
-      </HeaderRow>
-      <Text type="tertiary" size="small">其余细节项（顶部消息/订单/站点导航/会员中心菜单等）按契约原样透传。</Text>
+    <div
+      className="pc-header-preview"
+      onClick={onOpen}
+      title="点击配置 PC 头部装修"
+      style={{ boxShadow: divider === 1 ? '0 2px 6px rgba(0,0,0,0.08)' : 'none', borderBottom: divider === 2 ? '1px solid #e5e9f0' : 'none' }}
+    >
+      {simple && Number(h.showTopMenuBar ?? 1) === 1 && (
+        <div className="pc-header-preview__topbar" style={{ color: h.topMenuTextColor || '#ffffff' }}>
+          <span>{Number(h.showTopRegion) === 1 ? h.topRegionText || '' : ''}</span>
+          <span style={{ display: 'flex', gap: 12 }}>
+            {Number(h.showTopMemberName ?? 1) === 1 && <span>会员信息</span>}
+            {Number(h.showTopSiteNav ?? 1) === 1 && <span>站点导航</span>}
+            {Number(h.showTopUserMenu ?? 1) === 1 && Number(h.showTopMessage ?? 1) === 1 && <span>站内消息</span>}
+            {Number(h.showTopUserMenu ?? 1) === 1 && Number(h.showTopOrders ?? 1) === 1 && <span>我的订单</span>}
+            {Number(h.showTopUserMenu ?? 1) === 1 && Number(h.showTopMemberCenter ?? 1) === 1 && <span>会员中心</span>}
+          </span>
+        </div>
+      )}
+      <div className="pc-header-preview__main">
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          {h.logoPic?.picUrl
+            ? <img src={h.logoPic.picUrl} alt="logo" style={{ width: Number(h.logoWidth) || 100, height: Number(h.logoHeight) || 25, objectFit: 'contain' }} />
+            : <span style={{ fontWeight: 800, fontSize: 20, color: '#1a1a1a' }}>LOGO</span>}
+        </div>
+        <div
+          className="pc-header-preview__search"
+          style={Number(h.searchColorType ?? 1) === 2 && h.searchColor ? { background: h.searchColor } : undefined}
+        >
+          <span>搜索商品</span>
+          <span style={{ marginLeft: 'auto' }}>搜索</span>
+        </div>
+        {Number(h.rightCartShow ?? 1) === 1 && (
+          Number(h.cartStyle ?? 1) === 2 && h.cartPic?.picUrl
+            ? <img src={h.cartPic.picUrl} alt="cart" style={{ height: 32 }} />
+            : <span style={{ fontSize: 13 }}>🛒 购物车</span>
+        )}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+        {Number(h.showCategory ?? 1) === 1 && <span className="pc-header-preview__cat">全部分类</span>}
+        {Number(h.showHomeCategory ?? 1) === 1 && <span className="pc-header-preview__cat">首页</span>}
+      </div>
+      {Number(h.showMainNav ?? 1) === 1 && (
+        <div style={{ paddingTop: Number(h.mainNavPaddingTop) || 0, paddingBottom: Number(h.mainNavPaddingBottom) || 0, display: 'flex', gap: 18, justifyContent: 'center', fontSize: 13, color: '#333' }}>
+          <span>首页</span><span>新品上市</span><span>热卖推荐</span><span>关于我们</span>
+        </div>
+      )}
+      {Number(h.showBenefitBar ?? 1) === 1 && (
+        <div style={{ background: h.benefitBarBackgroundColor || '#222222', color: h.benefitTitleColor || '#ffffff', fontSize: 12, textAlign: 'center', padding: '4px 0', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+          {notices.length === 0
+            ? '免运费 · 前三单购物均可免运费！'
+            : notices.slice(0, 4).map((n: any, i: number) => (
+                <span key={i} style={{ margin: '0 10px' }}>
+                  {n.picTitle}
+                  {n.picDesc ? <span style={{ color: h.benefitDescColor || h.benefitTitleColor || '#ffffff', opacity: 0.85 }}>{` ${n.picDesc}`}</span> : null}
+                </span>
+              ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function HeaderRow({ label, children, showIf = true }: { label: string; children: ReactNode; showIf?: boolean }) {
-  if (!showIf) return null;
+function PcHeaderPanel({
+  header,
+  onChange,
+}: {
+  header: Record<string, any>;
+  onChange: (next: Record<string, any>) => void;
+}) {
+  const set = (key: string, value: unknown) => onChange({ ...header, [key]: value });
+  const simple = Number(header.styleType ?? 1) === 1;
+
+  const updateMemberItems = (next: Array<Record<string, any>>) => set('memberCenterItems', next);
+  const updateBenefitGroups = (next: Array<Record<string, any>>) => set('benefitNoticeGroups', next);
+
   return (
-    <div>
-      <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>{label}</Text>
-      {children}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 20 }}>
+      <Text strong>PC头部装修</Text>
+
+      <HeaderField label="头部风格">
+        <RadioGroup value={Number(header.styleType ?? 1) === 2 ? 2 : 1} onChange={(e: any) => set('styleType', Number(e.target.value) === 2 ? 2 : 1)} type="button">
+          <Radio value={1}>简约风</Radio>
+          <Radio value={2}>跨境风</Radio>
+        </RadioGroup>
+      </HeaderField>
+      <HeaderField label="底部样式">
+        <RadioGroup value={Number(header.bottomDividerType ?? 1)} onChange={(e: any) => set('bottomDividerType', Number(e.target.value))} type="button">
+          <Radio value={1}>阴影</Radio>
+          <Radio value={2}>边框</Radio>
+          <Radio value={0}>不展示</Radio>
+        </RadioGroup>
+      </HeaderField>
+
+      <HeaderSection title="LOGO">
+        <div style={{ width: '100%' }}>
+          <HeaderField label="LOGO图片" value="建议 320*120 PNG 透明底">
+            <a style={{ fontSize: 12, cursor: 'pointer', color: 'var(--semi-color-primary)' }} onClick={() => set('logoPic', { picUrl: '', picThumb: '' })}>默认logo</a>
+          </HeaderField>
+          <Input
+            value={header.logoPic?.picUrl || ''}
+            onChange={(v) => set('logoPic', { picUrl: v, picThumb: v })}
+            placeholder="LOGO 图片 URL"
+            size="small"
+            style={{ marginTop: 4 }}
+          />
+        </div>
+        <HeaderField label="logo位置">
+          <RadioGroup value={Number(header.logoAlign ?? 1)} onChange={(e: any) => set('logoAlign', Number(e.target.value))} type="button">
+            <Radio value={1}>居左</Radio>
+            <Radio value={2}>居中</Radio>
+            <Radio value={3}>居右</Radio>
+          </RadioGroup>
+        </HeaderField>
+        <HeaderField label="LOGO宽度">
+          <Slider value={Number(header.logoWidth) || 100} min={40} max={300} step={1} style={{ width: 150 }} onChange={(v) => set('logoWidth', typeof v === 'number' ? v : (v as number[])[0])} />
+        </HeaderField>
+        <HeaderField label="LOGO高度">
+          <Slider value={Number(header.logoHeight) || 25} min={10} max={100} step={1} style={{ width: 150 }} onChange={(v) => set('logoHeight', typeof v === 'number' ? v : (v as number[])[0])} />
+        </HeaderField>
+      </HeaderSection>
+
+      <HeaderSection title="购物车">
+        <HeaderField label="右侧购物车" value={Number(header.rightCartShow ?? 1) === 0 ? '隐藏' : '显示'}>
+          <RadioGroup value={Number(header.rightCartShow ?? 1)} onChange={(e: any) => set('rightCartShow', Number(e.target.value))} type="button">
+            <Radio value={1}>显示</Radio>
+            <Radio value={0}>隐藏</Radio>
+          </RadioGroup>
+        </HeaderField>
+        <HeaderField label="购物车样式">
+          <RadioGroup value={Number(header.cartStyle ?? 1)} onChange={(e: any) => set('cartStyle', Number(e.target.value))} type="button">
+            <Radio value={1}>购物车</Radio>
+            <Radio value={2}>图片</Radio>
+          </RadioGroup>
+        </HeaderField>
+        {Number(header.rightCartShow ?? 1) !== 0 && Number(header.cartStyle ?? 1) === 2 && (
+          <div style={{ width: '100%' }}>
+            <HeaderField label="添加图片">
+              <a style={{ fontSize: 12, cursor: 'pointer', color: 'var(--semi-color-primary)' }} onClick={() => set('cartPic', { picUrl: '', picThumb: '' })}>重置</a>
+            </HeaderField>
+            <Input value={header.cartPic?.picUrl || ''} onChange={(v) => set('cartPic', { picUrl: v, picThumb: v })} placeholder="购物车图片 URL" size="small" />
+          </div>
+        )}
+        <HeaderField label="顶部菜单购物车" value={Number(header.topMenuCartShow ?? 1) === 0 ? '隐藏' : '显示'}>
+          <RadioGroup value={Number(header.topMenuCartShow ?? 1)} onChange={(e: any) => set('topMenuCartShow', Number(e.target.value))} type="button">
+            <Radio value={1}>显示</Radio>
+            <Radio value={0}>隐藏</Radio>
+          </RadioGroup>
+        </HeaderField>
+      </HeaderSection>
+
+      <HeaderSection title="搜索条">
+        <HeaderField label="搜索条颜色" value={Number(header.searchColorType ?? 1) === 2 ? '自定义' : '跟随系统'}>
+          <RadioGroup value={Number(header.searchColorType ?? 1)} onChange={(e: any) => set('searchColorType', Number(e.target.value))} type="button">
+            <Radio value={1}>系统</Radio>
+            <Radio value={2}>自定义</Radio>
+          </RadioGroup>
+        </HeaderField>
+        {Number(header.searchColorType ?? 1) === 2 && (
+          <HeaderField label="自定义颜色">
+            <HeaderColorInput value={header.searchColor || ''} onChange={(v) => set('searchColor', v)} />
+          </HeaderField>
+        )}
+        <HeaderField label="所有商品分类" value={Number(header.showCategory ?? 1) === 0 ? '关闭' : '开启'}>
+          <RadioGroup value={Number(header.showCategory ?? 1)} onChange={(e: any) => set('showCategory', Number(e.target.value))} type="button">
+            <Radio value={1}>开启</Radio>
+            <Radio value={0}>关闭</Radio>
+          </RadioGroup>
+        </HeaderField>
+        <HeaderField label="首页分类" value={Number(header.showHomeCategory ?? 1) === 0 ? '隐藏' : '显示'}>
+          <RadioGroup value={Number(header.showHomeCategory ?? 1)} onChange={(e: any) => set('showHomeCategory', Number(e.target.value))} type="button">
+            <Radio value={1}>显示</Radio>
+            <Radio value={0}>隐藏</Radio>
+          </RadioGroup>
+        </HeaderField>
+        <HeaderField label="分类上间距">
+          <Slider value={Number(header.categoryMarginTop) || 0} min={0} max={60} step={1} style={{ width: 150 }} onChange={(v) => set('categoryMarginTop', typeof v === 'number' ? v : (v as number[])[0])} />
+        </HeaderField>
+      </HeaderSection>
+
+      <HeaderSection title="导航栏">
+        <HeaderField label="主导航" value={Number(header.showMainNav ?? 1) === 0 ? '隐藏' : '显示'}>
+          <RadioGroup value={Number(header.showMainNav ?? 1)} onChange={(e: any) => set('showMainNav', Number(e.target.value))} type="button">
+            <Radio value={1}>显示</Radio>
+            <Radio value={0}>隐藏</Radio>
+          </RadioGroup>
+        </HeaderField>
+        <HeaderField label="导航栏上间距">
+          <Slider value={Number(header.mainNavPaddingTop) || 0} min={0} max={60} step={1} style={{ width: 150 }} onChange={(v) => set('mainNavPaddingTop', typeof v === 'number' ? v : (v as number[])[0])} />
+        </HeaderField>
+        <HeaderField label="导航栏下间距">
+          <Slider value={Number(header.mainNavPaddingBottom) || 0} min={0} max={60} step={1} style={{ width: 150 }} onChange={(v) => set('mainNavPaddingBottom', typeof v === 'number' ? v : (v as number[])[0])} />
+        </HeaderField>
+      </HeaderSection>
+
+      <HeaderSection title="Benefit Bar">
+        <HeaderField label="展示 benefit bar">
+          <Switch checked={Number(header.showBenefitBar ?? 1) === 1} onChange={(v) => set('showBenefitBar', v ? 1 : 0)} />
+        </HeaderField>
+        {Number(header.showBenefitBar ?? 1) === 1 && (
+          <>
+            <HeaderField label="背景色">
+              <HeaderColorInput value={header.benefitBarBackgroundColor || ''} onChange={(v) => set('benefitBarBackgroundColor', v)} />
+            </HeaderField>
+            <HeaderField label="主标题颜色">
+              <HeaderColorInput value={header.benefitTitleColor || ''} onChange={(v) => set('benefitTitleColor', v)} />
+            </HeaderField>
+            <HeaderField label="副标题颜色">
+              <HeaderColorInput value={header.benefitDescColor || ''} onChange={(v) => set('benefitDescColor', v)} />
+            </HeaderField>
+          </>
+        )}
+      </HeaderSection>
+
+      {simple && (
+        <HeaderSection title="顶部提示条（简约风）">
+          <HeaderField label="顶部菜单文字颜色">
+            <HeaderColorInput value={header.topMenuTextColor || ''} onChange={(v) => set('topMenuTextColor', v)} />
+          </HeaderField>
+          <HeaderField label="顶部菜单文字悬浮颜色">
+            <HeaderColorInput value={header.topMenuTextHoverColor || ''} onChange={(v) => set('topMenuTextHoverColor', v)} />
+          </HeaderField>
+          <HeaderField label="站点导航" value={Number(header.showTopSiteNav ?? 1) === 0 ? '隐藏' : '显示'}>
+            <RadioGroup value={Number(header.showTopSiteNav ?? 1)} onChange={(e: any) => set('showTopSiteNav', Number(e.target.value))} type="button">
+              <Radio value={1}>显示</Radio>
+              <Radio value={0}>隐藏</Radio>
+            </RadioGroup>
+          </HeaderField>
+          <HeaderField label="会员信息" value={Number(header.showTopMemberName ?? 1) === 0 ? '隐藏' : '显示'}>
+            <RadioGroup value={Number(header.showTopMemberName ?? 1)} onChange={(e: any) => set('showTopMemberName', Number(e.target.value))} type="button">
+              <Radio value={1}>显示</Radio>
+              <Radio value={0}>隐藏</Radio>
+            </RadioGroup>
+          </HeaderField>
+          <HeaderField label="地区选择" value={Number(header.showTopRegion ?? 1) === 0 ? '隐藏' : '显示'}>
+            <RadioGroup value={Number(header.showTopRegion ?? 1)} onChange={(e: any) => set('showTopRegion', Number(e.target.value))} type="button">
+              <Radio value={1}>显示</Radio>
+              <Radio value={0}>隐藏</Radio>
+            </RadioGroup>
+          </HeaderField>
+          <HeaderField label="地区文字" showIf={Number(header.showTopRegion ?? 1) === 1}>
+            <Input value={header.topRegionText || ''} onChange={(v) => set('topRegionText', v)} size="small" style={{ width: 140 }} />
+          </HeaderField>
+          <HeaderField label="显示右侧菜单（不含站点导航、购物车）">
+            <Switch checked={Number(header.showTopMenuBar ?? 1) === 1} onChange={(v) => set('showTopMenuBar', v ? 1 : 0)} />
+          </HeaderField>
+          {Number(header.showTopMenuBar ?? 1) !== 0 && (
+            <>
+              <HeaderField label="右侧菜单" value={Number(header.showTopUserMenu ?? 1) === 0 ? '隐藏' : '显示'}>
+                <RadioGroup value={Number(header.showTopUserMenu ?? 1)} onChange={(e: any) => set('showTopUserMenu', Number(e.target.value))} type="button">
+                  <Radio value={1}>显示</Radio>
+                  <Radio value={0}>隐藏</Radio>
+                </RadioGroup>
+              </HeaderField>
+              {Number(header.showTopUserMenu ?? 1) !== 0 && (
+                <>
+                  <HeaderField label="站内消息" value={Number(header.showTopMessage ?? 1) === 0 ? '隐藏' : '显示'}>
+                    <RadioGroup value={Number(header.showTopMessage ?? 1)} onChange={(e: any) => set('showTopMessage', Number(e.target.value))} type="button">
+                      <Radio value={1}>显示</Radio>
+                      <Radio value={0}>隐藏</Radio>
+                    </RadioGroup>
+                  </HeaderField>
+                  <HeaderField label="我的订单" value={Number(header.showTopOrders ?? 1) === 0 ? '隐藏' : '显示'}>
+                    <RadioGroup value={Number(header.showTopOrders ?? 1)} onChange={(e: any) => set('showTopOrders', Number(e.target.value))} type="button">
+                      <Radio value={1}>显示</Radio>
+                      <Radio value={0}>隐藏</Radio>
+                    </RadioGroup>
+                  </HeaderField>
+                  <HeaderField label="会员中心" value={Number(header.showTopMemberCenter ?? 1) === 0 ? '隐藏' : '显示'}>
+                    <RadioGroup value={Number(header.showTopMemberCenter ?? 1)} onChange={(e: any) => set('showTopMemberCenter', Number(e.target.value))} type="button">
+                      <Radio value={1}>显示</Radio>
+                      <Radio value={0}>隐藏</Radio>
+                    </RadioGroup>
+                  </HeaderField>
+                  {Number(header.showTopMemberCenter ?? 1) !== 0 && (
+                    <div style={{ width: '100%' }}>
+                      <Text type="tertiary" size="small">会员中心菜单</Text>
+                      {((header.memberCenterItems || []) as Array<Record<string, any>>).map((it, index) => (
+                        <div key={index} style={{ display: 'flex', gap: 4, marginTop: 4, alignItems: 'center' }}>
+                          <Input
+                            value={it.picTitle || ''}
+                            onChange={(v) => updateMemberItems((header.memberCenterItems || []).map((x: any, i: number) => (i === index ? { ...x, picTitle: v, picLink: { ...(x.picLink || {}), name: v, label: v } } : x)))}
+                            placeholder="菜单名"
+                            size="small"
+                          />
+                          <Input
+                            value={it.picLink?.link || ''}
+                            onChange={(v) => updateMemberItems((header.memberCenterItems || []).map((x: any, i: number) => (i === index ? { ...x, picLink: { ...(x.picLink || {}), link: v } } : x)))}
+                            placeholder="链接"
+                            size="small"
+                          />
+                          <Button size="small" theme="borderless" type="danger" icon={<IconClose />} onClick={() => updateMemberItems((header.memberCenterItems || []).filter((_: any, i: number) => i !== index))} />
+                        </div>
+                      ))}
+                      <Button size="small" icon={<IconPlus />} style={{ marginTop: 4 }} onClick={() => updateMemberItems([...(header.memberCenterItems || []), { picTitle: '新菜单', picDesc: '', picLink: { link: '', name: '新菜单', label: '新菜单' } }])}>
+                        添加菜单
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          )}
+          {Number(header.showBenefitBar ?? 1) === 1 && (
+            <div style={{ width: '100%' }}>
+              <Text type="tertiary" size="small">顶部提示内容（分组）</Text>
+              {((header.benefitNoticeGroups || []) as Array<Record<string, any>>).map((g, gi) => (
+                <div key={gi} style={{ border: '1px dashed var(--semi-color-border)', borderRadius: 6, padding: 8, marginTop: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text strong size="small">提示组 {gi + 1}</Text>
+                    <Button size="small" theme="borderless" type="danger" icon={<IconClose />} onClick={() => updateBenefitGroups((header.benefitNoticeGroups || []).filter((_: any, i: number) => i !== gi))} />
+                  </div>
+                  {((g.notices || []) as Array<Record<string, any>>).map((n, ni) => (
+                    <div key={ni} style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6, borderTop: '1px dashed var(--semi-color-border)', paddingTop: 6 }}>
+                      <Input value={n.picTitle || ''} onChange={(v) => updateBenefitGroups((header.benefitNoticeGroups || []).map((grp: any, i: number) => (i === gi ? { ...grp, notices: (grp.notices || []).map((x: any, xi: number) => (xi === ni ? { ...x, picTitle: v } : x)) } : grp)))} placeholder="主标题" size="small" />
+                      <Input value={n.picDesc || ''} onChange={(v) => updateBenefitGroups((header.benefitNoticeGroups || []).map((grp: any, i: number) => (i === gi ? { ...grp, notices: (grp.notices || []).map((x: any, xi: number) => (xi === ni ? { ...x, picDesc: v } : x)) } : grp)))} placeholder="副标题" size="small" />
+                      <Input value={n.picLink?.link || ''} onChange={(v) => updateBenefitGroups((header.benefitNoticeGroups || []).map((grp: any, i: number) => (i === gi ? { ...grp, notices: (grp.notices || []).map((x: any, xi: number) => (xi === ni ? { ...x, picLink: { ...(x.picLink || {}), link: v } } : x)) } : grp)))} placeholder="链接(可选)" size="small" />
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <Button size="small" theme="borderless" type="danger" icon={<IconClose />} onClick={() => updateBenefitGroups((header.benefitNoticeGroups || []).map((grp: any, i: number) => (i === gi ? { ...grp, notices: (grp.notices || []).filter((_: any, xi: number) => xi !== ni) } : grp)))} />
+                        <Button size="small" icon={<IconPlus />} onClick={() => updateBenefitGroups((header.benefitNoticeGroups || []).map((grp: any, i: number) => (i === gi ? { ...grp, notices: [...(grp.notices || []), { picId: '0', picThumb: '', picUrl: '', picName: '', picTitle: '', picDesc: '', picLink: { link: '', name: '' } }] } : grp)))}>
+                          添加提示
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+              <Button size="small" icon={<IconPlus />} style={{ marginTop: 6 }} onClick={() => updateBenefitGroups([...(header.benefitNoticeGroups || []), { notices: [{ picId: '0', picThumb: '', picUrl: '', picName: '', picTitle: '', picDesc: '', picLink: { link: '', name: '' } }] }])}>
+                添加提示组
+              </Button>
+            </div>
+          )}
+        </HeaderSection>
+      )}
     </div>
   );
 }

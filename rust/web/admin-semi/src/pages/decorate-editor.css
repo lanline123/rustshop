@@ -561,3 +561,49 @@
   gap: 2px;
   z-index: 6;
 }
+
+/* PC 头部预览条（画布顶部，点击进设置） */
+.pc-header-preview {
+  background: #fff;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f2f5;
+}
+.pc-header-preview__topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #1a1a1a;
+  font-size: 12px;
+  padding: 3px 24px;
+}
+.pc-header-preview__toplinks {
+  display: flex;
+  gap: 12px;
+}
+.pc-header-preview__main {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 12px 24px;
+}
+.pc-header-preview__search {
+  flex: 1;
+  max-width: 520px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #e1251b;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 13px;
+  border-radius: 18px;
+  padding: 7px 16px;
+}
+.pc-header-preview__cat {
+  font-size: 13px;
+  font-weight: 700;
+  color: #e1251b;
+  background: #fff1f0;
+  border-radius: 4px;
+  padding: 3px 10px;
+  margin: 4px 0 4px 24px;
+}
