@@ -457,6 +457,22 @@ impl PayService {
                     code: None,
                 });
             }
+            "stripe" => {
+                let order_id = q.id.unwrap_or(0);
+                let order = self.repo().find_order_by_id(order_id).await?.ok_or_else(|| Error::biz(500, MSG_ORDER_NOT_FOUND))?;
+                let client_type = q.code.as_deref().unwrap_or("pc");
+                let pay_sn = self.create_pending_paylog(&order, "stripe", &format!("Stripe-订单{}", order.order_sn)).await?;
+                let pay_info = self.stripe_create(&order, client_type, &pay_sn).await?;
+                return Ok(PayCreateVO { order_id: Some(order.order_id), order_sn: Some(order.order_sn.clone()), order_amount: Some(order.unpaid_amount), pay_info: Some(pay_info), code: None });
+            }
+            "xendit" => {
+                let order_id = q.id.unwrap_or(0);
+                let order = self.repo().find_order_by_id(order_id).await?.ok_or_else(|| Error::biz(500, MSG_ORDER_NOT_FOUND))?;
+                let client_type = q.code.as_deref().unwrap_or("pc");
+                let pay_sn = self.create_pending_paylog(&order, "xendit", &format!("Xendit-订单{}", order.order_sn)).await?;
+                let pay_info = self.xendit_create(&order, client_type, &pay_sn).await?;
+                return Ok(PayCreateVO { order_id: Some(order.order_id), order_sn: Some(order.order_sn.clone()), order_amount: Some(order.unpaid_amount), pay_info: Some(pay_info), code: None });
+            }
             _ => Err(Error::biz_msg(MSG_CHANNEL_UNMIGRATED)),
         }
     }
@@ -792,6 +808,153 @@ impl PayService {
             })
             .ok_or_else(|| Error::biz(1001, "PayPal 订单响应缺少 approve 链接"))?;
         Ok(serde_json::json!({"paySn": pay_sn, "payType": "paypal", "url": approve}))
+    }
+
+    /// Stripe Checkout Session 创建。
+    async fn stripe_create(
+        &self,
+        order: &PayOrderRow,
+        client_type: &str,
+        pay_sn: &str,
+    ) -> Result<serde_json::Value> {
+        let secret = self.config_value("stripeSecretKey").await?.unwrap_or_default();
+        if secret.trim().is_empty() {
+            return Err(Error::biz(1001, "Stripe 未配置：缺少 stripeSecretKey"));
+        }
+        let currency = self.config_value("stripeCurrency").await?.unwrap_or_else(|| "usd".into());
+        let pc_domain = self.config_value("pcDomain").await?.unwrap_or_default();
+        if pc_domain.trim().is_empty() {
+            return Err(Error::biz(1001, "pcDomain 未配置，无法生成 Stripe 返回地址"));
+        }
+        let pc = pc_domain.trim_end_matches('/');
+        let (success, cancel) = if client_type == "h5" {
+            (
+                format!("{pc}/pages/user/order/info?id={}", order.order_id),
+                format!("{pc}/pages/user/order/info?id={}", order.order_id),
+            )
+        } else {
+            (
+                format!("{pc}/member/order/info?id={}", order.order_id),
+                format!("{pc}/member/order/info?id={}", order.order_id),
+            )
+        };
+        let amount = (order.unpaid_amount * rust_decimal::Decimal::from(100)).round().to_string();
+        let mut form = vec![
+            ("mode".to_string(), "payment".to_string()),
+            ("success_url".to_string(), format!("{success}&session_id={{CHECKOUT_SESSION_ID}}")),
+            ("cancel_url".to_string(), cancel),
+            ("line_items[0][quantity]".to_string(), "1".to_string()),
+            ("line_items[0][price_data][currency]".to_string(), currency),
+            ("line_items[0][price_data][unit_amount]".to_string(), amount),
+            ("line_items[0][price_data][product_data][name]".to_string(), format!("订单: {}", order.order_sn)),
+            ("metadata[pay_sn]".to_string(), pay_sn.to_string()),
+            ("metadata[order_id]".to_string(), order.order_id.to_string()),
+            ("payment_intent_data[metadata][pay_sn]".to_string(), pay_sn.to_string()),
+            ("payment_intent_data[metadata][order_id]".to_string(), order.order_id.to_string()),
+        ];
+        form.sort_by(|a, b| a.0.cmp(&b.0));
+        let body = form.iter().map(|(k, v)| format!("{}={}", url_encode(k), url_encode(v))).collect::<Vec<_>>().join("&");
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(25))
+            .build()
+            .map_err(|e| Error::Internal(e.to_string()))?;
+        let resp = client.post("https://api.stripe.com/v1/checkout/sessions")
+            .header("Authorization", format!("Bearer {}", secret.trim()))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(body)
+            .send().await
+            .map_err(|e| Error::biz(1001, format!("Stripe 下单网络异常: {e}")))?;
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        if !status.is_success() {
+            return Err(Error::biz(1001, format!("Stripe 下单失败: {text}")));
+        }
+        let v: serde_json::Value = serde_json::from_str(&text)
+            .map_err(|e| Error::Internal(format!("Stripe 响应解析失败: {e}")))?;
+        let url = v.get("url").and_then(|u| u.as_str()).unwrap_or_default();
+        if url.is_empty() {
+            return Err(Error::biz(1001, "Stripe 响应缺少 url"));
+        }
+        Ok(serde_json::json!({"paySn": pay_sn, "payType": "stripe", "url": url}))
+    }
+
+    /// Xendit Invoice 创建。
+    async fn xendit_create(
+        &self,
+        order: &PayOrderRow,
+        client_type: &str,
+        pay_sn: &str,
+    ) -> Result<serde_json::Value> {
+        let secret = self.config_value("xenditSecretKey").await?.unwrap_or_default();
+        if secret.trim().is_empty() {
+            return Err(Error::biz(1001, "Xendit 未配置：缺少 xenditSecretKey"));
+        }
+        let base = self.config_value("xenditBaseUrl").await?
+            .filter(|v| !v.trim().is_empty())
+            .unwrap_or_else(|| "https://api.xendit.co".into());
+        let currency = self.config_value("xenditCurrency").await?.unwrap_or_else(|| "idr".into());
+        let pc_domain = self.config_value("pcDomain").await?.unwrap_or_default();
+        if pc_domain.trim().is_empty() {
+            return Err(Error::biz(1001, "pcDomain 未配置，无法生成 Xendit 返回地址"));
+        }
+        let pc = pc_domain.trim_end_matches('/');
+        let (success, failure) = if client_type == "h5" {
+            (
+                format!("{pc}/pages/user/order/info?id={}", order.order_id),
+                format!("{pc}/pages/user/order/info?id={}", order.order_id),
+            )
+        } else {
+            (
+                format!("{pc}/member/order/info?id={}", order.order_id),
+                format!("{pc}/member/order/info?id={}", order.order_id),
+            )
+        };
+        let amount_value: f64 = order.unpaid_amount.to_string().parse().unwrap_or(0.0);
+        let duration: i64 = self.config_value("xenditInvoiceDuration").await?
+            .and_then(|v| v.trim().parse().ok()).unwrap_or(86400);
+        let mut body = serde_json::json!({
+            "external_id": pay_sn,
+            "amount": amount_value,
+            "currency": currency,
+            "description": format!("Tigshop Order {}", order.order_sn),
+            "success_redirect_url": success,
+            "failure_redirect_url": failure,
+            "invoice_duration": duration,
+            "should_send_email": false,
+            "items": [{"name": format!("Order {}", order.order_sn), "quantity": 1, "price": amount_value, "reference_id": order.order_id.to_string()}]
+        });
+        if let Some(methods) = self.config_value("xenditPaymentMethods").await?.filter(|v| !v.trim().is_empty()) {
+            body["payment_methods"] = serde_json::Value::Array(
+                methods.split(',').map(str::trim).filter(|s| !s.is_empty()).map(|s| serde_json::Value::String(s.to_string())).collect(),
+            );
+        }
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(25))
+            .build()
+            .map_err(|e| Error::Internal(e.to_string()))?;
+        let resp = client.post(format!("{}/v2/invoices", base.trim_end_matches('/')))
+            .basic_auth(secret.trim(), Option::<&str>::None)
+            .header("Content-Type", "application/json")
+            .body(body.to_string())
+            .send().await
+            .map_err(|e| Error::biz(1001, format!("Xendit 下单网络异常: {e}")))?;
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        if !status.is_success() {
+            return Err(Error::biz(1001, format!("Xendit 下单失败: {text}")));
+        }
+        let v: serde_json::Value = serde_json::from_str(&text)
+            .map_err(|e| Error::Internal(format!("Xendit 响应解析失败: {e}")))?;
+        let url = v.get("invoice_url").and_then(|u| u.as_str()).unwrap_or_default();
+        if url.is_empty() {
+            return Err(Error::biz(1001, "Xendit 响应缺少 invoice_url"));
+        }
+        if let Some(id) = v.get("id").and_then(|u| u.as_str()) {
+            let _ = sqlx::query("UPDATE paylog SET transaction_id=? WHERE pay_sn=?")
+                .bind(id).bind(pay_sn)
+                .execute(&self.repos.pool).await;
+        }
+        Ok(serde_json::json!({"paySn": pay_sn, "payType": "xendit", "url": url}))
     }
 
     /// 创建通用待支付 paylog（渠道下单前落库）。

@@ -327,3 +327,27 @@ application_context.return_url/cancel_url
   paySn / countryCode / currencyCode / merchantDisplayName
   supportedNetworks / merchantCapabilities / total
 ```
+
+## 2026-10-31 补充：Stripe / Xendit 下单
+
+Stripe：
+
+```text
+POST https://api.stripe.com/v1/checkout/sessions
+mode=payment
+line_items[0][price_data][currency/unit_amount/product_data][name]
+metadata[pay_sn]/metadata[order_id]
+payment_intent_data[metadata][...]
+返回 url
+```
+
+Xendit：
+
+```text
+POST {xenditBaseUrl}/v2/invoices
+external_id=paySn
+amount/currency/description
+success_redirect_url/failure_redirect_url
+invoice_duration/payment_methods/items
+返回 invoice_url，并回写 paylog.transaction_id
+```
