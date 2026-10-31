@@ -83,6 +83,38 @@ impl MerchantApplicationService {
         &self.repos.payment.merchant_application
     }
 
+    async fn config_value(&self, code: &str) -> Result<Option<String>> {
+        let v: Option<String> = sqlx::query_scalar("SELECT biz_val FROM config WHERE biz_code=? LIMIT 1")
+            .bind(code)
+            .fetch_optional(&self.repos.pool)
+            .await
+            .map_err(|e| Error::Database(e.to_string()))?;
+        Ok(v.filter(|s| !s.trim().is_empty()))
+    }
+
+    async fn post_channel(&self, url: &str, payload: serde_json::Value) -> Result<serde_json::Value> {
+        let key = self.config_value("merchantApplicationKey").await?.unwrap_or_default();
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(25))
+            .build()
+            .map_err(|e| Error::Internal(e.to_string()))?;
+        let mut req = client
+            .post(url.trim())
+            .header("Content-Type", "application/json")
+            .body(payload.to_string());
+        if !key.trim().is_empty() {
+            req = req.header("Authorization", format!("Bearer {}", key.trim()));
+        }
+        let resp = req.send().await
+            .map_err(|e| Error::biz(1001, format!("进件渠道异常: {e}")))?;
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        if !status.is_success() {
+            return Err(Error::biz(1001, format!("进件渠道失败: {text}")));
+        }
+        serde_json::from_str(&text).map_err(|e| Error::biz(1001, format!("进件渠道响应非法: {e}")))
+    }
+
     // ————————————————————— 查询 —————————————————————
 
     /// 分页列表（Java `listPage`）。
@@ -204,7 +236,20 @@ impl MerchantApplicationService {
         if is_blank(entity.request_snapshot.as_deref()) {
             return Err(Error::biz(500, MSG_SNAPSHOT_MISSING));
         }
-        Err(Error::biz_msg(MSG_CHANNEL_UNMIGRATED))
+        let url = self.config_value("merchantApplicationApproveUrl").await?
+            .ok_or_else(|| Error::biz(1001, "进件渠道未配置：merchantApplicationApproveUrl"))?;
+        let resp = self.post_channel(&url, serde_json::json!({
+            "id": id,
+            "applymentId": entity.applyment_id,
+            "businessCode": entity.business_code,
+            "payChannel": entity.pay_channel
+        })).await?;
+        let status = resp.get("status").and_then(|v| v.as_str()).unwrap_or("SUBMITTED");
+        let now = now_datetime();
+        sqlx::query("UPDATE merchant_application SET status=?,audit_admin_id=?,audit_time=?,modify_time=? WHERE id=?")
+            .bind(status).bind(0).bind(&now).bind(&now).bind(id)
+            .execute(&self.repos.pool).await.map_err(|e| Error::Database(e.to_string()))?;
+        Ok(())
     }
 
     /// 刷新进件状态（Java `refresh`）：预检查复刻后因渠道客户端未迁移而明确报错。
@@ -218,10 +263,85 @@ impl MerchantApplicationService {
         if is_blank(entity.applyment_id.as_deref()) {
             return Err(Error::biz(500, MSG_APPLYMENT_ID_MISSING));
         }
-        Err(Error::biz_msg(MSG_CHANNEL_UNMIGRATED))
+        let url = self.config_value("merchantApplicationStatusUrl").await?
+            .ok_or_else(|| Error::biz(1001, "进件渠道未配置：merchantApplicationStatusUrl"))?;
+        let resp = self.post_channel(&url, serde_json::json!({
+            "id": id,
+            "applymentId": entity.applyment_id,
+            "businessCode": entity.business_code,
+            "payChannel": entity.pay_channel
+        })).await?;
+        let status = resp.get("status").and_then(|v| v.as_str()).unwrap_or(&entity.status).to_string();
+        let sub_mch = resp.get("subMchId").and_then(|v| v.as_str()).unwrap_or("");
+        let sign_url = resp.get("signUrl").and_then(|v| v.as_str()).unwrap_or("");
+        let now = now_datetime();
+        sqlx::query("UPDATE merchant_application SET status=?,sub_mch_id=?,sign_url=?,modify_time=? WHERE id=?")
+            .bind(&status).bind(sub_mch).bind(sign_url).bind(&now).bind(id)
+            .execute(&self.repos.pool).await.map_err(|e| Error::Database(e.to_string()))?;
+        Ok(())
     }
 
     // ————————————————————— 提交（校验完整，渠道未迁移） —————————————————————
+
+    async fn submit_to_channel(
+        &self,
+        param: &MerchantApplicationSubmitParam,
+        applicant: ApplicantContext,
+        shop_id: i64,
+        viewer: MerchantApplicationViewer,
+    ) -> Result<MerchantApplicationVO> {
+        let url = self
+            .config_value("merchantApplicationSubmitUrl")
+            .await?
+            .ok_or_else(|| Error::biz(1001, "进件渠道未配置：merchantApplicationSubmitUrl"))?;
+        let channel = resolve_channel(param.pay_channel.as_deref()).map_err(Error::biz_msg)?;
+        let snapshot = serde_json::to_string(param).unwrap_or_default();
+        let resp = self
+            .post_channel(
+                &url,
+                serde_json::json!({
+                    "shopId": shop_id,
+                    "applicantType": applicant.type_,
+                    "applicantId": applicant.id,
+                    "payChannel": channel,
+                    "request": param
+                }),
+            )
+            .await?;
+        let applyment_id = resp.get("applymentId").and_then(|v| v.as_str()).unwrap_or("");
+        let status = resp.get("status").and_then(|v| v.as_str()).unwrap_or("SUBMITTED");
+        let now = now_datetime();
+        let business_code = format!(
+            "APP{}{:06}",
+            chrono::Utc::now().timestamp(),
+            chrono::Utc::now().timestamp_subsec_micros() % 1_000_000
+        );
+        let r = sqlx::query(
+            "INSERT INTO merchant_application(shop_id,applicant_type,applicant_id,applicant_name,pay_channel,business_code,applyment_id,organization_type,merchant_name,contact_name,contact_phone,status,reject_reason,audit_admin_id,request_snapshot,is_del,create_time,modify_time,abandoned,submission_attempted) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'',0,?,0,?,?,0,1)",
+        )
+        .bind(shop_id)
+        .bind(applicant.type_)
+        .bind(applicant.id)
+        .bind(param.merchant_name.as_deref().unwrap_or(""))
+        .bind(channel)
+        .bind(&business_code)
+        .bind(applyment_id)
+        .bind(param.organization_type.as_deref().unwrap_or(""))
+        .bind(param.merchant_name.as_deref().unwrap_or(""))
+        .bind(param.contact_name.as_deref().unwrap_or(""))
+        .bind(param.contact_phone.as_deref().unwrap_or(""))
+        .bind(status)
+        .bind(&snapshot)
+        .bind(&now)
+        .bind(&now)
+        .execute(&self.repos.pool)
+        .await
+        .map_err(|e| Error::Database(e.to_string()))?;
+        let id = i64::from(i32::try_from(r.last_insert_id()).unwrap_or(0));
+        self.detail(id, viewer)
+            .await?
+            .ok_or_else(|| Error::biz(500, "进件申请保存后读取失败"))
+    }
 
     /// 平台直接提交进件（Java `submit`）。
     pub async fn submit(
@@ -241,8 +361,10 @@ impl MerchantApplicationService {
         }
         validate_store_url(param)?;
         validate_media_values(param)?;
-        // 渠道未迁移：不落库、不提交
-        Err(Error::biz_msg(MSG_CHANNEL_UNMIGRATED))
+        let shop_id = param.shop_id.unwrap_or(0);
+        let applicant = resolve_applicant(Some(i32::try_from(shop_id).unwrap_or(0)))?;
+        let viewer = MerchantApplicationViewer { platform_admin: true, shop_id: Some(i32::try_from(shop_id).unwrap_or(0)) };
+        self.submit_to_channel(param, applicant, shop_id, viewer).await
     }
 
     /// 店铺/供应商端提交进件申请（Java `apply`）。
@@ -257,7 +379,9 @@ impl MerchantApplicationService {
             validate_licensed_application(param)?;
         }
         validate_store_url(param)?;
-        Err(Error::biz_msg(MSG_CHANNEL_UNMIGRATED))
+        let applicant = resolve_applicant(viewer.shop_id)?;
+        let shop_id = i64::from(applicant.id);
+        self.submit_to_channel(param, applicant, shop_id, viewer).await
     }
 
     // ————————————————————— 媒体（未迁移，校验复刻） —————————————————————
