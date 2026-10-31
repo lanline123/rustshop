@@ -201,7 +201,7 @@ interface SettingFieldDef {
     | 'radio' | 'switch' | 'select' | 'input' | 'textarea' | 'number' | 'slider'
     | 'color' | 'picList' | 'pic' | 'link' | 'linkList'
     | 'category' | 'categoryMulti' | 'products' | 'productIds' | 'groupon'
-    | 'title' | 'container' | 'hotarea' | 'groupList';
+    | 'title' | 'container' | 'hotarea' | 'groupList' | 'heroCards';
   key: string;
   label: string;
   hint?: string;
@@ -211,6 +211,12 @@ interface SettingFieldDef {
   numberMin?: number;
   numberMax?: number;
   numberStep?: number;
+  /** container 字段的子结构类型 */
+  containerType?: 'frame' | 'buyBtn' | 'productColor' | 'groupTitle' | 'moduleStyle' | 'contentStyle';
+  /** title 字段是否隐藏对齐选项（原版 hide-title-align） */
+  titleHideAlign?: boolean;
+  /** 字段写入后的附加行为（如切换拼团类型时清空活动） */
+  onChangeExtra?: (moduleData: Record<string, any>, newValue: unknown) => Record<string, any>;
   showIf?: (m: Record<string, any>) => boolean;
 }
 
@@ -257,12 +263,14 @@ const containerFields = (opts: { showInnerPadding?: boolean } = {}): SettingFiel
     : []),
 ];
 
-const titleFields = (opts: { moreType?: boolean; verticalPadding?: boolean } = {}): SettingFieldDef[] => [
+const titleFields = (opts: { moreType?: boolean; verticalPadding?: boolean; hideAlign?: boolean } = {}): SettingFieldDef[] => [
   { kind: 'switch', key: 'title.showTitle', label: '显示标题' },
-  { kind: 'radio', key: 'title.titleStyle', label: '标题栏风格', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }], showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 },
+  { kind: 'radio', key: 'title.titleStyle', label: '标题栏风格', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }, { label: '样式三', value: 3 }], showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 },
+  { kind: 'radio', key: 'title.titleAlign', label: '标题位置', options: [{ label: '居左', value: 1 }, { label: '居中', value: 2 }, { label: '居右', value: 3 }], showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 && !opts.hideAlign },
   { kind: 'input', key: 'title.titleText', label: '标题内容', showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 },
   { kind: 'color', key: 'title.titleColor', label: '标题颜色', showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 },
   { kind: 'color', key: 'title.titleBackground', label: '标题背景色', showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 },
+  { kind: 'slider', key: 'title.titleRadius', label: '标题圆角', max: 30, showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 },
   { kind: 'input', key: 'title.descText', label: '描述内容', showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 },
   { kind: 'color', key: 'title.descColor', label: '描述颜色', showIf: (m) => Number(getPath(m, 'title.showTitle')) === 1 },
   ...(opts.moreType
@@ -353,6 +361,8 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       { kind: 'color', key: 'backgroundColor', label: '背景颜色' },
       { kind: 'slider', key: 'imgPadding', label: '元素边距', max: 30 },
       { kind: 'radio', key: 'radioStyle', label: '图片边角', options: [{ label: '直角', value: 1 }, { label: '圆角', value: 2 }], showIf: (m) => Number(m.navStyle) === 2 },
+      { kind: 'radio', key: 'picPageType', label: '指示器样式', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }], showIf: (m) => Number(m.navType) === 2 },
+      { kind: 'color', key: 'swiperPageColor', label: '指示器颜色', showIf: (m) => Number(m.navType) === 2 },
       { kind: 'title', key: 'title', label: '标题设置' },
       ...containerFields(),
     ],
@@ -508,13 +518,21 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       { kind: 'slider', key: 'cardPadding', label: '商品内部边距', max: 10 },
       { kind: 'slider', key: 'cardRadius', label: '商品圆角半径', max: 20 },
       { kind: 'switch', key: 'showProductName', label: '商品标题' },
+      { kind: 'radio', key: 'productNameRow', label: '标题行数', options: [{ label: '1 行', value: 1 }, { label: '2 行', value: 2 }], showIf: (m) => Number(m.showProductName) === 1 },
+      { kind: 'radio', key: 'productNameWeight', label: '标题粗细', options: [{ label: '常规', value: 400 }, { label: '加粗', value: 700 }], showIf: (m) => Number(m.showProductName) === 1 },
+      { kind: 'slider', key: 'productNameSize', label: '标题大小', min: 12, max: 16, showIf: (m) => Number(m.showProductName) === 1 },
       { kind: 'switch', key: 'showProductPrice', label: '商品价格' },
+      { kind: 'slider', key: 'productPriceMarginTop', label: '价格上间距', max: 30, showIf: (m) => Number(m.showProductPrice) === 1 },
+      { kind: 'radio', key: 'productPriceWeight', label: '价格粗细', options: [{ label: '常规', value: 400 }, { label: '加粗', value: 700 }], showIf: (m) => Number(m.showProductPrice) === 1 },
+      { kind: 'slider', key: 'productPriceSize', label: '价格大小', min: 12, max: 40, showIf: (m) => Number(m.showProductPrice) === 1 },
       { kind: 'switch', key: 'crossedOutPrice', label: '划线价' },
       { kind: 'switch', key: 'showSales', label: '已售' },
       { kind: 'switch', key: 'showShopTag', label: '商品店铺' },
-      { kind: 'slider', key: 'moduleStyle.boxPaddingTop', label: '容器上边距', max: 30 },
-      { kind: 'slider', key: 'moduleStyle.boxPaddingBottom', label: '容器下边距', max: 30 },
-      { kind: 'color', key: 'moduleStyle.backgroundColor', label: '容器背景色' },
+      { kind: 'container', key: 'buyBtnStyle', label: '购买按钮', containerType: 'buyBtn' },
+      { kind: 'container', key: 'productColor', label: '商品颜色', containerType: 'productColor' },
+      { kind: 'container', key: 'groupTitle', label: '分组标题', containerType: 'groupTitle' },
+      { kind: 'container', key: 'moduleStyle', label: '模块样式', containerType: 'moduleStyle' },
+      { kind: 'container', key: 'contentStyle', label: '内容样式', containerType: 'contentStyle' },
     ],
     summary: (m) => `${((m.productGroups || []) as Array<Record<string, any>>).length} 组 · 样式${m.listStyle}`,
   },
@@ -578,14 +596,17 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
     }),
     settings: [
       { kind: 'radio', key: 'style', label: '选择模板', options: [{ label: '一行四个', value: 2 }, { label: '一行五个', value: 3 }, { label: '一行六个', value: 4 }, { label: '横向滑动', value: 6 }] },
-      { kind: 'radio', key: 'groupType', label: '拼团类型', options: [{ label: '普通拼团', value: 1 }, { label: '阶梯拼团', value: 2 }] },
+      {
+        kind: 'radio', key: 'groupType', label: '拼团类型', options: [{ label: '普通拼团', value: 1 }, { label: '阶梯拼团', value: 2 }],
+        onChangeExtra: (m) => ({ ...m, grouponActivityItem: null }), // 原版：切换类型清空已选活动
+      },
       { kind: 'groupon', key: 'grouponActivityItem', label: '拼团活动' },
       { kind: 'radio', key: 'cardStyle', label: '商品卡片样式', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }] },
       { kind: 'radio', key: 'textAlign', label: '文本对齐', options: [{ label: '左对齐', value: 1 }, { label: '居中对齐', value: 2 }] },
       { kind: 'switch', key: 'showName', label: '显示商品名称' },
       { kind: 'switch', key: 'showPrice', label: '显示商品价格' },
       { kind: 'slider', key: 'goodsPadding', label: '商品边距', max: 50 },
-      { kind: 'title', key: 'title', label: '标题设置' },
+      { kind: 'title', key: 'title', label: '标题设置', titleHideAlign: true },
       { kind: 'color', key: 'backgroundColor', label: '背景颜色' },
       { kind: 'slider', key: 'boxRadius', label: '圆角', max: 30 },
       { kind: 'slider', key: 'innerPadding', label: '内边距', max: 30 },
@@ -640,19 +661,32 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
     settings: [
       { kind: 'color', key: 'left.backgroundColor', label: '左侧分类背景' },
       { kind: 'color', key: 'left.textColor', label: '左侧分类文字色' },
+      { kind: 'number', key: 'left.showCount', label: '分类显示条数', min: 1, max: 20 },
       { kind: 'picList', key: 'center.banners', label: '中间轮播图' },
+      { kind: 'heroCards', key: 'center.modules', label: '频道卡位(6个)' },
       { kind: 'input', key: 'right.user.nickname', label: '未登录欢迎语' },
+      { kind: 'input', key: 'right.user.welcomeText', label: '未登录提示语' },
       { kind: 'switch', key: 'right.premiumMember.show', label: '显示付费会员卡' },
+      { kind: 'input', key: 'right.premiumMember.title', label: '会员卡标题', showIf: (m) => m.right?.premiumMember?.show === true },
+      { kind: 'input', key: 'right.premiumMember.description', label: '会员卡描述', showIf: (m) => m.right?.premiumMember?.show === true },
+      { kind: 'link', key: 'right.premiumMember.link', label: '会员卡链接', showIf: (m) => m.right?.premiumMember?.show === true },
       { kind: 'input', key: 'right.shopsTitle', label: '店铺街标题' },
       { kind: 'input', key: 'right.shopsSubTitle', label: '店铺街角标文字' },
       { kind: 'color', key: 'right.shopsSubTitleBg', label: '角标背景色' },
       { kind: 'picList', key: 'right.shortcuts', label: '快捷入口(≤4)' },
       { kind: 'input', key: 'right.shopsMoreText', label: '查看全部文字' },
+      { kind: 'link', key: 'right.shopsMoreLink', label: '查看全部链接' },
       { kind: 'color', key: 'right.shopsTextColor', label: '店铺街文字色' },
       { kind: 'number', key: 'style.height', label: '整体高度', min: 200, max: 600 },
       { kind: 'slider', key: 'style.panelRadius', label: '面板圆角', max: 30 },
       { kind: 'color', key: 'style.panelBackgroundColor', label: '面板背景色' },
       { kind: 'slider', key: 'style.gap', label: '列间距', max: 30 },
+      { kind: 'slider', key: 'style.titleFontSize', label: '标题字号', min: 12, max: 20 },
+      { kind: 'color', key: 'style.titleColor', label: '标题颜色' },
+      { kind: 'color', key: 'style.mutedColor', label: '弱化文字色' },
+      { kind: 'color', key: 'style.priceColor', label: '价格颜色' },
+      { kind: 'slider', key: 'style.bannerRadius', label: '轮播圆角', max: 30 },
+      { kind: 'slider', key: 'style.cardRadius', label: '卡片圆角', max: 30 },
     ],
     summary: (m) => `三列通栏 · ${((m.center?.banners || []) as PicItem[]).length} 轮播`,
   },
@@ -685,7 +719,7 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       { kind: 'radio', key: 'title.titleAlign', label: '标题位置', options: [{ label: '居左', value: 1 }, { label: '居中', value: 2 }] },
       { kind: 'color', key: 'title.titleBackground', label: '标题背景色' },
       { kind: 'slider', key: 'title.titleRadius', label: '标题圆角', max: 30 },
-      { kind: 'input', key: 'title.titleText', label: '标题内容' },
+      { kind: 'input', key: 'title.titleText', label: '标题内容', onChangeExtra: (m) => setPath(m, 'title.showTitle', 1) },
       { kind: 'color', key: 'title.titleColor', label: '标题颜色' },
       { kind: 'input', key: 'title.descText', label: '描述内容' },
       { kind: 'color', key: 'title.descColor', label: '描述颜色' },
@@ -1966,6 +2000,53 @@ function PicListEditor({ value, onChange }: { value: PicItem[]; onChange: (next:
   );
 }
 
+/** 命名容器（非 frame）的字段集：pc-product-group 的扩展设置 */
+const CONTAINER_VARIANTS: Record<string, SettingFieldDef[]> = {
+  buyBtn: [
+    { kind: 'switch', key: 'showBtn', label: '显示按钮' },
+    { kind: 'radio', key: 'btnType', label: '按钮样式', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }], showIf: (m) => Number(m.showBtn) === 1 },
+    { kind: 'input', key: 'text', label: '按钮文字', showIf: (m) => Number(m.showBtn) === 1 },
+    { kind: 'color', key: 'textColor', label: '文字颜色', showIf: (m) => Number(m.showBtn) === 1 },
+    { kind: 'color', key: 'iconColor', label: '图标颜色', showIf: (m) => Number(m.showBtn) === 1 },
+    { kind: 'slider', key: 'paddingLeftRight', label: '左右内边距', max: 10, showIf: (m) => Number(m.showBtn) === 1 },
+  ],
+  productColor: [
+    { kind: 'slider', key: 'infoLeftRightPadding', label: '信息区左右内边距', max: 30 },
+    { kind: 'color', key: 'backgroundColor', label: '背景颜色' },
+    { kind: 'color', key: 'titleColor', label: '标题颜色' },
+    { kind: 'color', key: 'priceColor', label: '价格颜色' },
+    { kind: 'color', key: 'crossedOutPriceColor', label: '划线价颜色' },
+  ],
+  groupTitle: [
+    { kind: 'slider', key: 'marginLeftRight', label: '左右间距', max: 30 },
+    { kind: 'switch', key: 'showTitle', label: '显示分组标题' },
+    { kind: 'select', key: 'bigTitleFontSize', label: '标题大小', options: [{ label: '14', value: 14 }, { label: '16', value: 16 }, { label: '18', value: 18 }], showIf: (m) => Number(m.showTitle) === 1 },
+    { kind: 'color', key: 'titleColor', label: '默认颜色', showIf: (m) => Number(m.showTitle) === 1 },
+    { kind: 'color', key: 'activeTitleColor', label: '选中颜色', showIf: (m) => Number(m.showTitle) === 1 },
+    { kind: 'color', key: 'activeTitleBgColor', label: '选中背景色', showIf: (m) => Number(m.showTitle) === 1 },
+    { kind: 'slider', key: 'titleMinWidth', label: '标题最小宽度', min: 0, max: 200, showIf: (m) => Number(m.showTitle) === 1 },
+    { kind: 'slider', key: 'titlePaddingTopBottom', label: '上下内边距', max: 30, showIf: (m) => Number(m.showTitle) === 1 },
+    { kind: 'slider', key: 'titlePaddingLeftRight', label: '左右内边距', max: 30, showIf: (m) => Number(m.showTitle) === 1 },
+    { kind: 'slider', key: 'titleRadius', label: '圆角', max: 30, showIf: (m) => Number(m.showTitle) === 1 },
+    { kind: 'color', key: 'splitLineColor', label: '分割线颜色', showIf: (m) => Number(m.showTitle) === 1 },
+  ],
+  moduleStyle: [
+    { kind: 'slider', key: 'boxPaddingTop', label: '上边距', max: 30 },
+    { kind: 'slider', key: 'boxPaddingBottom', label: '下边距', max: 30 },
+    { kind: 'slider', key: 'boxPadding', label: '左右边距', max: 30 },
+    { kind: 'color', key: 'backgroundColor', label: '背景颜色' },
+  ],
+  contentStyle: [
+    { kind: 'slider', key: 'paddingTop', label: '上内边距', max: 30 },
+    { kind: 'slider', key: 'paddingBottom', label: '下内边距', max: 30 },
+    { kind: 'slider', key: 'paddingLeftRight', label: '左右内边距', max: 30 },
+    { kind: 'slider', key: 'boxRadius', label: '圆角', max: 30 },
+    { kind: 'color', key: 'backgroundColor', label: '背景颜色' },
+    { kind: 'input', key: 'backgroundPic.picUrl', label: '背景图 URL' },
+    { kind: 'switch', key: 'boxShadow', label: '阴影' },
+  ],
+};
+
 function FieldControl({
   field,
   moduleData,
@@ -1980,7 +2061,11 @@ function FieldControl({
   const [grouponVisible, setGrouponVisible] = useState(false);
   const value = getPath(moduleData, field.key);
 
-  const set = (v: unknown) => onChange(setPath(moduleData, field.key, v));
+  const set = (v: unknown) => {
+    let next = setPath(moduleData, field.key, v);
+    if (field.onChangeExtra) next = field.onChangeExtra(next, v);
+    onChange(next);
+  };
 
   switch (field.kind) {
     case 'radio':
@@ -2176,7 +2261,7 @@ function FieldControl({
       return (
         <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
           <Text strong size="small">{field.label}</Text>
-          {titleFields({ moreType: true, verticalPadding: Object.prototype.hasOwnProperty.call(titleData, 'titlePaddingTop') }).map((f) => {
+          {titleFields({ moreType: true, verticalPadding: Object.prototype.hasOwnProperty.call(titleData, 'titlePaddingTop'), hideAlign: field.titleHideAlign }).map((f) => {
             if (f.showIf && !f.showIf({ title: titleData })) return null;
             return (
               <div key={f.key}>
@@ -2189,10 +2274,27 @@ function FieldControl({
       );
     }
     case 'container': {
+      if (field.containerType && field.containerType !== 'frame') {
+        const group = (value && typeof value === 'object' ? value : {}) as Record<string, any>;
+        return (
+          <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <Text strong size="small">{field.label}</Text>
+            {(CONTAINER_VARIANTS[field.containerType] || []).map((f) => {
+              if (f.showIf && !f.showIf(group)) return null;
+              return (
+                <div key={f.key}>
+                  <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>{f.label}</Text>
+                  <FieldControl field={f} moduleData={group} onChange={(next) => set(next)} />
+                </div>
+              );
+            })}
+          </div>
+        );
+      }
       const frame = (getPath(moduleData, field.key) && typeof getPath(moduleData, field.key) === 'object' ? getPath(moduleData, field.key) : standardFrame()) as Record<string, any>;
       return (
         <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <Text strong size="small">容器设置</Text>
+          <Text strong size="small">{field.label || '容器设置'}</Text>
           {containerFields().map((f) => (
             <div key={f.key}>
               <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>{f.label}</Text>
@@ -2202,28 +2304,136 @@ function FieldControl({
         </div>
       );
     }
+    case 'heroCards': {
+      const cards = (Array.isArray(value) ? value : []) as Array<Record<string, any>>;
+      const updateCard = (index: number, updater: (c: Record<string, any>) => Record<string, any>) => {
+        set(cards.map((c, i) => (i === index ? updater(c) : c)));
+      };
+      const labelColors = (prefix: string, label: string) => [
+        { kind: 'color' as const, key: `${prefix}BgColorA`, label: `${label}色A` },
+        { kind: 'color' as const, key: `${prefix}BgColorB`, label: `${label}色B` },
+      ];
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {cards.map((card, ci) => (
+            <div key={ci} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Tag size="small" color="blue">卡位 {ci + 1}</Tag>
+                <Input
+                  value={card.moduleTitle || ''}
+                  onChange={(v) => updateCard(ci, (c) => ({ ...c, moduleTitle: v }))}
+                  placeholder="卡片标题"
+                  size="small"
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <Input value={card.moduleSubTitle || ''} onChange={(v) => updateCard(ci, (c) => ({ ...c, moduleSubTitle: v }))} placeholder="子标题" size="small" />
+                <input
+                  type="color"
+                  value={card.moduleSubTitleBgColorA || '#ff4e4e'}
+                  onChange={(e) => updateCard(ci, (c) => ({ ...c, moduleSubTitleBgColorA: e.target.value }))}
+                  style={{ width: 34, height: 28, border: '1px solid var(--semi-color-border)', borderRadius: 4, cursor: 'pointer' }}
+                  title="子标题背景色A"
+                />
+                <input
+                  type="color"
+                  value={card.moduleSubTitleBgColorB || '#e1251b'}
+                  onChange={(e) => updateCard(ci, (c) => ({ ...c, moduleSubTitleBgColorB: e.target.value }))}
+                  style={{ width: 34, height: 28, border: '1px solid var(--semi-color-border)', borderRadius: 4, cursor: 'pointer' }}
+                  title="子标题背景色B"
+                />
+                <Select
+                  value={card.moduleSubTitleBgType || 'leftRight'}
+                  optionList={[{ label: '左右渐变', value: 'leftRight' }, { label: '上下渐变', value: 'upDown' }, { label: '对角渐变', value: 'diagonal' }]}
+                  style={{ width: 110 }}
+                  onChange={(v) => updateCard(ci, (c) => ({ ...c, moduleSubTitleBgType: v }))}
+                />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Text type="tertiary" size="small">显示价格</Text>
+                <Switch checked={Number(card.showPrice) === 1} onChange={(v) => updateCard(ci, (c) => ({ ...c, showPrice: v ? 1 : 0 }))} />
+                <Input
+                  value={card.link?.link || ''}
+                  onChange={(v) => updateCard(ci, (c) => ({ ...c, link: { ...c.link, link: v, name: c.link?.name || '' } }))}
+                  placeholder="跳转链接(可选)"
+                  size="small"
+                  style={{ flex: 1 }}
+                />
+              </div>
+              {((card.products || []) as Array<Record<string, any>>).map((p, pi) => (
+                <div key={pi} style={{ borderTop: '1px dashed var(--semi-color-border)', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <Text type="tertiary" size="small">商品槽 {pi + 1}</Text>
+                  <Input
+                    value={p.pic?.picUrl || ''}
+                    onChange={(v) => updateCard(ci, (c) => ({
+                      ...c,
+                      products: (c.products || []).map((x: any, xi: number) => (xi === pi ? { ...x, pic: { ...(x.pic || {}), picUrl: v, picThumb: v } } : x)),
+                    }))}
+                    placeholder="商品图 URL"
+                    size="small"
+                  />
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <Input value={p.price || ''} onChange={(v) => updateCard(ci, (c) => ({ ...c, products: (c.products || []).map((x: any, xi: number) => (xi === pi ? { ...x, price: v } : x)) }))} placeholder="价格如 ¥88.8" size="small" />
+                    <Input value={p.label || ''} onChange={(v) => updateCard(ci, (c) => ({ ...c, products: (c.products || []).map((x: any, xi: number) => (xi === pi ? { ...x, label: v } : x)) }))} placeholder="角标文字(可选)" size="small" />
+                  </div>
+                  {p.label ? (
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      {labelColors('label', '角标').map((lc) => (
+                        <input
+                          key={lc.key}
+                          type="color"
+                          value={String((p as Record<string, any>)[lc.key.replace('label', 'label')] || '#ff9000')}
+                          onChange={(e) => updateCard(ci, (c) => ({
+                            ...c,
+                            products: (c.products || []).map((x: any, xi: number) => (xi === pi ? { ...x, [lc.key]: e.target.value } : x)),
+                          }))}
+                          style={{ width: 34, height: 26, border: '1px solid var(--semi-color-border)', borderRadius: 4, cursor: 'pointer' }}
+                          title={lc.label}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      );
+    }
     case 'hotarea': {
       const pics = (getPath(moduleData, 'picList') || []) as Array<PicItem & { hotarea?: Array<Record<string, any>> }>;
-      const hotareas = (pics[0]?.hotarea || []) as Array<Record<string, any>>;
-      const updateHotareas = (next: Array<Record<string, any>>) => {
-        const nextPics = pics.map((p, i) => (i === 0 ? { ...p, hotarea: next } : p));
+      const updatePics = (nextPics: Array<PicItem & { hotarea?: Array<Record<string, any>> }>) => {
         onChange(setPath(moduleData, 'picList', nextPics));
       };
       return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {hotareas.map((h, index) => (
-            <div key={index} style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
-              <InputNumber value={h.width} onChange={(v) => updateHotareas(hotareas.map((x, i) => (i === index ? { ...x, width: v ?? 0 } : x)))} placeholder="宽" style={{ width: 70 }} />
-              <InputNumber value={h.height} onChange={(v) => updateHotareas(hotareas.map((x, i) => (i === index ? { ...x, height: v ?? 0 } : x)))} placeholder="高" style={{ width: 70 }} />
-              <InputNumber value={h.top} onChange={(v) => updateHotareas(hotareas.map((x, i) => (i === index ? { ...x, top: v ?? 0 } : x)))} placeholder="上" style={{ width: 70 }} />
-              <InputNumber value={h.left} onChange={(v) => updateHotareas(hotareas.map((x, i) => (i === index ? { ...x, left: v ?? 0 } : x)))} placeholder="左" style={{ width: 70 }} />
-              <Input value={h.link?.link || ''} onChange={(v) => updateHotareas(hotareas.map((x, i) => (i === index ? { ...x, link: { ...x.link, link: v } } : x)))} placeholder="链接" style={{ flex: 1, minWidth: 120 }} />
-              <Button size="small" theme="borderless" type="danger" icon={<IconClose />} onClick={() => updateHotareas(hotareas.filter((_, i) => i !== index))} />
-            </div>
-          ))}
-          <Button size="small" icon={<IconPlus />} onClick={() => updateHotareas([...hotareas, { width: 100, height: 60, top: 0, left: 0, link: { link: '', name: '' } }])}>
-            添加热区
-          </Button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {pics.length === 0 && <Text type="tertiary" size="small">请先在上方添加热图</Text>}
+          {pics.map((pic, pi) => {
+            const hotareas = pic.hotarea || [];
+            const updateHotareas = (next: Array<Record<string, any>>) => {
+              updatePics(pics.map((p, i) => (i === pi ? { ...p, hotarea: next } : p)));
+            };
+            return (
+              <div key={pi} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 8 }}>
+                <Text strong size="small">图 {pi + 1} 的热区</Text>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+                  {hotareas.map((h, index) => (
+                    <div key={index} style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <InputNumber value={h.width} onChange={(v) => updateHotareas(hotareas.map((x, i) => (i === index ? { ...x, width: v ?? 0 } : x)))} placeholder="宽" style={{ width: 70 }} />
+                      <InputNumber value={h.height} onChange={(v) => updateHotareas(hotareas.map((x, i) => (i === index ? { ...x, height: v ?? 0 } : x)))} placeholder="高" style={{ width: 70 }} />
+                      <InputNumber value={h.top} onChange={(v) => updateHotareas(hotareas.map((x, i) => (i === index ? { ...x, top: v ?? 0 } : x)))} placeholder="上" style={{ width: 70 }} />
+                      <InputNumber value={h.left} onChange={(v) => updateHotareas(hotareas.map((x, i) => (i === index ? { ...x, left: v ?? 0 } : x)))} placeholder="左" style={{ width: 70 }} />
+                      <Input value={h.link?.link || ''} onChange={(v) => updateHotareas(hotareas.map((x, i) => (i === index ? { ...x, link: { ...x.link, link: v } } : x)))} placeholder="链接" style={{ flex: 1, minWidth: 100 }} />
+                      <Button size="small" theme="borderless" type="danger" icon={<IconClose />} onClick={() => updateHotareas(hotareas.filter((_, i) => i !== index))} />
+                    </div>
+                  ))}
+                  <Button size="small" icon={<IconPlus />} onClick={() => updateHotareas([...hotareas, { width: 100, height: 60, top: 0, left: 0, link: { link: '', name: '' } }])}>
+                    添加热区
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       );
     }
