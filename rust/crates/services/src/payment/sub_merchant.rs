@@ -83,9 +83,88 @@ impl SubMerchantService {
 
     /// 手动绑定子商户（Java `bind`）：本地校验后渠道未迁移。
     pub async fn bind(&self, param: &SubMerchantBindParam) -> Result<()> {
-        let _input = param.validate().map_err(Error::Validation)?;
-        // Java `assertSubMerchantOwned(channel, subMchId)` 调微信服务商 API
-        Err(Error::biz_msg(MSG_CHANNEL_UNMIGRATED))
+        let input = param.validate().map_err(Error::Validation)?;
+        self.assert_owned(&input.pay_channel, &input.sub_mch_id).await?;
+        let existing: Option<(i64, i32)> = sqlx::query_as(
+            "SELECT id,status FROM sub_merchant WHERE shop_id=? AND pay_channel=? AND is_del=0 LIMIT 1",
+        )
+        .bind(input.shop_id)
+        .bind(&input.pay_channel)
+        .fetch_optional(&self.repos.pool)
+        .await
+        .map_err(|e| Error::Database(e.to_string()))?;
+        let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        if let Some((id, status)) = existing {
+            if status == 1 {
+                return Err(Error::biz(1001, "该店铺已绑定此支付渠道的子商户"));
+            }
+            sqlx::query(
+                "UPDATE sub_merchant SET sub_mch_id=?,sub_appid=?,merchant_name=?,status=1,modify_time=? WHERE id=?",
+            )
+            .bind(&input.sub_mch_id)
+            .bind(input.sub_appid.as_deref().unwrap_or(""))
+            .bind(input.merchant_name.as_deref().unwrap_or(""))
+            .bind(&now)
+            .bind(id)
+            .execute(&self.repos.pool)
+            .await
+            .map_err(|e| Error::Database(e.to_string()))?;
+        } else {
+            sqlx::query(
+                "INSERT INTO sub_merchant(shop_id,pay_channel,sub_mch_id,sub_appid,merchant_name,status,application_id,is_del,create_time,modify_time) VALUES(?,?,?,?,?,1,0,0,?,?)",
+            )
+            .bind(input.shop_id)
+            .bind(&input.pay_channel)
+            .bind(&input.sub_mch_id)
+            .bind(input.sub_appid.as_deref().unwrap_or(""))
+            .bind(input.merchant_name.as_deref().unwrap_or(""))
+            .bind(&now)
+            .bind(&now)
+            .execute(&self.repos.pool)
+            .await
+            .map_err(|e| Error::Database(e.to_string()))?;
+        }
+        Ok(())
+    }
+
+    /// 渠道归属校验：配置了校验地址才调用，未配置按 Java「无法判定放行」处理。
+    async fn assert_owned(&self, channel: &str, sub_mch_id: &str) -> Result<()> {
+        let url: Option<String> = sqlx::query_scalar(
+            "SELECT biz_val FROM config WHERE biz_code=? LIMIT 1",
+        )
+        .bind("wechatSubMerchantCheckUrl")
+        .fetch_optional(&self.repos.pool)
+        .await
+        .map_err(|e| Error::Database(e.to_string()))?;
+        let Some(url) = url.filter(|v| !v.trim().is_empty()) else {
+            tracing::warn!(channel, sub_mch_id, "未配置子商户归属校验地址，按 Java 规则放行");
+            return Ok(());
+        };
+        let key: Option<String> = sqlx::query_scalar(
+            "SELECT biz_val FROM config WHERE biz_code=? LIMIT 1",
+        )
+        .bind("wechatSubMerchantCheckKey")
+        .fetch_optional(&self.repos.pool)
+        .await
+        .map_err(|e| Error::Database(e.to_string()))?;
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+            .map_err(|e| Error::Internal(e.to_string()))?;
+        let mut req = client
+            .post(url.trim())
+            .header("Content-Type", "application/json")
+            .body(serde_json::json!({"subMchId": sub_mch_id, "channel": channel}).to_string());
+        if let Some(k) = key.filter(|v| !v.trim().is_empty()) {
+            req = req.header("Authorization", format!("Bearer {}", k.trim()));
+        }
+        let resp = req.send().await
+            .map_err(|e| Error::biz(1001, format!("子商户归属校验网络异常: {e}")))?;
+        let json: serde_json::Value = resp.json().await.unwrap_or(serde_json::Value::Null);
+        if json.get("owned").and_then(serde_json::Value::as_bool) == Some(false) {
+            return Err(Error::biz(1001, format!("子商户号[{sub_mch_id}]不在当前服务商名下，请核对后重试或改走系统进件")));
+        }
+        Ok(())
     }
 
     /// 解绑子商户（Java `unbind`：status=FROZEN + modify_time）。

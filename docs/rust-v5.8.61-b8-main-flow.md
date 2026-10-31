@@ -670,3 +670,27 @@ Apple 商户证书/私钥
 ```
 
 UMS 异步通知：按 paySn/tradeNo 入账并推进订单。
+
+## 2026-10-31 补充：子商户手动绑定
+
+`SubMerchantService::bind` 现在：
+
+```text
+1. 校验 shopId/subMchId
+2. 可选渠道归属校验
+   - 配置 wechatSubMerchantCheckUrl 才调用
+   - POST {subMchId, channel}
+   - owned=false -> 拒绝
+   - 未配置 -> 按 Java「无法判定放行」
+3. 同店同渠道已 ACTIVE -> 拒绝
+4. 存在 INACTIVE -> 更新为 ACTIVE
+5. 不存在 -> 插入 ACTIVE
+```
+
+真实联调依赖：
+
+```text
+wechatSubMerchantCheckUrl
+wechatSubMerchantCheckKey
+微信服务商子商户关系查询
+```
