@@ -333,24 +333,108 @@
 }
 
 /* ============ PC 装修编辑器（PcDecorateEditor） ============ */
-.pc-decorate-lib-item {
+/* iconfont-admin：与原版 global.css 一致的 alicdn 远程图标字体 */
+@import url("https://at.alicdn.com/t/c/font_2712500_jd8i8ai7b8k.css");
+@import url("https://at.alicdn.com/t/c/font_400590_7he137t8862.css");
+
+.iconfont-admin {
+  font-family: "iconfont-admin" !important;
+  font-size: 16px;
+  font-style: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 左侧模块库：对齐原版 ModuleToolbar + decorate.css（295px 面板 / 单折叠分组 / 图标卡片网格） */
+.pc-decorate-lib {
+  width: 295px;
+  background: #fff;
+  border-right: 1px solid #f0f2f5;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+.pc-decorate-lib__inside {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #333;
+  padding: 0 8px 0 0;
+}
+.pc-decorate-lib__head {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
-  padding: 8px 10px;
-  margin-bottom: 6px;
-  border: 1px solid var(--semi-color-border);
-  border-radius: 6px;
-  font-size: 13px;
+  box-sizing: border-box;
+  width: 100%;
+  height: 30px;
+  line-height: 30px;
+  padding-left: 10px;
   cursor: pointer;
-  transition: all 0.15s;
-  background: #fff;
+  font-size: 14px;
 }
-.pc-decorate-lib-item:hover {
-  border-color: var(--semi-color-primary);
-  color: var(--semi-color-primary);
-  background: var(--semi-color-primary-light-default);
+.pc-decorate-lib__head > span:first-child {
+  color: #333;
+  font-weight: bold;
+  font-size: 14px;
+}
+.pc-decorate-lib__arrow {
+  margin-right: 10px;
+  color: #9b9b9d;
+  font-size: 12px;
+  transition: transform 0.2s;
+  display: inline-block;
+}
+.pc-decorate-lib__arrow--open {
+  transform: rotate(180deg);
+}
+.pc-decorate-lib__list {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 10px 0;
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.pc-decorate-lib__item {
+  width: 50%;
+  box-sizing: border-box;
+  padding: 10px 5px;
+  text-align: center;
+  cursor: pointer;
+  position: relative;
+  display: inline-block;
+  border-radius: 2px;
+}
+.pc-decorate-lib__item:hover {
+  background: var(--semi-color-primary);
+  color: #fff;
+}
+.pc-decorate-lib__pic {
+  display: inline-block;
+  width: 100%;
+  height: 40px;
+  overflow: hidden;
+}
+.pc-decorate-lib__pic i {
+  font-size: 36px;
+  color: #7d7e80;
+  line-height: 40px;
+}
+.pc-decorate-lib__item:hover .pc-decorate-lib__pic i {
+  color: #fff;
+}
+.pc-decorate-lib__content {
+  padding: 0 3px;
+  height: 20px;
+  line-height: 20px;
+  display: block;
+  text-align: center;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.pc-decorate-lib__item:hover .pc-decorate-lib__content {
+  color: #fff;
 }
 .pc-decorate-canvas-bar {
   padding: 12px 16px;

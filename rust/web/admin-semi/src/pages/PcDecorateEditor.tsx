@@ -786,6 +786,29 @@ const LEGACY_TYPES = new Set(LEGACY_MODULE_DEFS.map((d) => d.type));
 
 const LIB_GROUPS = ['轮播横幅', '导航分类', '图片展示', '商品', '营销活动', '辅助元素'];
 
+/** 模块库原版元数据：工具栏排序 order + iconfont 图标类（原版 index.ts 注册值） */
+const LIB_META: Record<string, { order: number; icon: string }> = {
+  'pc-banner2': { order: 1, icon: 'icon-banner' },
+  'pc-group-banner': { order: 2, icon: 'icon-banner' },
+  'pc-home-hero': { order: 4, icon: 'icon-category_nav' },
+  'pc-category-nav': { order: 4, icon: 'icon-category_nav' },
+  'pc-category-nav3': { order: 5, icon: 'icon-category_nav' },
+  'pc-home-quick-nav': { order: 6, icon: 'icon-category_nav' },
+  'pc-image-ad': { order: 10, icon: 'icon-image_nav' },
+  'pc-image-nav': { order: 11, icon: 'icon-image_nav' },
+  'pc-image-square-ad': { order: 12, icon: 'icon-image_square_ad' },
+  'pc-image-hotarea': { order: 13, icon: 'icon-image_hotarea' },
+  'pc-product': { order: 14, icon: 'icon-product' },
+  'pc-product-group': { order: 15, icon: 'icon-product_grouping' },
+  'pc-divider': { order: 60, icon: 'icon-white_line' },
+  'pc-spacer': { order: 70, icon: 'icon-white_blank' },
+  'pc-notice': { order: 72, icon: 'icon-notice' },
+  'pc-title-ad': { order: 75, icon: 'icon-title_ad' },
+  'pc-home-coupon': { order: 82, icon: 'icon-coupon' },
+  'pc-home-groupon': { order: 83, icon: 'icon-seckill' },
+  'pc-home-seckill': { order: 84, icon: 'icon-seckill' },
+};
+
 /* ===================== 编辑器组件 ===================== */
 
 interface EditorModule {
@@ -811,6 +834,7 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
   const [moduleList, setModuleList] = useState<EditorModule[]>([]);
   const [activeIndex, setActiveIndex] = useState<number>(-1);
   const [panelTab, setPanelTab] = useState<'module' | 'page' | 'pcHeader'>('module');
+  const [libOpen, setLibOpen] = useState(true);
   const dirtyRef = useRef(false);
   const decorateIdRef = useRef(decorateId);
 
@@ -968,6 +992,23 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
     Toast.success(`已添加「${def.label}」`);
   };
 
+  /** 拖拽入画布：插入到目标位置（原版 vuedraggable clone 行为） */
+  const addModuleAt = (def: ModuleDef, index: number) => {
+    const item: EditorModule = {
+      moduleIndex: Date.now(),
+      type: def.type,
+      url: 'pc',
+      label: def.label,
+      isShow: true,
+      module: def.defaults(),
+    };
+    setModuleList((prev) => [...prev.slice(0, index), item, ...prev.slice(index)]);
+    setActiveIndex(index);
+    setPanelTab('module');
+    markDirty();
+    Toast.success(`已添加「${def.label}」`);
+  };
+
   const removeModule = (index: number) => {
     setModuleList((prev) => prev.filter((_, i) => i !== index));
     if (activeIndex === index) setActiveIndex(-1);
@@ -1066,22 +1107,40 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
       </div>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-        {/* 左侧模块库（新套） */}
-        <div style={{ width: 220, background: '#fff', borderRight: '1px solid var(--semi-color-border)', overflowY: 'auto', padding: 12, flexShrink: 0 }}>
-          <Text strong style={{ display: 'block', marginBottom: 10 }}>PC首页模块</Text>
-          {LIB_GROUPS.map((group) => (
-            <div key={group} style={{ marginBottom: 14 }}>
-              <Text type="tertiary" size="small" style={{ display: 'block', margin: '6px 0' }}>{group}</Text>
-              {NEW_MODULE_DEFS.filter((d) => d.group === group && !d.hiddenInLibrary).map((def) => (
-                <Tooltip key={def.type} content={def.note || `添加「${def.label}」`} position="right">
-                  <div className="pc-decorate-lib-item" onClick={() => addModule(def)}>
-                    <span>{def.label}</span>
-                    {def.overseasOnly && <Tag size="small" color="cyan">跨境</Tag>}
-                  </div>
-                </Tooltip>
-              ))}
+        {/* 左侧模块库（对齐原版 ModuleToolbar：单折叠分组 + 图标卡片网格 + 拖拽入画布） */}
+        <div className="pc-decorate-lib">
+          <div className="pc-decorate-lib__inside">
+            <div className="pc-decorate-lib__head" onClick={() => setLibOpen((v) => !v)}>
+              <span>PC首页模块</span>
+              <span className={`pc-decorate-lib__arrow${libOpen ? ' pc-decorate-lib__arrow--open' : ''}`}>▾</span>
             </div>
-          ))}
+            {libOpen && (
+              <div className="pc-decorate-lib__list">
+                {NEW_MODULE_DEFS.filter((d) => !d.hiddenInLibrary)
+                  .slice()
+                  .sort((a, b) => (LIB_META[a.type]?.order ?? 999) - (LIB_META[b.type]?.order ?? 999))
+                  .map((def) => (
+                    <Tooltip key={def.type} content={def.note || `${def.label}（点击添加，可拖入画布指定位置）`} position="right">
+                      <div
+                        className="pc-decorate-lib__item"
+                        onClick={() => addModule(def)}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('text/pc-decorate-lib', def.type);
+                          e.dataTransfer.effectAllowed = 'copy';
+                        }}
+                      >
+                        <span className="pc-decorate-lib__pic">
+                          <i className={`iconfont-admin ${LIB_META[def.type]?.icon || 'icon-category_nav'}`} />
+                        </span>
+                        <span className="pc-decorate-lib__content" title={def.label}>{def.label}</span>
+                      </div>
+                    </Tooltip>
+                  ))}
+              </div>
+            )}
+            <div style={{ height: 50 }} />
+          </div>
         </div>
 
         {/* 中间画布 */}
@@ -1111,6 +1170,12 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => {
                     e.preventDefault();
+                    const libType = e.dataTransfer.getData('text/pc-decorate-lib');
+                    if (libType) {
+                      const def = MODULE_DEF_MAP.get(libType);
+                      if (def) addModuleAt(def, index);
+                      return;
+                    }
                     const from = Number(e.dataTransfer.getData('text/pc-decorate-index'));
                     if (!Number.isNaN(from)) dropModule(from, index);
                   }}
