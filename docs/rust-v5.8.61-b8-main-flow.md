@@ -640,3 +640,33 @@ paylog_refund 成功 + 回写退款金额
 退款成功：update_refund_status + add_refund_amount
 支付成功：mark_paid_by_pay_sn + settle_order_by_pay_sn
 ```
+
+## 2026-10-31 补充：Apple Pay 可配置收单适配器
+
+`validateMerchant`：
+
+```text
+校验 validationUrl 必须为 apple.com
+读取 applePayMerchantCert / applePayMerchantKey
+mTLS POST Apple validationUrl
+返回 merchantSession
+```
+
+`confirm` / `confirmByPaymentMethod`：
+
+```text
+读取 paylog 金额/币种
+POST applePayAcquirerUrl
+Authorization: Bearer applePayAcquirerKey
+{ paySn, amount, currency, paymentToken, paymentMethodId }
+成功 -> mark_paid + settle
+```
+
+真实联调依赖：
+
+```text
+Apple 商户证书/私钥
+收单机构地址与密钥
+```
+
+UMS 异步通知：按 paySn/tradeNo 入账并推进订单。
