@@ -3951,3 +3951,22 @@ img {
 @media (max-width: 900px) {
   .pc-article-grid { grid-template-columns: 1fr; }
 }
+.pc-login-oauth {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+.pc-login-oauth button {
+  flex: 1;
+  height: 42px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+  font-size: 14px;
+}
+.pc-login-oauth button:hover {
+  border-color: #111827;
+  color: #111827;
+}

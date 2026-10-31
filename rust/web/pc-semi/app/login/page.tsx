@@ -67,6 +67,24 @@ export default function LoginPage() {
     }
   };
 
+  const oauthLogin = async (source: 'google' | 'facebook') => {
+    setError('');
+    try {
+      const response = await fetch(`/api/user/oauth/render/${source}?platform=pc&returnUrl=${encodeURIComponent('/')}`, {
+        credentials: 'include',
+      });
+      const json = await response.json();
+      if (!response.ok || (json.code !== undefined && json.code !== 0)) {
+        throw new Error(json.msg || json.message || '第三方登录未配置');
+      }
+      const url = typeof json.data === 'string' ? json.data : '';
+      if (!url.startsWith('http')) throw new Error('第三方登录地址无效');
+      window.location.href = url;
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '第三方登录失败');
+    }
+  };
+
   return (
     <main className="pc-login-page">
       <div className="pc-login-brand">
@@ -106,6 +124,10 @@ export default function LoginPage() {
             {loading ? '登录中...' : '登录'}
           </button>
         </form>
+        <div className="pc-login-oauth">
+          <button type="button" onClick={() => oauthLogin('google')}>Google 登录</button>
+          <button type="button" onClick={() => oauthLogin('facebook')}>Facebook 登录</button>
+        </div>
         <div className="pc-login-tip">
           还没有账号？<a href="/register">立即注册</a>
         </div>
